@@ -532,10 +532,8 @@ export default function UnifiedSettingsPage() {
         return (
           <WeekNavigationSection
             settings={editableSettings.week_navigation || {
-              enable_week_navigation: false,
               week_weekend_start: "MONDAY",
               week_month_boundary_mode: "keep_intact",
-              week_navigation_default: false,
             }}
             onChange={handleWeekNavigationChange}
             onImmediateUpdate={handleImmediateUpdate}

@@ -3,47 +3,75 @@
  * 
  * This hook replaces useVersionControl with week-centric version management,
  * providing navigation, version creation, and state management for week-based schedules.
+ * Now integrates with the settings system for configuration.
  */
 
 import { useToast } from '@/components/ui/use-toast';
-import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useMemo, useState } from 'react';
 import { DateRange } from 'react-day-picker';
 
 import {
-    createWeekVersion as apiCreateWeekVersion,
-    getNextWeek as apiGetNextWeek,
-    getPreviousWeek as apiGetPreviousWeek,
-    getWeekInfo,
+  createWeekVersion as apiCreateWeekVersion,
+  getNextWeek as apiGetNextWeek,
+  getPreviousWeek as apiGetPreviousWeek,
+  getSettings,
+  getWeekInfo,
 } from '@/services/api';
+import type { Settings } from '@/types';
 import {
-    MonthBoundaryMode,
-    VersionIdentifier,
-    WeekendStart,
-    WeekNavigationState
+  MonthBoundaryMode,
+  VersionIdentifier,
+  WeekendStart,
+  WeekNavigationState
 } from '@/types/weekVersion';
 import {
-    getCurrentWeekIdentifier,
-    getWeekFromIdentifier,
+  getCurrentWeekIdentifier,
+  getWeekFromIdentifier,
 } from '@/utils/weekUtils';
 
 interface UseWeekBasedVersionControlProps {
   initialWeek?: string;
   onWeekChanged?: (weekIdentifier: string) => void;
   onVersionSelected?: (version: VersionIdentifier) => void;
-  weekendStart?: WeekendStart;
-  monthBoundaryMode?: MonthBoundaryMode;
+  overrideSettings?: {
+    weekendStart?: WeekendStart;
+    monthBoundaryMode?: MonthBoundaryMode;
+    enableWeekNavigation?: boolean;
+  };
 }
 
 export function useWeekBasedVersionControl({
   initialWeek,
   onWeekChanged,
-  onVersionSelected, // TODO: Implement version selection functionality
-  weekendStart = WeekendStart.MONDAY,
-  monthBoundaryMode = MonthBoundaryMode.KEEP_INTACT
+  onVersionSelected,
+  overrideSettings
 }: UseWeekBasedVersionControlProps = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // Fetch settings from the settings system
+  const { data: settings, isLoading: isSettingsLoading } = useQuery<Settings>({
+    queryKey: ['settings'],
+    queryFn: getSettings,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Derive week navigation settings from settings or use defaults
+  const weekNavigationSettings = useMemo(() => {
+    const weekNavSettings = settings?.week_navigation || {
+      week_weekend_start: 'MONDAY',
+      week_month_boundary_mode: 'keep_intact',
+    };
+
+    return {
+      enableWeekNavigation: overrideSettings?.enableWeekNavigation ?? true, // Always enable week navigation
+      weekendStart: overrideSettings?.weekendStart ?? 
+        (weekNavSettings.week_weekend_start === 'SUNDAY' ? WeekendStart.SUNDAY : WeekendStart.MONDAY),
+      monthBoundaryMode: overrideSettings?.monthBoundaryMode ?? 
+        (weekNavSettings.week_month_boundary_mode === 'split_by_month' ? MonthBoundaryMode.SPLIT_ON_MONTH : MonthBoundaryMode.KEEP_INTACT),
+    };
+  }, [settings, overrideSettings]);
   
   // Initialize current week
   const [currentWeek, setCurrentWeek] = useState<string>(
@@ -146,25 +174,31 @@ export function useWeekBasedVersionControl({
     } finally {
       setIsLoading(false);
     }
-  }, [queryClient, toast]);
+  }, [queryClient, toast, onVersionSelected]);
 
-  // Calculate current date range
-  const currentWeekInfo = getWeekFromIdentifier(currentWeek);
-  const dateRange: DateRange = {
+  // Calculate current date range using settings
+  const currentWeekInfo = useMemo(() => {
+    // For now, use the standard ISO week calculation
+    // TODO: Implement settings-aware week calculation
+    return getWeekFromIdentifier(currentWeek);
+  }, [currentWeek]);
+
+  const dateRange: DateRange = useMemo(() => ({
     from: currentWeekInfo.startDate,
     to: currentWeekInfo.endDate
-  };
+  }), [currentWeekInfo]);
 
   return {
     navigationState: {
       currentWeek,
       currentVersion: selectedVersion,
       dateRange,
-      weekendStart,
-      monthBoundaryMode,
-      isLoading,
+      weekendStart: weekNavigationSettings.weekendStart,
+      monthBoundaryMode: weekNavigationSettings.monthBoundaryMode,
+      isLoading: isLoading || isSettingsLoading,
       hasVersions: false // This would be determined by API query
     } as WeekNavigationState,
+    settings: weekNavigationSettings,
     navigateToWeek,
     navigateNext,
     navigatePrevious,
@@ -174,6 +208,7 @@ export function useWeekBasedVersionControl({
     // Backwards compatibility
     selectedVersion,
     versions: [], // Would be populated by API
-    isError: false
+    isError: false,
+    isSettingsLoading,
   };
 }
