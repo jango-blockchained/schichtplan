@@ -8,8 +8,8 @@
 import { DateRange } from 'react-day-picker';
 
 // Re-export week utilities types for convenience
+export { MonthBoundaryMode, WeekendStart } from '../utils/weekUtils';
 export type { WeekInfo, WeekRange } from '../utils/weekUtils';
-export { WeekendStart, MonthBoundaryMode } from '../utils/weekUtils';
 
 // Version identifier types
 export type LegacyVersionIdentifier = number;
@@ -28,10 +28,13 @@ export interface ParsedVersionInfo {
   endWeek?: number;
   startYear?: number;
   endYear?: number;
-}// Version metadata
+}
+
+// Version metadata
 export interface WeekVersionMeta {
   version: VersionIdentifier;
   weekIdentifier?: string;
+  weekVersion?: string;  // v1, v2, v3, etc.
   dateRange: {
     start: string;
     end: string;

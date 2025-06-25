@@ -1187,6 +1187,7 @@ def duplicate_version():
         source_version = data.get("source_version")
         start_date = data.get("start_date")
         end_date = data.get("end_date")
+        week_version = data.get("week_version", "1")  # Default to "1" if not provided
         notes = data.get("notes", "")
 
         # Validate required parameters
@@ -1232,6 +1233,7 @@ def duplicate_version():
                 date_range_start=start_date,
                 date_range_end=end_date,
                 base_version=source_version,
+                week_version=week_version,
                 notes=notes or f"Duplicated from version {source_version}",
             )
             db.session.add(new_meta)
@@ -1419,4 +1421,56 @@ def create_schedule():
     except Exception as e:
         # General errors
         logger.error(f"Error in create_schedule: {str(e)}")
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route("/version/<int:version>/notes", methods=["GET"])
+def get_version_notes(version):
+    """Stub: Get notes for a specific version (returns notes from version metadata)."""
+    try:
+        version_meta = db.session.get(ScheduleVersionMeta, version)  # type: ignore
+        if not version_meta:
+            return jsonify({"error": "Version not found"}), HTTPStatus.NOT_FOUND
+        return jsonify({"version": version, "notes": version_meta.notes or ""})
+    except Exception as e:
+        logger.error(f"Error getting version notes: {str(e)}")
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route("/version/<int:version>/notes", methods=["POST"])
+def update_version_notes(version):
+    """Stub: Update notes for a specific version (updates notes in version metadata)."""
+    try:
+        data = request.get_json()
+        notes = data.get("notes", "")
+        version_meta = db.session.get(ScheduleVersionMeta, version)  # type: ignore
+        if not version_meta:
+            return jsonify({"error": "Version not found"}), HTTPStatus.NOT_FOUND
+        version_meta.notes = notes
+        version_meta.updated_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify({"message": "Notes updated", "version": version, "notes": notes})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating version notes: {str(e)}")
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route("/version/compare", methods=["POST"])
+def compare_versions():
+    """Stub: Compare two versions (returns a placeholder response)."""
+    try:
+        data = request.get_json()
+        version_a = data.get("version_a")
+        version_b = data.get("version_b")
+        # Placeholder: just echo the versions and a stub diff
+        return jsonify(
+            {
+                "version_a": version_a,
+                "version_b": version_b,
+                "diff": "Comparison not implemented yet.",
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error comparing versions: {str(e)}")
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR

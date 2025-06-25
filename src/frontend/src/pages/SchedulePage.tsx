@@ -806,7 +806,7 @@ export function SchedulePage() {
       const result = await generateAiSchedule(
         fromStr,
         toStr,
-        effectiveSelectedVersion,
+        effectiveSelectedVersionNumber,
       );
       updateGenerationStep("ai-analyze", "completed");
       updateGenerationStep("ai-generate", "in-progress");

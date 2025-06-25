@@ -1041,6 +1041,7 @@ export interface DuplicateVersionRequest {
   start_date: string;
   end_date: string;
   source_version: number;
+  week_version?: string;
   notes?: string;
 }
 

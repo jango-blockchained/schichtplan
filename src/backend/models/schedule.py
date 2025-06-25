@@ -315,6 +315,7 @@ class ScheduleVersionMeta(db.Model):
 
     # Week-based versioning fields
     week_identifier = Column(db.String(20), nullable=True, index=True)
+    week_version = Column(db.String(10), nullable=True, default="1")  # v1, v2, v3, etc.
     month_boundary_mode = Column(db.String(20), nullable=False, default="keep_intact")
     is_week_based = Column(db.Boolean, nullable=False, default=False)
 
@@ -331,6 +332,7 @@ class ScheduleVersionMeta(db.Model):
         base_version=None,
         notes=None,
         week_identifier=None,
+        week_version="1",
         month_boundary_mode="keep_intact",
         is_week_based=False,
     ):
@@ -345,6 +347,7 @@ class ScheduleVersionMeta(db.Model):
         self.base_version = base_version
         self.notes = notes
         self.week_identifier = week_identifier
+        self.week_version = week_version
         self.month_boundary_mode = month_boundary_mode
         self.is_week_based = is_week_based
 
@@ -371,6 +374,7 @@ class ScheduleVersionMeta(db.Model):
             "base_version": self.base_version,
             "notes": self.notes,
             "week_identifier": self.week_identifier,
+            "week_version": self.week_version,
             "month_boundary_mode": self.month_boundary_mode,
             "is_week_based": self.is_week_based,
         }

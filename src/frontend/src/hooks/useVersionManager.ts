@@ -55,6 +55,7 @@ interface CreateVersionOptions {
 interface DuplicateVersionOptions {
   startDate?: string;
   endDate?: string;
+  weekVersion?: string;
   notes?: string;
 }
 
@@ -252,6 +253,7 @@ export function useVersionManager({
         start_date: startDate,
         end_date: endDate,
         source_version: sourceVersion,
+        week_version: options.weekVersion,
         notes: options.notes,
       });
     },

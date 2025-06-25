@@ -105,7 +105,7 @@ export function VersionManager({
           
           {isCollapsed && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {/* Date Range Info with Week Version */}
+              {/* Date Range Info */}
               {dateRangeInfo && (
                 <Badge variant="outline">
                   {dateRangeInfo.weekRange} • {dateRangeInfo.dateRange}
@@ -117,18 +117,11 @@ export function VersionManager({
                 {totalVersions} Version{totalVersions !== 1 ? 'en' : ''}
               </Badge>
               
-              {/* Selected Version with enhanced info */}
+              {/* Selected Version */}
               {selectedVersionMeta && (
-                <div className="flex items-center gap-1">
-                  <Badge variant="default">
-                    {selectedVersionInfo}
-                  </Badge>
-                  {dateRangeInfo && (
-                    <Badge variant="outline" className="text-xs">
-                      {dateRangeInfo.weekRange}
-                    </Badge>
-                  )}
-                </div>
+                <Badge variant="default">
+                  {selectedVersionInfo}
+                </Badge>
               )}
             </div>
           )}
