@@ -11,32 +11,32 @@ This plan details the complete removal of the default navigation system and migr
 ## Phase 1: Frontend Navigation System Changes
 
 ### 1.1 Remove Default Navigation Toggle
-- [ ] **Task**: Remove navigation mode toggle from SchedulePage
+- [x] **Task**: Remove navigation mode toggle from SchedulePage
   - **File**: `/src/frontend/src/pages/SchedulePage.tsx`
   - **Action**: Remove `useWeekBasedNavigation` state and toggle UI
   - **Lines**: ~232, 1530-1550
   - **Details**: Eliminate the switch that allows users to choose between navigation modes
 
 ### 1.2 Replace Date Range Selector with Week Navigator
-- [ ] **Task**: Remove EnhancedDateRangeSelector component usage
+- [x] **Task**: Remove EnhancedDateRangeSelector component usage
   - **File**: `/src/frontend/src/pages/SchedulePage.tsx`
   - **Action**: Remove conditional rendering of EnhancedDateRangeSelector
   - **Lines**: ~1578-1593
   - **Details**: Replace with permanent WeekNavigator component
 
-- [ ] **Task**: Update WeekNavigator to be the primary navigation
+- [x] **Task**: Update WeekNavigator to be the primary navigation
   - **File**: `/src/frontend/src/components/WeekNavigator.tsx`
   - **Action**: Enhance component to be the main navigation interface
   - **Details**: Add any missing functionality from EnhancedDateRangeSelector
 
 ### 1.3 Remove Legacy Version Table
-- [ ] **Task**: Remove VersionTable component from SchedulePage
+- [x] **Task**: Remove VersionTable component from SchedulePage
   - **File**: `/src/frontend/src/pages/SchedulePage.tsx`
   - **Action**: Remove VersionTable import and usage
   - **Lines**: ~116, 1594-1610
   - **Details**: Version management will be handled by WeekVersionDisplay
 
-- [ ] **Task**: Update version management to use WeekVersionDisplay only
+- [x] **Task**: Update version management to use WeekVersionDisplay only
   - **File**: `/src/frontend/src/pages/SchedulePage.tsx`
   - **Action**: Ensure WeekVersionDisplay handles all version operations
   - **Details**: Move version creation, selection, and management to week-based system
