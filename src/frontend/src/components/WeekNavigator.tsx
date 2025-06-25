@@ -5,35 +5,38 @@
  * week display, and navigation controls.
  */
 
-import React from 'react';
-import { ChevronLeft, ChevronRight, Calendar, AlertCircle } from 'lucide-react';
-import { format, getMonth } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { WeekInfo } from '@/types/weekVersion';
+import { format } from 'date-fns';
+import { AlertCircle, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { WeekNavigationSettingsOverlay } from './WeekNavigationSettingsOverlay';
 
 interface WeekNavigatorProps {
   currentWeekInfo: WeekInfo;
   onNavigatePrevious: () => void;
   onNavigateNext: () => void;
-  onNavigateToWeek?: (weekIdentifier: string) => void;
   isLoading?: boolean;
   hasVersion?: boolean;
   showMonthBoundaryIndicator?: boolean;
   className?: string;
+  weekNavigationSettings?: {
+    weekendStart?: number; // 0 = Sunday, 1 = Monday  
+    monthBoundaryMode?: string; // 'keep_intact' or 'split_by_month'
+  };
 }
 
 export function WeekNavigator({
   currentWeekInfo,
   onNavigatePrevious,
   onNavigateNext,
-  onNavigateToWeek,
   isLoading = false,
   hasVersion = false,
   showMonthBoundaryIndicator = true,
-  className = ""
+  className = "",
+  weekNavigationSettings
 }: WeekNavigatorProps) {
   
   // Format week display
@@ -47,7 +50,7 @@ export function WeekNavigator({
   };
 
   // Check if navigation should be disabled
-  const navigationDisabled = isLoading;
+  const navigationDisabled = isLoading; // Week navigation is always enabled now
 
   return (
     <Card className={`mb-4 ${className}`}>
@@ -61,23 +64,40 @@ export function WeekNavigator({
                 Version vorhanden
               </Badge>
             )}
+            {weekNavigationSettings && (
+              <>
+                <Badge variant="secondary" className="text-xs">
+                  {weekNavigationSettings.weekendStart === 0 ? 'So-Start' : 'Mo-Start'}
+                </Badge>
+                <Badge variant="secondary" className="text-xs">
+                  {weekNavigationSettings.monthBoundaryMode === 'split_by_month' ? 'Teilen' : 'Beibehalten'}
+                </Badge>
+              </>
+            )}
           </div>
           
-          {showMonthBoundaryIndicator && currentWeekInfo.spansMonths && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center gap-1 text-amber-600">
-                    <AlertCircle className="h-4 w-4" />
-                    <span className="text-sm">Monatsgrenze</span>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Diese Woche erstreckt sich über {currentWeekInfo.months.join(' und ')}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
+          <div className="flex items-center gap-2">
+            <WeekNavigationSettingsOverlay triggerClassName="h-8" />
+            
+            {showMonthBoundaryIndicator && currentWeekInfo.spansMonths && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1 text-amber-600">
+                      <AlertCircle className="h-4 w-4" />
+                      <span className="text-sm">Monatsgrenze</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Diese Woche erstreckt sich über {currentWeekInfo.months.join(' und ')}</p>
+                    {weekNavigationSettings?.monthBoundaryMode === 'split_by_month' && (
+                      <p className="text-xs mt-1">Modus: An Monatsgrenze teilen</p>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="py-4">

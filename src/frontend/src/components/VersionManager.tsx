@@ -14,16 +14,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-    Collapsible,
-    CollapsibleContent,
-    CollapsibleTrigger,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { useQuery } from "@tanstack/react-query";
 import { DateRange } from "react-day-picker";
 
 import { DuplicateVersionModal } from "@/components/DuplicateVersionModal";
 import { VersionDetailsPanel } from "@/components/VersionDetailsPanel";
 import { VersionTable } from "@/components/VersionTableRefactored";
 import { useVersionManager } from "@/hooks/useVersionManager";
+import { getSettings } from "@/services/api";
+import type { Settings } from "@/types";
 
 interface VersionManagerProps {
   dateRange?: DateRange;
@@ -34,6 +37,10 @@ interface VersionManagerProps {
   layout?: "horizontal" | "vertical" | "table-only" | "details-only";
   isCollapsible?: boolean;
   initiallyCollapsed?: boolean;
+  weekNavigationSettings?: {
+    weekendStart?: number; // 0 = Sunday, 1 = Monday
+    monthBoundaryMode?: string; // 'keep_intact' or 'split_by_month'
+  };
 }
 
 interface VersionStatistics {
@@ -54,12 +61,27 @@ export function VersionManager({
   layout = "horizontal",
   isCollapsible = true,
   initiallyCollapsed = true,
+  weekNavigationSettings,
 }: VersionManagerProps) {
   const { state, actions } = useVersionManager({
     dateRange,
     onVersionSelected,
     autoSelectLatest,
   });
+
+  // Fetch settings if not provided
+  const { data: settings } = useQuery<Settings>({
+    queryKey: ['settings'],
+    queryFn: getSettings,
+    staleTime: 5 * 60 * 1000,
+    enabled: !weekNavigationSettings, // Only fetch if settings not provided
+  });
+
+  // Use provided settings or fall back to fetched settings
+  const effectiveSettings = weekNavigationSettings || {
+    weekendStart: settings?.week_navigation?.week_weekend_start === 'SUNDAY' ? 0 : 1,
+    monthBoundaryMode: settings?.week_navigation?.week_month_boundary_mode ?? 'keep_intact',
+  };
 
   const [selectedVersionStats, setSelectedVersionStats] = useState<VersionStatistics | null>(null);
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
@@ -75,15 +97,21 @@ export function VersionManager({
   const getDateRangeInfo = () => {
     if (!dateRange?.from || !dateRange?.to) return null;
     
-    const weekFrom = getWeek(dateRange.from, { locale: de });
-    const weekTo = getWeek(dateRange.to, { locale: de });
+    // Use settings-aware week calculation
+    const weekStartsOn = effectiveSettings.weekendStart === 0 ? 0 : 1;
+    const weekFrom = getWeek(dateRange.from, { locale: de, weekStartsOn });
+    const weekTo = getWeek(dateRange.to, { locale: de, weekStartsOn });
     const year = dateRange.from.getFullYear();
     
-    return {
+    const weekInfo = {
       weekRange: weekFrom === weekTo ? `KW ${weekFrom}` : `KW ${weekFrom}-${weekTo}`,
       dateRange: `${format(dateRange.from, "dd.MM")} - ${format(dateRange.to, "dd.MM.yyyy", { locale: de })}`,
       year,
+      weekendStart: effectiveSettings.weekendStart,
+      monthBoundaryMode: effectiveSettings.monthBoundaryMode,
     };
+    
+    return weekInfo;
   };
 
   const dateRangeInfo = getDateRangeInfo();
@@ -105,11 +133,16 @@ export function VersionManager({
           
           {isCollapsed && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {/* Date Range Info with Week Version */}
+              {/* Date Range Info with Week Version and Settings-aware display */}
               {dateRangeInfo && (
-                <Badge variant="outline">
-                  {dateRangeInfo.weekRange} • {dateRangeInfo.dateRange}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">
+                    {dateRangeInfo.weekRange} • {dateRangeInfo.dateRange}
+                  </Badge>
+                  <Badge variant="outline" className="text-xs">
+                    {effectiveSettings.weekendStart === 0 ? 'So-Start' : 'Mo-Start'}
+                  </Badge>
+                </div>
               )}
               
               {/* Version Count */}
@@ -293,7 +326,7 @@ export function VersionManager({
   if (isCollapsible) {
     return (
       <Card className={className}>
-        <Collapsible open={!isCollapsed} onOpenChange={setIsCollapsed}>
+        <Collapsible open={!isCollapsed} onOpenChange={(open) => setIsCollapsed(!open)}>
           <CollapsibleTrigger asChild>
             <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
               {renderCollapsibleHeader()}

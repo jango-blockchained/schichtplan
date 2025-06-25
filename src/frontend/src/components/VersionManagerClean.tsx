@@ -286,7 +286,7 @@ export function VersionManager({
   if (isCollapsible) {
     return (
       <Card className={className}>
-        <Collapsible open={!isCollapsed} onOpenChange={setIsCollapsed}>
+        <Collapsible open={!isCollapsed} onOpenChange={(open) => setIsCollapsed(!open)}>
           <CollapsibleTrigger asChild>
             <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
               {renderCollapsibleHeader()}
