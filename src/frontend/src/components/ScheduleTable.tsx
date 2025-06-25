@@ -39,7 +39,7 @@ import {
 } from "@/services/api";
 import { Employee, Schedule, ScheduleUpdate, ShiftType } from "@/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { addDays, endOfMonth, endOfWeek, format, isWithinInterval, parseISO, startOfMonth, startOfWeek } from "date-fns";
+import { addDays, format, isWithinInterval, parseISO } from "date-fns";
 import {
   AlertTriangle,
   ArrowDown,
@@ -1143,15 +1143,7 @@ const calculateEmployeeHours = (
   // Find the employee for keyholder calculations
   const employee = employees?.find(emp => emp.id === employeeId);
 
-  let weeklyHours = 0;
-  let monthlyHours = 0;
   let totalHours = 0;
-
-  // Get the current week and month based on the selected date range
-  const weekStart = startOfWeek(dateRange.from, { weekStartsOn: 1 }); // Monday
-  const weekEnd = endOfWeek(dateRange.from, { weekStartsOn: 1 });
-  const monthStart = startOfMonth(dateRange.from);
-  const monthEnd = endOfMonth(dateRange.from);
 
   employeeSchedules.forEach((schedule) => {
     if (!schedule.shift_start || !schedule.shift_end || !schedule.date) return;
@@ -1159,30 +1151,25 @@ const calculateEmployeeHours = (
     try {
       const scheduleDate = parseISO(schedule.date);
       
-      // Use the centralized calculateWorkingTime function that handles breaks and keyholder adjustments
-      const timeCalc = calculateWorkingTime(schedule, employee, settings);
-      const workingHours = timeCalc.workingTime;
-      
-      // Add to total hours if within date range
+      // Only include schedules within the actual displayed date range
       if (isWithinInterval(scheduleDate, { start: dateRange.from, end: dateRange.to })) {
+        // Use the centralized calculateWorkingTime function that handles breaks and keyholder adjustments
+        const timeCalc = calculateWorkingTime(schedule, employee, settings);
+        const workingHours = timeCalc.workingTime;
+        
         totalHours += workingHours;
-      }
-      
-      // Add to weekly hours if within current week
-      if (isWithinInterval(scheduleDate, { start: weekStart, end: weekEnd })) {
-        weeklyHours += workingHours;
-      }
-      
-      // Add to monthly hours if within current month
-      if (isWithinInterval(scheduleDate, { start: monthStart, end: monthEnd })) {
-        monthlyHours += workingHours;
       }
     } catch (error) {
       console.error("Error calculating hours for schedule:", error);
     }
   });
 
-  return { weeklyHours, monthlyHours, totalHours };
+  // For weekly/monthly views, the total hours within the date range IS the weekly/monthly total
+  return { 
+    weeklyHours: totalHours, 
+    monthlyHours: totalHours, 
+    totalHours: totalHours 
+  };
 };
 
 export function ScheduleTable({
@@ -1530,16 +1517,25 @@ export function ScheduleTable({
     let totalHours = 0;
 
     employeeSchedules.forEach(schedule => {
-      if (schedule.shift_start && schedule.shift_end) {
-        // Use the centralized calculateWorkingTime function that handles breaks and keyholder adjustments
-        const timeCalc = calculateWorkingTime(schedule, employee, settings);
-        totalHours += timeCalc.workingTime;
+      if (schedule.shift_start && schedule.shift_end && schedule.date) {
+        try {
+          const scheduleDate = parseISO(schedule.date);
+          
+          // Only include schedules within the actual displayed date range
+          if (isWithinInterval(scheduleDate, { start: dateRange.from, end: dateRange.to })) {
+            // Use the centralized calculateWorkingTime function that handles breaks and keyholder adjustments
+            const timeCalc = calculateWorkingTime(schedule, employee, settings);
+            totalHours += timeCalc.workingTime;
+          }
+        } catch (error) {
+          console.error("Error calculating hours for schedule:", error);
+        }
       }
     });
 
     return {
       weeklyHours: totalHours,
-      monthlyHours: totalHours, // Simplified for now
+      monthlyHours: totalHours, // For weekly/monthly views, the total within date range IS the period total
     };
   }, [employees, settings]);
 
@@ -2750,17 +2746,6 @@ const calculateDailyHours = (schedules: Schedule[], date: Date, employees?: Empl
     }
   );
   
-  // Only log if we find no schedules to debug the issue
-  if (daySchedules.length === 0) {
-    const sampleSchedules = schedules.slice(0, 3).map(s => ({
-      date: s.date,
-      dateType: typeof s.date,
-      is_empty: s.is_empty,
-      shift_id: s.shift_id
-    }));
-    console.log(`🔍 No schedules found for ${dateString}. Sample schedules:`, sampleSchedules);
-  }
-  
   return daySchedules.reduce((sum, schedule) => {
     if (schedule.shift_start && schedule.shift_end) {
       try {
@@ -2769,17 +2754,6 @@ const calculateDailyHours = (schedules: Schedule[], date: Date, employees?: Empl
         
         // Use the centralized calculateWorkingTime function that handles keyholder adjustments
         const timeCalc = calculateWorkingTime(schedule, employee, settings);
-        
-        // Debug logging
-        console.log(`📊 Daily calc for ${dateString}:`, {
-          employeeName: employee ? `${employee.first_name} ${employee.last_name}` : 'Unknown',
-          scheduleId: schedule.id,
-          shift: `${schedule.shift_start}-${schedule.shift_end}`,
-          totalTime: timeCalc.totalTime,
-          breakTime: timeCalc.breakTime,
-          workingTime: timeCalc.workingTime,
-          currentSum: sum
-        });
         
         return sum + timeCalc.workingTime;
       } catch (error) {
