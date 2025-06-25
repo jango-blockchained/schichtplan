@@ -1,40 +1,38 @@
-import React, { useState, useCallback, useEffect } from "react";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
+import { AbsenceType, EmployeeType } from "@/types";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { useDebouncedCallback } from "use-debounce";
+import ColorPicker from "./ColorPicker";
 import { Button } from "./ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "./ui/dialog";
-import { Alert, AlertDescription } from "./ui/alert";
-import { Trash2, Plus, Pencil, Loader2 } from "lucide-react";
-import ColorPicker from "./ColorPicker";
-import { EmployeeType, AbsenceType } from "@/types";
-import { useDebouncedCallback } from "use-debounce";
+import { Input } from "./ui/input";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
 } from "./ui/table";
 
 // Import react-hook-form and Shadcn Form components
+import {
+    Form,
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from "@/components/ui/form";
+import { zodResolver } from "@hookform/resolvers/zod"; // Resolver for zod
 import { useForm } from "react-hook-form";
 import { z } from "zod"; // Using zod for schema validation
-import { zodResolver } from "@hookform/resolvers/zod"; // Resolver for zod
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 
 export type GroupType = EmployeeType | AbsenceType;
 

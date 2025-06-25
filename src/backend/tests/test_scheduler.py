@@ -4,19 +4,20 @@ Script to test the schedule generation process with improved demo data.
 This is set up as a Flask CLI command to ensure proper app context.
 """
 
-import click
-from flask.cli import with_appcontext
-from datetime import date, timedelta
 import logging
 import random
+from datetime import date, timedelta
+
+import click
+from flask.cli import with_appcontext
 from models import (
-    db,
-    Settings,
-    Employee,
     Coverage,
+    Employee,
     EmployeeAvailability,
-    ShiftTemplate,
     Schedule,
+    Settings,
+    ShiftTemplate,
+    db,
 )
 from models.employee import AvailabilityType
 from models.fixed_shift import ShiftType
@@ -49,8 +50,20 @@ def generate_improved_employee_data():
             "max_hours": 40.0,
             "count": 3,
         },
-        {"id": "VZ", "name": "Vollzeit", "min_hours": 35.0, "max_hours": 40.0, "count": 7},
-        {"id": "TZ", "name": "Teilzeit", "min_hours": 15.0, "max_hours": 34.5, "count": 12},
+        {
+            "id": "VZ",
+            "name": "Vollzeit",
+            "min_hours": 35.0,
+            "max_hours": 40.0,
+            "count": 7,
+        },
+        {
+            "id": "TZ",
+            "name": "Teilzeit",
+            "min_hours": 15.0,
+            "max_hours": 34.5,
+            "count": 12,
+        },
         {
             "id": "GFB",
             "name": "Geringfügig Beschäftigt",

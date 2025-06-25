@@ -208,6 +208,12 @@ def create_app(config_class=Config):
 
     app.register_blueprint(mcp_bp, url_prefix="/api/v2")
 
+    # Register MCP health check routes for frontend monitoring
+    from src.backend.routes.mcp_health_routes import get_mcp_health_routes
+
+    mcp_health_bp = get_mcp_health_routes()
+    app.register_blueprint(mcp_health_bp)
+
     # Register AI routes
     from src.backend.routes.ai_routes import ai_bp, init_ai_services
 
