@@ -1,0 +1,3 @@
+# Abstract
+
+This abstract summarizes the Proof of Concept (PoC) for the Schichtplan project, a full-stack, AI-ready employee scheduling system. Schichtplan integrates a modern React/TypeScript frontend, a robust Python/Flask backend, and an AI-powered Model Context Protocol (MCP) server to deliver advanced shift planning, optimization, and analytics. The system supports automated shift assignment, employee group management, customizable exports, and seamless AI integration for intelligent scheduling and decision support. This PoC demonstrates the technical architecture, AI integration points, and unique selling points, establishing Schichtplan as a foundation for next-generation, intelligent workforce management solutions.

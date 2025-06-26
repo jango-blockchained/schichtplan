@@ -288,6 +288,15 @@ export function SchedulePage() {
       : undefined;
   const effectiveDateRange = weekBasedVersionControl.navigationState.dateRange;
 
+  // Debug logging for effective date range
+  console.log("🔍 Debug Date Range:", {
+    navigationState: weekBasedVersionControl.navigationState,
+    effectiveDateRange,
+    currentWeek: weekBasedVersionControl.navigationState.currentWeek,
+    dateRangeFrom: effectiveDateRange?.from,
+    dateRangeTo: effectiveDateRange?.to
+  });
+
   // Ensure effectiveDateRange always has .from and .to as Date objects
   const safeEffectiveDateRange = {
     from: effectiveDateRange?.from ? new Date(effectiveDateRange.from) : new Date(),
@@ -709,7 +718,7 @@ export function SchedulePage() {
   // Define handlers that might depend on the fully initialized state and hooks
 
   // Define other handlers that might depend on the fully initialized state and hooks
-  const handleGenerateStandardSchedule = () => {
+  const handleGenerateStandardSchedule = async () => {
     if (!effectiveDateRange?.from || !effectiveDateRange?.to) {
       toast({
         title: "Zeitraum erforderlich",
@@ -718,28 +727,36 @@ export function SchedulePage() {
       });
       return;
     }
-    if (!effectiveSelectedVersionNumber) {
-      toast({
-        title: "Version erforderlich",
-        description: "Bitte wählen Sie eine Version aus.",
-        variant: "destructive",
-      });
-      return;
+    
+    let versionNumber = effectiveSelectedVersionNumber;
+    
+    if (!versionNumber) {
+      // Auto-create a version for the current week
+      try {
+        console.log("Auto-creating version for current week:", weekBasedVersionControl.navigationState.currentWeek);
+        const result = await weekBasedVersionControl.createVersionForWeek(weekBasedVersionControl.navigationState.currentWeek);
+        versionNumber = result.version;
+        
+        toast({
+          title: "Version erstellt",
+          description: "Eine neue Version wurde automatisch erstellt.",
+        });
+      } catch {
+        toast({
+          title: "Fehler beim Erstellen der Version",
+          description: "Die Version konnte nicht automatisch erstellt werden.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
-    if (!currentWeekVersions[0]) {
-      toast({
-        title: "Versionen werden geladen",
-        description: "Bitte warten Sie.",
-        variant: "destructive",
-      });
-      return;
-    }
+    
     const formattedFromDate = format(effectiveDateRange!.from!, "yyyy-MM-dd");
     const formattedToDate = format(effectiveDateRange!.to!, "yyyy-MM-dd");
     addGenerationLog(
       "info",
       "Starting STANDARD schedule generation",
-      `Version: ${effectiveSelectedVersionNumber}, Date range: ${formattedFromDate} - ${formattedToDate}`,
+      `Version: ${versionNumber}, Date range: ${formattedFromDate} - ${formattedToDate}`,
     );
     generate();
   };
@@ -861,14 +878,30 @@ export function SchedulePage() {
       });
       return;
     }
-    if (!effectiveSelectedVersion) {
-      toast({
-        title: "Version erforderlich (Schnelle KI)",
-        description: "Bitte Version für schnelle KI-Generierung wählen.",
-        variant: "destructive",
-      });
-      return;
+    
+    let versionNumber = effectiveSelectedVersionNumber;
+    
+    if (!versionNumber) {
+      // Auto-create a version for the current week
+      try {
+        console.log("Auto-creating version for current week:", weekBasedVersionControl.navigationState.currentWeek);
+        const result = await weekBasedVersionControl.createVersionForWeek(weekBasedVersionControl.navigationState.currentWeek);
+        versionNumber = result.version;
+        
+        toast({
+          title: "Version erstellt",
+          description: "Eine neue Version wurde automatisch erstellt.",
+        });
+      } catch {
+        toast({
+          title: "Fehler beim Erstellen der Version",
+          description: "Die Version konnte nicht automatisch erstellt werden.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
+    
     setIsAiFastGenerating(true);
     clearGenerationLogs();
     const aiSteps = [
@@ -898,7 +931,7 @@ export function SchedulePage() {
     addGenerationLog(
       "info",
       "Starting fast AI schedule generation",
-      `Version: ${effectiveSelectedVersion}, Date range: ${format(effectiveDateRange!.from!, "yyyy-MM-dd")} - ${format(effectiveDateRange!.to!, "yyyy-MM-dd")}`,
+      `Version: ${versionNumber}, Date range: ${format(effectiveDateRange!.from!, "yyyy-MM-dd")} - ${format(effectiveDateRange!.to!, "yyyy-MM-dd")}`,
     );
     try {
       updateGenerationStep("ai-fast-init", "in-progress");
@@ -911,7 +944,7 @@ export function SchedulePage() {
       const result = await generateAiSchedule(
         fromStr,
         toStr,
-        effectiveSelectedVersion,
+        versionNumber,
       );
       updateGenerationStep("ai-fast-analyze", "completed");
       updateGenerationStep("ai-fast-generate", "in-progress");
@@ -960,14 +993,30 @@ export function SchedulePage() {
       });
       return;
     }
-    if (!effectiveSelectedVersion) {
-      toast({
-        title: "Version erforderlich (Erweiterte KI)",
-        description: "Bitte Version für erweiterte KI-Generierung wählen.",
-        variant: "destructive",
-      });
-      return;
+    
+    let versionNumber = effectiveSelectedVersionNumber;
+    
+    if (!versionNumber) {
+      // Auto-create a version for the current week
+      try {
+        console.log("Auto-creating version for current week:", weekBasedVersionControl.navigationState.currentWeek);
+        const result = await weekBasedVersionControl.createVersionForWeek(weekBasedVersionControl.navigationState.currentWeek);
+        versionNumber = result.version;
+        
+        toast({
+          title: "Version erstellt",
+          description: "Eine neue Version wurde automatisch erstellt.",
+        });
+      } catch {
+        toast({
+          title: "Fehler beim Erstellen der Version",
+          description: "Die Version konnte nicht automatisch erstellt werden.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
+    
     // Open the detailed AI modal instead of running generation immediately
     setIsDetailedAiModalOpen(true);
   };
@@ -1004,10 +1053,14 @@ export function SchedulePage() {
     ];
     setGenerationSteps(aiSteps);
     setShowGenerationOverlay(true);
+    
+    // Use the current effective version number, which should be available after creation in handleGenerateAiDetailedSchedule
+    const versionNumber = effectiveSelectedVersionNumber;
+    
     addGenerationLog(
       "info",
       "Starting detailed AI schedule generation",
-      `Version: ${effectiveSelectedVersion}, Date range: ${format(effectiveDateRange!.from!, "yyyy-MM-dd")} - ${format(effectiveDateRange!.to!, "yyyy-MM-dd")}, Options: ${JSON.stringify(options)}`,
+      `Version: ${versionNumber}, Date range: ${format(effectiveDateRange!.from!, "yyyy-MM-dd")} - ${format(effectiveDateRange!.to!, "yyyy-MM-dd")}, Options: ${JSON.stringify(options)}`,
     );
     try {
       updateGenerationStep("ai-detailed-init", "in-progress");
@@ -1021,7 +1074,7 @@ export function SchedulePage() {
       const result = await generateAiSchedule(
         fromStr,
         toStr,
-        effectiveSelectedVersion,
+        versionNumber!,
       );
       updateGenerationStep("ai-detailed-analyze", "completed");
       updateGenerationStep("ai-detailed-generate", "in-progress");
@@ -1061,14 +1114,24 @@ export function SchedulePage() {
     }
   };
 
-  const handleAddSchedule = () => {
+  const handleAddSchedule = async () => {
     if (!effectiveSelectedVersion) {
-      toast({
-        title: "Keine Version ausgewählt",
-        description: "Bitte Version wählen.",
-        variant: "destructive",
-      });
-      return;
+      // Auto-create a version for the current week
+      try {
+        console.log("Auto-creating version for current week:", weekBasedVersionControl.navigationState.currentWeek);
+        await weekBasedVersionControl.createVersionForWeek(weekBasedVersionControl.navigationState.currentWeek);
+        toast({
+          title: "Version erstellt",
+          description: "Eine neue Version wurde automatisch erstellt.",
+        });
+      } catch {
+        toast({
+          title: "Fehler beim Erstellen der Version",
+          description: "Die Version konnte nicht automatisch erstellt werden.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
     setIsAddScheduleDialogOpen(true);
   };
@@ -1183,7 +1246,7 @@ export function SchedulePage() {
           const deletePromises = schedulesToDelete.map((s) =>
             updateSchedule(s.id, {
               shift_id: null,
-              version: effectiveSelectedVersion,
+              version: effectiveSelectedVersionNumber || 1,
             }),
           );
           const batchSize = 10;
@@ -1260,7 +1323,7 @@ export function SchedulePage() {
     try {
       const updateData: Partial<ScheduleUpdate> = {
         shift_id: newShiftId,
-        version: effectiveSelectedVersion,
+        version: effectiveSelectedVersionNumber || 1,
         employee_id: newEmployeeId,
       };
 
@@ -1294,10 +1357,8 @@ export function SchedulePage() {
       return;
     }
 
-    // Extract just the version number from the version control object
-    const versionNumber = (effectiveSelectedVersion && typeof effectiveSelectedVersion === 'object') 
-      ? effectiveSelectedVersion?.version 
-      : effectiveSelectedVersion;
+    // Use the numeric version number directly
+    const versionNumber = effectiveSelectedVersionNumber || 1;
 
     console.log("🔧 handleDockDrop:", {
       employeeId,
@@ -1328,7 +1389,7 @@ export function SchedulePage() {
         variant: "destructive",
       });
     }
-  }, [effectiveSelectedVersion, queryClient, toast]);
+  }, [effectiveSelectedVersion, effectiveSelectedVersionNumber, queryClient, toast]);
 
   // Add event listener for dock drops from schedule cells
   useEffect(() => {
@@ -1357,7 +1418,7 @@ export function SchedulePage() {
     try {
       const updateData = {
         ...updates,
-        version: effectiveSelectedVersion,
+        version: effectiveSelectedVersionNumber || 1,
       };
 
       await updateSchedule(scheduleId, updateData);
@@ -1379,7 +1440,7 @@ export function SchedulePage() {
   const handleGenerationRequirementsUpdate = (updatedRequirements: Record<string, boolean>) => {
     if (!settingsQuery.data) return;
     
-    const updatedSettings: Settings = {
+    const updatedSettings: SettingsType = {
       ...settingsQuery.data,
       scheduling: {
         ...settingsQuery.data.scheduling,
@@ -1390,7 +1451,7 @@ export function SchedulePage() {
     handleSettingsUpdate(updatedSettings);
   };
 
-  const handleSettingsUpdate = async (updatedSettings: Settings) => {
+  const handleSettingsUpdate = async (updatedSettings: SettingsType) => {
     try {
       await updateSettings(updatedSettings);
       queryClient.invalidateQueries({ queryKey: ["settings"] });
@@ -1490,19 +1551,11 @@ export function SchedulePage() {
           isGenerating={isPending || isAiGenerating}
           isAiFastGenerating={isAiFastGenerating}
           isAiDetailedGenerating={isAiDetailedGenerating}
-          canAdd={
-            !!effectiveDateRange?.from &&
-            !!effectiveDateRange?.to &&
-            !!effectiveSelectedVersion
-          }
+          canAdd={!!effectiveDateRange?.from && !!effectiveDateRange?.to}
           canDelete={
             scheduleData?.length > 0 && !!effectiveSelectedVersion
           }
-          canGenerate={
-            !!effectiveDateRange?.from &&
-            !!effectiveDateRange?.to &&
-            !!effectiveSelectedVersion
-          }
+          canGenerate={!!effectiveDateRange?.from && !!effectiveDateRange?.to}
           hasScheduleData={scheduleData?.length > 0}
           onAddSchedule={handleAddSchedule}
           onAddFixed={handleAddFixed}
@@ -1622,7 +1675,7 @@ export function SchedulePage() {
                     .filter(type => type.type === "absence")
                     .map(type => ({ ...type, type: "absence" as const }))
                 }
-                currentVersion={effectiveSelectedVersion}
+                currentVersion={effectiveSelectedVersionNumber || 1}
                 openingDays={openingDays}
                 isEmptyState={
                   !scheduleData ||
@@ -1639,7 +1692,7 @@ export function SchedulePage() {
         
         {/* Schedule Dock - Sticky bottom dock for drag and drop */}
         <ActionDock
-          currentVersion={effectiveSelectedVersion}
+          currentVersion={effectiveSelectedVersionNumber || 1}
           selectedDate={effectiveDateRange?.from}
           dateRange={effectiveDateRange}
           versionMeta={convertToWeekVersionMeta(currentWeekVersions[0])}
@@ -1718,7 +1771,7 @@ export function SchedulePage() {
           isOpen={isAddScheduleDialogOpen}
           onClose={() => setIsAddScheduleDialogOpen(false)}
           onAddSchedule={handleCreateSchedule}
-          version={effectiveSelectedVersion}
+          version={effectiveSelectedVersionNumber || 1}
           defaultDate={effectiveDateRange?.from}
         />
       )}
@@ -1743,7 +1796,7 @@ export function SchedulePage() {
         schedules={scheduleData || []}
         employees={employees || []}
         dateRange={effectiveDateRange}
-        version={effectiveSelectedVersion}
+        version={effectiveSelectedVersionNumber || 1}
       />
       
       <DiagnosticsDialog
