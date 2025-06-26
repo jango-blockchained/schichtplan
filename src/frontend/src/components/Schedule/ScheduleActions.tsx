@@ -19,17 +19,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   BarChart3,
-  CalendarPlus,
-  CheckCircle,
-  Eye,
-  Heart,
+  ChevronDown,
   Loader2,
   Play,
   Plus,
   Settings,
-  Sliders,
   Trash2,
-  XCircle,
+  Wand2,
   Zap,
 } from "lucide-react";
 import { useState } from "react";
@@ -71,15 +67,10 @@ export function ScheduleActions({
   onAddFixed,
   onAddUnavailable,
   onAddPreferred,
-  isLoading,
   isGenerating,
   isAiFastGenerating,
   isAiDetailedGenerating,
-  canAdd,
-  canDelete,
-  canGenerate,
   isAiEnabled,
-  hasScheduleData,
 }: ScheduleActionsProps) {
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -96,154 +87,166 @@ export function ScheduleActions({
   const isAnyAiGenerating = isAiFastGenerating || isAiDetailedGenerating;
 
   return (
-    <div className="flex space-x-2">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            className="flex items-center gap-1"
-            disabled={isLoading || !canAdd}
-          >
-            <Plus className="h-4 w-4" />
-            <span>Hinzufügen</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem onClick={onAddSchedule}>
-            <CalendarPlus className="h-4 w-4 mr-2" />
-            <span>Neue Schicht</span>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={onAddFixed}>
-            <CheckCircle className="h-4 w-4 mr-2" />
-            <span>Feste Verfügbarkeiten</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={onAddPreferred}>
-            <Heart className="h-4 w-4 mr-2" />
-            <span>Bevorzugte Verfügbarkeiten</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={onAddUnavailable}>
-            <XCircle className="h-4 w-4 mr-2" />
-            <span>Nicht verfügbare Zeiten</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            className="flex items-center gap-1"
-            disabled={isLoading || !canGenerate || isGenerating || isAnyAiGenerating}
-          >
-            <Play className="h-4 w-4" />
-            <span>Generieren</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-64">
-          <DropdownMenuItem onClick={onOpenGenerationSettings}>
-            <Settings className="h-4 w-4 mr-2" />
-            <span>Einstellungen</span>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={onGenerateStandardSchedule}
-            disabled={isGenerating || isLoading || isAnyAiGenerating}
-          >
-            {isGenerating ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Play className="h-4 w-4 mr-2" />
-            )}
-            <span>Standard Generierung</span>
-          </DropdownMenuItem>
-          {isAiEnabled && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={onGenerateAiFastSchedule}
-                disabled={isGenerating || isLoading || isAnyAiGenerating}
+    <div>
+      <div className="flex space-x-2">
+        {/* Add Schedule Dropdown - always enabled */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="flex items-center gap-1"
+                // disabled={isLoading || !canAdd}
               >
-                {isAiFastGenerating ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Zap className="h-4 w-4 mr-2" />
-                )}
-                <span>Schnelle KI-Generierung</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={onGenerateAiDetailedSchedule}
-                disabled={isGenerating || isLoading || isAnyAiGenerating}
-              >
-                {isAiDetailedGenerating ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Sliders className="h-4 w-4 mr-2" />
-                )}
-                <span>Erweiterte KI-Generierung</span>
+                <Plus className="h-4 w-4" />
+                <span>Hinzufügen</span>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={onAddSchedule}>
+                <Plus className="h-4 w-4 mr-2" />
+                Schicht hinzufügen
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={onPreviewAiData}
-                disabled={isGenerating || isLoading || isAnyAiGenerating}
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                <span>KI Daten Vorschau</span>
+              <DropdownMenuItem onClick={onAddFixed}>
+                <Settings className="h-4 w-4 mr-2" />
+                Feste Verfügbarkeit
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={onImportAiResponse}
-                disabled={isGenerating || isLoading || isAnyAiGenerating}
-              >
-                <CalendarPlus className="h-4 w-4 mr-2" />
-                <span>KI Response Importieren</span>
+              <DropdownMenuItem onClick={onAddPreferred}>
+                <Settings className="h-4 w-4 mr-2" />
+                Bevorzugte Verfügbarkeit
               </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+              <DropdownMenuItem onClick={onAddUnavailable}>
+                <Settings className="h-4 w-4 mr-2" />
+                Nicht verfügbar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* Disabled message removed */}
+        </div>
 
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
+        {/* Generate Schedule Dropdown - always enabled */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="flex items-center gap-1"
+                // disabled={isLoading || !canGenerate || isGenerating || isAnyAiGenerating}
+              >
+                {(isGenerating || isAnyAiGenerating) ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4" />
+                )}
+                <span>Generieren</span>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem 
+                onClick={onGenerateStandardSchedule}
+                // disabled={isGenerating || isAnyAiGenerating}
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Standard-Generierung
+              </DropdownMenuItem>
+              {isAiEnabled && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={onGenerateAiFastSchedule}
+                    // disabled={isGenerating || isAnyAiGenerating || isAiFastGenerating}
+                  >
+                    {isAiFastGenerating ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Zap className="h-4 w-4 mr-2" />
+                    )}
+                    KI Schnell-Generierung
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={onGenerateAiDetailedSchedule}
+                    // disabled={isGenerating || isAnyAiGenerating || isAiDetailedGenerating}
+                  >
+                    {isAiDetailedGenerating ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Wand2 className="h-4 w-4 mr-2" />
+                    )}
+                    KI Detail-Generierung
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onOpenGenerationSettings}>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Einstellungen
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onPreviewAiData}>
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    KI-Daten Vorschau
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onImportAiResponse}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    KI-Antwort importieren
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* Disabled message removed */}
+        </div>
+
+        {/* Delete Button - always enabled */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                className="flex items-center gap-1"
+                // disabled={isLoading || !canDelete || isDeleting}
+              >
+                {isDeleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                <span>Löschen</span>
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Schichtplan löschen</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Möchten Sie wirklich alle Schichtpläne der aktuellen Version
+                  löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDelete}>
+                  Löschen
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          {/* Disabled message removed */}
+        </div>
+
+        {/* Statistics Button - always enabled */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <Button
             variant="outline"
             className="flex items-center gap-1"
-            disabled={isLoading || !canDelete || isDeleting}
+            // disabled={!hasScheduleData}
+            onClick={onOpenStatistics}
           >
-            {isDeleting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4" />
-            )}
-            <span>Löschen</span>
+            <BarChart3 className="h-4 w-4" />
+            <span>Statistiken</span>
           </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Schichtplan löschen</AlertDialogTitle>
-            <AlertDialogDescription>
-              Möchten Sie wirklich alle Schichtpläne der aktuellen Version
-              löschen? Diese Aktion kann nicht rückgängig gemacht werden.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>
-              Löschen
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Statistics Button */}
-      <Button
-        variant="outline"
-        className="flex items-center gap-1"
-        disabled={!hasScheduleData}
-        onClick={onOpenStatistics}
-      >
-        <BarChart3 className="h-4 w-4" />
-        <span>Statistiken</span>
-      </Button>
+          {/* Disabled message removed */}
+        </div>
+      </div>
     </div>
   );
 }

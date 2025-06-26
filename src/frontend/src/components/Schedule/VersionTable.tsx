@@ -1,36 +1,11 @@
-import React, { useState } from "react";
-import { format } from "date-fns";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { differenceInDays } from "date-fns";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Check,
-  Archive,
-  Pencil,
-  Calendar,
-  Trash,
-  Copy,
-  Plus,
-  Info,
-  ChevronDown,
-  ChevronRight,
-} from "lucide-react";
-import { VersionMeta } from "@/services/api";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Pagination,
   PaginationContent,
@@ -48,10 +23,33 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { VersionMeta } from "@/services/api";
+import { differenceInDays, format } from "date-fns";
+import {
+  Archive,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Info,
+  Pencil,
+  Plus,
+  Trash
+} from "lucide-react";
+import { useState } from "react";
 
 interface VersionTableProps {
   versions: VersionMeta[];
@@ -78,6 +76,8 @@ export function VersionTable({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [isOpen, setIsOpen] = useState(true);
+  const [filterByDate, setFilterByDate] = useState(false);
+  const [dateRange, setDateRange] = useState<{ start: string; end: string } | null>(null);
 
   if (!versions || versions.length === 0) {
     return (
@@ -141,8 +141,19 @@ export function VersionTable({
     }
   };
 
+  // Filter versions by date range if enabled
+  const filteredVersions = filterByDate && dateRange
+    ? versions.filter(v => {
+        const vStart = new Date(v.date_range.start);
+        const vEnd = new Date(v.date_range.end);
+        const fStart = new Date(dateRange.start);
+        const fEnd = new Date(dateRange.end);
+        return vStart >= fStart && vEnd <= fEnd;
+      })
+    : versions;
+
   // Sort versions by version number descending
-  const sortedVersions = [...versions].sort((a, b) => b.version - a.version);
+  const sortedVersions = [...filteredVersions].sort((a, b) => b.version - a.version);
 
   // Pagination calculations
   const totalPages = Math.ceil(sortedVersions.length / itemsPerPage);
@@ -256,7 +267,7 @@ export function VersionTable({
               ) : (
                 <ChevronRight className="h-4 w-4" />
               )}
-              <CardTitle className="text-lg font-semibold">Versionen ({versions.length})</CardTitle>
+              <CardTitle className="text-lg font-semibold">Versionen ({filteredVersions.length})</CardTitle>
             </Button>
           </CollapsibleTrigger>
           {onCreateNewVersion && (
@@ -273,6 +284,35 @@ export function VersionTable({
         </CardHeader>
         <CollapsibleContent>
           <CardContent className="p-0">
+            {/* Date Range Filter UI */}
+            <div className="flex items-center gap-4 px-4 py-2">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={filterByDate}
+                  onChange={e => setFilterByDate(e.target.checked)}
+                />
+                <span className="text-sm">Nach Zeitraum filtern</span>
+              </label>
+              {filterByDate && (
+                <>
+                  <input
+                    type="date"
+                    value={dateRange?.start || ''}
+                    onChange={e => setDateRange(r => ({ ...r, start: e.target.value }))}
+                    className="border rounded px-2 py-1 text-sm"
+                  />
+                  <span className="text-sm">bis</span>
+                  <input
+                    type="date"
+                    value={dateRange?.end || ''}
+                    onChange={e => setDateRange(r => ({ ...r, end: e.target.value }))}
+                    className="border rounded px-2 py-1 text-sm"
+                  />
+                </>
+              )}
+            </div>
+
             <div className="border border-border rounded-lg m-4">
               <Table>
                 <TableHeader>
