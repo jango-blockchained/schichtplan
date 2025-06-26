@@ -147,8 +147,7 @@ const calculateBaseDuration = (startTime: string, endTime: string): number => {
     }
     
     return (endMinutes - startMinutes) / 60; // Return in hours
-  } catch (error) {
-    console.error("Error calculating base duration:", error);
+  } catch {
     return 0;
   }
 };
@@ -189,8 +188,7 @@ const calculateBreakDuration = (schedule: Schedule, employee?: Employee, setting
     }
     
     return baseBreak;
-  } catch (error) {
-    console.error("Error calculating break duration:", error);
+  } catch {
     return 0;
   }
 };
@@ -295,8 +293,7 @@ const TimeSlotDisplay = ({
       }
       
       return (endTotalMinutes - startTotalMinutes) / 60;
-    } catch (error) {
-      console.error("Error calculating duration:", error);
+    } catch {
       return 0;
     }
   };
@@ -388,19 +385,7 @@ const TimeSlotDisplay = ({
   const hasMissingTimeData = (!startTime || !endTime) && schedule?.shift_id;
 
   // Enhanced debug logging for time slot display
-  useEffect(() => {
-    if (hasMissingTimeData) {
-      console.log("🚨 TimeSlotDisplay: Missing time data for shift:", {
-        scheduleId: schedule?.id,
-        shiftId: schedule?.shift_id,
-        date: schedule?.date,
-        startTime,
-        endTime,
-        shiftType,
-        shift_type_name: schedule?.shift_type_name,
-      });
-    }
-  }, [hasMissingTimeData, schedule, startTime, endTime, shiftType]);
+  // Remove debug logging for production
 
   // Get adjusted times for display
   const { adjustedStartTime, adjustedEndTime } = getAdjustedTimes();
@@ -601,7 +586,7 @@ const ScheduleCell = ({
     drop: (item: DragItem) => {
       // Check availability before allowing drop
       if (employeeAvailable === false) {
-        console.warn("Cannot assign schedule: Employee is unavailable on this date");
+        // Employee is unavailable on this date
         return;
       }
       
@@ -610,11 +595,6 @@ const ScheduleCell = ({
         // For dock items, we need to create a new schedule
         if (item.shiftId && item.shiftId > 0) {
           // This is a shift being dropped from the dock onto an employee cell
-          console.log("📋 Creating new schedule from dock shift:", {
-            employeeId,
-            shiftId: item.shiftId,
-            date: format(date, "yyyy-MM-dd")
-          });
           
           // Call the dock drop handler through a global mechanism or context
           // For now, we'll use a custom event to communicate with the parent
@@ -624,7 +604,7 @@ const ScheduleCell = ({
           window.dispatchEvent(dockDropEvent);
         } else if (item.employeeId && item.employeeId > 0) {
           // This is an employee being dropped from the dock (not yet implemented)
-          console.log("👤 Employee dock drop not yet implemented");
+          // Employee dock drop not yet implemented
         }
       } else {
         // Handle existing schedule items (original behavior)
@@ -678,27 +658,14 @@ const ScheduleCell = ({
         const formattedDate = format(date, "yyyy-MM-dd");
         const result = await checkEmployeeAvailabilityForDate(employeeId, formattedDate);
         
-        console.log(`[AVAILABILITY] Employee ${employeeId} on ${formattedDate}:`, result);
-        
         // The API returns an object with is_available property
         const isAvailable = result.is_available;
         setEmployeeAvailable(isAvailable);
         setAbsenceInfo(result.absence_info || null);
         setCachedAvailability(employeeId, date, isAvailable);
         
-        // Debug specifically for Maike on Tuesday
-        if (employeeId === 9 && date.getDay() === 2) { // Maike on Tuesday
-          console.log(`[DEBUG] Maike availability on Tuesday:`, {
-            employeeId,
-            date: formattedDate,
-            dayOfWeek: date.getDay(),
-            result,
-            isAvailable
-          });
-        }
         
-      } catch (error) {
-        console.error("Failed to check employee availability:", error);
+      } catch {
         // Default to available on error but log the issue
         setEmployeeAvailable(true);
       } finally {

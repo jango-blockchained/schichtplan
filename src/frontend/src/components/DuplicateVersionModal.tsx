@@ -5,7 +5,7 @@
  * when duplicating a schedule version.
  */
 
-import { addWeeks, endOfWeek, format, getWeek, startOfWeek } from "date-fns";
+import { addWeeks, endOfWeek, format, getWeek, parseISO, startOfWeek } from "date-fns";
 import { de } from "date-fns/locale";
 import { Calendar, Copy } from "lucide-react";
 import { useState } from "react";
@@ -33,6 +33,14 @@ interface DuplicateVersionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sourceVersion: number;
+  sourceVersionMeta?: {
+    version: number;
+    status: string;
+    date_range_start?: string;
+    date_range_end?: string;
+    notes?: string;
+    created_at?: string;
+  };
   onDuplicate: (options: {
     startDate: string;
     endDate: string;
@@ -46,6 +54,7 @@ export function DuplicateVersionModal({
   open,
   onOpenChange,
   sourceVersion,
+  sourceVersionMeta,
   onDuplicate,
   isLoading = false,
 }: DuplicateVersionModalProps) {
@@ -107,11 +116,38 @@ export function DuplicateVersionModal({
             Version {sourceVersion} duplizieren
           </DialogTitle>
           <DialogDescription>
-            Wählen Sie die Zielwoche aus, in die die Schichtpläne kopiert werden sollen.
+            Erstellen Sie eine neue Version basierend auf Version {sourceVersion}. Wählen Sie den Zielzeitraum, in den die Schichtpläne kopiert werden sollen.
+            Die Schichtpläne werden entsprechend der Zeitverschiebung angepasst.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
+          {/* Source Version Info */}
+          <div className="rounded-md border p-3 bg-blue-50 dark:bg-blue-950/20">
+            <div className="flex items-center gap-2 text-sm font-medium mb-2">
+              <Copy className="h-4 w-4 text-blue-600" />
+              Quellversion
+            </div>
+            <div className="text-sm">
+              <div className="font-medium">Version {sourceVersion}</div>
+              {sourceVersionMeta && (
+                <>
+                  {sourceVersionMeta.date_range_start && sourceVersionMeta.date_range_end && (
+                    <div className="text-muted-foreground mt-1">
+                      {format(parseISO(sourceVersionMeta.date_range_start), "dd.MM.yyyy", { locale: de })} -{" "}
+                      {format(parseISO(sourceVersionMeta.date_range_end), "dd.MM.yyyy", { locale: de })}
+                    </div>
+                  )}
+                  {sourceVersionMeta.notes && (
+                    <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                      {sourceVersionMeta.notes}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
           {/* Year and Week Selection */}
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
@@ -175,17 +211,19 @@ export function DuplicateVersionModal({
           </div>
 
           {/* Date Range Preview */}
-          <div className="rounded-md border p-3 bg-muted/50">
-            <div className="flex items-center gap-2 text-sm font-medium mb-1">
-              <Calendar className="h-4 w-4" />
-              Gewählter Zeitraum
+          <div className="rounded-md border p-3 bg-green-50 dark:bg-green-950/20">
+            <div className="flex items-center gap-2 text-sm font-medium mb-2">
+              <Calendar className="h-4 w-4 text-green-600" />
+              Zielzeitraum
             </div>
-            <div className="text-sm text-muted-foreground">
-              {format(startDate, "EEEE, dd.MM.yyyy", { locale: de })} bis{" "}
-              {format(endDate, "EEEE, dd.MM.yyyy", { locale: de })}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              KW {selectedWeek}/{selectedYear} v{weekVersion} ({format(startDate, "dd.MM")} - {format(endDate, "dd.MM")})
+            <div className="text-sm">
+              <div className="font-medium">
+                {format(startDate, "EEEE, dd.MM.yyyy", { locale: de })} bis{" "}
+                {format(endDate, "EEEE, dd.MM.yyyy", { locale: de })}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                KW {selectedWeek}/{selectedYear} v{weekVersion} ({format(startDate, "dd.MM")} - {format(endDate, "dd.MM")})
+              </div>
             </div>
           </div>
 

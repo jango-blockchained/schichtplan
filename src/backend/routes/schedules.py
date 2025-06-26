@@ -1,27 +1,28 @@
-from flask import Blueprint, request, jsonify, current_app, send_file
+from datetime import date, datetime, timedelta
 from http import HTTPStatus
-from datetime import datetime, date, timedelta
+
+from flask import Blueprint, current_app, jsonify, request, send_file
+from pydantic import ValidationError
 from sqlalchemy import desc, text
 from sqlalchemy.exc import IntegrityError
-from pydantic import ValidationError
 
 # Import the standard logging library
 from src.backend.models import db
-from src.backend.models.schedule import Schedule, ScheduleStatus, ScheduleVersionMeta
-from src.backend.models.employee import Employee, EmployeeAvailability, AvailabilityType
-from src.backend.models.fixed_shift import ShiftTemplate
 from src.backend.models.absence import Absence
 from src.backend.models.coverage import Coverage
+from src.backend.models.employee import AvailabilityType, Employee, EmployeeAvailability
+from src.backend.models.fixed_shift import ShiftTemplate
+from src.backend.models.schedule import Schedule, ScheduleStatus, ScheduleVersionMeta
 from src.backend.models.settings import Settings
+from src.backend.schemas.schedules import ScheduleGenerateRequest, ScheduleUpdateRequest
 from src.backend.services.pdf_generator import PDFGenerator
-from src.backend.services.scheduler.resources import (
-    ScheduleResources,
-    ScheduleResourceError,
-)
-from src.backend.services.scheduler.generator import ScheduleGenerator
 from src.backend.services.scheduler.config import SchedulerConfig
-from src.backend.services.scheduler.validator import ScheduleValidator, ScheduleConfig
-from src.backend.schemas.schedules import ScheduleUpdateRequest, ScheduleGenerateRequest
+from src.backend.services.scheduler.generator import ScheduleGenerator
+from src.backend.services.scheduler.resources import (
+    ScheduleResourceError,
+    ScheduleResources,
+)
+from src.backend.services.scheduler.validator import ScheduleConfig, ScheduleValidator
 from src.backend.utils.logger import logger
 
 # Define blueprint
@@ -185,7 +186,7 @@ def get_schedules():
 
         # Get all versions for this date range
         available_versions = get_versions_for_date_range(start_date, end_date)
-        
+
         # Ensure available_versions is not None (defensive programming)
         if available_versions is None:
             available_versions = []
@@ -251,7 +252,9 @@ def get_schedules():
                     )
                     schedule_dict["break_duration"] = break_duration_minutes
                 except Exception as e:
-                    logger.error(f"Error calculating break duration for schedule {schedule.id}: {str(e)}")
+                    logger.error(
+                        f"Error calculating break duration for schedule {schedule.id}: {str(e)}"
+                    )
                     schedule_dict["break_duration"] = 0
             else:
                 schedule_dict["break_duration"] = 0
@@ -492,7 +495,8 @@ def generate_schedule():
             end_date=end_date,
             external_config_dict=external_config_dict,  # Pass the full config
             version=schedule_request.version,  # Pass version explicitly
-            create_empty_schedules=schedule_request.create_empty_schedules or False,  # Pass create_empty_schedules explicitly with fallback
+            create_empty_schedules=schedule_request.create_empty_schedules
+            or False,  # Pass create_empty_schedules explicitly with fallback
         )
 
         # Check the status from the result returned by the generator
@@ -509,9 +513,11 @@ def generate_schedule():
             ), HTTPStatus.INTERNAL_SERVER_ERROR
 
         # Add session_id to the result for diagnostic log retrieval
-        if hasattr(generator, 'session_id'):
-            result['session_id'] = generator.session_id
-            logger.info(f"Schedule generation successful with session_id: {generator.session_id}")
+        if hasattr(generator, "session_id"):
+            result["session_id"] = generator.session_id
+            logger.info(
+                f"Schedule generation successful with session_id: {generator.session_id}"
+            )
 
         logger.info("Schedule generation successful")
         # Assuming generate_schedule returns a dict suitable for jsonify
@@ -596,7 +602,7 @@ def get_schedule(schedule_id):
         return jsonify(
             {"status": "error", "message": "Schedule not found"}
         ), HTTPStatus.NOT_FOUND
-    
+
     # Add break_duration to the response
     response_data = schedule.to_dict()
     # Check if break_start and break_end are not None and are strings before parsing
@@ -610,16 +616,16 @@ def get_schedule(schedule_id):
             break_start = datetime.strptime(schedule.break_start, "%H:%M")
             break_end = datetime.strptime(schedule.break_end, "%H:%M")
             # Calculate duration in minutes
-            break_duration_minutes = int(
-                (break_end - break_start).total_seconds() / 60
-            )
+            break_duration_minutes = int((break_end - break_start).total_seconds() / 60)
             response_data["break_duration"] = break_duration_minutes
         except Exception as e:
-            logger.error(f"Error calculating break duration for schedule {schedule_id}: {str(e)}")
+            logger.error(
+                f"Error calculating break duration for schedule {schedule_id}: {str(e)}"
+            )
             response_data["break_duration"] = 0
     else:
         response_data["break_duration"] = 0
-    
+
     return jsonify(response_data)
 
 
@@ -675,20 +681,24 @@ def update_schedule(schedule_id):
             )
 
             # Handle break_duration by converting it to break_start and break_end
-            if hasattr(request_data, 'break_duration'):
+            if hasattr(request_data, "break_duration"):
                 if request_data.break_duration is None:
                     # Auto-calculate break duration using the new method
-                    logger.info(f"Auto-calculating break duration for new schedule")
+                    logger.info("Auto-calculating break duration for new schedule")
                     auto_break_duration = schedule.calculate_auto_break_duration()
-                    logger.info(f"Auto-calculated break duration: {auto_break_duration} minutes")
-                    
+                    logger.info(
+                        f"Auto-calculated break duration: {auto_break_duration} minutes"
+                    )
+
                     if auto_break_duration > 0:
                         # If we have a shift, calculate break times based on shift times
                         if schedule.shift_id is not None:
                             shift = ShiftTemplate.query.get(schedule.shift_id)
                             if shift is not None:
                                 # Start break midway through the shift
-                                shift_start = datetime.strptime(shift.start_time, "%H:%M")
+                                shift_start = datetime.strptime(
+                                    shift.start_time, "%H:%M"
+                                )
                                 shift_end = datetime.strptime(shift.end_time, "%H:%M")
                                 shift_duration = (
                                     shift_end - shift_start
@@ -706,7 +716,9 @@ def update_schedule(schedule_id):
                                 )
 
                                 # Format times as strings
-                                schedule.break_start = break_start_time.strftime("%H:%M")
+                                schedule.break_start = break_start_time.strftime(
+                                    "%H:%M"
+                                )
                                 schedule.break_end = break_end_time.strftime("%H:%M")
 
                                 logger.info(
@@ -720,10 +732,12 @@ def update_schedule(schedule_id):
                         # No break needed, clear break times
                         schedule.break_start = None
                         schedule.break_end = None
-                        
+
                 elif request_data.break_duration > 0:
                     # Manual break duration provided
-                    logger.info(f"Using manual break duration: {request_data.break_duration} minutes")
+                    logger.info(
+                        f"Using manual break duration: {request_data.break_duration} minutes"
+                    )
                     # If we have a shift, calculate break times based on shift times
                     if schedule.shift_id is not None:
                         shift = ShiftTemplate.query.get(schedule.shift_id)
@@ -839,20 +853,26 @@ def update_schedule(schedule_id):
                 )
 
             # Handle break_duration updates
-            if hasattr(request_data, 'break_duration'):
+            if hasattr(request_data, "break_duration"):
                 if request_data.break_duration is None:
                     # Auto-calculate break duration using the new method
-                    logger.info(f"Auto-calculating break duration for schedule {schedule_id}")
+                    logger.info(
+                        f"Auto-calculating break duration for schedule {schedule_id}"
+                    )
                     auto_break_duration = schedule.calculate_auto_break_duration()
-                    logger.info(f"Auto-calculated break duration: {auto_break_duration} minutes")
-                    
+                    logger.info(
+                        f"Auto-calculated break duration: {auto_break_duration} minutes"
+                    )
+
                     if auto_break_duration > 0:
                         # If we have a shift, calculate break times based on shift times
                         if schedule.shift_id is not None:
                             shift = ShiftTemplate.query.get(schedule.shift_id)
                             if shift is not None:
                                 # Start break midway through the shift
-                                shift_start = datetime.strptime(shift.start_time, "%H:%M")
+                                shift_start = datetime.strptime(
+                                    shift.start_time, "%H:%M"
+                                )
                                 shift_end = datetime.strptime(shift.end_time, "%H:%M")
                                 shift_duration = (
                                     shift_end - shift_start
@@ -870,7 +890,9 @@ def update_schedule(schedule_id):
                                 )
 
                                 # Format times as strings
-                                schedule.break_start = break_start_time.strftime("%H:%M")
+                                schedule.break_start = break_start_time.strftime(
+                                    "%H:%M"
+                                )
                                 schedule.break_end = break_end_time.strftime("%H:%M")
 
                                 logger.info(
@@ -884,10 +906,12 @@ def update_schedule(schedule_id):
                         # No break needed, clear break times
                         schedule.break_start = None
                         schedule.break_end = None
-                        
+
                 elif request_data.break_duration > 0:
                     # Manual break duration provided
-                    logger.info(f"Using manual break duration: {request_data.break_duration} minutes")
+                    logger.info(
+                        f"Using manual break duration: {request_data.break_duration} minutes"
+                    )
                     # If we have a shift, calculate break times based on shift times
                     if schedule.shift_id is not None:
                         shift = ShiftTemplate.query.get(schedule.shift_id)
@@ -1021,10 +1045,11 @@ def export_schedule():
         # Check if MEP format is requested
         export_format = data.get("format", "standard")  # default to standard
         filiale = data.get("filiale", "")  # branch/store name for MEP
-        
+
         # Generate PDF
         if export_format.lower() == "mep":
             from ..services.mep_pdf_generator import MEPPDFGenerator
+
             generator = MEPPDFGenerator()
             try:
                 pdf_buffer = generator.generate_mep_pdf(
@@ -1032,6 +1057,7 @@ def export_schedule():
                 )
             except Exception as e:
                 import traceback
+
                 error_msg = f"MEP PDF generation error: {str(e)}"
                 logger.error(
                     error_msg,
@@ -1054,6 +1080,7 @@ def export_schedule():
                 )
             except Exception as e:
                 import traceback
+
                 error_msg = f"Standard PDF generation error: {str(e)}"
                 logger.error(
                     error_msg,
@@ -1073,7 +1100,7 @@ def export_schedule():
             filename_prefix = "MEP"
         else:
             filename_prefix = "schedule"
-            
+
         return send_file(
             pdf_buffer,
             mimetype="application/pdf",
@@ -1269,7 +1296,7 @@ def get_all_versions():
 
         # Get versions for the specified date range
         available_versions = get_versions_for_date_range(start_of_week, end_of_week)
-        
+
         # Ensure available_versions is not None (defensive programming)
         if available_versions is None:
             available_versions = []
@@ -1686,9 +1713,34 @@ def duplicate_version():
             return jsonify(
                 {
                     "status": "error",
-                    "message": f"Source version {source_version} not found",
+                    "message": f"No schedules found for version {source_version}. Cannot duplicate an empty version.",
+                    "error": f"Source version {source_version} contains no schedule data",
                 }
-            ), HTTPStatus.NOT_FOUND
+            ), HTTPStatus.BAD_REQUEST
+
+        # Get source date range from metadata or calculate from schedules
+        source_meta = db.session.get(ScheduleVersionMeta, source_version)
+        source_start_date = None
+
+        if (
+            source_meta
+            and hasattr(source_meta, "date_range_start")
+            and source_meta.date_range_start is not None
+        ):
+            source_start_date = source_meta.date_range_start
+        else:
+            # Calculate from schedules if no metadata exists or metadata is incomplete
+            source_dates = [s.date for s in source_schedules]
+            if source_dates:
+                source_start_date = min(source_dates)
+
+        if source_start_date is None:
+            return jsonify(
+                {"status": "error", "message": "Could not determine source date range"}
+            ), HTTPStatus.BAD_REQUEST
+
+        # Calculate date offset for mapping source dates to target dates
+        date_offset = (start_date - source_start_date).days
 
         # Get the current max version
         max_version = db.session.query(db.func.max(Schedule.version)).scalar() or 0
@@ -1698,28 +1750,22 @@ def duplicate_version():
             f"Duplicating schedule version {source_version} to new version {new_version}"
         )
 
-        # Copy schedules from source version to new version, filtering by date range
-        schedules_to_copy = Schedule.query.filter(
-            Schedule.version == source_version,
-            Schedule.date >= start_date,
-            Schedule.date <= end_date,
-        ).all()
-
-        if not schedules_to_copy:
-            return jsonify(
-                {
-                    "status": "error",
-                    "message": f"No schedules found in version {source_version} for the given date range",
-                }
-            ), HTTPStatus.BAD_REQUEST
-
-        # Create duplicates with new version number
+        # Create duplicates with new version number and date mapping
         new_schedules = []
-        for schedule in schedules_to_copy:
+        schedules_copied = 0
+
+        for schedule in source_schedules:
+            # Calculate the new date by applying the offset
+            new_date = schedule.date + timedelta(days=date_offset)
+
+            # Only copy if the new date falls within our target range
+            if new_date < start_date or new_date > end_date:
+                continue
+
             new_schedule = Schedule(
                 employee_id=schedule.employee_id,
                 shift_id=schedule.shift_id,
-                date=schedule.date,
+                date=new_date,  # Use the mapped date
                 version=new_version,
                 break_start=schedule.break_start,
                 break_end=schedule.break_end,
@@ -1727,6 +1773,7 @@ def duplicate_version():
             )
             new_schedule.status = ScheduleStatus.DRAFT  # Always start as DRAFT
             new_schedules.append(new_schedule)
+            schedules_copied += 1
 
         db.session.add_all(new_schedules)
 
@@ -1754,6 +1801,7 @@ def duplicate_version():
             "message": f"Successfully duplicated version {source_version} to new version {new_version}",
             "version": new_version,
             "status_code": "DRAFT",
+            "schedules_copied": schedules_copied,
         }
 
         if version_meta:
@@ -2245,32 +2293,40 @@ def generate_ai_schedule():
         # Extract detailed AI options
         generation_mode = data.get("generation_mode", "fast")  # fast or detailed
         ai_options = data.get("ai_options", {})
-        
+
         # Parse detailed AI options
-        priority_settings = ai_options.get("prioritySettings", {
-            "employeeSatisfaction": 50,
-            "fairness": 50,
-            "consistency": 50,
-            "workloadBalance": 50
-        })
-        
-        constraint_overrides = ai_options.get("constraintOverrides", {
-            "ignoreNonCriticalAvailability": False,
-            "allowOvertime": False,
-            "strictKeyholder": True,
-            "minimumRestPeriods": True
-        })
-        
-        employee_options = ai_options.get("employeeOptions", {
-            "onlyFixedPreferred": False,
-            "respectPreferenceWeights": True,
-            "considerHistoricalPatterns": True
-        })
-        
-        ai_model_params = ai_options.get("aiModelParams", {
-            "temperature": 0.7,
-            "creativity": 0.5
-        })
+        priority_settings = ai_options.get(
+            "prioritySettings",
+            {
+                "employeeSatisfaction": 50,
+                "fairness": 50,
+                "consistency": 50,
+                "workloadBalance": 50,
+            },
+        )
+
+        constraint_overrides = ai_options.get(
+            "constraintOverrides",
+            {
+                "ignoreNonCriticalAvailability": False,
+                "allowOvertime": False,
+                "strictKeyholder": True,
+                "minimumRestPeriods": True,
+            },
+        )
+
+        employee_options = ai_options.get(
+            "employeeOptions",
+            {
+                "onlyFixedPreferred": False,
+                "respectPreferenceWeights": True,
+                "considerHistoricalPatterns": True,
+            },
+        )
+
+        ai_model_params = ai_options.get(
+            "aiModelParams", {"temperature": 0.7, "creativity": 0.5}
+        )
 
         logger.info(
             f"Generating AI schedule for date range: {start_date} to {end_date}, "
@@ -2298,29 +2354,31 @@ def generate_ai_schedule():
                 EmployeeAvailability.start_date <= end_date,
                 EmployeeAvailability.end_date >= start_date,
             ).all()
-            
+
             # Apply availability filtering if requested
             if employee_options.get("onlyFixedPreferred", False):
                 # Filter to only include FIXED and PREFERRED availability statuses
                 availabilities = [
-                    av for av in availabilities 
-                    if av.status in ["FIXED", "PREFERRED"]
+                    av for av in availabilities if av.status in ["FIXED", "PREFERRED"]
                 ]
-                logger.info(f"Filtered to {len(availabilities)} fixed/preferred availabilities")
-            
+                logger.info(
+                    f"Filtered to {len(availabilities)} fixed/preferred availabilities"
+                )
+
             # Also fetch recurring availabilities
             recurring_availabilities = EmployeeAvailability.query.filter(
                 (EmployeeAvailability.start_date == None)
                 | (EmployeeAvailability.is_recurring == True)
             ).all()
-            
+
             # Apply same filtering for recurring availabilities
             if employee_options.get("onlyFixedPreferred", False):
                 recurring_availabilities = [
-                    av for av in recurring_availabilities 
+                    av
+                    for av in recurring_availabilities
                     if av.status in ["FIXED", "PREFERRED"]
                 ]
-            
+
             # Combine and deduplicate availabilities
             all_availabilities = {}
             for av in availabilities + recurring_availabilities:
@@ -2362,7 +2420,7 @@ def generate_ai_schedule():
                 "priority_settings": priority_settings,
                 "constraint_overrides": constraint_overrides,
                 "employee_options": employee_options,
-                "ai_model_params": ai_model_params
+                "ai_model_params": ai_model_params,
             },
             "employees": [emp.to_dict() for emp in employees] if employees else [],
             "shifts": [shift.to_dict() for shift in shifts] if shifts else [],
@@ -2385,16 +2443,18 @@ def generate_ai_schedule():
         # The detailed options should be included in the prompt to guide AI behavior
 
         # Generate AI prompt based on options
-        ai_prompt = generate_ai_prompt_from_options(priority_settings, constraint_overrides, employee_options)
-        
+        ai_prompt = generate_ai_prompt_from_options(
+            priority_settings, constraint_overrides, employee_options
+        )
+
         # Placeholder for AI model response (replace with actual API call result)
         ai_response_data = {
             "generated_assignments": [],
             "generation_metadata": {
                 "mode": generation_mode,
                 "options_applied": ai_options,
-                "prompt_used": ai_prompt
-            }
+                "prompt_used": ai_prompt,
+            },
         }
 
         logger.info("Received response from AI model (placeholder).")
@@ -2416,11 +2476,13 @@ def generate_ai_schedule():
                 "message": "AI schedule generation completed with detailed options",
                 "generation_mode": generation_mode,
                 "ai_options": ai_options,
-                "generated_assignments_count": len(ai_response_data.get("generated_assignments", [])),
+                "generated_assignments_count": len(
+                    ai_response_data.get("generated_assignments", [])
+                ),
                 "details": "Enhanced AI generation with detailed options support",
                 "diagnostic_log": f"Generated with mode: {generation_mode}, "
-                                f"only_fixed_preferred: {employee_options.get('onlyFixedPreferred', False)}, "
-                                f"priority_balance: {priority_settings.get('fairness', 50)}%"
+                f"only_fixed_preferred: {employee_options.get('onlyFixedPreferred', False)}, "
+                f"priority_balance: {priority_settings.get('fairness', 50)}%",
             }
         ), HTTPStatus.OK
 
@@ -2440,46 +2502,60 @@ def generate_ai_schedule():
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-def generate_ai_prompt_from_options(priority_settings, constraint_overrides, employee_options):
+def generate_ai_prompt_from_options(
+    priority_settings, constraint_overrides, employee_options
+):
     """Generate AI prompt based on detailed options"""
-    
+
     prompt_parts = []
-    
+
     # Priority settings
     if priority_settings.get("employeeSatisfaction", 50) > 60:
-        prompt_parts.append("Prioritize employee satisfaction and preferences over strict coverage optimization.")
+        prompt_parts.append(
+            "Prioritize employee satisfaction and preferences over strict coverage optimization."
+        )
     elif priority_settings.get("employeeSatisfaction", 50) < 40:
-        prompt_parts.append("Focus on coverage optimization, employee preferences are secondary.")
-    
+        prompt_parts.append(
+            "Focus on coverage optimization, employee preferences are secondary."
+        )
+
     if priority_settings.get("fairness", 50) > 60:
         prompt_parts.append("Ensure fair distribution of shifts among all employees.")
-    
+
     if priority_settings.get("workloadBalance", 50) > 60:
         prompt_parts.append("Balance workload evenly across the team.")
-    
+
     # Constraint overrides
     if constraint_overrides.get("allowOvertime", False):
         prompt_parts.append("Overtime assignments are allowed when necessary.")
-    
+
     if constraint_overrides.get("ignoreNonCriticalAvailability", False):
-        prompt_parts.append("You may override 'preferred' availability if needed for coverage.")
-    
+        prompt_parts.append(
+            "You may override 'preferred' availability if needed for coverage."
+        )
+
     if constraint_overrides.get("strictKeyholder", True):
-        prompt_parts.append("Strictly enforce keyholder requirements for opening/closing shifts.")
-    
+        prompt_parts.append(
+            "Strictly enforce keyholder requirements for opening/closing shifts."
+        )
+
     # Employee options
     if employee_options.get("onlyFixedPreferred", False):
-        prompt_parts.append("IMPORTANT: Only assign employees who have 'FIXED' or 'PREFERRED' availability status.")
-    
+        prompt_parts.append(
+            "IMPORTANT: Only assign employees who have 'FIXED' or 'PREFERRED' availability status."
+        )
+
     if employee_options.get("considerHistoricalPatterns", True):
-        prompt_parts.append("Consider historical assignment patterns for fair distribution.")
-    
+        prompt_parts.append(
+            "Consider historical assignment patterns for fair distribution."
+        )
+
     base_prompt = "Generate an optimal employee shift schedule based on the provided data and rules."
-    
+
     if prompt_parts:
         additional_instructions = " ".join(prompt_parts)
         return f"{base_prompt} Additional instructions: {additional_instructions}"
-    
+
     return base_prompt
 
 
@@ -2488,25 +2564,28 @@ def get_schedule_diagnostics(session_id):
     """Get diagnostic logs for a specific schedule generation session"""
     try:
         from pathlib import Path
-        
+
         # Get the diagnostic log path
         diagnostic_dir = Path("src/logs/diagnostics")
         log_file = diagnostic_dir / f"schedule_diagnostic_{session_id}.log"
-        
+
         if not log_file.exists():
             return jsonify(
-                {"status": "error", "message": "Diagnostic log not found for this session"}
+                {
+                    "status": "error",
+                    "message": "Diagnostic log not found for this session",
+                }
             ), HTTPStatus.NOT_FOUND
-        
+
         # Read the log file
         try:
-            with open(log_file, 'r', encoding='utf-8') as f:
+            with open(log_file, "r", encoding="utf-8") as f:
                 log_content = f.read()
-                
+
             # Parse the log content into structured format
-            log_lines = log_content.strip().split('\n')
+            log_lines = log_content.strip().split("\n")
             diagnostic_logs = []
-            
+
             for line in log_lines:
                 if line.strip():
                     # Determine log level based on markers in the line
@@ -2517,26 +2596,33 @@ def get_schedule_diagnostics(session_id):
                         log_type = "warning"
                     elif "SUCCESS" in line or "✓" in line:
                         log_type = "success"
-                        
-                    diagnostic_logs.append({
-                        "type": log_type,
-                        "message": line,
-                        "timestamp": datetime.now().isoformat()  # Could parse from log if available
-                    })
-                    
-            return jsonify({
-                "status": "success",
-                "session_id": session_id,
-                "diagnostic_logs": diagnostic_logs,
-                "log_count": len(diagnostic_logs)
-            }), HTTPStatus.OK
-            
+
+                    diagnostic_logs.append(
+                        {
+                            "type": log_type,
+                            "message": line,
+                            "timestamp": datetime.now().isoformat(),  # Could parse from log if available
+                        }
+                    )
+
+            return jsonify(
+                {
+                    "status": "success",
+                    "session_id": session_id,
+                    "diagnostic_logs": diagnostic_logs,
+                    "log_count": len(diagnostic_logs),
+                }
+            ), HTTPStatus.OK
+
         except Exception as e:
             logger.error(f"Error reading diagnostic log file: {str(e)}", exc_info=True)
             return jsonify(
-                {"status": "error", "message": f"Failed to read diagnostic log: {str(e)}"}
+                {
+                    "status": "error",
+                    "message": f"Failed to read diagnostic log: {str(e)}",
+                }
             ), HTTPStatus.INTERNAL_SERVER_ERROR
-            
+
     except Exception as e:
         logger.error(f"Error fetching diagnostic logs: {str(e)}", exc_info=True)
         return jsonify(
