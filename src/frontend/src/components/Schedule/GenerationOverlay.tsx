@@ -1,15 +1,15 @@
-import React from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  AlertCircle,
-  Circle,
-  CheckCircle,
-  XCircle,
-  RefreshCw,
-} from "lucide-react";
 import { fixShiftDurations } from "@/services/api";
+import {
+    AlertCircle,
+    CheckCircle,
+    Circle,
+    RefreshCw,
+    XCircle,
+} from "lucide-react";
+import React from "react";
 
 // Define types for the component props
 export interface GenerationStep {
@@ -114,25 +114,12 @@ export const GenerationOverlay: React.FC<GenerationOverlayProps> = ({
         resetGenerationState();
       }, 2000);
     } catch (error) {
-      console.error("Error fixing shift durations:", error);
-
       // Add an error log
       addGenerationLog(
         "error",
-        "Fehler bei der Berechnung der Schichtdauer",
-        error instanceof Error
-          ? error.message
-          : "Ein unerwarteter Fehler ist aufgetreten",
+        "Fehler beim Korrigieren der Schichtdauern",
+        error instanceof Error ? error.message : String(error),
       );
-
-      toast({
-        variant: "destructive",
-        title: "Fehler",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Ein unerwarteter Fehler ist aufgetreten",
-      });
     }
   };
 

@@ -343,9 +343,6 @@ export function VersionTable({
                             variant={isSelected ? "secondary" : "ghost"}
                             size="sm"
                             onClick={() => {
-                              console.log(
-                                `🎯 VersionTable: User clicked to select version ${version.version}`,
-                              );
                               onSelectVersion(version.version);
                             }}
                             className={isSelected ? "bg-primary/20 hover:bg-primary/30" : ""}
@@ -454,8 +451,8 @@ export function VersionTable({
                                   <TooltipContent>
                                     <p>Version duplizieren</p>
                                   </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                                </TooltipProvider>
+                              </Tooltip>
                             )}
 
                             {version.status === "DRAFT" && (
@@ -474,8 +471,8 @@ export function VersionTable({
                                   <TooltipContent>
                                     <p>Version löschen</p>
                                   </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                                </TooltipProvider>
+                              </Tooltip>
                             )}
                           </div>
                         </TableCell>

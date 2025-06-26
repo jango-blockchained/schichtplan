@@ -96,8 +96,7 @@ const calculateShiftDuration = (schedule: Schedule): number => {
     }
 
     return (endTotalMinutes - startTotalMinutes - breakDuration) / 60;
-  } catch (error) {
-    console.error("Error calculating shift duration:", error);
+  } catch {
     return 0;
   }
 };
