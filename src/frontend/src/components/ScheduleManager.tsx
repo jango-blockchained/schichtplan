@@ -1,10 +1,11 @@
-import React, { useEffect } from "react";
-import { ScheduleTable } from "./ScheduleTable";
-import { Schedule, ScheduleUpdate } from "@/types";
-import { DateRange } from "react-day-picker";
-import { Card, CardContent } from "@/components/ui/card";
-import { Calendar, Loader2, Plus } from "lucide-react"; // For empty state
 import { Button } from "@/components/ui/button"; // For empty state
+import { Card, CardContent } from "@/components/ui/card";
+import { Schedule, ScheduleUpdate } from "@/types";
+import { WeekInfo } from "@/types/weekVersion";
+import { Calendar, Loader2, Plus } from "lucide-react"; // For empty state
+import { useEffect } from "react";
+import { DateRange } from "react-day-picker";
+import { ScheduleTable } from "./ScheduleTable";
 
 interface ScheduleManagerProps {
   schedules: Schedule[];
@@ -34,6 +35,15 @@ interface ScheduleManagerProps {
   onEmptyStateCreateVersion: () => void;
   onEmptyStateGenerateSchedule: () => void;
   openingDays: number[]; // Add openingDays prop
+  
+  // Week navigation props for fullscreen mode
+  weekInfo?: WeekInfo;
+  onNavigatePrevious?: () => void;
+  onNavigateNext?: () => void;
+  weekNavigationSettings?: {
+    weekendStart?: number;
+    monthBoundaryMode?: string;
+  };
 }
 
 export function ScheduleManager({
@@ -52,6 +62,11 @@ export function ScheduleManager({
   onEmptyStateCreateVersion,
   onEmptyStateGenerateSchedule,
   openingDays, // Destructure openingDays prop
+  // Week navigation props
+  weekInfo,
+  onNavigatePrevious,
+  onNavigateNext,
+  weekNavigationSettings,
 }: ScheduleManagerProps) {
   // Log detailed debug info about received schedules
   useEffect(() => {
@@ -172,6 +187,11 @@ export function ScheduleManager({
           absenceTypes={absenceTypes}
           currentVersion={currentVersion}
           openingDays={openingDays} // Pass openingDays to ScheduleTable
+          // Week navigation props
+          weekInfo={weekInfo}
+          onNavigatePrevious={onNavigatePrevious}
+          onNavigateNext={onNavigateNext}
+          weekNavigationSettings={weekNavigationSettings}
         />
       </CardContent>
     </Card>

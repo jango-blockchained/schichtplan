@@ -1,10 +1,10 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,23 +12,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { getEmployees, getShifts } from "@/services/api";
-import { Employee, Shift } from "@/types";
+import { Employee, Schedule, Shift } from "@/types";
 import type { WeekVersionMeta } from "@/types/weekVersion";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
-    ChevronDown,
-    ChevronUp,
-    Clock,
-    GripVertical,
-    History,
-    MessageCircle,
-    RotateCcw,
-    Send,
-    Sparkles,
-    Users,
-    X,
-    Zap,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  GripVertical,
+  History,
+  MessageCircle,
+  RotateCcw,
+  Send,
+  Sparkles,
+  Users,
+  X,
+  Zap,
 } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
@@ -40,6 +40,7 @@ interface ActionDockProps {
   dateRange?: DateRange;
   versionMeta?: WeekVersionMeta;
   versionStatus?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  schedules?: Schedule[]; // Add schedules prop for weekly hour calculation
   onClose?: () => void;
   onDrop?: (employeeId: number, date: Date, shiftId: number) => Promise<void>;
   onAIPrompt?: (prompt: string) => Promise<void>;
@@ -237,6 +238,7 @@ export const ActionDock: React.FC<ActionDockProps> = ({
   dateRange,
   versionMeta,
   versionStatus,
+  schedules = [],
   onClose,
   onDrop,
   onAIPrompt,
@@ -280,6 +282,52 @@ export const ActionDock: React.FC<ActionDockProps> = ({
       return true;
     });
   }, [shifts, selectedDate]);
+
+  // Calculate total weekly hours from schedules
+  const totalWeeklyHours = useMemo(() => {
+    if (!schedules.length || !dateRange?.from || !dateRange?.to) return 0;
+
+    return schedules.reduce((total, schedule) => {
+      if (schedule.is_empty || !schedule.shift_start || !schedule.shift_end) return total;
+      
+      try {
+        // Parse time strings to calculate duration
+        const [startHours, startMinutes] = schedule.shift_start.split(':').map(Number);
+        const [endHours, endMinutes] = schedule.shift_end.split(':').map(Number);
+        
+        const startTotalMinutes = startHours * 60 + startMinutes;
+        let endTotalMinutes = endHours * 60 + endMinutes;
+        
+        // Handle overnight shifts
+        if (endTotalMinutes < startTotalMinutes) {
+          endTotalMinutes += 24 * 60;
+        }
+        
+        const durationHours = (endTotalMinutes - startTotalMinutes) / 60;
+        
+        // Subtract break time if available
+        let breakHours = 0;
+        if (schedule.break_start && schedule.break_end) {
+          const [breakStartHours, breakStartMinutes] = schedule.break_start.split(':').map(Number);
+          const [breakEndHours, breakEndMinutes] = schedule.break_end.split(':').map(Number);
+          
+          const breakStartTotalMinutes = breakStartHours * 60 + breakStartMinutes;
+          let breakEndTotalMinutes = breakEndHours * 60 + breakEndMinutes;
+          
+          if (breakEndTotalMinutes < breakStartTotalMinutes) {
+            breakEndTotalMinutes += 24 * 60;
+          }
+          
+          breakHours = (breakEndTotalMinutes - breakStartTotalMinutes) / 60;
+        }
+        
+        return total + (durationHours - breakHours);
+      } catch (error) {
+        console.error('Error calculating hours for schedule:', schedule, error);
+        return total;
+      }
+    }, 0);
+  }, [schedules, dateRange]);
 
   const handleQuickPrompt = (template: typeof QUICK_PROMPT_TEMPLATES[0]) => {
     setAiPrompt(template.prompt);
@@ -326,7 +374,7 @@ export const ActionDock: React.FC<ActionDockProps> = ({
             <span className="font-medium">Action Dock</span>
             <Badge variant="secondary" className="ml-2">
               {activeTab === "drag-drop" 
-                ? (activeTab === "employees" ? activeEmployees.length : availableShifts.length)
+                ? availableShifts.length
                 : activeTab === "ai-assistant" ? "AI" : "Tools"
               } 
             </Badge>
@@ -340,8 +388,16 @@ export const ActionDock: React.FC<ActionDockProps> = ({
         
         <div className="flex items-center gap-2">
           {/* Enhanced Date Badge with Version, Date Range, and Status */}
-          {(selectedDate || dateRange || currentVersion || versionStatus) && (
+          {(selectedDate || dateRange || currentVersion || versionStatus || totalWeeklyHours > 0) && (
             <div className="flex items-center gap-1">
+              {/* Weekly Hours Counter Badge */}
+              {totalWeeklyHours > 0 && (
+                <Badge variant="outline" className="text-xs bg-blue-500/20 text-blue-300 border-blue-500/30">
+                  <Clock className="h-3 w-3 mr-1" />
+                  {totalWeeklyHours.toFixed(1)}h
+                </Badge>
+              )}
+              
               {/* Version Badge */}
               {currentVersion && (
                 <Badge variant="secondary" className="text-xs font-mono">
