@@ -39,8 +39,14 @@ import {
     getApplicableShiftsForEmployee,
     getEmployeeAvailabilityByDate,
     getEmployees,
+    getSettings,
+    getShifts,
     updateEmployee,
 } from "@/services/api";
+import {
+    createRequiredConsecutiveShifts,
+    validateConsecutiveShiftRequirements,
+} from "@/services/scheduleUtils";
 import {
     ApplicableShift,
     AvailabilityTypeStrings,
@@ -237,6 +243,31 @@ export function AddScheduleDialog({
 
     setIsSubmitting(true);
     try {
+      // Get shift details for consecutive shift validation
+      const selectedShiftDetails = applicableShiftsList.find(s => s.shift_id === selectedShift);
+      
+      if (selectedShiftDetails) {
+        // Validate consecutive shift requirements
+        const settings = await getSettings();
+        const openingDays = settings?.general?.opening_days;
+        
+        const validation = await validateConsecutiveShiftRequirements(
+          selectedEmployee,
+          selectedShiftDetails,
+          selectedDate,
+          openingDays
+        );
+        
+        if (!validation.isValid) {
+          toast({
+            title: "Consecutive Shift Requirement Conflict",
+            description: validation.conflicts.join(". "),
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       // Handle keyholder status if selected
       if (isKeyholder) {
         try {
@@ -278,6 +309,32 @@ export function AddScheduleDialog({
         availability_type: selectedAvailabilityType,
         is_keyholder: isKeyholder,
       });
+      
+      // Create required consecutive shifts after successful schedule creation
+      if (selectedShiftDetails) {
+        try {
+          const settings = await getSettings();
+          const shifts = await getShifts();
+          const openingDays = settings?.general?.opening_days;
+          
+          await createRequiredConsecutiveShifts(
+            selectedEmployee,
+            selectedShiftDetails,
+            selectedDate,
+            version,
+            shifts,
+            openingDays
+          );
+        } catch (error) {
+          console.error("Failed to create consecutive shifts:", error);
+          toast({
+            title: "Warning",
+            description: "Schedule created but failed to create required consecutive shifts: " + (error instanceof Error ? error.message : "Unknown error"),
+            variant: "destructive",
+          });
+        }
+      }
+      
       onClose(); // Close dialog on success
     } catch (error) {
       toast({

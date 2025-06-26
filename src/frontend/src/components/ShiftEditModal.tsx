@@ -1,4 +1,4 @@
-  import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
     Dialog,
@@ -18,10 +18,13 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { createSchedule, getEmployees, getSchedules, getSettings, getShifts, updateEmployee } from "@/services/api";
+import { getEmployees, getSchedules, getSettings, getShifts, updateEmployee } from "@/services/api";
+import {
+    createRequiredConsecutiveShifts,
+    validateConsecutiveShiftRequirements
+} from "@/services/scheduleUtils";
 import { Employee, Schedule, ScheduleUpdate, Settings } from "@/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { addDays, format, subDays } from "date-fns";
 import { ChangeEvent, useCallback, useEffect, useState } from "react";
 
 interface ShiftEditModalProps {
@@ -56,8 +59,6 @@ export function ShiftEditModal({
   
   // Auto/Manual mode states
   const [isAutoBreakDuration, setIsAutoBreakDuration] = useState<boolean>(true);
-  const [isAutoStartTime, setIsAutoStartTime] = useState<boolean>(true);
-  const [isAutoEndTime, setIsAutoEndTime] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showKeyholderConflict, setShowKeyholderConflict] = useState(false);
   const [conflictingKeyholder, setConflictingKeyholder] = useState<string>("");
@@ -177,8 +178,6 @@ export function ShiftEditModal({
     // Initialize auto/manual flags (default to auto for backward compatibility)
     const hasManualBreak = schedule.break_duration != null && schedule.break_duration > 0;
     setIsAutoBreakDuration(!hasManualBreak);
-    setIsAutoStartTime(!schedule.shift_start); // Auto if no custom start time
-    setIsAutoEndTime(!schedule.shift_end); // Auto if no custom end time
     
     // Calculate and set break duration
     const currentEmployee = employees?.find(emp => emp.id === schedule.employee_id);
@@ -359,8 +358,25 @@ export function ShiftEditModal({
       await onSave(schedule.id, updates);
       console.log("🟢 Schedule saved successfully");
 
-      // Step 3: Handle keyholder status changes
+      // Step 2.5: Handle consecutive shift requirements for ALL employees
       const currentEmployee = employees?.find(emp => emp.id === schedule.employee_id);
+      if (currentEmployee) {
+        try {
+          console.log("🔄 Processing consecutive shift requirements...");
+          await handleConsecutiveDayRequirements(currentEmployee, updates);
+          console.log("✅ Consecutive shift requirements processed successfully");
+        } catch (error) {
+          console.error("❌ Error handling consecutive shift requirements:", error);
+          // Show warning but don't fail the entire operation
+          toast({
+            title: "Warning",
+            description: "Shift updated but failed to create required consecutive shifts: " + (error instanceof Error ? error.message : "Unknown error"),
+            variant: "destructive",
+          });
+        }
+      }
+
+      // Step 3: Handle keyholder status changes
       if (currentEmployee && currentEmployee.is_keyholder !== isKeyholder) {
         console.log("🔑 Processing keyholder status change...");
         
@@ -382,9 +398,6 @@ export function ShiftEditModal({
                 is_keyholder: false 
               });
             }
-            
-            // Step 4: Handle consecutive day requirements for keyholders
-            await handleKeyholderConsecutiveDays(currentEmployee, updates);
           }
           
           // Update current employee's keyholder status
@@ -430,82 +443,50 @@ export function ShiftEditModal({
     }
   };
 
-  // Handle keyholder consecutive day requirements
-  const handleKeyholderConsecutiveDays = async (employee: Employee, scheduleUpdates: ScheduleUpdate) => {
-    if (!allSchedules || !shifts) return;
+  // Handle consecutive day requirements for ALL employees
+  const handleConsecutiveDayRequirements = async (employee: Employee, scheduleUpdates: ScheduleUpdate) => {
+    if (!shifts) return;
     
-    const currentDate = new Date(schedule.date);
     const selectedShift = shifts.find(s => s.id === scheduleUpdates.shift_id);
-    
     if (!selectedShift) return;
     
-    // Determine if this is an early or late shift
-    const isEarlyShift = selectedShift.shift_type_id === "EARLY";
-    const isLateShift = selectedShift.shift_type_id === "LATE";
-    
-    console.log("🔑 Checking consecutive day requirements:", {
+    console.log("� Checking consecutive day requirements for all employees:", {
+      employeeId: employee.id,
       shiftType: selectedShift.shift_type_id,
-      isEarlyShift,
-      isLateShift
+      date: schedule.date
     });
     
     try {
-      if (isLateShift) {
-        // Late shift: keyholder must work early shift next day
-        const nextDay = addDays(currentDate, 1);
-        const nextDayStr = format(nextDay, "yyyy-MM-dd");
-        
-        console.log("🔑 Late shift - checking next day early shift:", nextDayStr);
-        
-        // Find early shift template
-        const earlyShift = shifts.find(s => s.shift_type_id === "EARLY");
-        if (earlyShift) {
-          // Check if employee already has schedule for next day
-          const existingNextDaySchedule = allSchedules.find(s => 
-            s.date === nextDayStr && s.employee_id === employee.id
-          );
-          
-          if (!existingNextDaySchedule) {
-            console.log("🔑 Creating early shift for next day...");
-            await createSchedule({
-              employee_id: employee.id,
-              shift_id: earlyShift.id,
-              date: nextDayStr,
-              version: currentVersion || schedule.version || 1
-            });
-          }
-        }
+      // Validate consecutive shift requirements first
+      const settings = await getSettings();
+      const openingDays = settings?.general?.opening_days;
+      
+      const validation = await validateConsecutiveShiftRequirements(
+        employee.id,
+        selectedShift,
+        new Date(schedule.date),
+        openingDays
+      );
+      
+      if (!validation.isValid) {
+        throw new Error(`Consecutive shift requirements conflict: ${validation.conflicts.join(". ")}`);
       }
       
-      if (isEarlyShift) {
-        // Early shift: keyholder must have worked late shift previous day
-        const prevDay = subDays(currentDate, 1);
-        const prevDayStr = format(prevDay, "yyyy-MM-dd");
-        
-        console.log("🔑 Early shift - checking previous day late shift:", prevDayStr);
-        
-        // Find late shift template
-        const lateShift = shifts.find(s => s.shift_type_id === "LATE");
-        if (lateShift) {
-          // Check if employee already has schedule for previous day
-          const existingPrevDaySchedule = allSchedules.find(s => 
-            s.date === prevDayStr && s.employee_id === employee.id
-          );
-          
-          if (!existingPrevDaySchedule) {
-            console.log("🔑 Creating late shift for previous day...");
-            await createSchedule({
-              employee_id: employee.id,
-              shift_id: lateShift.id,
-              date: prevDayStr,
-              version: currentVersion || schedule.version || 1
-            });
-          }
-        }
-      }
+      // Create required consecutive shifts
+      await createRequiredConsecutiveShifts(
+        employee.id,
+        selectedShift,
+        new Date(schedule.date),
+        currentVersion || schedule.version || 1,
+        shifts,
+        openingDays
+      );
+      
+      console.log("✅ Consecutive day requirements handled successfully");
+      
     } catch (error) {
       console.error("❌ Error handling consecutive day requirements:", error);
-      // Don't throw here - this is supplementary functionality
+      throw error; // Re-throw to let the caller handle the error
     }
   };
 
