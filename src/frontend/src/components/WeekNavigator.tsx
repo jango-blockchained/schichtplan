@@ -64,16 +64,6 @@ export function WeekNavigator({
                 Version vorhanden
               </Badge>
             )}
-            {weekNavigationSettings && (
-              <>
-                <Badge variant="secondary" className="text-xs">
-                  {weekNavigationSettings.weekendStart === 0 ? 'So-Start' : 'Mo-Start'}
-                </Badge>
-                <Badge variant="secondary" className="text-xs">
-                  {weekNavigationSettings.monthBoundaryMode === 'split_by_month' ? 'Teilen' : 'Beibehalten'}
-                </Badge>
-              </>
-            )}
           </div>
           
           <div className="flex items-center gap-2">

@@ -47,7 +47,7 @@ import {
   Plus,
   Trash2
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DateRange } from "react-day-picker";
 import { useDrag, useDrop } from "react-dnd";
 import { AddScheduleDialog } from "./Schedule/AddScheduleDialog";
@@ -153,7 +153,7 @@ const calculateBaseDuration = (startTime: string, endTime: string): number => {
 };
 
 // Calculate break duration with auto 30min rule for >6h shifts
-const calculateBreakDuration = (schedule: Schedule, employee?: Employee, settings?: unknown): number => {
+const calculateBreakDuration = (schedule: Schedule, employee?: Employee, settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }): number => {
   try {
     // Priority 1: Manual break times
     if (schedule.break_start && schedule.break_end) {
@@ -197,14 +197,14 @@ const calculateBreakDuration = (schedule: Schedule, employee?: Employee, setting
 const getKeyholderAdjustedTimes = (
   schedule: Schedule, 
   employee: Employee | undefined, 
-  settings?: unknown
+  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
 ): { startTime: string, endTime: string } => {
   
-  if (!employee?.is_keyholder || !schedule.shift_start || !schedule.shift_end || !(settings as any)?.general) {
+  if (!employee?.is_keyholder || !schedule.shift_start || !schedule.shift_end || !settings?.general) {
     return { startTime: schedule.shift_start || "", endTime: schedule.shift_end || "" };
   }
   
-  const { keyholder_before_minutes = 5, keyholder_after_minutes = 10, store_opening, store_closing } = (settings as any).general;
+  const { keyholder_before_minutes = 5, keyholder_after_minutes = 10, store_opening, store_closing } = settings.general;
   
   let adjustedStart = schedule.shift_start;
   let adjustedEnd = schedule.shift_end;
@@ -228,7 +228,7 @@ const getKeyholderAdjustedTimes = (
 const calculateWorkingTime = (
   schedule: Schedule, 
   employee: Employee | undefined, 
-  settings?: unknown
+  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
 ): { totalTime: number, breakTime: number, workingTime: number } => {
   
   if (!schedule.shift_start || !schedule.shift_end) {
@@ -265,7 +265,7 @@ interface TimeSlotDisplayProps {
   startTime: string;
   endTime: string;
   shiftType: string;
-  settings?: unknown;
+  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } };
   schedule: Schedule;
   employee: Employee | undefined;
 }
@@ -303,14 +303,14 @@ const TimeSlotDisplay = ({
   
   // Calculate adjusted times for keyholder shifts
   const getAdjustedTimes = () => {
-    if (!isKeyholderShift || !startTime || !endTime || !(settings as any)?.general) {
+    if (!isKeyholderShift || !startTime || !endTime || !settings?.general) {
       return { adjustedStartTime: startTime, adjustedEndTime: endTime };
     }
 
-    const keyholderBeforeMinutes = (settings as any).general.keyholder_before_minutes || 5;
-    const keyholderAfterMinutes = (settings as any).general.keyholder_after_minutes || 10;
-    const storeOpening = (settings as any).general.store_opening;
-    const storeClosing = (settings as any).general.store_closing;
+    const keyholderBeforeMinutes = settings.general.keyholder_before_minutes || 5;
+    const keyholderAfterMinutes = settings.general.keyholder_after_minutes || 10;
+    const storeOpening = settings.general.store_opening;
+    const storeClosing = settings.general.store_closing;
 
     let adjustedStartTime = startTime;
     let adjustedEndTime = endTime;
@@ -494,11 +494,6 @@ const TimeSlotDisplay = ({
               }
               return formatDuration(duration);
             })()}
-          </div>
-        )}
-        {schedule?.break_start && schedule?.break_end && (
-          <div className="text-xs text-muted-foreground">
-            Pause: {schedule.break_start} - {schedule.break_end}
           </div>
         )}
       </div>
@@ -770,7 +765,7 @@ const ScheduleCell = ({
                 };
 
                 // Create schedule via API
-                const createdSchedule = await createSchedule(newScheduleData);
+                await createSchedule(newScheduleData);
                 
                 // Invalidate the schedules cache to trigger a refetch
                 await queryClient.invalidateQueries({ queryKey: ['schedules'] });
@@ -842,16 +837,20 @@ const ScheduleCell = ({
       </div>
 
       {/* Actions buttons on hover - only show if employee is available */}
-      {showActions && employeeAvailable !== false && !availabilityLoading && (
+      {showActions && !availabilityLoading && (
         <div className="absolute top-1 right-1 flex space-x-1">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-6 w-6 p-0"
-            onClick={() => setIsEditModalOpen(true)}
-          >
-            <Edit2 className="h-3 w-3" />
-          </Button>
+          {/* Edit button - only show if employee is available */}
+          {employeeAvailable !== false && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 w-6 p-0"
+              onClick={() => setIsEditModalOpen(true)}
+            >
+              <Edit2 className="h-3 w-3" />
+            </Button>
+          )}
+          {/* Delete button - always show for existing schedules */}
           <Button
             size="sm"
             variant="ghost"
@@ -1148,35 +1147,6 @@ export function ScheduleTable({
     );
   }
 
-  // Fetch settings
-  const { data: settings } = useQuery({
-    queryKey: ["settings"],
-    queryFn: getSettings,
-  });
-
-  // Fetch employee data to display names properly
-  const { data: employeesData } = useQuery({
-    queryKey: ["employees"],
-    queryFn: getEmployees,
-  });
-
-  const employees = useMemo(() => {
-    return employeesData || [];
-  }, [employeesData]);
-
-  // Employee lookup for quick access
-  const employeeLookup = useMemo(() => {
-    if (!employees) return {};
-
-    return employees.reduce(
-      (acc, employee) => {
-        acc[employee.id] = employee;
-        return acc;
-      },
-      {} as Record<number, Employee>,
-    );
-  }, [employees]);
-
   const daysToDisplay = useMemo(() => {
     if (!dateRange?.from || !dateRange?.to) {
       return [];
@@ -1223,219 +1193,6 @@ export function ScheduleTable({
 
   // Check if navigation is needed
   const showNavigation = daysToDisplay.length > maxDaysToShow;
-
-  // Map for German weekday abbreviations
-  const weekdayAbbr: { [key: string]: string } = {
-    Monday: "Mo.",
-    Tuesday: "Di.",
-    Wednesday: "Mi.",
-    Thursday: "Do.",
-    Friday: "Fr.",
-    Saturday: "Sa.",
-    Sunday: "So.",
-  };
-
-  // SIMPLIFIED APPROACH: Create a direct lookup map from employee_id and date to schedule
-  const scheduleMap = useMemo(() => {
-    const map: Record<number, Record<string, Schedule>> = {};
-
-    // Debug info - what are we working with?
-    const shiftsWithId = schedules.filter((s) => s.shift_id !== null);
-    const shiftsWithStartTime = schedules.filter(
-      (s) => s.shift_start !== null && s.shift_start !== undefined,
-    );
-
-    console.log("🔍 ScheduleTable creating map with:", {
-      totalSchedules: schedules.length,
-      schedulesWithShiftId: shiftsWithId.length,
-      schedulesWithStartTime: shiftsWithStartTime.length,
-      firstShiftWithId: shiftsWithId.length > 0 ? shiftsWithId[0] : "None",
-      firstShiftWithStartTime:
-        shiftsWithStartTime.length > 0 ? shiftsWithStartTime[0] : "None",
-    });
-
-    // Process all schedules into the map for quick lookup
-    schedules.forEach((schedule) => {
-      const employeeId = schedule.employee_id;
-
-      // Normalize the date format by stripping any time component
-      const dateStr = schedule.date.split("T")[0];
-
-      // Initialize the employee map if it doesn't exist
-      if (!map[employeeId]) {
-        map[employeeId] = {};
-      }
-
-      // Store the schedule by date - important: if an entry exists, replace it only if the new one has a shift_id and the old one doesn't
-      const existingSchedule = map[employeeId][dateStr];
-      if (
-        !existingSchedule ||
-        (schedule.shift_id !== null && existingSchedule.shift_id === null) ||
-        (schedule.shift_start && !existingSchedule.shift_start)
-      ) {
-        map[employeeId][dateStr] = schedule;
-      }
-    });
-
-    // Count of schedules with shift_id and shift_start
-    const schedulesWithShifts = Object.values(map)
-      .flatMap((empSchedules) => Object.values(empSchedules))
-      .filter((s) => s.shift_id !== null);
-
-    const schedulesWithStartTime = schedulesWithShifts.filter(
-      (s) => s.shift_start !== null && s.shift_start !== undefined,
-    );
-
-    console.log("🗺️ Schedule map created with:", {
-      totalEmployees: Object.keys(map).length,
-      sampleEmployee: Object.keys(map)[0] ? Object.keys(map)[0] : "None",
-      totalSchedules: schedules.length,
-      schedulesWithShifts: schedulesWithShifts.length,
-      schedulesWithStartTime: schedulesWithStartTime.length,
-      sampleShift:
-        schedulesWithShifts.length > 0 ? schedulesWithShifts[0] : "None",
-    });
-
-    return map;
-  }, [schedules]);
-
-  // Get unique employees from schedules
-  const uniqueEmployees = useMemo(() => {
-    const employeeSet = new Set<number>();
-    schedules.forEach((schedule) => {
-      employeeSet.add(schedule.employee_id);
-    });
-    return Array.from(employeeSet);
-  }, [schedules]);
-
-  const uniqueEmployeeIds = useMemo(() => {
-    const ids = [...new Set(schedules.map((s) => s.employee_id))];
-    return ids;
-  }, [schedules]);
-
-  const groupedSchedules = useMemo(() => {
-    const grouped: Record<number, Record<string, Schedule>> = {};
-
-    // Make sure we have valid schedules
-    if (!schedules || schedules.length === 0) {
-      console.log("Warning: No schedules provided to ScheduleTable");
-      return grouped;
-    }
-
-    console.log(
-      `ScheduleTable: Processing ${schedules.length} total schedules`,
-    );
-
-    // Count schedules with shift_id
-    const schedulesWithShifts = schedules.filter((s) => s.shift_id !== null);
-    console.log(
-      `ScheduleTable: Found ${schedulesWithShifts.length} schedules with shift_id`,
-    );
-
-    // Group schedules by employee ID and then by date for quick lookup
-    uniqueEmployeeIds.forEach((employeeId) => {
-      const employeeSchedules = schedules.filter(
-        (s) => s.employee_id === employeeId,
-      );
-      grouped[employeeId] = {};
-
-      // Index each schedule by date for easy lookup
-      employeeSchedules.forEach((schedule) => {
-        // Normalize date format by removing time component
-        const dateKey = schedule.date.split("T")[0];
-
-        // Only add or replace if this is an improvement over the existing entry
-        const existingSchedule = grouped[employeeId][dateKey];
-        if (
-          !existingSchedule ||
-          (schedule.shift_id !== null &&
-            (existingSchedule.shift_id === null ||
-              (!existingSchedule.shift_start && schedule.shift_start)))
-        ) {
-          grouped[employeeId][dateKey] = schedule;
-        }
-
-        // Log the schedule date for debugging
-        if (schedule.shift_id !== null) {
-          console.log(
-            `Employee ${employeeId} has shift on ${dateKey}: ${schedule.shift_start} - ${schedule.shift_end}`,
-          );
-        }
-      });
-
-      // Log schedules with shifts for this employee
-      const shiftsForEmployee = employeeSchedules.filter(
-        (s) => s.shift_id !== null,
-      );
-      if (shiftsForEmployee.length === 0) {
-        console.log(`Note: No shifts assigned for employee ID ${employeeId}`);
-      } else {
-        console.log(
-          `Found ${shiftsForEmployee.length} shifts for employee ID ${employeeId}`,
-        );
-      }
-    });
-
-    return grouped;
-  }, [schedules, uniqueEmployeeIds]);
-
-  // Improve the employee details lookup with fallbacks
-  const getEmployeeDetails = (employeeId: number) => {
-    // First try to find the employee in the employees data
-    const employee = employees.find((e) => e.id === employeeId);
-
-    // Use fallback values if employee not found
-    if (!employee) {
-      console.log(
-        `Warning: Employee with ID ${employeeId} not found in employees data`,
-      );
-      return {
-        contractedHours: 40,
-        employeeGroup: "VZ",
-      };
-    }
-
-    // Return actual values with fallbacks for missing fields
-    return {
-      contractedHours: employee.contracted_hours || 40,
-      employeeGroup: employee.employee_group || "VZ",
-    };
-  };
-
-  const calculateEmployeeHours = useCallback((employeeId: number, schedules: Schedule[], dateRange: DateRange | undefined) => {
-    if (!dateRange?.from || !dateRange?.to) {
-      return { weeklyHours: 0, monthlyHours: 0 };
-    }
-
-    const employeeSchedules = schedules.filter(s => s.employee_id === employeeId && s.shift_id !== null && !s.is_empty);
-    
-    // Find the employee for keyholder calculations
-    const employee = employees?.find(emp => emp.id === employeeId);
-    
-    let totalHours = 0;
-
-    employeeSchedules.forEach(schedule => {
-      if (schedule.shift_start && schedule.shift_end && schedule.date) {
-        try {
-          const scheduleDate = parseISO(schedule.date);
-          
-          // Only include schedules within the actual displayed date range
-          if (isWithinInterval(scheduleDate, { start: dateRange.from, end: dateRange.to })) {
-            // Use the centralized calculateWorkingTime function that handles breaks and keyholder adjustments
-            const timeCalc = calculateWorkingTime(schedule, employee, settings);
-            totalHours += timeCalc.workingTime;
-          }
-        } catch (error) {
-          console.error("Error calculating hours for schedule:", error);
-        }
-      }
-    });
-
-    return {
-      weeklyHours: totalHours,
-      monthlyHours: totalHours, // For weekly/monthly views, the total within date range IS the period total
-    };
-  }, [employees, settings]);
 
   // Keyboard shortcuts for sorting
   useEffect(() => {
@@ -1679,14 +1436,12 @@ function ScheduleTableNormal({
   employeeAbsences,
   absenceTypes,
   currentVersion,
-  openingDays,
   daysToDisplay,
   showNavigation,
   onPrevDays,
   onNextDays,
   canNavigatePrev,
   canNavigateNext,
-  isFullWidth,
   employeeSortBy,
   employeeSortOrder,
 }: Omit<ScheduleTableProps, 'isLoading'> & {
@@ -1700,8 +1455,6 @@ function ScheduleTableNormal({
   employeeSortBy: "name" | "group" | "hours" | "alphabetical" | "keyholder" | "shifts" | "workload";
   employeeSortOrder: "asc" | "desc";
 }) {
-  const queryClient = useQueryClient();
-  
   // Get employees data
   const { data: employees } = useQuery({
     queryKey: ["employees"],
@@ -2114,102 +1867,6 @@ function ScheduleTableNormal({
   );
 }
 
-// Daily Statistics Component
-interface DailyStatsProps {
-  schedules: Schedule[];
-  daysToDisplay: Date[];
-  employees: Employee[];
-  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } };
-}
-
-function DailyStats({ schedules, daysToDisplay, employees, settings }: DailyStatsProps) {
-  const dailyStats = useMemo(() => {
-    return daysToDisplay.map(date => {
-      const dateStr = format(date, 'yyyy-MM-dd');
-      const daySchedules = schedules.filter(schedule => 
-        schedule.date === dateStr && !schedule.is_empty && schedule.shift_id
-      );
-      
-      const totalEmployees = daySchedules.length;
-      
-      // Calculate total working hours (using the same function as the header)
-      const totalHours = calculateDailyHours(schedules, date, employees, settings);
-      
-      // Count shift types
-      const shiftTypes = daySchedules.reduce((acc, schedule) => {
-        const shiftType = schedule.shift_type_id || 'UNKNOWN';
-        acc[shiftType] = (acc[shiftType] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-      
-      // Count keyholders
-      const keyholders = daySchedules.filter(schedule => {
-        const employee = employees.find(emp => emp.id === schedule.employee_id);
-        return employee?.is_keyholder;
-      }).length;
-      
-      return {
-        date,
-        dateStr,
-        totalEmployees,
-        totalHours,
-        shiftTypes,
-        keyholders
-      };
-    });
-  }, [schedules, daysToDisplay, employees, settings]);
-
-  if (daysToDisplay.length === 0) return null;
-
-  return (
-    <div className="border-t border-border p-4 bg-muted/10">
-      <h4 className="text-sm font-medium text-foreground mb-3">Tägliche Statistiken</h4>
-      <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(daysToDisplay.length, 7)}, 1fr)` }}>
-        {dailyStats.map(({ date, dateStr, totalEmployees, totalHours, shiftTypes, keyholders }) => (
-          <div key={dateStr} className="text-center">
-            <div className="text-xs font-medium text-muted-foreground mb-1">
-              {format(date, 'dd.MM.')}
-            </div>
-            <div className="text-xs text-muted-foreground mb-1">
-              {['So.', 'Mo.', 'Di.', 'Mi.', 'Do.', 'Fr.', 'Sa.'][date.getDay()]}
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center justify-center gap-1">
-                <span className="text-xs font-medium">{totalEmployees}</span>
-                <span className="text-xs text-muted-foreground">MA</span>
-              </div>
-              <div className="flex items-center justify-center gap-1">
-                <span className="text-xs font-medium">{totalHours.toFixed(1)}</span>
-                <span className="text-xs text-muted-foreground">h</span>
-              </div>
-              {keyholders > 0 && (
-                <div className="flex items-center justify-center gap-1">
-                  <Key className="h-3 w-3 text-yellow-600" />
-                  <span className="text-xs font-medium">{keyholders}</span>
-                </div>
-              )}
-              <div className="flex justify-center gap-1 flex-wrap">
-                {Object.entries(shiftTypes).map(([type, count]) => {
-                  if (count === 0) return null;
-                  const colorClass = type === 'EARLY' ? 'bg-blue-500' : 
-                                   type === 'MIDDLE' ? 'bg-green-500' : 
-                                   type === 'LATE' ? 'bg-amber-500' : 'bg-gray-500';
-                  return (
-                    <div key={type} className="flex items-center gap-1">
-                      <div className={`w-2 h-2 rounded-full ${colorClass}`}></div>
-                      <span className="text-xs">{count}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // Color Legend Component
 function ScheduleColorLegend({ 
   absenceTypes 
@@ -2320,20 +1977,6 @@ const calculateDailyHours = (schedules: Schedule[], date: Date, employees?: Empl
     }
     return sum;
   }, 0);
-};
-
-// Utility function to check if employee is available for a specific date
-const checkEmployeeAvailabilityForDateSync = async (employeeId: number, date: Date): Promise<boolean> => {
-  try {
-    const formattedDate = format(date, "yyyy-MM-dd");
-    const result = await checkEmployeeAvailabilityForDate(employeeId, formattedDate);
-    console.log(`[AVAILABILITY DEBUG] Employee ${employeeId} on ${formattedDate}:`, result);
-    return result.is_available;
-  } catch (error) {
-    console.error("Error checking employee availability:", error);
-    // Return false as fallback to indicate potential unavailability  
-    return false;
-  }
 };
 
 // Cache for availability checks to avoid repeated API calls
