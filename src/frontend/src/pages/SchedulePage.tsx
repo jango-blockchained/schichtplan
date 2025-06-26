@@ -29,45 +29,45 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
+    Table,
+    TableBody,
+    TableCell,
+    TableHeader,
+    TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
 import { useScheduleData } from "@/hooks/useScheduleData";
 import {
-  createAvailability,
-  createSchedule,
-  exportSchedule,
-  generateAiSchedule,
-  getEmployees,
-  getSettings,
-  getWeekVersions,
-  importAiScheduleResponse,
-  previewAiData,
-  updateSchedule,
-  updateSettings
+    createAvailability,
+    createSchedule,
+    exportSchedule,
+    generateAiSchedule,
+    getEmployees,
+    getSettings,
+    getWeekVersions,
+    importAiScheduleResponse,
+    previewAiData,
+    updateSchedule,
+    updateSettings
 } from "@/services/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  format
+    format
 } from "date-fns";
 import {
-  AlertCircle,
-  FileTextIcon,
-  RefreshCw
+    AlertCircle,
+    FileTextIcon,
+    RefreshCw
 } from "lucide-react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -75,9 +75,9 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 // import { ScheduleOverview } from '@/components/Schedule/ScheduleOverview'; // Original, might be unused
 import type { CreateWeekVersionResponse } from "@/services/api";
 import {
-  AiImportResponse,
-  ScheduleUpdate,
-  Settings as SettingsType
+    AiImportResponse,
+    ScheduleUpdate,
+    Settings as SettingsType
 } from "@/types"; // Renamed Settings to avoid conflict
 import type { WeekVersionMeta } from "@/types/weekVersion";
 // import { Checkbox } from '@/components/ui/checkbox'; // Original, might be unused
@@ -113,14 +113,14 @@ import { WeekNavigator } from "@/components/WeekNavigator";
 import { ActionDock } from "@/components/dock/ActionDock";
 import { DetailedAIGenerationModal } from "@/components/modals/DetailedAIGenerationModal";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { MEPDataService } from "@/services/mepDataService";
 import ReactDOM from "react-dom/client";
@@ -1685,6 +1685,14 @@ export function SchedulePage() {
                 isGenerating={isPending || isAiGenerating}
                 onEmptyStateCreateVersion={handleCreateNewVersionPage}
                 onEmptyStateGenerateSchedule={handleGenerateStandardSchedule}
+                // Week navigation props for fullscreen mode
+                weekInfo={weekBasedVersionControl.currentWeekInfo}
+                onNavigatePrevious={weekBasedVersionControl.navigatePrevious}
+                onNavigateNext={weekBasedVersionControl.navigateNext}
+                weekNavigationSettings={{
+                  weekendStart: weekBasedVersionControl.settings.weekendStart,
+                  monthBoundaryMode: weekBasedVersionControl.settings.monthBoundaryMode,
+                }}
               />
             </div>
           </>
@@ -1697,6 +1705,7 @@ export function SchedulePage() {
           dateRange={effectiveDateRange}
           versionMeta={convertToWeekVersionMeta(currentWeekVersions[0])}
           versionStatus={currentWeekVersions[0]?.status as "DRAFT" | "PUBLISHED" | "ARCHIVED" | undefined}
+          schedules={scheduleData || []}
           onDrop={handleDockDrop}
           onAIPrompt={handleAIPrompt}
         />
