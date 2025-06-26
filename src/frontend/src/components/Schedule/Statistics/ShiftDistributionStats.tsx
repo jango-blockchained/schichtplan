@@ -1,11 +1,10 @@
-import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { 
-  Sunrise, 
-  Sun, 
-  Moon,
-  PieChart 
+import {
+    Moon,
+    PieChart,
+    Sun,
+    Sunrise
 } from "lucide-react";
 
 interface ShiftDistributionStatsProps {

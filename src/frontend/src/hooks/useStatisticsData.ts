@@ -1,17 +1,17 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { DateRange } from "react-day-picker";
-import { eachWeekOfInterval, endOfWeek, format, parseISO } from "date-fns";
-import { Schedule, Employee } from "@/types";
 import { getEmployees } from "@/services/api";
+import { Employee, Schedule } from "@/types";
 import {
-  calculateShiftDuration,
-  getShiftType,
-  getValidSchedules,
-  createEmployeeLookup,
-  getSchedulesForDate,
-  isDayOpen,
+    calculateShiftDuration,
+    createEmployeeLookup,
+    getSchedulesForDate,
+    getShiftType,
+    getValidSchedules,
+    isDayOpen,
 } from "@/utils/statisticsUtils";
+import { useQuery } from "@tanstack/react-query";
+import { eachWeekOfInterval, endOfWeek, format, parseISO } from "date-fns";
+import { useMemo } from "react";
+import { DateRange } from "react-day-picker";
 
 interface UseStatisticsDataProps {
   schedules: Schedule[];

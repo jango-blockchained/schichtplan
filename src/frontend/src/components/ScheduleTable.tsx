@@ -1106,8 +1106,8 @@ export function ScheduleTable({
 }: ScheduleTableProps) {
   const [isFullWidth, setIsFullWidth] = useState(false);
   const [currentDayOffset, setCurrentDayOffset] = useState(0);
-  const [employeeSortBy, setEmployeeSortBy] = useState<"name" | "group" | "hours" | "alphabetical" | "keyholder" | "shifts" | "workload">("alphabetical");
-  const [employeeSortOrder, setEmployeeSortOrder] = useState<"asc" | "desc">("asc");
+  const [employeeSortBy, setEmployeeSortBy] = useState<"name" | "group" | "hours" | "alphabetical" | "keyholder" | "shifts" | "workload">("hours");
+  const [employeeSortOrder, setEmployeeSortOrder] = useState<"asc" | "desc">("desc");
   
   // Enhanced debugging for schedule data
   console.log("🔴 DEBUG: RENDERING ScheduleTable with:", {

@@ -1,9 +1,8 @@
-import React from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import ScheduleControls from "@/components/Schedule/ScheduleControls";
-import { DateRange } from "react-day-picker";
+import { Card, CardContent } from "@/components/ui/card";
 import { WeekVersionMeta } from "@/types/weekVersion";
+import { DateRange } from "react-day-picker";
 
 interface WeekBasedVersionControl {
   navigationState: {

@@ -1,13 +1,12 @@
-import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  Info,
-  Coffee,
-  AlertCircle,
-  AlertTriangle,
-  TrendingUp,
-  Users,
-  Clock
+import {
+    AlertCircle,
+    AlertTriangle,
+    Clock,
+    Coffee,
+    Info,
+    TrendingUp,
+    Users
 } from "lucide-react";
 
 interface ScheduleRecommendationsProps {

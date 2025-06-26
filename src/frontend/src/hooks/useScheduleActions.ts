@@ -1,8 +1,8 @@
-import { useCallback } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/use-toast";
-import { format as formatDate } from "date-fns";
 import { exportSchedule, importAiScheduleResponse, previewAiData } from "@/services/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { format as formatDate } from "date-fns";
+import { useCallback } from "react";
 import { DateRange } from "react-day-picker";
 
 interface UseScheduleActionsProps {
@@ -148,6 +148,16 @@ export function useScheduleActions({
       toast({
         title: "Export nicht möglich",
         description: "Bitte Zeitraum wählen.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (exportFormat === 'mep-html') {
+      // TODO: Implement HTML MEP export functionality
+      toast({
+        title: "Funktion nicht verfügbar",
+        description: "HTML MEP Export ist noch nicht implementiert.",
         variant: "destructive",
       });
       return;
