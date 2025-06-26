@@ -1,14 +1,13 @@
-import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { 
-  Calendar, 
-  Clock, 
-  Users,
-  Activity 
-} from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import {
+    Activity,
+    Calendar,
+    Clock,
+    Users
+} from "lucide-react";
 
 interface WeeklyBreakdownProps {
   weeklyBreakdown: Array<{

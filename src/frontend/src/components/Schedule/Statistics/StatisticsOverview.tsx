@@ -1,13 +1,12 @@
-import React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { 
-  Activity, 
-  Users, 
-  Clock, 
-  Coffee,
-  BarChart3 
+import {
+    Activity,
+    BarChart3,
+    Clock,
+    Coffee,
+    Users
 } from "lucide-react";
 
 interface StatisticsOverviewProps {

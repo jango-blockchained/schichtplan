@@ -1,5 +1,5 @@
-import { Schedule, Employee } from "@/types";
-import { parseISO, isSameDay, getDay } from "date-fns";
+import { Employee, Schedule } from "@/types";
+import { getDay, isSameDay, parseISO } from "date-fns";
 
 // Helper function to calculate shift duration in hours
 export const calculateShiftDuration = (schedule: Schedule): number => {
