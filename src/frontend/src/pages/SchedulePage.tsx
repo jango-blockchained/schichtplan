@@ -29,45 +29,45 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
 import { useScheduleData } from "@/hooks/useScheduleData";
 import {
-    createAvailability,
-    createSchedule,
-    exportSchedule,
-    generateAiSchedule,
-    getEmployees,
-    getSettings,
-    getWeekVersions,
-    importAiScheduleResponse,
-    previewAiData,
-    updateSchedule,
-    updateSettings
+  createAvailability,
+  createSchedule,
+  exportSchedule,
+  generateAiSchedule,
+  getEmployees,
+  getSettings,
+  getWeekVersions,
+  importAiScheduleResponse,
+  previewAiData,
+  updateSchedule,
+  updateSettings
 } from "@/services/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-    format
+  format
 } from "date-fns";
 import {
-    AlertCircle,
-    FileTextIcon,
-    RefreshCw
+  AlertCircle,
+  FileTextIcon,
+  RefreshCw
 } from "lucide-react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -75,9 +75,9 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 // import { ScheduleOverview } from '@/components/Schedule/ScheduleOverview'; // Original, might be unused
 import type { CreateWeekVersionResponse } from "@/services/api";
 import {
-    AiImportResponse,
-    ScheduleUpdate,
-    Settings as SettingsType
+  AiImportResponse,
+  ScheduleUpdate,
+  Settings as SettingsType
 } from "@/types"; // Renamed Settings to avoid conflict
 import type { WeekVersionMeta } from "@/types/weekVersion";
 // import { Checkbox } from '@/components/ui/checkbox'; // Original, might be unused
@@ -101,6 +101,7 @@ import useScheduleGeneration from "@/hooks/useScheduleGeneration";
 import { useWeekBasedVersionControl } from "@/hooks/useWeekBasedVersionControl";
 // import { ScheduleFixActions } from '@/components/Schedule/ScheduleFixActions'; // Original, might be unused
 
+import AbsenceModal from "@/components/AbsenceModal";
 import { AddAvailabilityDialog } from "@/components/Schedule/AddAvailabilityDialog";
 import { AddScheduleDialog } from "@/components/Schedule/AddScheduleDialog";
 import { DiagnosticsDialog } from "@/components/Schedule/DiagnosticsDialog";
@@ -113,14 +114,14 @@ import { WeekNavigator } from "@/components/WeekNavigator";
 import { ActionDock } from "@/components/dock/ActionDock";
 import { DetailedAIGenerationModal } from "@/components/modals/DetailedAIGenerationModal";
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { MEPDataService } from "@/services/mepDataService";
 import ReactDOM from "react-dom/client";
@@ -167,6 +168,8 @@ export function SchedulePage() {
   // const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null); // Removed - unused
   const [isAddScheduleDialogOpen, setIsAddScheduleDialogOpen] = useState(false);
   const [isAddAvailabilityDialogOpen, setIsAddAvailabilityDialogOpen] = useState(false);
+  const [isAbsenceModalOpen, setIsAbsenceModalOpen] = useState(false);
+  const [selectedEmployeeForAbsence, setSelectedEmployeeForAbsence] = useState<number | null>(null);
   const [isStatisticsModalOpen, setIsStatisticsModalOpen] = useState(false);
   const [employeeAbsences, setEmployeeAbsences] = useState<
     Record<number, unknown[]>
@@ -1109,6 +1112,21 @@ export function SchedulePage() {
     setIsAddAvailabilityDialogOpen(true);
   };
 
+  const handleAddAbsence = () => {
+    // Use the first available employee as default, or prompt to select one
+    const firstEmployee = employees?.[0];
+    if (firstEmployee) {
+      setSelectedEmployeeForAbsence(firstEmployee.id);
+      setIsAbsenceModalOpen(true);
+    } else {
+      toast({
+        title: "Fehler",
+        description: "Keine Mitarbeiter verfügbar. Bitte fügen Sie erst Mitarbeiter hinzu.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleCreateSchedule = async (newScheduleData: {
     employee_id: number;
     date: string;
@@ -1521,6 +1539,7 @@ export function SchedulePage() {
           onAddFixed={handleAddFixed}
           onAddPreferred={handleAddPreferred}
           onAddUnavailable={handleAddUnavailable}
+          onAddAbsence={handleAddAbsence}
           onDeleteSchedule={handleDeleteSchedule}
           onGenerateStandardSchedule={handleGenerateStandardSchedule}
           onGenerateAiFastSchedule={handleGenerateAiFastSchedule}
@@ -1755,6 +1774,21 @@ export function SchedulePage() {
             name: emp.last_name,
             vorname: emp.first_name
           })) || []}
+        />
+      )}
+
+      {/* Absence Modal */}
+      {isAbsenceModalOpen && selectedEmployeeForAbsence && (
+        <AbsenceModal
+          isOpen={isAbsenceModalOpen}
+          onClose={() => {
+            setIsAbsenceModalOpen(false);
+            setSelectedEmployeeForAbsence(null);
+          }}
+          employeeId={selectedEmployeeForAbsence}
+          absenceTypes={effectiveSettingsData?.employee_groups?.absence_types || []}
+          employees={employees || []}
+          allowEmployeeSelection={true}
         />
       )}
 

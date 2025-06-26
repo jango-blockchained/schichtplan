@@ -1,36 +1,30 @@
-import { Card } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
-import { WeeklySchedule, WeeklyShift } from "@/types";
-import { format, addDays } from "date-fns";
-import { de } from "date-fns/locale";
-import {
-  DragDropContext,
-  Droppable,
-  Draggable,
-  DropResult,
-} from "react-beautiful-dnd";
-import { useState, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { AlertCircle, Edit2, Loader2 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
+import { cn } from "@/lib/utils";
+import { WeeklySchedule, WeeklyShift } from "@/types";
+import { addDays, format } from "date-fns";
+import { de } from "date-fns/locale";
+import { AlertCircle, Edit2, Loader2 } from "lucide-react";
+import { useCallback, useState } from "react";
+import {
+    DragDropContext,
+    Draggable,
+    Droppable,
+    DropResult,
+} from "react-beautiful-dnd";
 
 interface ShiftTableProps {
   weekStart: Date;
@@ -204,7 +198,6 @@ const ShiftCell = ({
         <SubRow>Beginn: {shift.start_time}</SubRow>
         {shift.break && (
           <>
-            <SubRow>Pause: {shift.break.start}</SubRow>
             <SubRow>Ende: {shift.break.end}</SubRow>
           </>
         )}

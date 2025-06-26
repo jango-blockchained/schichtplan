@@ -140,9 +140,6 @@ export function VersionManager({
                   <Badge variant="outline">
                     {dateRangeInfo.weekRange} • {dateRangeInfo.dateRange}
                   </Badge>
-                  <Badge variant="outline" className="text-xs">
-                    {effectiveSettings.weekendStart === 0 ? 'So-Start' : 'Mo-Start'}
-                  </Badge>
                 </div>
               )}
               

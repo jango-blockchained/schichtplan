@@ -1,32 +1,33 @@
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  BarChart3,
-  ChevronDown,
-  Loader2,
-  Play,
-  Plus,
-  Settings,
-  Trash2,
-  Wand2,
-  Zap,
+    BarChart3,
+    Calendar,
+    ChevronDown,
+    Loader2,
+    Play,
+    Plus,
+    Settings,
+    Trash2,
+    Wand2,
+    Zap,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -43,6 +44,7 @@ interface ScheduleActionsProps {
   onAddFixed: () => void;
   onAddUnavailable: () => void;
   onAddPreferred: () => void;
+  onAddAbsence: () => void;
   isLoading: boolean;
   isGenerating: boolean;
   isAiFastGenerating: boolean;
@@ -67,6 +69,7 @@ export function ScheduleActions({
   onAddFixed,
   onAddUnavailable,
   onAddPreferred,
+  onAddAbsence,
   isGenerating,
   isAiFastGenerating,
   isAiDetailedGenerating,
@@ -120,6 +123,11 @@ export function ScheduleActions({
               <DropdownMenuItem onClick={onAddUnavailable}>
                 <Settings className="h-4 w-4 mr-2" />
                 Nicht verfügbar
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onAddAbsence}>
+                <Calendar className="h-4 w-4 mr-2" />
+                Abwesenheit hinzufügen
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

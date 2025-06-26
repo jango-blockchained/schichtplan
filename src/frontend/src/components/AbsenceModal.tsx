@@ -1,41 +1,47 @@
-import { format, parseISO } from "date-fns";
-import { de } from "date-fns/locale";
-import { Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from "@/components/ui/select";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
-import { AbsenceType, Absence } from "@/types"; // Changed: Imported Absence directly from @/types
-import { getAbsences, createAbsence, deleteAbsence } from "@/services/api";
-import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { createAbsence, deleteAbsence, getAbsences } from "@/services/api";
+import { Absence, AbsenceType } from "@/types"; // Changed: Imported Absence directly from @/types
+import { format, parseISO } from "date-fns";
+import { de } from "date-fns/locale";
+import { Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
 interface AbsenceModalProps {
   isOpen: boolean;
   onClose: () => void;
   employeeId: number;
   absenceTypes: AbsenceType[];
+  employees?: Array<{
+    id: number;
+    first_name: string;
+    last_name: string;
+  }>;
+  allowEmployeeSelection?: boolean;
 }
 
 export default function AbsenceModal({
@@ -43,8 +49,11 @@ export default function AbsenceModal({
   onClose,
   employeeId,
   absenceTypes,
+  employees,
+  allowEmployeeSelection = false,
 }: AbsenceModalProps) {
   const [absences, setAbsences] = useState<Absence[]>([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number>(employeeId);
   const [newAbsence, setNewAbsence] = useState<Omit<Absence, "id">>({
     employee_id: employeeId,
     absence_type_id: "",
@@ -54,15 +63,9 @@ export default function AbsenceModal({
   });
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (isOpen) {
-      loadAbsences();
-    }
-  }, [isOpen, employeeId]);
-
-  const loadAbsences = async () => {
+  const loadAbsences = useCallback(async () => {
     try {
-      const data = await getAbsences(employeeId);
+      const data = await getAbsences(selectedEmployeeId);
       setAbsences(data);
     } catch (error) {
       toast({
@@ -72,7 +75,24 @@ export default function AbsenceModal({
         variant: "destructive",
       });
     }
-  };
+  }, [selectedEmployeeId, toast]);
+
+  useEffect(() => {
+    setSelectedEmployeeId(employeeId);
+  }, [employeeId]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadAbsences();
+    }
+  }, [isOpen, selectedEmployeeId, loadAbsences]);
+
+  useEffect(() => {
+    setNewAbsence(prev => ({
+      ...prev,
+      employee_id: selectedEmployeeId,
+    }));
+  }, [selectedEmployeeId]);
 
   const handleAddAbsence = async () => {
     try {
@@ -101,7 +121,7 @@ export default function AbsenceModal({
 
   const handleDeleteAbsence = async (absenceId: number) => {
     try {
-      await deleteAbsence(absenceId, employeeId);
+      await deleteAbsence(absenceId, selectedEmployeeId);
       await loadAbsences();
       toast({
         title: "Success",
@@ -133,6 +153,26 @@ export default function AbsenceModal({
         </DialogHeader>
         <div className="space-y-6">
           <div className="space-y-4">
+            {allowEmployeeSelection && employees && employees.length > 0 && (
+              <div className="space-y-2">
+                <Label>Employee</Label>
+                <Select
+                  value={selectedEmployeeId.toString()}
+                  onValueChange={(value) => setSelectedEmployeeId(parseInt(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select employee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.map((employee) => (
+                      <SelectItem key={employee.id} value={employee.id.toString()}>
+                        {employee.first_name} {employee.last_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Absence Type</Label>
               {absenceTypes.length === 0 ? (
