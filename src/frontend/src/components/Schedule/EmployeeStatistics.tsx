@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import {
-  Card,
-  CardContent,
+    Card,
+    CardContent,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -9,14 +9,14 @@ import { getEmployees } from "@/services/api";
 import { Schedule } from "@/types";
 import { useQuery } from "@tanstack/react-query";
 import {
-  differenceInHours,
-  eachMonthOfInterval,
-  eachWeekOfInterval,
-  endOfMonth,
-  endOfWeek,
-  format,
-  isWithinInterval,
-  parseISO,
+    differenceInHours,
+    eachMonthOfInterval,
+    eachWeekOfInterval,
+    endOfMonth,
+    endOfWeek,
+    format,
+    isWithinInterval,
+    parseISO,
 } from "date-fns";
 import { useMemo } from "react";
 
@@ -70,8 +70,7 @@ const calculateShiftDuration = (schedule: Schedule): number => {
 
     // Total duration minus break in hours
     return (endTotalMinutes - startTotalMinutes - breakDuration) / 60;
-  } catch (error) {
-    console.error("Error calculating shift duration:", error);
+  } catch {
     return 0;
   }
 };

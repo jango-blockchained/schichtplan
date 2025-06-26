@@ -247,12 +247,10 @@ export function SchedulePage() {
 
   // Week-based Version Control Hook with Settings Integration
   const weekBasedVersionControl = useWeekBasedVersionControl({
-    onWeekChanged: (weekIdentifier) => {
-      console.log("🔄 SchedulePage: Week changed to:", weekIdentifier);
+    onWeekChanged: () => {
       // The hook handles date range updates internally
     },
-    onVersionSelected: (version) => {
-      console.log("🔄 SchedulePage: Week-based version selected:", version);
+    onVersionSelected: () => {
       // Use week-based version directly without conversion
     },
   });
@@ -271,7 +269,6 @@ export function SchedulePage() {
   // Auto-select first version when versions become available and none is selected
   useEffect(() => {
     if (!weekBasedVersionControl.selectedVersion && currentWeekVersions.length > 0) {
-      console.log("🔄 Auto-selecting first available version:", currentWeekVersions[0].version);
       weekBasedVersionControl.setSelectedVersion(currentWeekVersions[0].version);
     }
   }, [currentWeekVersions, weekBasedVersionControl]);
@@ -287,15 +284,6 @@ export function SchedulePage() {
       ? parseInt(effectiveSelectedVersion.replace(/^.*-/, ''), 10) // Extract number from "2025-W26-1" format
       : undefined;
   const effectiveDateRange = weekBasedVersionControl.navigationState.dateRange;
-
-  // Debug logging for effective date range
-  console.log("🔍 Debug Date Range:", {
-    navigationState: weekBasedVersionControl.navigationState,
-    effectiveDateRange,
-    currentWeek: weekBasedVersionControl.navigationState.currentWeek,
-    dateRangeFrom: effectiveDateRange?.from,
-    dateRangeTo: effectiveDateRange?.to
-  });
 
   // Ensure effectiveDateRange always has .from and .to as Date objects
   const safeEffectiveDateRange = {
@@ -339,7 +327,6 @@ export function SchedulePage() {
     onSuccess: useCallback(() => {
       // Only refetch data once, don't duplicate query invalidations
       // The hook already handles query invalidation internally
-      console.log("🔄 Schedule generation completed, triggering data refresh");
       
       // Only invalidate versions if they might have changed
       queryClient.invalidateQueries({ queryKey: ["versions"] });
@@ -469,7 +456,6 @@ export function SchedulePage() {
   }, [effectiveSelectedVersionNumber, effectiveDateRange, toast, importAiResponseMutation]);
 
   const handleRetryFetch = useCallback(() => {
-    console.log("Retrying data fetch...");
     clearGenerationLogs();
     // Use query invalidation instead of manual refetch to prevent loops
     queryClient.invalidateQueries({ queryKey: ["schedules"] });
@@ -534,7 +520,7 @@ export function SchedulePage() {
           // Now render the MEP component
           renderMEPComponent();
         } catch {
-          console.warn('Could not load CSS file, using inline styles');
+          // CSS loading failed, continue with inline styles
           renderMEPComponent();
         }
       };
@@ -623,14 +609,12 @@ export function SchedulePage() {
   // Page-level handler for creating a new version (now handled by week-based version control)
   const handleCreateNewVersionPage = useCallback(() => {
     // Use week-based version creation instead
-    console.log("Creating new version for current week:", weekBasedVersionControl.navigationState.currentWeek);
     weekBasedVersionControl.createVersionForWeek(weekBasedVersionControl.navigationState.currentWeek);
   }, [weekBasedVersionControl]);
 
   // 7. All useEffect hooks
   useEffect(() => {
     if (scheduleErrorObj) {
-      console.error("Schedule fetch error:", scheduleErrorObj);
       addGenerationLog(
         "error",
         "Error fetching schedule data",
@@ -652,10 +636,6 @@ export function SchedulePage() {
     // by using query invalidation instead of manual refetch
     const timeoutId = setTimeout(() => {
       if (effectiveSelectedVersionNumber !== undefined) {
-        console.log(
-          "🔄 SchedulePage: Effective version changed, invalidating queries for version:",
-          effectiveSelectedVersionNumber,
-        );
         // Use query invalidation instead of manual refetch to prevent loops
         queryClient.invalidateQueries({ queryKey: ["schedules"] });
       }
@@ -681,27 +661,7 @@ export function SchedulePage() {
       // not by date range across all employees.
       // To avoid a 404, we will not call getAbsences with the date range.
       // A future task is needed to implement a backend route for fetching absences by date range.
-      console.warn("Fetching all absences by date range is not yet supported by the backend.");
       return {}; // Return empty object or appropriate default
-      // Original incorrect call:
-      // const data = await getAbsences(
-      //   // @ts-ignore // Temporarily ignore type error until backend API is updated
-      //   effectiveDateRange!.from!,
-      //   // @ts-ignore // Temporarily ignore type error until backend API is updated
-      //   effectiveDateRange!.to!
-      // );
-      // Assuming the backend returns a list of absence objects
-      // We need to transform it into a map by employee ID if that's how employeeAbsences is used
-      // const absencesByEmployee: Record<number, any[]> = {};
-      // if (Array.isArray(data)) {
-      //   data.forEach(absence => {
-      //     if (!absencesByEmployee[absence.employee_id]) {
-      //       absencesByEmployee[absence.employee_id] = [];
-      //     }
-      //     absencesByEmployee[absence.employee_id].push(absence);
-      //   });
-      // }
-      // return absencesByEmployee;
     },
     // Removed dependency on dateRange for enabling the query to prevent incorrect calls
     // The display logic in ScheduleTable will handle the absence data it receives (or doesn't receive)

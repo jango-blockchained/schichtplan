@@ -1,58 +1,51 @@
-import React, { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import {
-  Calendar as CalendarIcon,
-  Clock,
-  Check,
-  X,
-  AlertTriangle,
+    AlertTriangle,
+    Calendar as CalendarIcon,
+    Check,
+    Clock,
+    X,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 // Removed unused useQuery, useMutation, useQueryClient for now, can be added back if other parts need them
-import { Calendar } from "@/components/ui/calendar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  getEmployeeAvailabilityByDate,
-  getApplicableShiftsForEmployee,
-  getEmployees,
-  updateEmployee,
-} from "@/services/api";
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import {
-  EmployeeAvailabilityStatus,
-  ApplicableShift,
-  AvailabilityTypeStrings,
-  Employee,
-} from "@/types";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useToast } from "@/components/ui/use-toast";
+    getApplicableShiftsForEmployee,
+    getEmployeeAvailabilityByDate,
+    getEmployees,
+    updateEmployee,
+} from "@/services/api";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Badge } from "@/components/ui/badge";
+    ApplicableShift,
+    AvailabilityTypeStrings,
+    EmployeeAvailabilityStatus,
+} from "@/types";
 
 interface AddScheduleDialogProps {
   isOpen: boolean;
@@ -125,7 +118,6 @@ export function AddScheduleDialog({
       setSelectedDate(initialDefaultDate || new Date());
 
       if (initialDefaultEmployeeId) {
-        console.log("Setting initial employee ID:", initialDefaultEmployeeId);
         setSelectedEmployee(initialDefaultEmployeeId);
       } else {
         setSelectedEmployee(null);
@@ -146,7 +138,6 @@ export function AddScheduleDialog({
       getEmployeeAvailabilityByDate(format(selectedDate, "yyyy-MM-dd"))
         .then((data) => {
           setEmployeeStatusList(data);
-          console.log("Loaded employee status list:", data);
 
           // Check if default employee is in the list and still valid
           if (initialDefaultEmployeeId) {
@@ -156,12 +147,7 @@ export function AddScheduleDialog({
 
             if (defaultEmployeeInList) {
               setSelectedEmployee(initialDefaultEmployeeId);
-              console.log(
-                "Default employee found in list:",
-                defaultEmployeeInList,
-              );
             } else {
-              console.log("Default employee not found in list");
               // Don't clear selection if it was explicitly set
             }
           }
@@ -253,39 +239,28 @@ export function AddScheduleDialog({
     try {
       // Handle keyholder status if selected
       if (isKeyholder) {
-        console.log("🔑 Setting up keyholder for new schedule...");
-        
         try {
           // Get all employees to find other keyholders
           const employees = await getEmployees();
-          
           // Find and unset other keyholders
           const otherKeyholders = employees.filter(emp => 
             emp.id !== selectedEmployee && emp.is_keyholder
           );
-          
-          console.log("🔑 Found other keyholders to unset:", otherKeyholders.length);
-          
           for (const keyholder of otherKeyholders) {
-            console.log("🔑 Unsetting keyholder:", keyholder.first_name, keyholder.last_name);
             await updateEmployee(keyholder.id, { 
               ...keyholder, 
               is_keyholder: false 
             });
           }
-          
           // Set the selected employee as keyholder
           const currentEmployee = employees.find(emp => emp.id === selectedEmployee);
           if (currentEmployee && !currentEmployee.is_keyholder) {
-            console.log("🔑 Setting employee as keyholder:", currentEmployee.first_name, currentEmployee.last_name);
             await updateEmployee(currentEmployee.id, { 
               ...currentEmployee, 
               is_keyholder: true 
             });
           }
-          
         } catch (error) {
-          console.error("❌ Error updating keyholder status:", error);
           toast({
             title: "Warning",
             description: "Schedule will be created but keyholder status update failed: " + (error instanceof Error ? error.message : "Unknown error"),
@@ -303,12 +278,8 @@ export function AddScheduleDialog({
         availability_type: selectedAvailabilityType,
         is_keyholder: isKeyholder,
       });
-      
-      console.log("✅ Schedule created successfully");
       onClose(); // Close dialog on success
-      
     } catch (error) {
-      console.error("Error adding schedule:", error);
       toast({
         title: "Fehler beim Speichern",
         description:
@@ -324,7 +295,6 @@ export function AddScheduleDialog({
 
   const handleEmployeeChange = (value: string) => {
     const employeeId = value ? Number(value) : null;
-    console.log("Employee selection changed to:", employeeId);
     setSelectedEmployee(employeeId);
   };
 

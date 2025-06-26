@@ -769,15 +769,11 @@ const ScheduleCell = ({
                   version: currentVersion || 1,
                 };
 
-                console.log("Creating new schedule with data:", newScheduleData);
-                
                 // Create schedule via API
                 const createdSchedule = await createSchedule(newScheduleData);
-                console.log("Schedule created successfully:", createdSchedule);
                 
                 // Invalidate the schedules cache to trigger a refetch
                 await queryClient.invalidateQueries({ queryKey: ['schedules'] });
-                console.log("Schedule cache invalidated, data should refresh automatically");
               }
               // Close the modal after successful operation
               setIsAddModalOpen(false);
