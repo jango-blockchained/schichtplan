@@ -1205,15 +1205,42 @@ def duplicate_version():
                 {"error": "Invalid date format, expected YYYY-MM-DD"}
             ), HTTPStatus.BAD_REQUEST
 
+        # Get source metadata first to understand the source date range
+        source_meta = db.session.get(ScheduleVersionMeta, source_version)  # type: ignore
+
         # Get source schedules
         source_schedules = Schedule.query.filter_by(version=source_version).all()  # type: ignore
         if not source_schedules:
             return jsonify(
-                {"error": f"Source version {source_version} not found"}
-            ), HTTPStatus.NOT_FOUND
+                {
+                    "message": f"No schedules found for version {source_version}. Cannot duplicate an empty version.",
+                    "status": "error",
+                    "error": f"Source version {source_version} contains no schedule data",
+                }
+            ), HTTPStatus.BAD_REQUEST
 
-        # Get source metadata
-        source_meta = db.session.get(ScheduleVersionMeta, source_version)  # type: ignore
+        # Get source date range from metadata or calculate from schedules
+        source_start_date = None
+
+        if (
+            source_meta
+            and hasattr(source_meta, "date_range_start")
+            and source_meta.date_range_start is not None
+        ):
+            source_start_date = source_meta.date_range_start
+        else:
+            # Calculate from schedules if no metadata exists or metadata is incomplete
+            source_dates = [s.date for s in source_schedules]
+            if source_dates:
+                source_start_date = min(source_dates)
+
+        if source_start_date is None:
+            return jsonify(
+                {"error": "Could not determine source date range"}
+            ), HTTPStatus.BAD_REQUEST
+
+        # Calculate date offset for mapping source dates to target dates
+        date_offset = (start_date - source_start_date).days
 
         # Get next version number
         max_schedule_version_query = db.session.query(db.func.max(Schedule.version))  # type: ignore
@@ -1238,14 +1265,18 @@ def duplicate_version():
             )
             db.session.add(new_meta)
 
-            # Duplicate schedules
+            # Duplicate schedules with date mapping
+            schedules_copied = 0
             for schedule in source_schedules:
-                # Skip if the date is outside our new range
-                if schedule.date < start_date or schedule.date > end_date:
+                # Calculate the new date by applying the offset
+                new_date = schedule.date + timedelta(days=date_offset)
+
+                # Only copy if the new date falls within our target range
+                if new_date < start_date or new_date > end_date:
                     continue
 
                 new_schedule = Schedule(
-                    date=schedule.date,
+                    date=new_date,
                     employee_id=schedule.employee_id,
                     shift_id=schedule.shift_id,
                     version=new_version,
@@ -1255,14 +1286,16 @@ def duplicate_version():
                     notes=schedule.notes,
                 )
                 db.session.add(new_schedule)
+                schedules_copied += 1
 
             db.session.commit()
 
             return jsonify(
                 {
-                    "message": f"Version {source_version} duplicated successfully",
+                    "message": f"Version {source_version} duplicated successfully to version {new_version}",
                     "version": new_version,
                     "status": "DRAFT",
+                    "schedules_copied": schedules_copied,
                     "version_meta": new_meta.to_dict()
                     if hasattr(new_meta, "to_dict")
                     else None,

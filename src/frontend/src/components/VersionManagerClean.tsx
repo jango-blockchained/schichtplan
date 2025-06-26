@@ -355,6 +355,7 @@ export function VersionManager({
             open={duplicateModalOpen}
             onOpenChange={setDuplicateModalOpen}
             sourceVersion={versionToDuplicate}
+            sourceVersionMeta={state.versions.find(v => v.version === versionToDuplicate)}
             onDuplicate={handleDuplicateConfirm}
             isLoading={state.isLoading}
           />
@@ -445,6 +446,7 @@ export function VersionManager({
               open={duplicateModalOpen}
               onOpenChange={setDuplicateModalOpen}
               sourceVersion={versionToDuplicate}
+              sourceVersionMeta={state.versions.find(v => v.version === versionToDuplicate)}
               onDuplicate={handleDuplicateConfirm}
               isLoading={state.isLoading}
             />
