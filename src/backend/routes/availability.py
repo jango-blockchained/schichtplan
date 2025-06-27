@@ -1,5 +1,5 @@
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 from http import HTTPStatus
 
 from flask import Blueprint, current_app, jsonify, request
@@ -475,6 +475,165 @@ def get_employee_status_by_date():
             return jsonify(
                 {"error": f"An unexpected error occurred: {str(e)}"}
             ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@availability.route("/date_range", methods=["GET"])
+def get_employee_status_by_date_range():
+    """Get availability status for all active employees for a date range."""
+
+    try:
+        # Validate query parameters
+        start_date_str = request.args.get("start_date")
+        end_date_str = request.args.get("end_date")
+
+        if not start_date_str or not end_date_str:
+            return jsonify(
+                {
+                    "error": "Both start_date and end_date parameters are required (YYYY-MM-DD format)"
+                }
+            ), HTTPStatus.BAD_REQUEST
+
+        try:
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+            end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify(
+                {"error": "Invalid date format. Use YYYY-MM-DD"}
+            ), HTTPStatus.BAD_REQUEST
+
+        if start_date > end_date:
+            return jsonify(
+                {"error": "start_date must be before or equal to end_date"}
+            ), HTTPStatus.BAD_REQUEST
+
+        # Limit range to prevent excessive load (e.g., max 31 days)
+        if (end_date - start_date).days > 31:
+            return jsonify(
+                {"error": "Date range cannot exceed 31 days"}
+            ), HTTPStatus.BAD_REQUEST
+
+        # Generate date range
+        current_date = start_date
+        date_range = []
+        while current_date <= end_date:
+            date_range.append(current_date)
+            current_date += timedelta(days=1)
+
+        # Get all active employees
+        active_employees = Employee.query.filter_by(is_active=True).all()
+        if not active_employees:
+            return jsonify([]), HTTPStatus.OK
+
+        employee_ids = [emp.id for emp in active_employees]
+
+        # Get all absences for the date range in bulk
+        absences = Absence.query.filter(
+            Absence.employee_id.in_(employee_ids),
+            Absence.start_date <= end_date,
+            Absence.end_date >= start_date,
+        ).all()
+
+        # Create absence lookup by employee and date
+        absence_lookup = {}
+        for absence in absences:
+            emp_id = absence.employee_id
+            if emp_id not in absence_lookup:
+                absence_lookup[emp_id] = []
+            absence_lookup[emp_id].append(absence)
+
+        # Get all schedules for the date range to determine version per date
+        all_schedules = (
+            db.session.query(Schedule, ShiftTemplate)
+            .join(ShiftTemplate, Schedule.shift_id == ShiftTemplate.id)
+            .filter(
+                Schedule.employee_id.in_(employee_ids),
+                Schedule.date >= start_date,
+                Schedule.date <= end_date,
+            )
+            .all()
+        )
+
+        # Group schedules by date and employee
+        schedule_lookup = {}
+        for schedule, shift_template in all_schedules:
+            date_str = schedule.date.strftime("%Y-%m-%d")
+            if date_str not in schedule_lookup:
+                schedule_lookup[date_str] = {}
+            schedule_lookup[date_str][schedule.employee_id] = (schedule, shift_template)
+
+        # Build response structure: {date: [{employee_data}]}
+        result = {}
+        settings = Settings.query.first()  # Get settings once for absence type lookup
+
+        for target_date in date_range:
+            date_str = target_date.strftime("%Y-%m-%d")
+            result[date_str] = []
+
+            for emp in active_employees:
+                status = "Available"
+                details = None
+
+                # Check for absence on this date
+                emp_absences = absence_lookup.get(emp.id, [])
+                matching_absence = None
+                for absence in emp_absences:
+                    if absence.start_date <= target_date <= absence.end_date:
+                        matching_absence = absence
+                        break
+
+                if matching_absence:
+                    # Get absence type name from settings
+                    absence_type_name = matching_absence.absence_type_id
+                    if settings and settings.absence_types:
+                        for absence_type in settings.absence_types:
+                            if (
+                                absence_type.get("id")
+                                == matching_absence.absence_type_id
+                            ):
+                                absence_type_name = absence_type.get(
+                                    "name", matching_absence.absence_type_id
+                                )
+                                break
+
+                    status = f"Absence: {absence_type_name}"
+                    details = {
+                        "absence_type_id": matching_absence.absence_type_id,
+                        "absence_type_name": absence_type_name,
+                        "start_date": matching_absence.start_date.isoformat(),
+                        "end_date": matching_absence.end_date.isoformat(),
+                        "note": matching_absence.note,
+                    }
+                elif (
+                    date_str in schedule_lookup and emp.id in schedule_lookup[date_str]
+                ):
+                    # Employee has a scheduled shift
+                    schedule, shift_template = schedule_lookup[date_str][emp.id]
+                    status = f"Shift: {getattr(shift_template, 'name', shift_template.shift_type_id)} ({shift_template.start_time.strftime('%H:%M')} - {shift_template.end_time.strftime('%H:%M')})"
+                    details = {
+                        "shift_id": schedule.shift_id,
+                        "shift_name": getattr(
+                            shift_template, "name", shift_template.shift_type_id
+                        ),
+                        "shift_start": shift_template.start_time.strftime("%H:%M"),
+                        "shift_end": shift_template.end_time.strftime("%H:%M"),
+                    }
+
+                result[date_str].append(
+                    {
+                        "employee_id": emp.id,
+                        "employee_name": f"{emp.first_name} {emp.last_name}",
+                        "status": status,
+                        "details": details,
+                    }
+                )
+
+        return jsonify(result), HTTPStatus.OK
+
+    except Exception as e:
+        current_app.logger.error(f"Error in /api/availability/date_range: {str(e)}")
+        return jsonify(
+            {"error": f"An unexpected error occurred: {str(e)}"}
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @availability.route("/shifts_for_employee", methods=["GET"])

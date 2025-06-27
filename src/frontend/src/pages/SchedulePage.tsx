@@ -24,6 +24,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from "react"; // Added useCallback
+import { DateRange } from "react-day-picker";
 // import { ShiftTable } from '@/components/ShiftTable'; // Original, might be unused if ScheduleManager is primary
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -54,7 +55,6 @@ import {
   generateAiSchedule,
   getEmployees,
   getSettings,
-  getWeekVersions,
   importAiScheduleResponse,
   previewAiData,
   updateSchedule,
@@ -98,7 +98,7 @@ import { ScheduleActions } from "@/components/Schedule/ScheduleActions";
 import ScheduleControls from "@/components/Schedule/ScheduleControls";
 import ScheduleErrors from "@/components/Schedule/ScheduleErrors";
 import useScheduleGeneration from "@/hooks/useScheduleGeneration";
-import { useWeekBasedVersionControl } from "@/hooks/useWeekBasedVersionControl";
+import { useVersionManager } from "@/hooks/useVersionManager";
 // import { ScheduleFixActions } from '@/components/Schedule/ScheduleFixActions'; // Original, might be unused
 
 import AbsenceModal from "@/components/AbsenceModal";
@@ -123,13 +123,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { AvailabilityProvider } from "@/contexts/AvailabilityContext";
 import { MEPDataService } from "@/services/mepDataService";
 import ReactDOM from "react-dom/client";
 
 // Utility function to convert CreateWeekVersionResponse to WeekVersionMeta
 function convertToWeekVersionMeta(versionResponse?: CreateWeekVersionResponse): WeekVersionMeta | undefined {
   if (!versionResponse) return undefined;
-  
+
   return {
     version: versionResponse.version,
     weekIdentifier: versionResponse.week_identifier,
@@ -248,50 +249,252 @@ export function SchedulePage() {
 
   // Week-based navigation is now the default and only navigation mode
 
-  // Week-based Version Control Hook with Settings Integration
-  const weekBasedVersionControl = useWeekBasedVersionControl({
-    onWeekChanged: () => {
-      // The hook handles date range updates internally
-    },
+  // Week-based navigation state for date range management
+  const [currentWeek, setCurrentWeek] = useState(() => {
+    // Get current week identifier (2025-W26 format)
+    const today = new Date();
+    const year = today.getFullYear();
+    // Simple week calculation (ISO week would be more accurate)
+    const startOfYear = new Date(year, 0, 1);
+    const weekNumber = Math.ceil(((today.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7);
+    return `${year}-W${weekNumber.toString().padStart(2, '0')}`;
+  });
+
+  const [dateRange, setDateRange] = useState<DateRange>(() => {
+    // Initialize with current week
+    const today = new Date();
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - today.getDay() + 1); // Monday
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6); // Sunday
+
+    return {
+      from: startOfWeek,
+      to: endOfWeek
+    };
+  });
+
+  // Use the new unified version manager hook
+  const versionManager = useVersionManager({
+    dateRange,
     onVersionSelected: () => {
-      // Use week-based version directly without conversion
+      // Version selection is handled internally by the hook
     },
+    autoSelectLatest: true,
   });
 
-  // Query for week-based version metadata when using week navigation
-  const { data: currentWeekVersions = [] } = useQuery({
-    queryKey: ["week-version", weekBasedVersionControl.navigationState.currentWeek],
-    queryFn: async () => {
-      const versions = await getWeekVersions(weekBasedVersionControl.navigationState.currentWeek);
-      return versions;
-    },
-    enabled: !!weekBasedVersionControl.navigationState.currentWeek,
-    staleTime: 30 * 1000, // Cache for 30 seconds
-  });
+  // Extract state and actions from version manager
+  const { state: versionState, actions: versionActions } = versionManager;
+  const { selectedVersion, isLoading: isLoadingVersions } = versionState;
 
-  // Auto-select first version when versions become available and none is selected
-  useEffect(() => {
-    if (!weekBasedVersionControl.selectedVersion && currentWeekVersions.length > 0) {
-      weekBasedVersionControl.setSelectedVersion(currentWeekVersions[0].version);
-    }
-  }, [currentWeekVersions, weekBasedVersionControl]);
-
-  // Use the selected version from week control hook, or fall back to first available version
-  const effectiveSelectedVersion = weekBasedVersionControl.selectedVersion || 
-    (currentWeekVersions.length > 0 ? currentWeekVersions[0].version : undefined);
-  
-  // Convert version identifier to number for legacy API compatibility
-  const effectiveSelectedVersionNumber = typeof effectiveSelectedVersion === 'number' 
-    ? effectiveSelectedVersion 
-    : typeof effectiveSelectedVersion === 'string' 
-      ? parseInt(effectiveSelectedVersion.replace(/^.*-/, ''), 10) // Extract number from "2025-W26-1" format
-      : undefined;
-  const effectiveDateRange = weekBasedVersionControl.navigationState.dateRange;
+  // Use the selected version from version manager
+  const effectiveSelectedVersionNumber = selectedVersion;
+  const effectiveDateRange = dateRange;
+  const effectiveSelectedVersion = selectedVersion; // Compatibility alias
 
   // Ensure effectiveDateRange always has .from and .to as Date objects
   const safeEffectiveDateRange = {
-    from: effectiveDateRange?.from ? new Date(effectiveDateRange.from) : new Date(),
-    to: effectiveDateRange?.to ? new Date(effectiveDateRange.to) : new Date(),
+    from: effectiveDateRange?.from && !isNaN(effectiveDateRange.from.getTime())
+      ? new Date(effectiveDateRange.from)
+      : new Date(),
+    to: effectiveDateRange?.to && !isNaN(effectiveDateRange.to.getTime())
+      ? new Date(effectiveDateRange.to)
+      : new Date(),
+  };
+
+  // Helper function to get the number of weeks in a year (52 or 53)
+  const getWeeksInYear = useCallback((year: number): number => {
+    // January 4th is always in week 1
+    const jan4 = new Date(year, 0, 4);
+    // December 28th is always in the last week of the year
+    const dec28 = new Date(year, 11, 28);
+
+    // Calculate the ISO week number for December 28th
+    const jan4WeekDay = jan4.getDay() || 7; // Convert Sunday (0) to 7
+    const dec28DayOfYear = Math.floor((dec28.getTime() - new Date(year, 0, 1).getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    const dec28WeekNumber = Math.floor((dec28DayOfYear - jan4WeekDay + 10) / 7);
+
+    return dec28WeekNumber;
+  }, []);
+
+  // Helper function to update week and date range together
+  const navigateToWeek = useCallback((weekIdentifier: string) => {
+    setCurrentWeek(weekIdentifier);
+
+    try {
+      // Parse week identifier and update date range
+      const [year, week] = weekIdentifier.split('-W');
+      const yearNum = parseInt(year);
+      const weekNum = parseInt(week);
+
+      // Validate inputs
+      if (isNaN(yearNum) || isNaN(weekNum) || weekNum < 1 || weekNum > 53) {
+        console.warn('Invalid week identifier:', weekIdentifier);
+        return;
+      }
+
+      // Calculate start of week using a more robust method
+      // Get January 4th of the year (this is always in week 1)
+      const jan4 = new Date(yearNum, 0, 4);
+      const startOfWeek = new Date(jan4);
+
+      // Calculate days from start of year to the target week
+      const daysToAdd = (weekNum - 1) * 7 - jan4.getDay() + 1;
+      startOfWeek.setDate(jan4.getDate() + daysToAdd);
+
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+      // Validate the calculated dates
+      if (isNaN(startOfWeek.getTime()) || isNaN(endOfWeek.getTime())) {
+        console.warn('Invalid dates calculated for week:', weekIdentifier);
+        return;
+      }
+
+      setDateRange({
+        from: startOfWeek,
+        to: endOfWeek
+      });
+    } catch (error) {
+      console.error('Error navigating to week:', weekIdentifier, error);
+    }
+
+    // Reset version selection when navigating to new week
+    versionActions.resetVersionSelection();
+  }, [versionActions]);
+
+  // Week navigation functions
+  const navigatePrevious = useCallback(() => {
+    try {
+      const [year, week] = currentWeek.split('-W');
+      const yearNum = parseInt(year);
+      const weekNum = parseInt(week);
+
+      if (isNaN(yearNum) || isNaN(weekNum)) {
+        console.warn('Invalid current week:', currentWeek);
+        return;
+      }
+
+      let newWeek = weekNum - 1;
+      let newYear = yearNum;
+
+      if (newWeek < 1) {
+        newYear = yearNum - 1;
+        // Check if previous year has 53 weeks
+        const lastWeekOfPrevYear = getWeeksInYear(newYear);
+        newWeek = lastWeekOfPrevYear;
+      }
+
+      const newWeekIdentifier = `${newYear}-W${newWeek.toString().padStart(2, '0')}`;
+      navigateToWeek(newWeekIdentifier);
+    } catch (error) {
+      console.error('Error navigating to previous week:', error);
+    }
+  }, [currentWeek, navigateToWeek, getWeeksInYear]);
+
+  const navigateNext = useCallback(() => {
+    try {
+      const [year, week] = currentWeek.split('-W');
+      const yearNum = parseInt(year);
+      const weekNum = parseInt(week);
+
+      if (isNaN(yearNum) || isNaN(weekNum)) {
+        console.warn('Invalid current week:', currentWeek);
+        return;
+      }
+
+      let newWeek = weekNum + 1;
+      let newYear = yearNum;
+
+      const weeksInCurrentYear = getWeeksInYear(yearNum);
+      if (newWeek > weeksInCurrentYear) {
+        newWeek = 1;
+        newYear = yearNum + 1;
+      }
+
+      const newWeekIdentifier = `${newYear}-W${newWeek.toString().padStart(2, '0')}`;
+      navigateToWeek(newWeekIdentifier);
+    } catch (error) {
+      console.error('Error navigating to next week:', error);
+    }
+  }, [currentWeek, navigateToWeek, getWeeksInYear]);
+
+  // Create a compatibility object for components that expect the old week-based structure
+  const weekBasedVersionControl = {
+    navigationState: {
+      currentWeek,
+      dateRange,
+      isLoading: isLoadingVersions,
+      hasVersions: versionState.versions.length > 0,
+    },
+    currentWeekInfo: (() => {
+      try {
+        const [yearStr, weekStr] = currentWeek.split('-W');
+        const year = parseInt(yearStr);
+        const weekNumber = parseInt(weekStr);
+
+        // Validate parsed values
+        if (isNaN(year) || isNaN(weekNumber)) {
+          console.warn('Invalid week identifier for currentWeekInfo:', currentWeek);
+          // Fallback to current date info
+          const now = new Date();
+          const fallbackYear = now.getFullYear();
+          const fallbackWeek = Math.ceil((now.getDate() + 6 - now.getDay()) / 7);
+          return {
+            year: fallbackYear,
+            weekNumber: fallbackWeek,
+            startDate: safeEffectiveDateRange.from,
+            endDate: safeEffectiveDateRange.to,
+            spansMonths: safeEffectiveDateRange.from.getMonth() !== safeEffectiveDateRange.to.getMonth(),
+            months: [format(safeEffectiveDateRange.from, 'MMMM')]
+          };
+        }
+
+        return {
+          year,
+          weekNumber,
+          startDate: safeEffectiveDateRange.from,
+          endDate: safeEffectiveDateRange.to,
+          spansMonths: safeEffectiveDateRange.from.getMonth() !== safeEffectiveDateRange.to.getMonth(),
+          months: [
+            format(safeEffectiveDateRange.from, 'MMMM'),
+            ...(safeEffectiveDateRange.from.getMonth() !== safeEffectiveDateRange.to.getMonth()
+              ? [format(safeEffectiveDateRange.to, 'MMMM')]
+              : [])
+          ]
+        };
+      } catch (error) {
+        console.error('Error constructing currentWeekInfo:', error);
+        // Fallback to current date info
+        const now = new Date();
+        return {
+          year: now.getFullYear(),
+          weekNumber: Math.ceil((now.getDate() + 6 - now.getDay()) / 7),
+          startDate: safeEffectiveDateRange.from,
+          endDate: safeEffectiveDateRange.to,
+          spansMonths: false,
+          months: [format(safeEffectiveDateRange.from, 'MMMM')]
+        };
+      }
+    })(),
+    selectedVersion,
+    navigatePrevious,
+    navigateNext,
+    setSelectedVersion: versionActions.selectVersion,
+    settings: {
+      weekendStart: effectiveSettingsData?.week_navigation?.week_weekend_start === 'SUNDAY' ? 0 : 1,
+      monthBoundaryMode: effectiveSettingsData?.week_navigation?.week_month_boundary_mode || 'keep_intact',
+    },
+    createVersionForWeek: () => {
+      if (!dateRange?.from || !dateRange?.to || isNaN(dateRange.from.getTime()) || isNaN(dateRange.to.getTime())) {
+        return Promise.reject("Invalid date range");
+      }
+
+      return versionActions.createVersion({
+        startDate: format(dateRange.from, "yyyy-MM-dd"),
+        endDate: format(dateRange.to, "yyyy-MM-dd"),
+      });
+    },
   };
 
   // Custom Hook for Schedule Data Fetching
@@ -330,10 +533,10 @@ export function SchedulePage() {
     onSuccess: useCallback(() => {
       // Only refetch data once, don't duplicate query invalidations
       // The hook already handles query invalidation internally
-      
+
       // Only invalidate versions if they might have changed
       queryClient.invalidateQueries({ queryKey: ["versions"] });
-      
+
       // Always invalidate week version queries since we're using week navigation
       queryClient.invalidateQueries({ queryKey: ["week-version"] });
     }, [queryClient]),
@@ -347,26 +550,26 @@ export function SchedulePage() {
       }
       const exportType = exportFormat === 'mep' ? 'MEP' : 'Standard';
       addGenerationLog("info", `Starting ${exportType} PDF export`);
-      
+
       const response = await exportSchedule(
-        format(effectiveDateRange.from, "yyyy-MM-dd"),
-        format(effectiveDateRange.to, "yyyy-MM-dd"),
+        format(safeEffectiveDateRange.from, "yyyy-MM-dd"),
+        format(safeEffectiveDateRange.to, "yyyy-MM-dd"),
         undefined, // layoutConfig
         exportFormat,
         filiale
       );
-      
+
       addGenerationLog("info", `${exportType} PDF export completed`);
       const blob = new Blob([response], { type: "application/pdf" });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      
+
       // Generate appropriate filename based on format
       const prefix = exportFormat === 'mep' ? 'MEP' : 'Schichtplan';
-      const dateStr = `${format(effectiveDateRange.from, "yyyy-MM-dd")}_${format(effectiveDateRange.to, "yyyy-MM-dd")}`;
+      const dateStr = `${format(safeEffectiveDateRange.from, "yyyy-MM-dd")}_${format(safeEffectiveDateRange.to, "yyyy-MM-dd")}`;
       a.download = `${prefix}_${dateStr}.pdf`;
-      
+
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -398,7 +601,7 @@ export function SchedulePage() {
         queryClient.invalidateQueries({ queryKey: ["schedules"] });
         queryClient.invalidateQueries({ queryKey: ['versions'] });
       }, 100);
-      
+
       toast({
         title: "Import erfolgreich",
         description: data.message || `Es wurden ${data.imported_count} Zuweisungen importiert.`, // Use message from backend if available
@@ -515,11 +718,11 @@ export function SchedulePage() {
         try {
           const response = await fetch('/src/components/Schedule/MEPTemplate.css');
           const cssContent = await response.text();
-          
+
           const style = newWindow.document.createElement('style');
           style.textContent = cssContent;
           newWindow.document.head.appendChild(style);
-          
+
           // Now render the MEP component
           renderMEPComponent();
         } catch {
@@ -552,7 +755,7 @@ export function SchedulePage() {
     } catch (error) {
       addGenerationLog("error", "HTML MEP export failed", getErrorMessage(error));
       toast({
-        title: "Fehler beim MEP Export", 
+        title: "Fehler beim MEP Export",
         description: getErrorMessage(error),
         variant: "destructive",
       });
@@ -586,9 +789,9 @@ export function SchedulePage() {
 
       const fromStr = format(effectiveDateRange.from, "yyyy-MM-dd");
       const toStr = format(effectiveDateRange.to, "yyyy-MM-dd");
-      
+
       const aiDataPreview = await previewAiData(fromStr, toStr);
-      
+
       setAiPreviewData(aiDataPreview);
       setIsAiDataPreviewOpen(true);
 
@@ -609,11 +812,22 @@ export function SchedulePage() {
   // Removed checkAndFixMissingTimeData function - automatic schedule repair is no longer needed
   // Manual repair is still available via the "Fix Display" button in ScheduleActions
 
-  // Page-level handler for creating a new version (now handled by week-based version control)
+  // Page-level handler for creating a new version
   const handleCreateNewVersionPage = useCallback(() => {
-    // Use week-based version creation instead
-    weekBasedVersionControl.createVersionForWeek(weekBasedVersionControl.navigationState.currentWeek);
-  }, [weekBasedVersionControl]);
+    if (!effectiveDateRange?.from || !effectiveDateRange?.to) {
+      toast({
+        title: "Fehler",
+        description: "Ungültiger Datumsbereich",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    versionActions.createVersion({
+      startDate: format(effectiveDateRange.from, "yyyy-MM-dd"),
+      endDate: format(effectiveDateRange.to, "yyyy-MM-dd"),
+    });
+  }, [effectiveDateRange, versionActions, toast]);
 
   // 7. All useEffect hooks
   useEffect(() => {
@@ -690,16 +904,16 @@ export function SchedulePage() {
       });
       return;
     }
-    
+
     let versionNumber = effectiveSelectedVersionNumber;
-    
+
     if (!versionNumber) {
       // Auto-create a version for the current week
       try {
         console.log("Auto-creating version for current week:", weekBasedVersionControl.navigationState.currentWeek);
         const result = await weekBasedVersionControl.createVersionForWeek(weekBasedVersionControl.navigationState.currentWeek);
         versionNumber = result.version;
-        
+
         toast({
           title: "Version erstellt",
           description: "Eine neue Version wurde automatisch erstellt.",
@@ -713,7 +927,7 @@ export function SchedulePage() {
         return;
       }
     }
-    
+
     const formattedFromDate = format(effectiveDateRange!.from!, "yyyy-MM-dd");
     const formattedToDate = format(effectiveDateRange!.to!, "yyyy-MM-dd");
     addGenerationLog(
@@ -841,16 +1055,16 @@ export function SchedulePage() {
       });
       return;
     }
-    
+
     let versionNumber = effectiveSelectedVersionNumber;
-    
+
     if (!versionNumber) {
       // Auto-create a version for the current week
       try {
         console.log("Auto-creating version for current week:", weekBasedVersionControl.navigationState.currentWeek);
         const result = await weekBasedVersionControl.createVersionForWeek(weekBasedVersionControl.navigationState.currentWeek);
         versionNumber = result.version;
-        
+
         toast({
           title: "Version erstellt",
           description: "Eine neue Version wurde automatisch erstellt.",
@@ -864,7 +1078,7 @@ export function SchedulePage() {
         return;
       }
     }
-    
+
     setIsAiFastGenerating(true);
     clearGenerationLogs();
     const aiSteps = [
@@ -956,16 +1170,16 @@ export function SchedulePage() {
       });
       return;
     }
-    
+
     let versionNumber = effectiveSelectedVersionNumber;
-    
+
     if (!versionNumber) {
       // Auto-create a version for the current week
       try {
         console.log("Auto-creating version for current week:", weekBasedVersionControl.navigationState.currentWeek);
         const result = await weekBasedVersionControl.createVersionForWeek(weekBasedVersionControl.navigationState.currentWeek);
         versionNumber = result.version;
-        
+
         toast({
           title: "Version erstellt",
           description: "Eine neue Version wurde automatisch erstellt.",
@@ -979,7 +1193,7 @@ export function SchedulePage() {
         return;
       }
     }
-    
+
     // Open the detailed AI modal instead of running generation immediately
     setIsDetailedAiModalOpen(true);
   };
@@ -1016,10 +1230,10 @@ export function SchedulePage() {
     ];
     setGenerationSteps(aiSteps);
     setShowGenerationOverlay(true);
-    
+
     // Use the current effective version number, which should be available after creation in handleGenerateAiDetailedSchedule
     const versionNumber = effectiveSelectedVersionNumber;
-    
+
     addGenerationLog(
       "info",
       "Starting detailed AI schedule generation",
@@ -1166,7 +1380,7 @@ export function SchedulePage() {
         availability_type: availabilityData.availability_type as "AVAILABLE" | "FIXED" | "PREFERRED" | "UNAVAILABLE",
         is_recurring: false,
       };
-      
+
       await createAvailability(availability);
       toast({
         title: "Erfolg!",
@@ -1340,7 +1554,7 @@ export function SchedulePage() {
 
     console.log("🔧 handleDockDrop:", {
       employeeId,
-      date: format(date, "yyyy-MM-dd"), 
+      date: format(date, "yyyy-MM-dd"),
       shiftId,
       effectiveSelectedVersion,
       extractedVersionNumber: versionNumber
@@ -1378,7 +1592,7 @@ export function SchedulePage() {
     };
 
     window.addEventListener('dockDrop', handleDockDropEvent as EventListener);
-    
+
     return () => {
       window.removeEventListener('dockDrop', handleDockDropEvent as EventListener);
     };
@@ -1417,7 +1631,7 @@ export function SchedulePage() {
 
   const handleGenerationRequirementsUpdate = (updatedRequirements: Record<string, boolean>) => {
     if (!settingsQuery.data) return;
-    
+
     const updatedSettings: SettingsType = {
       ...settingsQuery.data,
       scheduling: {
@@ -1425,7 +1639,7 @@ export function SchedulePage() {
         generation_requirements: updatedRequirements
       }
     };
-    
+
     handleSettingsUpdate(updatedSettings);
   };
 
@@ -1475,7 +1689,7 @@ export function SchedulePage() {
   };
 
   const isUpdating =
-    !currentWeekVersions[0] ||
+    !versionState.versions.length ||
     isPending ||
     exportMutation.isPending ||
     isAiGenerating;
@@ -1503,7 +1717,7 @@ export function SchedulePage() {
             monthBoundaryMode: weekBasedVersionControl.settings.monthBoundaryMode,
           }}
         />
-        
+
         <VersionManager
           dateRange={safeEffectiveDateRange}
           onVersionSelected={(version) => {
@@ -1642,48 +1856,59 @@ export function SchedulePage() {
           <>
             {errors.length > 0 && <ScheduleErrors errors={errors} />}
             <div className="relative">
-              <ScheduleManager
-                schedules={scheduleData || []} // Ensure array even if undefined
-                dateRange={effectiveDateRange}
-                onDrop={handleShiftDrop}
-                onUpdate={handleShiftUpdate}
-                isLoading={isLoadingSchedule}
-                employeeAbsences={employeeAbsences}
-                absenceTypes={
-                  (effectiveSettingsData?.employee_groups?.absence_types || [])
-                    .filter(type => type.type === "absence")
-                    .map(type => ({ ...type, type: "absence" as const }))
-                }
-                currentVersion={effectiveSelectedVersionNumber || 1}
-                openingDays={openingDays}
-                isEmptyState={
-                  !scheduleData ||
-                  (scheduleData.length === 0 && !isLoadingSchedule)
-                }
-                versions={currentWeekVersions}
-                isGenerating={isPending || isAiGenerating}
-                onEmptyStateCreateVersion={handleCreateNewVersionPage}
-                onEmptyStateGenerateSchedule={handleGenerateStandardSchedule}
-                // Week navigation props for fullscreen mode
-                weekInfo={weekBasedVersionControl.currentWeekInfo}
-                onNavigatePrevious={weekBasedVersionControl.navigatePrevious}
-                onNavigateNext={weekBasedVersionControl.navigateNext}
-                weekNavigationSettings={{
-                  weekendStart: weekBasedVersionControl.settings.weekendStart,
-                  monthBoundaryMode: weekBasedVersionControl.settings.monthBoundaryMode,
-                }}
-              />
+              <AvailabilityProvider dateRange={effectiveDateRange} enabled={!isLoadingSchedule}>
+                <ScheduleManager
+                  schedules={scheduleData || []} // Ensure array even if undefined
+                  dateRange={effectiveDateRange}
+                  onDrop={handleShiftDrop}
+                  onUpdate={handleShiftUpdate}
+                  isLoading={isLoadingSchedule}
+                  employeeAbsences={employeeAbsences}
+                  absenceTypes={
+                    (effectiveSettingsData?.employee_groups?.absence_types || [])
+                      .filter(type => type.type === "absence")
+                      .map(type => ({ ...type, type: "absence" as const }))
+                  }
+                  currentVersion={effectiveSelectedVersionNumber || 1}
+                  openingDays={openingDays}
+                  isEmptyState={
+                    !scheduleData ||
+                    (scheduleData.length === 0 && !isLoadingSchedule)
+                  }
+                  versions={versionState.versions}
+                  isGenerating={isPending || isAiGenerating}
+                  onEmptyStateCreateVersion={handleCreateNewVersionPage}
+                  onEmptyStateGenerateSchedule={handleGenerateStandardSchedule}
+                  // Week navigation props for fullscreen mode
+                  weekInfo={weekBasedVersionControl.currentWeekInfo}
+                  onNavigatePrevious={weekBasedVersionControl.navigatePrevious}
+                  onNavigateNext={weekBasedVersionControl.navigateNext}
+                  weekNavigationSettings={{
+                    weekendStart: weekBasedVersionControl.settings.weekendStart,
+                    monthBoundaryMode: weekBasedVersionControl.settings.monthBoundaryMode,
+                  }}
+                />
+              </AvailabilityProvider>
             </div>
           </>
         )}
-        
+
         {/* Schedule Dock - Sticky bottom dock for drag and drop */}
         <ActionDock
           currentVersion={effectiveSelectedVersionNumber || 1}
           selectedDate={effectiveDateRange?.from}
           dateRange={effectiveDateRange}
-          versionMeta={convertToWeekVersionMeta(currentWeekVersions[0])}
-          versionStatus={currentWeekVersions[0]?.status as "DRAFT" | "PUBLISHED" | "ARCHIVED" | undefined}
+          versionMeta={versionState.versions.length > 0 ? convertToWeekVersionMeta({
+            version: versionState.versions[0].version,
+            week_identifier: currentWeek,
+            date_range_start: format(dateRange?.from || new Date(), "yyyy-MM-dd"),
+            date_range_end: format(dateRange?.to || new Date(), "yyyy-MM-dd"),
+            is_week_based: true,
+            status: versionState.versions[0].status,
+            created_at: versionState.versions[0].created_at || new Date().toISOString(),
+            notes: versionState.versions[0].notes || '',
+          }) : undefined}
+          versionStatus={versionState.versions[0]?.status as "DRAFT" | "PUBLISHED" | "ARCHIVED" | undefined}
           schedules={scheduleData || []}
           onDrop={handleDockDrop}
           onAIPrompt={handleAIPrompt}
@@ -1703,7 +1928,7 @@ export function SchedulePage() {
       />
 
       <GenerationLogs logs={generationLogs} clearLogs={clearGenerationLogs} />
-      
+
       {lastSessionId && enableDiagnostics && (
         <div className="mt-4">
           <Button
@@ -1801,7 +2026,7 @@ export function SchedulePage() {
         dateRange={effectiveDateRange}
         version={effectiveSelectedVersionNumber || 1}
       />
-      
+
       <DiagnosticsDialog
         sessionId={lastSessionId}
         isOpen={isDiagnosticsOpen}
@@ -1843,6 +2068,7 @@ export function SchedulePage() {
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 Endgültig löschen
+
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -1856,7 +2082,7 @@ export function SchedulePage() {
             <DialogTitle>Optimierte KI-Daten Vorschau</DialogTitle>
             <DialogDescription>Vorschau der optimierten Daten, die an die KI gesendet werden</DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             {/* Metadata Summary */}
             {aiPreviewData?.metadata && (
@@ -1916,7 +2142,7 @@ export function SchedulePage() {
                 {aiPreviewData?.data_pack && (
                   <div>
                     <h3 className="font-semibold mb-2 text-blue-700 dark:text-blue-400">📊 Optimierte KI-Daten:</h3>
-                    
+
                     {/* Schedule Period */}
                     {aiPreviewData.data_pack.schedule_period && (
                       <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-md">
@@ -1985,7 +2211,7 @@ export function SchedulePage() {
                   </div>
                 )}
               </div>
- </div>
+            </div>
           </div>
 
           <DialogFooter className="flex justify-between">

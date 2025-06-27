@@ -37,6 +37,7 @@ interface VersionManagerState {
 
 interface VersionActions {
   selectVersion: (version: number | undefined) => void;
+  resetVersionSelection: () => void;
   createVersion: (options?: CreateVersionOptions) => void;
   updateVersionStatus: (version: number, status: "DRAFT" | "PUBLISHED" | "ARCHIVED") => void;
   updateVersionNotes: (version: number, notes: string) => void;
@@ -95,7 +96,7 @@ export function useVersionManager({
     enabled: !!dateRange?.from && !!dateRange?.to,
   });
 
-  // Auto-select latest version when versions change
+  // Auto-select latest version when versions change or date range changes
   useEffect(() => {
     const versions = versionsQuery.data?.versions || [];
     
@@ -109,10 +110,14 @@ export function useVersionManager({
     }
 
     if (autoSelectLatest) {
-      // Auto-select latest version if none selected or selected version doesn't exist
+      // Always select the latest version for the current date range
+      // This ensures proper behavior when navigating between weeks
       const latestVersion = Math.max(...versions.map(v => v.version));
       const currentVersionExists = versions.some(v => v.version === selectedVersion);
       
+      // Select latest version if:
+      // 1. No version is selected
+      // 2. Selected version doesn't exist in current date range  
       if (selectedVersion === undefined || !currentVersionExists) {
         setSelectedVersion(latestVersion);
         onVersionSelected?.(latestVersion);
@@ -284,6 +289,11 @@ export function useVersionManager({
     onVersionSelected?.(version);
   }, [onVersionSelected]);
 
+  const resetVersionSelection = useCallback(() => {
+    setSelectedVersion(undefined);
+    onVersionSelected?.(undefined);
+  }, [onVersionSelected]);
+
   const createVersion = useCallback((options: CreateVersionOptions = {}) => {
     createVersionMutation.mutate(options);
   }, [createVersionMutation]);
@@ -323,6 +333,7 @@ export function useVersionManager({
     },
     actions: {
       selectVersion,
+      resetVersionSelection,
       createVersion,
       updateVersionStatus: updateVersionStatusAction,
       updateVersionNotes: updateVersionNotesAction,

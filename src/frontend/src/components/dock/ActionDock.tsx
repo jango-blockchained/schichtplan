@@ -232,6 +232,144 @@ const DraggableShift: React.FC<DraggableShiftProps> = ({
   );
 };
 
+// === CENTRALIZED TIME CALCULATION FUNCTIONS (COPIED FROM SCHEDLETABLE) ===
+
+// Convert time string to minutes
+const timeToMinutes = (timeStr: string): number => {
+  const [hours, minutes] = timeStr.split(":").map(Number);
+  return hours * 60 + minutes;
+};
+
+// Convert minutes to time string
+const minutesToTime = (minutes: number): string => {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+};
+
+// Add minutes to a time string
+const addMinutes = (timeStr: string, minutes: number): string => {
+  const totalMinutes = timeToMinutes(timeStr) + minutes;
+  return minutesToTime(totalMinutes % (24 * 60)); // Handle day overflow
+};
+
+// Subtract minutes from a time string
+const subtractMinutes = (timeStr: string, minutes: number): string => {
+  const totalMinutes = timeToMinutes(timeStr) - minutes;
+  return minutesToTime(totalMinutes >= 0 ? totalMinutes : totalMinutes + (24 * 60)); // Handle day underflow
+};
+
+// Core duration calculation function
+const calculateBaseDuration = (startTime: string, endTime: string): number => {
+  try {
+    const startMinutes = timeToMinutes(startTime);
+    let endMinutes = timeToMinutes(endTime);
+    
+    // Handle overnight shifts
+    if (endMinutes < startMinutes) {
+      endMinutes += 24 * 60;
+    }
+    
+    return (endMinutes - startMinutes) / 60; // Return in hours
+  } catch {
+    return 0;
+  }
+};
+
+// Calculate break duration with auto 30min rule for >6h shifts
+const calculateBreakDuration = (schedule: Schedule, employee?: Employee, settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }): number => {
+  try {
+    // Priority 1: Manual break times
+    if (schedule.break_start && schedule.break_end) {
+      return calculateBaseDuration(schedule.break_start, schedule.break_end);
+    }
+    
+    // Priority 2: Stored break_duration (convert from minutes to hours)
+    if (schedule.break_duration && schedule.break_duration > 0) {
+      return schedule.break_duration / 60;
+    }
+    
+    // Priority 3: Auto-calculate based on shift duration (30min for >6h)
+    // For keyholders, the extra opening/closing time counts as additional break time
+    let shiftDuration: number;
+    if (schedule.shift_start && schedule.shift_end) {
+      shiftDuration = calculateBaseDuration(schedule.shift_start, schedule.shift_end);
+    } else {
+      return 0;
+    }
+    
+    // Base break calculation: 30min for >6h shifts
+    let baseBreak = shiftDuration > 6 ? 0.5 : 0;
+    
+    // For keyholders, add the extra time as additional break
+    if (employee && settings && employee.is_keyholder && schedule.shift_start && schedule.shift_end) {
+      const { startTime, endTime } = getKeyholderAdjustedTimes(schedule, employee, settings);
+      const totalDuration = calculateBaseDuration(startTime, endTime);
+      const extraTime = totalDuration - shiftDuration;
+      
+      // Add keyholder extra time as break time
+      baseBreak += extraTime;
+    }
+    
+    return baseBreak;
+  } catch {
+    return 0;
+  }
+};
+
+// Get keyholder-adjusted times for a schedule
+const getKeyholderAdjustedTimes = (
+  schedule: Schedule, 
+  employee: Employee | undefined, 
+  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
+): { startTime: string, endTime: string } => {
+  
+  if (!employee?.is_keyholder || !schedule.shift_start || !schedule.shift_end || !settings?.general) {
+    return { startTime: schedule.shift_start || "", endTime: schedule.shift_end || "" };
+  }
+  
+  const { keyholder_before_minutes = 5, keyholder_after_minutes = 10, store_opening, store_closing } = settings.general;
+  
+  let adjustedStart = schedule.shift_start;
+  let adjustedEnd = schedule.shift_end;
+  
+  // Early shift adjustment (EARLY type or starts at/before store opening)
+  if (schedule.shift_type_id === 'EARLY' || 
+      (store_opening && schedule.shift_start <= store_opening)) {
+    adjustedStart = subtractMinutes(schedule.shift_start, keyholder_before_minutes);
+  }
+  
+  // Late shift adjustment (LATE type or ends at/after store closing)
+  if (schedule.shift_type_id === 'LATE' || 
+      (store_closing && schedule.shift_end >= store_closing)) {
+    adjustedEnd = addMinutes(schedule.shift_end, keyholder_after_minutes);
+  }
+  
+  return { startTime: adjustedStart, endTime: adjustedEnd };
+};
+
+// Calculate final working time with all adjustments for ActionDock
+const calculateWorkingTimeForDock = (
+  schedule: Schedule, 
+  employee: Employee | undefined, 
+  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
+): { totalTime: number, breakTime: number, workingTime: number } => {
+  
+  if (!schedule.shift_start || !schedule.shift_end) {
+    return { totalTime: 0, breakTime: 0, workingTime: 0 };
+  }
+  
+  const { startTime, endTime } = getKeyholderAdjustedTimes(schedule, employee, settings);
+  
+  const totalTime = calculateBaseDuration(startTime, endTime);
+  const breakTime = calculateBreakDuration(schedule, employee, settings);
+  const workingTime = Math.max(0, totalTime - breakTime);
+  
+  return { totalTime, breakTime, workingTime };
+};
+
+// === END CENTRALIZED TIME CALCULATION FUNCTIONS ===
+
 export const ActionDock: React.FC<ActionDockProps> = ({ 
   currentVersion, 
   selectedDate,
@@ -283,51 +421,36 @@ export const ActionDock: React.FC<ActionDockProps> = ({
     });
   }, [shifts, selectedDate]);
 
-  // Calculate total weekly hours from schedules
+  // Get employees and settings data for proper hour calculation
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: async () => {
+      const { getSettings } = await import("@/services/api");
+      return getSettings();
+    },
+  });
+
+  // Calculate total weekly hours from schedules using the same logic as ScheduleTable
   const totalWeeklyHours = useMemo(() => {
-    if (!schedules.length || !dateRange?.from || !dateRange?.to) return 0;
+    if (!schedules.length || !dateRange?.from || !dateRange?.to || !employees.length) return 0;
 
     return schedules.reduce((total, schedule) => {
-      if (schedule.is_empty || !schedule.shift_start || !schedule.shift_end) return total;
+      if (schedule.is_empty || !schedule.shift_start || !schedule.shift_end || schedule.shift_id === null) return total;
       
       try {
-        // Parse time strings to calculate duration
-        const [startHours, startMinutes] = schedule.shift_start.split(':').map(Number);
-        const [endHours, endMinutes] = schedule.shift_end.split(':').map(Number);
+        // Find the employee for keyholder calculations
+        const employee = employees.find(emp => emp.id === schedule.employee_id);
         
-        const startTotalMinutes = startHours * 60 + startMinutes;
-        let endTotalMinutes = endHours * 60 + endMinutes;
+        // Use the same centralized calculateWorkingTime function from ScheduleTable
+        const timeCalc = calculateWorkingTimeForDock(schedule, employee, settings);
         
-        // Handle overnight shifts
-        if (endTotalMinutes < startTotalMinutes) {
-          endTotalMinutes += 24 * 60;
-        }
-        
-        const durationHours = (endTotalMinutes - startTotalMinutes) / 60;
-        
-        // Subtract break time if available
-        let breakHours = 0;
-        if (schedule.break_start && schedule.break_end) {
-          const [breakStartHours, breakStartMinutes] = schedule.break_start.split(':').map(Number);
-          const [breakEndHours, breakEndMinutes] = schedule.break_end.split(':').map(Number);
-          
-          const breakStartTotalMinutes = breakStartHours * 60 + breakStartMinutes;
-          let breakEndTotalMinutes = breakEndHours * 60 + breakEndMinutes;
-          
-          if (breakEndTotalMinutes < breakStartTotalMinutes) {
-            breakEndTotalMinutes += 24 * 60;
-          }
-          
-          breakHours = (breakEndTotalMinutes - breakStartTotalMinutes) / 60;
-        }
-        
-        return total + (durationHours - breakHours);
+        return total + timeCalc.workingTime;
       } catch (error) {
         console.error('Error calculating hours for schedule:', schedule, error);
         return total;
       }
     }, 0);
-  }, [schedules, dateRange]);
+  }, [schedules, dateRange, employees, settings]);
 
   const handleQuickPrompt = (template: typeof QUICK_PROMPT_TEMPLATES[0]) => {
     setAiPrompt(template.prompt);

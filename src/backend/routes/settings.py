@@ -1,29 +1,31 @@
-from flask import Blueprint, jsonify, request, send_file
-from src.backend.models import db, Settings
-from http import HTTPStatus
-import logging
-import os
-import json
 import datetime
 import glob
-from sqlalchemy import inspect, text
+import json
+import logging
+import os
+from http import HTTPStatus
+
+from flask import Blueprint, jsonify, request, send_file
+from flask_cors import cross_origin
 from pydantic import ValidationError
+from sqlalchemy import inspect, text
+
+from src.backend.api.demo_data import generate_demo_data
+from src.backend.models import Settings, db
 from src.backend.schemas.settings import (
-    TablesList,
-    SettingValue,
-    GenerationRequirements,
-    CompleteSettings,
-    GeneralSettings,  # Added
-    SchedulingSettingsSchema,  # Added
-    DisplaySettingsSchema,  # Added
-    PDFLayoutSettingsSchema,  # Added
-    EmployeeGroupsSettingsSchema,  # Added
-    AvailabilityTypesSettingsSchema,  # Added
     ActionsSettingsSchema,  # Added
     AISchedulingSettingsSchema,  # Added
+    AvailabilityTypesSettingsSchema,  # Added
+    CompleteSettings,
+    DisplaySettingsSchema,  # Added
+    EmployeeGroupsSettingsSchema,  # Added
+    GeneralSettings,  # Added
+    GenerationRequirements,
+    PDFLayoutSettingsSchema,  # Added
+    SchedulingSettingsSchema,  # Added
+    SettingValue,
+    TablesList,
 )
-from flask_cors import cross_origin
-from src.backend.api.demo_data import generate_demo_data
 
 settings = Blueprint("settings", __name__)
 
@@ -619,16 +621,16 @@ def update_generation_settings():
             ), HTTPStatus.BAD_REQUEST
 
         # Use the proper update_from_dict method to handle generation requirements
-        Settings.update_from_dict({
-            "scheduling": {
-                "generation_requirements": validated_data
-            }
-        })
+        Settings.update_from_dict(
+            {"scheduling": {"generation_requirements": validated_data}}
+        )
 
         # Get the updated settings to return
         settings_obj = Settings.query.first()
         if not settings_obj:
-            return jsonify({"error": "Settings not found"}), HTTPStatus.INTERNAL_SERVER_ERROR
+            return jsonify(
+                {"error": "Settings not found"}
+            ), HTTPStatus.INTERNAL_SERVER_ERROR
 
         return jsonify(settings_obj.generation_requirements), HTTPStatus.OK
     except Exception as e:
@@ -637,6 +639,9 @@ def update_generation_settings():
 
 
 @settings.route("/demo-data/optimized", methods=["POST", "OPTIONS"])
-@cross_origin(origins=["http://localhost:5173", "http://127.0.0.1:5173"], supports_credentials=True)
+@cross_origin(
+    origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    supports_credentials=True,
+)
 def generate_optimized_demo_data():
     return generate_demo_data()
