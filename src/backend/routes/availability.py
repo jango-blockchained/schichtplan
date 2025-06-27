@@ -481,10 +481,12 @@ def get_employee_status_by_date():
 def get_employee_status_by_date_range():
     """Get availability status for all active employees for a date range."""
 
+    print(f"[DEBUG] get_employee_status_by_date_range called with args: {request.args}")
     try:
         # Validate query parameters
         start_date_str = request.args.get("start_date")
         end_date_str = request.args.get("end_date")
+        print(f"[DEBUG] Parsed dates: start={start_date_str}, end={end_date_str}")
 
         if not start_date_str or not end_date_str:
             return jsonify(
@@ -630,6 +632,11 @@ def get_employee_status_by_date_range():
         return jsonify(result), HTTPStatus.OK
 
     except Exception as e:
+        print(f"[DEBUG] Exception in get_employee_status_by_date_range: {e}")
+        print(f"[DEBUG] Exception type: {type(e)}")
+        import traceback
+
+        traceback.print_exc()
         current_app.logger.error(f"Error in /api/availability/date_range: {str(e)}")
         return jsonify(
             {"error": f"An unexpected error occurred: {str(e)}"}
