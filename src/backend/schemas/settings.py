@@ -678,6 +678,17 @@ class ActionsSettingsSchema(BaseModel):
     )
 
 
+class WeekNavigationSettingsSchema(BaseModel):
+    """Schema for week navigation settings."""
+
+    week_weekend_start: Optional[Literal["MONDAY", "SUNDAY"]] = Field(
+        None, description="Weekend start preference (MONDAY or SUNDAY)."
+    )
+    week_month_boundary_mode: Optional[Literal["keep_intact", "split_by_month"]] = (
+        Field(None, description="How to handle weeks that span multiple months.")
+    )
+
+
 class AISchedulingSettingsSchema(BaseModel):
     """Schema for AI-assisted scheduling features."""
 
@@ -723,6 +734,9 @@ class CompleteSettings(BaseModel):
     )
     ai_scheduling: Optional[AISchedulingSettingsSchema] = Field(
         None, description="Settings for AI-powered scheduling features."
+    )
+    week_navigation: Optional[WeekNavigationSettingsSchema] = Field(
+        None, description="Settings for week-based navigation."
     )
 
     class Config:

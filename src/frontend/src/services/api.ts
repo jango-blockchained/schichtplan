@@ -285,6 +285,29 @@ export const getEmployeeAvailabilityByDate = async (
   }
 };
 
+// New function for Employee Availability Status by Date Range
+export const getEmployeeAvailabilityByDateRange = async (
+  startDate: string,
+  endDate: string,
+): Promise<Record<string, EmployeeAvailabilityStatus[]>> => {
+  try {
+    const response = await api.get<Record<string, EmployeeAvailabilityStatus[]>>(
+      "/api/v2/availability/date_range",
+      {
+        params: { start_date: startDate, end_date: endDate },
+      },
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to fetch employee availability status for date range ${startDate} to ${endDate}: ${error.message}`,
+      );
+    }
+    throw error;
+  }
+};
+
 // New function for Applicable Shifts for Employee
 export const getApplicableShiftsForEmployee = async (
   date: string,
