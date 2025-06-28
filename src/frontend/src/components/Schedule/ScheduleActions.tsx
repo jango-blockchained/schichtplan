@@ -1,33 +1,33 @@
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-    BarChart3,
-    Calendar,
-    ChevronDown,
-    Loader2,
-    Play,
-    Plus,
-    Settings,
-    Trash2,
-    Wand2,
-    Zap,
+  BarChart3,
+  Calendar,
+  ChevronDown,
+  Loader2,
+  Play,
+  Plus,
+  Settings,
+  Trash2,
+  Wand2,
+  Zap,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -99,7 +99,7 @@ export function ScheduleActions({
               <Button
                 variant="outline"
                 className="flex items-center gap-1"
-                // disabled={isLoading || !canAdd}
+              // disabled={isLoading || !canAdd}
               >
                 <Plus className="h-4 w-4" />
                 <span>Hinzufügen</span>
@@ -114,7 +114,7 @@ export function ScheduleActions({
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onAddFixed}>
                 <Settings className="h-4 w-4 mr-2" />
-                Feste Verfügbarkeit
+                Feste Schichtzuweisungen
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onAddPreferred}>
                 <Settings className="h-4 w-4 mr-2" />
@@ -141,7 +141,7 @@ export function ScheduleActions({
               <Button
                 variant="outline"
                 className="flex items-center gap-1"
-                // disabled={isLoading || !canGenerate || isGenerating || isAnyAiGenerating}
+              // disabled={isLoading || !canGenerate || isGenerating || isAnyAiGenerating}
               >
                 {(isGenerating || isAnyAiGenerating) ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -153,9 +153,9 @@ export function ScheduleActions({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={onGenerateStandardSchedule}
-                // disabled={isGenerating || isAnyAiGenerating}
+              // disabled={isGenerating || isAnyAiGenerating}
               >
                 <Play className="h-4 w-4 mr-2" />
                 Standard-Generierung
@@ -163,9 +163,9 @@ export function ScheduleActions({
               {isAiEnabled && (
                 <>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     onClick={onGenerateAiFastSchedule}
-                    // disabled={isGenerating || isAnyAiGenerating || isAiFastGenerating}
+                  // disabled={isGenerating || isAnyAiGenerating || isAiFastGenerating}
                   >
                     {isAiFastGenerating ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -174,9 +174,9 @@ export function ScheduleActions({
                     )}
                     KI Schnell-Generierung
                   </DropdownMenuItem>
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     onClick={onGenerateAiDetailedSchedule}
-                    // disabled={isGenerating || isAnyAiGenerating || isAiDetailedGenerating}
+                  // disabled={isGenerating || isAnyAiGenerating || isAiDetailedGenerating}
                   >
                     {isAiDetailedGenerating ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -212,7 +212,7 @@ export function ScheduleActions({
               <Button
                 variant="outline"
                 className="flex items-center gap-1"
-                // disabled={isLoading || !canDelete || isDeleting}
+              // disabled={isLoading || !canDelete || isDeleting}
               >
                 {isDeleting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

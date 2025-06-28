@@ -2,6 +2,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
@@ -35,6 +41,7 @@ import { addDays, format, isWithinInterval, parseISO } from "date-fns";
 import {
   ArrowDown,
   ArrowUp,
+  Calendar,
   ChevronLeft,
   ChevronRight,
   Edit2,
@@ -52,7 +59,138 @@ import { useDrag, useDrop } from "react-dnd";
 import { AddScheduleDialog } from "./Schedule/AddScheduleDialog";
 import { ShiftEditModal } from "./ShiftEditModal";
 
-// Define proper types for absences
+// Helper function to get status badge for version status (matching Action Dock style)
+const getStatusBadge = (status: "DRAFT" | "PUBLISHED" | "ARCHIVED" | undefined) => {
+  if (!status) return null;
+
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        "text-xs",
+        status === "PUBLISHED" && "bg-green-500/20 text-green-300 border-green-500/30",
+        status === "DRAFT" && "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+        status === "ARCHIVED" && "bg-gray-500/20 text-gray-300 border-gray-500/30"
+      )}
+    >
+      {status.toLowerCase()}
+    </Badge>
+  );
+};
+
+// Helper function to format time in hours and minutes (e.g., "8.5h", "8h 30m")
+const formatTimeHourMin = (hours: number): string => {
+  if (hours === 0) return "0h";
+
+  const wholeHours = Math.floor(hours);
+  const minutes = Math.round((hours - wholeHours) * 60);
+
+  if (minutes === 0) {
+    return `${wholeHours}h`;
+  } else if (wholeHours === 0) {
+    return `${minutes}m`;
+  } else {
+    return `${wholeHours}h ${minutes}m`;
+  }
+};
+
+// Helper function to calculate base duration between two times
+const calculateBaseDuration = (startTime: string, endTime: string): number => {
+  try {
+    const [startHours, startMinutes] = startTime.split(":").map(Number);
+    const [endHours, endMinutes] = endTime.split(":").map(Number);
+
+    const startTotalMinutes = startHours * 60 + startMinutes;
+    let endTotalMinutes = endHours * 60 + endMinutes;
+
+    // Handle overnight shifts
+    if (endTotalMinutes < startTotalMinutes) {
+      endTotalMinutes += 24 * 60;
+    }
+
+    return (endTotalMinutes - startTotalMinutes) / 60;
+  } catch {
+    return 0;
+  }
+};
+
+// Helper function to get keyholder-adjusted times
+const getKeyholderAdjustedTimes = (
+  schedule: Schedule,
+  employee: Employee | undefined,
+  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
+): { startTime: string; endTime: string } => {
+  const isKeyholderShift = employee?.is_keyholder && schedule?.shift_id;
+
+  if (!isKeyholderShift || !schedule.shift_start || !schedule.shift_end || !settings?.general) {
+    return { startTime: schedule.shift_start || "00:00", endTime: schedule.shift_end || "00:00" };
+  }
+
+  const keyholderBeforeMinutes = settings.general.keyholder_before_minutes || 5;
+  const keyholderAfterMinutes = settings.general.keyholder_after_minutes || 10;
+  const storeOpening = settings.general.store_opening;
+  const storeClosing = settings.general.store_closing;
+
+  let adjustedStartTime = schedule.shift_start;
+  let adjustedEndTime = schedule.shift_end;
+
+  // Check if this is an opening shift (starts at store opening time)
+  if (schedule.shift_start === storeOpening) {
+    const [hours, minutes] = schedule.shift_start.split(":").map(Number);
+    const adjustedMinutes = hours * 60 + minutes - keyholderBeforeMinutes;
+    const newHours = Math.floor(adjustedMinutes / 60);
+    const newMinutes = adjustedMinutes % 60;
+    adjustedStartTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
+  }
+
+  // Check if this is a closing shift (ends at store closing time)
+  if (schedule.shift_end === storeClosing) {
+    const [hours, minutes] = schedule.shift_end.split(":").map(Number);
+    const adjustedMinutes = hours * 60 + minutes + keyholderAfterMinutes;
+    const newHours = Math.floor(adjustedMinutes / 60);
+    const newMinutes = adjustedMinutes % 60;
+    adjustedEndTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
+  }
+
+  return { startTime: adjustedStartTime, endTime: adjustedEndTime };
+};
+
+// Helper function to calculate break duration
+const calculateBreakDuration = (
+  schedule: Schedule,
+  employee: Employee | undefined, // eslint-disable-line @typescript-eslint/no-unused-vars
+  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } } // eslint-disable-line @typescript-eslint/no-unused-vars
+): number => {
+  // Use the break_duration from the schedule if available
+  if (schedule.break_duration && schedule.break_duration > 0) {
+    return schedule.break_duration / 60; // Convert minutes to hours
+  }
+
+  // If no break duration is specified, return 0
+  return 0;
+};
+
+// Main function to calculate working time with all adjustments
+const calculateWorkingTime = (
+  schedule: Schedule,
+  employee: Employee | undefined,
+  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
+): { totalTime: number, breakTime: number, workingTime: number } => {
+
+  if (!schedule.shift_start || !schedule.shift_end) {
+    return { totalTime: 0, breakTime: 0, workingTime: 0 };
+  }
+
+  const { startTime, endTime } = getKeyholderAdjustedTimes(schedule, employee, settings);
+
+  const totalTime = calculateBaseDuration(startTime, endTime);
+  const breakTime = calculateBreakDuration(schedule, employee, settings);
+  const workingTime = Math.max(0, totalTime - breakTime);
+
+  return { totalTime, breakTime, workingTime };
+};
+
+// Define proper types for absences used in this component
 interface AbsenceRecord {
   id: number;
   employee_id: number;
@@ -72,8 +210,9 @@ interface ScheduleTableProps {
     newShiftId: number,
   ) => Promise<void>;
   onUpdate: (scheduleId: number, updates: ScheduleUpdate) => Promise<void>;
+  onAddAbsence?: (employeeId: number, date: Date) => void;
   isLoading: boolean;
-  employeeAbsences?: Record<number, AbsenceRecord[]>;
+  employeeAbsences?: Record<number, unknown[]>;
   absenceTypes?: Array<{
     id: string;
     name: string;
@@ -81,6 +220,8 @@ interface ScheduleTableProps {
     type: "absence";
   }>;
   currentVersion?: number;
+  // Version status information for badges
+  versionStatus?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   openingDays: number[];
   // Week navigation props for fullscreen mode
   weekInfo?: WeekInfo;
@@ -107,159 +248,6 @@ const isEmptySchedule = (schedule: Schedule | undefined) => {
   return !schedule || schedule.shift_id === null;
 };
 
-// === CENTRALIZED TIME CALCULATION FUNCTIONS (GLOBAL SCOPE) ===
-
-// Convert time string to minutes
-const timeToMinutes = (timeStr: string): number => {
-  const [hours, minutes] = timeStr.split(":").map(Number);
-  return hours * 60 + minutes;
-};
-
-// Convert minutes to time string
-const minutesToTime = (minutes: number): string => {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
-};
-
-// Add minutes to a time string
-const addMinutes = (timeStr: string, minutes: number): string => {
-  const totalMinutes = timeToMinutes(timeStr) + minutes;
-  return minutesToTime(totalMinutes % (24 * 60)); // Handle day overflow
-};
-
-// Subtract minutes from a time string
-const subtractMinutes = (timeStr: string, minutes: number): string => {
-  const totalMinutes = timeToMinutes(timeStr) - minutes;
-  return minutesToTime(totalMinutes >= 0 ? totalMinutes : totalMinutes + (24 * 60)); // Handle day underflow
-};
-
-// Core duration calculation function
-const calculateBaseDuration = (startTime: string, endTime: string): number => {
-  try {
-    const startMinutes = timeToMinutes(startTime);
-    let endMinutes = timeToMinutes(endTime);
-
-    // Handle overnight shifts
-    if (endMinutes < startMinutes) {
-      endMinutes += 24 * 60;
-    }
-
-    return (endMinutes - startMinutes) / 60; // Return in hours
-  } catch {
-    return 0;
-  }
-};
-
-// Calculate break duration with auto 30min rule for >6h shifts
-const calculateBreakDuration = (schedule: Schedule, employee?: Employee, settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }): number => {
-  try {
-    // Priority 1: Manual break times
-    if (schedule.break_start && schedule.break_end) {
-      return calculateBaseDuration(schedule.break_start, schedule.break_end);
-    }
-
-    // Priority 2: Stored break_duration (convert from minutes to hours)
-    if (schedule.break_duration && schedule.break_duration > 0) {
-      return schedule.break_duration / 60;
-    }
-
-    // Priority 3: Auto-calculate based on shift duration (30min for >6h)
-    // For keyholders, the extra opening/closing time counts as additional break time
-    let shiftDuration: number;
-    if (schedule.shift_start && schedule.shift_end) {
-      shiftDuration = calculateBaseDuration(schedule.shift_start, schedule.shift_end);
-    } else {
-      return 0;
-    }
-
-    // Base break calculation: 30min for >6h shifts
-    let baseBreak = shiftDuration > 6 ? 0.5 : 0;
-
-    // For keyholders, add the extra time as additional break
-    if (employee && settings && employee.is_keyholder && schedule.shift_start && schedule.shift_end) {
-      const { startTime, endTime } = getKeyholderAdjustedTimes(schedule, employee, settings);
-      const totalDuration = calculateBaseDuration(startTime, endTime);
-      const extraTime = totalDuration - shiftDuration;
-
-      // Add keyholder extra time as break time
-      baseBreak += extraTime;
-    }
-
-    return baseBreak;
-  } catch {
-    return 0;
-  }
-};
-
-// Get keyholder-adjusted times for a schedule
-const getKeyholderAdjustedTimes = (
-  schedule: Schedule,
-  employee: Employee | undefined,
-  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
-): { startTime: string, endTime: string } => {
-
-  if (!employee?.is_keyholder || !schedule.shift_start || !schedule.shift_end || !settings?.general) {
-    return { startTime: schedule.shift_start || "", endTime: schedule.shift_end || "" };
-  }
-
-  const { keyholder_before_minutes = 5, keyholder_after_minutes = 10, store_opening, store_closing } = settings.general;
-
-  let adjustedStart = schedule.shift_start;
-  let adjustedEnd = schedule.shift_end;
-
-  // Early shift adjustment (EARLY type or starts at/before store opening)
-  if (schedule.shift_type_id === 'EARLY' ||
-    (store_opening && schedule.shift_start <= store_opening)) {
-    adjustedStart = subtractMinutes(schedule.shift_start, keyholder_before_minutes);
-  }
-
-  // Late shift adjustment (LATE type or ends at/after store closing)
-  if (schedule.shift_type_id === 'LATE' ||
-    (store_closing && schedule.shift_end >= store_closing)) {
-    adjustedEnd = addMinutes(schedule.shift_end, keyholder_after_minutes);
-  }
-
-  return { startTime: adjustedStart, endTime: adjustedEnd };
-};
-
-// Calculate final working time with all adjustments
-const calculateWorkingTime = (
-  schedule: Schedule,
-  employee: Employee | undefined,
-  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
-): { totalTime: number, breakTime: number, workingTime: number } => {
-
-  if (!schedule.shift_start || !schedule.shift_end) {
-    return { totalTime: 0, breakTime: 0, workingTime: 0 };
-  }
-
-  const { startTime, endTime } = getKeyholderAdjustedTimes(schedule, employee, settings);
-
-  const totalTime = calculateBaseDuration(startTime, endTime);
-  const breakTime = calculateBreakDuration(schedule, employee, settings);
-  const workingTime = Math.max(0, totalTime - breakTime);
-
-  return { totalTime, breakTime, workingTime };
-};
-
-// Format duration for display in HH:MM format
-const formatTimeHourMin = (hours: number): string => {
-  if (hours === 0) return "0:00";
-  const wholeHours = Math.floor(hours);
-  const minutes = Math.round((hours - wholeHours) * 60);
-
-  // Handle case where minutes rounds to 60 or more
-  if (minutes >= 60) {
-    return `${wholeHours + Math.floor(minutes / 60)}:${(minutes % 60).toString().padStart(2, '0')}`;
-  }
-
-  return `${wholeHours}:${minutes.toString().padStart(2, '0')}`;
-};
-
-// === END CENTRALIZED TIME CALCULATION FUNCTIONS ===
-
-// TimeSlotDisplay Component
 interface TimeSlotDisplayProps {
   startTime: string;
   endTime: string;
@@ -505,6 +493,7 @@ const ScheduleCell = ({
   schedule,
   onDrop,
   onUpdate,
+  onAddAbsence,
   hasAbsence,
   employeeId,
   date,
@@ -518,6 +507,7 @@ const ScheduleCell = ({
     newShiftId: number,
   ) => Promise<void>;
   onUpdate: (scheduleId: number, updates: ScheduleUpdate) => Promise<void>;
+  onAddAbsence?: (employeeId: number, date: Date) => void;
   hasAbsence?: boolean;
   employeeId: number;
   date: Date;
@@ -649,7 +639,7 @@ const ScheduleCell = ({
           !isUnavailable && !isLoading && isOver && canDrop && "bg-primary/10 border-primary/30",
           !isUnavailable && !isLoading && isOver && !canDrop && "bg-destructive/10 border-destructive/30"
         )}
-        onMouseEnter={() => !isUnavailable && !isLoading && setShowActions(true)}
+        onMouseEnter={() => !isLoading && setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
       >
         {isLoading && (
@@ -694,14 +684,29 @@ const ScheduleCell = ({
 
         {!isLoading && !isUnavailable && !hasAbsence && showActions && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setIsAddModalOpen(true)}
-              aria-label="Add schedule"
-            >
-              <Plus className="h-5 w-5" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label="Add actions"
+                >
+                  <Plus className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center" className="w-40">
+                <DropdownMenuItem onClick={() => setIsAddModalOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Schicht hinzufügen
+                </DropdownMenuItem>
+                {onAddAbsence && (
+                  <DropdownMenuItem onClick={() => onAddAbsence(employeeId, date)}>
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Abwesenheit hinzufügen
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
 
@@ -798,7 +803,7 @@ const ScheduleCell = ({
         />
       </div>
 
-      {/* Actions buttons on hover - only show if employee is available */}
+      {/* Actions buttons on hover */}
       {showActions && !availabilityLoading && (
         <div className="absolute top-1 right-1 flex space-x-1">
           {/* Edit button - only show if employee is available */}
@@ -812,19 +817,20 @@ const ScheduleCell = ({
               <Edit2 className="h-3 w-3" />
             </Button>
           )}
-          {/* Delete button - always show for existing schedules */}
+          {/* Delete button - always show for existing schedules, even on unavailable days */}
           <Button
             size="sm"
             variant="ghost"
             className="h-6 w-6 p-0 text-destructive hover:text-destructive"
             onClick={async () => {
               if (schedule?.id) {
-                // Add confirmation before deletion
-                if (
-                  confirm(
-                    `Sind Sie sicher, dass Sie diese Schicht löschen möchten?`,
-                  )
-                ) {
+                // Enhanced confirmation for unavailable days
+                const isEmployeeUnavailable = employeeAvailable === false;
+                const confirmMessage = isEmployeeUnavailable
+                  ? `Der Mitarbeiter ist an diesem Tag nicht verfügbar. Sind Sie sicher, dass Sie diese Schicht löschen möchten?`
+                  : `Sind Sie sicher, dass Sie diese Schicht löschen möchten?`;
+
+                if (confirm(confirmMessage)) {
                   console.log("🗑️ Deleting shift with ID:", schedule.id);
                   try {
                     await onUpdate(schedule.id, {
@@ -967,7 +973,7 @@ function EmployeeStatistics({ employeeId, schedules, contractedHours, employeeGr
 const checkForAbsence = (
   employeeId: number,
   dateString: string,
-  employeeAbsences?: Record<number, AbsenceRecord[]>,
+  employeeAbsences?: Record<number, unknown[]>,
   absenceTypes?: Array<{
     id: string;
     name: string;
@@ -979,16 +985,18 @@ const checkForAbsence = (
 
   const absences = employeeAbsences[employeeId] || [];
   const matchingAbsence = absences.find((absence) => {
-    const absenceStartDate = absence.start_date.split("T")[0];
-    const absenceEndDate = absence.end_date.split("T")[0];
+    const typedAbsence = absence as AbsenceRecord;
+    const absenceStartDate = typedAbsence.start_date.split("T")[0];
+    const absenceEndDate = typedAbsence.end_date.split("T")[0];
     const checkDate = dateString;
 
     return checkDate >= absenceStartDate && checkDate <= absenceEndDate;
   });
 
   if (matchingAbsence) {
+    const typedMatchingAbsence = matchingAbsence as AbsenceRecord;
     const absenceType = absenceTypes.find(
-      (type) => type.id === matchingAbsence.absence_type_id,
+      (type) => type.id === typedMatchingAbsence.absence_type_id,
     );
     if (absenceType) {
       return {
@@ -1054,10 +1062,12 @@ export function ScheduleTable({
   dateRange,
   onDrop,
   onUpdate,
+  onAddAbsence,
   isLoading,
   employeeAbsences,
   absenceTypes,
   currentVersion,
+  versionStatus,
   openingDays,
   // Week navigation props
   weekInfo,
@@ -1214,7 +1224,20 @@ export function ScheduleTable({
       <Card className={cn("border border-border", isFullWidth && "flex-1 flex flex-col h-full")}>
         <CardHeader className="flex flex-row items-center justify-between sticky top-0 z-[35] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border flex-shrink-0">
           <div>
-            <CardTitle className="text-xl font-medium">Schichtplan</CardTitle>
+            <div className="flex items-center gap-3">
+              <CardTitle className="text-xl font-medium">Schichtplan</CardTitle>
+
+              {/* Version and Status Badges */}
+              <div className="flex items-center gap-2">
+                {currentVersion && (
+                  <Badge variant="secondary" className="text-xs font-mono">
+                    v{currentVersion}
+                  </Badge>
+                )}
+                {getStatusBadge(versionStatus)}
+              </div>
+            </div>
+
             {dateRange?.from && dateRange?.to && (
               <div className="text-sm text-muted-foreground mt-1 font-medium">
                 {format(dateRange.from, "dd.MM.yyyy")} -{" "}
@@ -1362,6 +1385,7 @@ export function ScheduleTable({
                 dateRange={dateRange}
                 onDrop={onDrop}
                 onUpdate={onUpdate}
+                onAddAbsence={onAddAbsence}
                 employeeAbsences={employeeAbsences}
                 absenceTypes={absenceTypes}
                 currentVersion={currentVersion}
@@ -1395,9 +1419,11 @@ function ScheduleTableNormal({
   dateRange,
   onDrop,
   onUpdate,
+  onAddAbsence,
   employeeAbsences,
   absenceTypes,
   currentVersion,
+  openingDays, // eslint-disable-line @typescript-eslint/no-unused-vars
   daysToDisplay,
   showNavigation,
   onPrevDays,
@@ -1813,6 +1839,7 @@ function ScheduleTableNormal({
                       onUpdate={(scheduleId, updates) =>
                         onUpdate(scheduleId, updates)
                       }
+                      onAddAbsence={onAddAbsence}
                       hasAbsence={!!hasAbsence}
                       employeeId={employeeId}
                       date={date}

@@ -7,14 +7,13 @@
 
 import { differenceInDays, format } from "date-fns";
 import {
-    Archive,
-    Check,
-    ChevronDown,
-    ChevronRight,
-    Copy,
-    Info,
-    Pencil,
-    Trash,
+  Archive,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Info,
+  Trash,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -22,39 +21,39 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
-    Collapsible,
-    CollapsibleContent,
-    CollapsibleTrigger,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
-    Pagination,
-    PaginationContent,
-    PaginationEllipsis,
-    PaginationItem,
-    PaginationLink,
-    PaginationNext,
-    PaginationPrevious,
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
 } from "@/components/ui/pagination";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from "@/components/ui/tooltip";
 
 import { VersionMeta } from "@/services/api";
@@ -132,31 +131,33 @@ export function VersionTable({
     }
   };
 
+  // Helper function to get status badge (matching Action Dock style)
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "DRAFT":
         return (
-          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-            <Pencil className="w-3 h-3 mr-1" />
-            Entwurf
+          <Badge variant="outline" className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30">
+            draft
           </Badge>
         );
       case "PUBLISHED":
         return (
-          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-            <Check className="w-3 h-3 mr-1" />
-            Veröffentlicht
+          <Badge variant="outline" className="text-xs bg-green-500/20 text-green-300 border-green-500/30">
+            published
           </Badge>
         );
       case "ARCHIVED":
         return (
-          <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
-            <Archive className="w-3 h-3 mr-1" />
-            Archiviert
+          <Badge variant="outline" className="text-xs bg-gray-500/20 text-gray-300 border-gray-500/30">
+            archived
           </Badge>
         );
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return (
+          <Badge variant="outline" className="text-xs">
+            {status.toLowerCase()}
+          </Badge>
+        );
     }
   };
 
@@ -376,13 +377,11 @@ export function VersionTable({
               return (
                 <TableRow
                   key={version.version}
-                  className={`${
-                    isSelected
+                  className={`${isSelected
                       ? "bg-primary/10 border-primary/20"
                       : "hover:bg-muted/30"
-                  } ${
-                    isNew ? "bg-green-500/10 border-green-500/20" : ""
-                  } border-b border-border`}
+                    } ${isNew ? "bg-green-500/10 border-green-500/20" : ""
+                    } border-b border-border`}
                 >
                   <TableCell className="font-medium">
                     <Button
@@ -396,7 +395,9 @@ export function VersionTable({
                       }
                       disabled={isLoading}
                     >
-                      {version.version}
+                      <Badge variant="secondary" className="text-xs font-mono">
+                        v{version.version}
+                      </Badge>
                       {isNew && (
                         <Badge
                           variant="outline"

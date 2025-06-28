@@ -7,14 +7,14 @@
 
 import { format } from "date-fns";
 import {
-    BarChart3,
-    Calendar,
-    Check,
-    Clock,
-    Edit3,
-    FileText,
-    Users,
-    X,
+  BarChart3,
+  Calendar,
+  Check,
+  Clock,
+  Edit3,
+  FileText,
+  Users,
+  X,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -25,10 +25,10 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from "@/components/ui/tooltip";
 
 import { VersionMeta } from "@/services/api";
@@ -97,29 +97,33 @@ export function VersionDetailsPanel({
     );
   }
 
-  // Utility functions
+  // Helper function to get status badge (matching Action Dock style)
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "DRAFT":
         return (
-          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-            Entwurf
+          <Badge variant="outline" className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30">
+            draft
           </Badge>
         );
       case "PUBLISHED":
         return (
-          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-            Veröffentlicht
+          <Badge variant="outline" className="text-xs bg-green-500/20 text-green-300 border-green-500/30">
+            published
           </Badge>
         );
       case "ARCHIVED":
         return (
-          <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
-            Archiviert
+          <Badge variant="outline" className="text-xs bg-gray-500/20 text-gray-300 border-gray-500/30">
+            archived
           </Badge>
         );
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return (
+          <Badge variant="outline" className="text-xs">
+            {status.toLowerCase()}
+          </Badge>
+        );
     }
   };
 
@@ -136,7 +140,9 @@ export function VersionDetailsPanel({
       <CardHeader className="pb-4">
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span>Version {version.version}</span>
+            <Badge variant="secondary" className="text-xs font-mono">
+              v{version.version}
+            </Badge>
             {getStatusBadge(version.status)}
           </div>
           <div className="flex items-center gap-2">
