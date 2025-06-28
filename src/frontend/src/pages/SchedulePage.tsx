@@ -735,10 +735,27 @@ export function SchedulePage() {
       };
 
       const renderMEPComponent = () => {
+        // Handle new version creation
+        const handleCreateNewVersion = (weekNumber: number, versionNumber: number) => {
+          // Close the MEP window
+          newWindow.close();
+          
+          // Create new version with specified week and version number
+          toast({
+            title: "Neue Version erstellt",
+            description: `Version ${versionNumber} für Woche ${weekNumber} wurde erstellt.`,
+          });
+          
+          // Here you can add logic to actually create the new version
+          // For example, navigate to the new week/version or update the state
+          console.log(`Creating new version: Week ${weekNumber}, Version ${versionNumber}`);
+        };
+
         // Create React element
         const mepElement = React.createElement(MEPTemplate, {
           data: mepData,
-          onPrint: () => newWindow.print()
+          onPrint: () => newWindow.print(),
+          onCreateNewVersion: handleCreateNewVersion
         });
 
         // Render it in the new window
