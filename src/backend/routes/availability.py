@@ -543,6 +543,21 @@ def get_employee_status_by_date_range():
                 absence_lookup[emp_id] = []
             absence_lookup[emp_id].append(absence)
 
+        # Get all availability records for active employees
+        # This will be used to determine if an employee has any availability set up
+        availability_records = EmployeeAvailability.query.filter(
+            EmployeeAvailability.employee_id.in_(employee_ids)
+        ).all()
+
+        # Create lookup for employees who have availability records by day of week
+        employee_availability_by_day = {}
+        for avail in availability_records:
+            emp_id = avail.employee_id
+            day_of_week = avail.day_of_week
+            if emp_id not in employee_availability_by_day:
+                employee_availability_by_day[emp_id] = set()
+            employee_availability_by_day[emp_id].add(day_of_week)
+
         # Get all schedules for the date range to determine version per date
         all_schedules = (
             db.session.query(Schedule, ShiftTemplate)
@@ -572,7 +587,7 @@ def get_employee_status_by_date_range():
             result[date_str] = []
 
             for emp in active_employees:
-                status = "Available"
+                status = "Available"  # Default status
                 details = None
 
                 # Check for absence on this date
@@ -610,15 +625,27 @@ def get_employee_status_by_date_range():
                 ):
                     # Employee has a scheduled shift
                     schedule, shift_template = schedule_lookup[date_str][emp.id]
-                    status = f"Shift: {getattr(shift_template, 'name', shift_template.shift_type_id)} ({shift_template.start_time.strftime('%H:%M')} - {shift_template.end_time.strftime('%H:%M')})"
+                    status = f"Shift: {getattr(shift_template, 'name', shift_template.shift_type_id)} ({shift_template.start_time} - {shift_template.end_time})"
                     details = {
                         "shift_id": schedule.shift_id,
                         "shift_name": getattr(
                             shift_template, "name", shift_template.shift_type_id
                         ),
-                        "shift_start": shift_template.start_time.strftime("%H:%M"),
-                        "shift_end": shift_template.end_time.strftime("%H:%M"),
+                        "shift_start": shift_template.start_time,
+                        "shift_end": shift_template.end_time,
                     }
+                else:
+                    # Check if employee has availability records for this day of week
+                    day_of_week = target_date.weekday()
+                    employee_has_availability = (
+                        emp.id in employee_availability_by_day
+                        and day_of_week in employee_availability_by_day[emp.id]
+                    )
+
+                    if not employee_has_availability:
+                        # Employee has no availability records for this day of week
+                        status = "Unavailable"
+                        details = {"reason": "No availability records for this day"}
 
                 result[date_str].append(
                     {

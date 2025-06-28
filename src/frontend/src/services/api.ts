@@ -1,14 +1,14 @@
 import type {
-    Absence,
-    AiImportResponse,
-    ApplicableShift,
-    AvailabilityTypeStrings,
-    DailyCoverage,
-    Employee,
-    EmployeeAvailabilityStatus,
-    ScheduleError,
-    ScheduleUpdate,
-    Settings
+  Absence,
+  AiImportResponse,
+  ApplicableShift,
+  AvailabilityTypeStrings,
+  DailyCoverage,
+  Employee,
+  EmployeeAvailabilityStatus,
+  ScheduleError,
+  ScheduleUpdate,
+  Settings
 } from "@/types/index";
 import axios, { AxiosError } from "axios";
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from "../types";

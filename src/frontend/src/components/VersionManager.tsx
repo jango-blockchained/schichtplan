@@ -25,8 +25,28 @@ import { DuplicateVersionModal } from "@/components/DuplicateVersionModal";
 import { VersionDetailsPanel } from "@/components/VersionDetailsPanel";
 import { VersionTable } from "@/components/VersionTableRefactored";
 import { useVersionManager } from "@/hooks/useVersionManager";
+import { cn } from "@/lib/utils";
 import { getSettings } from "@/services/api";
 import type { Settings } from "@/types";
+
+// Helper function to get status badge (matching Action Dock style)
+const getStatusBadge = (status: string | undefined) => {
+  if (!status) return null;
+
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        "text-xs",
+        status === "PUBLISHED" && "bg-green-500/20 text-green-300 border-green-500/30",
+        status === "DRAFT" && "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+        status === "ARCHIVED" && "bg-gray-500/20 text-gray-300 border-gray-500/30"
+      )}
+    >
+      {status.toLowerCase()}
+    </Badge>
+  );
+};
 
 interface VersionManagerProps {
   dateRange?: DateRange;
@@ -97,13 +117,13 @@ export function VersionManager({
   // Helper function to get week number and date range info
   const getDateRangeInfo = () => {
     if (!dateRange?.from || !dateRange?.to) return null;
-    
+
     // Use settings-aware week calculation
     const weekStartsOn = effectiveSettings.weekendStart === 0 ? 0 : 1;
     const weekFrom = getWeek(dateRange.from, { locale: de, weekStartsOn });
     const weekTo = getWeek(dateRange.to, { locale: de, weekStartsOn });
     const year = dateRange.from.getFullYear();
-    
+
     const weekInfo = {
       weekRange: weekFrom === weekTo ? `KW ${weekFrom}` : `KW ${weekFrom}-${weekTo}`,
       dateRange: `${format(dateRange.from, "dd.MM")} - ${format(dateRange.to, "dd.MM.yyyy", { locale: de })}`,
@@ -111,18 +131,14 @@ export function VersionManager({
       weekendStart: effectiveSettings.weekendStart,
       monthBoundaryMode: effectiveSettings.monthBoundaryMode,
     };
-    
+
     return weekInfo;
   };
 
   const dateRangeInfo = getDateRangeInfo();
 
-  // Create the collapsible header with summary info
   const renderCollapsibleHeader = () => {
     const totalVersions = state.versions.length;
-    const selectedVersionInfo = selectedVersionMeta 
-      ? `v${selectedVersionMeta.version} (${selectedVersionMeta.status})`
-      : 'Keine Version ausgewählt';
 
     return (
       <div className="flex items-center justify-between w-full">
@@ -131,7 +147,7 @@ export function VersionManager({
             {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
             <CardTitle>Versionsverwaltung</CardTitle>
           </div>
-          
+
           {isCollapsed && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               {/* Date Range Info with Week Version and Settings-aware display */}
@@ -142,18 +158,19 @@ export function VersionManager({
                   </Badge>
                 </div>
               )}
-              
+
               {/* Version Count */}
               <Badge variant="secondary">
                 {totalVersions} Version{totalVersions !== 1 ? 'en' : ''}
               </Badge>
-              
+
               {/* Selected Version with enhanced info */}
               {selectedVersionMeta && (
                 <div className="flex items-center gap-1">
-                  <Badge variant="default">
-                    {selectedVersionInfo}
+                  <Badge variant="secondary" className="text-xs font-mono">
+                    v{selectedVersionMeta.version}
                   </Badge>
+                  {getStatusBadge(selectedVersionMeta.status)}
                   {dateRangeInfo && (
                     <Badge variant="outline" className="text-xs">
                       {dateRangeInfo.weekRange}
@@ -184,10 +201,10 @@ export function VersionManager({
   // Filter versions by selected week date range if enabled
   const filteredVersions = filterByDate && dateRange?.from && dateRange?.to
     ? state.versions.filter(v => {
-        const vStart = new Date(v.date_range.start);
-        const vEnd = new Date(v.date_range.end);
-        return vStart >= dateRange.from && vEnd <= dateRange.to;
-      })
+      const vStart = new Date(v.date_range.start);
+      const vEnd = new Date(v.date_range.end);
+      return vStart >= dateRange.from && vEnd <= dateRange.to;
+    })
     : state.versions;
 
   // Render the layout content (extracted from the switch statement)
@@ -371,7 +388,7 @@ export function VersionManager({
               {renderCollapsibleHeader()}
             </CardHeader>
           </CollapsibleTrigger>
-          
+
           <CollapsibleContent>
             <CardContent>
               {/* Loading state */}

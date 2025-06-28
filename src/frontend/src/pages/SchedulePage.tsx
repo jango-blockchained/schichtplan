@@ -102,6 +102,7 @@ import { useVersionManager } from "@/hooks/useVersionManager";
 // import { ScheduleFixActions } from '@/components/Schedule/ScheduleFixActions'; // Original, might be unused
 
 import AbsenceModal from "@/components/AbsenceModal";
+import { EnhancedAvailabilityModal } from "@/components/EnhancedAvailabilityModal";
 import { AddAvailabilityDialog } from "@/components/Schedule/AddAvailabilityDialog";
 import { AddScheduleDialog } from "@/components/Schedule/AddScheduleDialog";
 import { DiagnosticsDialog } from "@/components/Schedule/DiagnosticsDialog";
@@ -169,6 +170,8 @@ export function SchedulePage() {
   // const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null); // Removed - unused
   const [isAddScheduleDialogOpen, setIsAddScheduleDialogOpen] = useState(false);
   const [isAddAvailabilityDialogOpen, setIsAddAvailabilityDialogOpen] = useState(false);
+  const [isEnhancedAvailabilityModalOpen, setIsEnhancedAvailabilityModalOpen] = useState(false);
+  const [selectedAvailabilityType, setSelectedAvailabilityType] = useState<"FIXED" | "PREFERRED" | "UNAVAILABLE">("FIXED");
   const [isAbsenceModalOpen, setIsAbsenceModalOpen] = useState(false);
   const [selectedEmployeeForAbsence, setSelectedEmployeeForAbsence] = useState<number | null>(null);
   const [isStatisticsModalOpen, setIsStatisticsModalOpen] = useState(false);
@@ -1315,15 +1318,18 @@ export function SchedulePage() {
 
   // Availability handlers
   const handleAddFixed = () => {
-    setIsAddAvailabilityDialogOpen(true);
+    setSelectedAvailabilityType("FIXED");
+    setIsEnhancedAvailabilityModalOpen(true);
   };
 
   const handleAddPreferred = () => {
-    setIsAddAvailabilityDialogOpen(true);
+    setSelectedAvailabilityType("PREFERRED");
+    setIsEnhancedAvailabilityModalOpen(true);
   };
 
   const handleAddUnavailable = () => {
-    setIsAddAvailabilityDialogOpen(true);
+    setSelectedAvailabilityType("UNAVAILABLE");
+    setIsEnhancedAvailabilityModalOpen(true);
   };
 
   const handleAddAbsence = () => {
@@ -1339,6 +1345,11 @@ export function SchedulePage() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleAddAbsenceForEmployee = (employeeId: number, _date: Date) => { // eslint-disable-line @typescript-eslint/no-unused-vars
+    setSelectedEmployeeForAbsence(employeeId);
+    setIsAbsenceModalOpen(true);
   };
 
   const handleCreateSchedule = async (newScheduleData: {
@@ -1856,12 +1867,13 @@ export function SchedulePage() {
           <>
             {errors.length > 0 && <ScheduleErrors errors={errors} />}
             <div className="relative">
-              <AvailabilityProvider dateRange={effectiveDateRange} enabled={!isLoadingSchedule}>
+              <AvailabilityProvider dateRange={safeEffectiveDateRange} enabled={!isLoadingSchedule}>
                 <ScheduleManager
                   schedules={scheduleData || []} // Ensure array even if undefined
                   dateRange={effectiveDateRange}
                   onDrop={handleShiftDrop}
                   onUpdate={handleShiftUpdate}
+                  onAddAbsence={handleAddAbsenceForEmployee}
                   isLoading={isLoadingSchedule}
                   employeeAbsences={employeeAbsences}
                   absenceTypes={
@@ -1870,6 +1882,7 @@ export function SchedulePage() {
                       .map(type => ({ ...type, type: "absence" as const }))
                   }
                   currentVersion={effectiveSelectedVersionNumber || 1}
+                  versionStatus={versionState.versions[0]?.status as "DRAFT" | "PUBLISHED" | "ARCHIVED" | undefined}
                   openingDays={openingDays}
                   isEmptyState={
                     !scheduleData ||
@@ -1999,6 +2012,17 @@ export function SchedulePage() {
             name: emp.last_name,
             vorname: emp.first_name
           })) || []}
+        />
+      )}
+
+      {/* Enhanced Availability Modal */}
+      {isEnhancedAvailabilityModalOpen && effectiveDateRange?.from && effectiveDateRange?.to && (
+        <EnhancedAvailabilityModal
+          isOpen={isEnhancedAvailabilityModalOpen}
+          onClose={() => setIsEnhancedAvailabilityModalOpen(false)}
+          dateRange={{ from: effectiveDateRange.from, to: effectiveDateRange.to }}
+          availabilityType={selectedAvailabilityType}
+          currentVersion={effectiveSelectedVersionNumber}
         />
       )}
 

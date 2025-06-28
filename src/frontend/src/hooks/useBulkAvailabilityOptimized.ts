@@ -28,10 +28,24 @@ export function useBulkAvailabilityOptimized({ dateRange, enabled = true }: UseB
   const dateRangeStrings = useMemo(() => {
     if (!dateRange?.from || !dateRange?.to) return null;
     
-    return {
-      startDate: format(dateRange.from, 'yyyy-MM-dd'),
-      endDate: format(dateRange.to, 'yyyy-MM-dd')
-    };
+    // Validate that the dates are actually Date objects and not invalid
+    const fromTime = dateRange.from instanceof Date ? dateRange.from.getTime() : NaN;
+    const toTime = dateRange.to instanceof Date ? dateRange.to.getTime() : NaN;
+    
+    if (isNaN(fromTime) || isNaN(toTime)) {
+      console.warn('Invalid date objects provided to useBulkAvailabilityOptimized');
+      return null;
+    }
+    
+    try {
+      return {
+        startDate: format(dateRange.from, 'yyyy-MM-dd'),
+        endDate: format(dateRange.to, 'yyyy-MM-dd')
+      };
+    } catch (error) {
+      console.error('Error formatting dates in useBulkAvailabilityOptimized:', error);
+      return null;
+    }
   }, [dateRange]);
 
   // Single API call for the entire date range
@@ -57,8 +71,16 @@ export function useBulkAvailabilityOptimized({ dateRange, enabled = true }: UseB
       
       employeeStatuses.forEach((empStatus: EmployeeAvailabilityStatus) => {
         // Parse the status to determine availability
-        const isAvailable = empStatus.status === 'Available';
+        // Employees are NOT available if they:
+        // 1. Have status "Unavailable" (no availability records)
+        // 2. Have an absence (status starts with "Absence:")
+        // 
+        // Employees are available if they:
+        // 1. Have status "Available" (no assignments/restrictions)
+        // 2. Have a shift assignment (status starts with "Shift:")
+        const isUnavailable = empStatus.status === 'Unavailable';
         const isOnAbsence = empStatus.status.startsWith('Absence:');
+        const isAvailable = !isUnavailable && !isOnAbsence && (empStatus.status === 'Available' || empStatus.status.startsWith('Shift:'));
         
         employeeMap.set(empStatus.employee_id, {
           ...empStatus,

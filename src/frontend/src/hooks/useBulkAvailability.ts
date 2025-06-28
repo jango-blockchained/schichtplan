@@ -62,8 +62,16 @@ export function useBulkAvailability({ dateRange, enabled = true }: UseBulkAvaila
         
         result.data.forEach((empStatus: EmployeeAvailabilityStatus) => {
           // Parse the status to determine availability
-          const isAvailable = empStatus.status === 'Available';
+          // Employees are NOT available if they:
+          // 1. Have status "Unavailable" (no availability records)
+          // 2. Have an absence (status starts with "Absence:")
+          // 
+          // Employees are available if they:
+          // 1. Have status "Available" (no assignments/restrictions)
+          // 2. Have a shift assignment (status starts with "Shift:")
+          const isUnavailable = empStatus.status === 'Unavailable';
           const isOnAbsence = empStatus.status.startsWith('Absence:');
+          const isAvailable = !isUnavailable && !isOnAbsence && (empStatus.status === 'Available' || empStatus.status.startsWith('Shift:'));
           
           employeeMap.set(empStatus.employee_id, {
             ...empStatus,

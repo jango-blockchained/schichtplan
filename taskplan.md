@@ -1,5 +1,0 @@
-- make it possible to delte assignments on unavailable days
-- refactor the add absence modal on the employee page
-- add a new entry to the schedule action "add button": Add absence (reuse the modal)
-- remove the Mo-Start - Beibehalten option info on the week navigation settings button. Only display the icon and Weeksettings on the  button.
-- remove the Mo-Start badge from the Version management closed section

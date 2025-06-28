@@ -1,43 +1,4 @@
-import React, { useState } from "react";
-import { format } from "date-fns";
-import { VersionMeta } from "@/services/api";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  AlertCircle,
-  Check,
-  Archive,
-  Plus,
-  ChevronDown,
-  ChevronUp,
-  Clock,
-  Calendar,
-  Copy,
-  Pencil,
-  RefreshCw,
-  FileText,
-  Lock,
-  Trash,
-} from "lucide-react";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { DateRange } from "react-day-picker";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
-import { Schedule } from "@/types";
-import { Separator } from "./ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,6 +9,33 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { VersionMeta } from "@/services/api";
+import { Schedule } from "@/types";
+import { format } from "date-fns";
+import {
+  AlertCircle,
+  Archive,
+  Check,
+  Copy,
+  Plus,
+  RefreshCw,
+  Trash
+} from "lucide-react";
+import { useState } from "react";
+import { DateRange } from "react-day-picker";
+import { Separator } from "./ui/separator";
 
 interface VersionControlProps {
   versions: number[];
@@ -187,25 +175,17 @@ export function VersionControl({
   }
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, string> = {
-      DRAFT: "default",
-      PUBLISHED: "success",
-      ARCHIVED: "secondary",
-    };
-
-    const icons: Record<string, React.ReactNode> = {
-      DRAFT: <AlertCircle className="h-3 w-3 mr-1" />,
-      PUBLISHED: <Check className="h-3 w-3 mr-1" />,
-      ARCHIVED: <Archive className="h-3 w-3 mr-1" />,
-    };
-
     return (
       <Badge
-        variant={variants[status] as any}
-        className="ml-2 flex items-center"
+        variant="outline"
+        className={cn(
+          "text-xs",
+          status === "PUBLISHED" && "bg-green-500/20 text-green-300 border-green-500/30",
+          status === "DRAFT" && "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+          status === "ARCHIVED" && "bg-gray-500/20 text-gray-300 border-gray-500/30"
+        )}
       >
-        {icons[status]}
-        {status}
+        {status.toLowerCase()}
       </Badge>
     );
   };

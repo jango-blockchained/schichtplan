@@ -17,8 +17,9 @@ interface ScheduleManagerProps {
     newShiftId: number,
   ) => Promise<void>;
   onUpdate: (scheduleId: number, updates: ScheduleUpdate) => Promise<void>;
+  onAddAbsence?: (employeeId: number, date: Date) => void;
   isLoading: boolean;
-  employeeAbsences?: Record<number, any[]>;
+  employeeAbsences?: Record<number, unknown[]>;
   absenceTypes?: Array<{
     id: string;
     name: string;
@@ -26,6 +27,7 @@ interface ScheduleManagerProps {
     type: "absence";
   }>;
   currentVersion?: number;
+  versionStatus?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   // Removed activeView as we're always using table view
 
   // New props for empty state handling
@@ -35,7 +37,7 @@ interface ScheduleManagerProps {
   onEmptyStateCreateVersion: () => void;
   onEmptyStateGenerateSchedule: () => void;
   openingDays: number[]; // Add openingDays prop
-  
+
   // Week navigation props for fullscreen mode
   weekInfo?: WeekInfo;
   onNavigatePrevious?: () => void;
@@ -51,10 +53,12 @@ export function ScheduleManager({
   dateRange,
   onDrop,
   onUpdate,
+  onAddAbsence,
   isLoading,
   employeeAbsences,
   absenceTypes,
   currentVersion,
+  versionStatus,
   // Destructure new props
   isEmptyState,
   versions,
@@ -85,9 +89,9 @@ export function ScheduleManager({
       currentVersion,
       dateRange: dateRange
         ? {
-            from: dateRange.from?.toISOString(),
-            to: dateRange.to?.toISOString(),
-          }
+          from: dateRange.from?.toISOString(),
+          to: dateRange.to?.toISOString(),
+        }
         : null,
       isEmptyState,
       versionsCount: versions.length,
@@ -182,10 +186,12 @@ export function ScheduleManager({
           dateRange={dateRange}
           onDrop={onDrop}
           onUpdate={onUpdate}
+          onAddAbsence={onAddAbsence}
           isLoading={isLoading}
           employeeAbsences={employeeAbsences}
           absenceTypes={absenceTypes}
           currentVersion={currentVersion}
+          versionStatus={versionStatus}
           openingDays={openingDays} // Pass openingDays to ScheduleTable
           // Week navigation props
           weekInfo={weekInfo}
