@@ -85,7 +85,7 @@ export function VersionTable({
   isLoading = false,
   className = "",
   showPagination = true,
-  initialPageSize = 10,
+  initialPageSize = 5,
   isCollapsible = false,
   initiallyOpen = true,
 }: VersionTableProps) {
@@ -409,8 +409,8 @@ export function VersionTable({
                     </Button>
                   </TableCell>
                   <TableCell>
-                    {format(new Date(version.date_range.start), "dd.MM.yyyy")} -{" "}
-                    {format(new Date(version.date_range.end), "dd.MM.yyyy")}
+                    {format(new Date(version.date_range.start), "dd.MM.")} -{" "}
+                    {format(new Date(version.date_range.end), "dd.MM.")}
                   </TableCell>
                   <TableCell>{getStatusBadge(version.status)}</TableCell>
                   <TableCell className="max-w-[200px]">

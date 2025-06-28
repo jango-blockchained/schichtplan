@@ -102,28 +102,21 @@ export function useVersionManager({
     
     if (versions.length === 0) {
       // No versions available
-      if (selectedVersion !== undefined) {
-        setSelectedVersion(undefined);
-        onVersionSelected?.(undefined);
-      }
+      setSelectedVersion(undefined);
+      onVersionSelected?.(undefined);
       return;
     }
 
     if (autoSelectLatest) {
-      // Always select the latest version for the current date range
+      // Always deselect current version and select the latest version for the current date range
       // This ensures proper behavior when navigating between weeks
       const latestVersion = Math.max(...versions.map(v => v.version));
-      const currentVersionExists = versions.some(v => v.version === selectedVersion);
       
-      // Select latest version if:
-      // 1. No version is selected
-      // 2. Selected version doesn't exist in current date range  
-      if (selectedVersion === undefined || !currentVersionExists) {
-        setSelectedVersion(latestVersion);
-        onVersionSelected?.(latestVersion);
-      }
+      // Always select latest version when date range changes (navigation to another week)
+      setSelectedVersion(latestVersion);
+      onVersionSelected?.(latestVersion);
     }
-  }, [versionsQuery.data, selectedVersion, onVersionSelected, autoSelectLatest]);
+  }, [versionsQuery.data, onVersionSelected, autoSelectLatest, dateRange?.from, dateRange?.to]);
 
   // Create version mutation
   const createVersionMutation = useMutation({

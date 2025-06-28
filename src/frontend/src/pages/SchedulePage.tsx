@@ -739,13 +739,13 @@ export function SchedulePage() {
         const handleCreateNewVersion = (weekNumber: number, versionNumber: number) => {
           // Close the MEP window
           newWindow.close();
-          
+
           // Create new version with specified week and version number
           toast({
             title: "Neue Version erstellt",
             description: `Version ${versionNumber} für Woche ${weekNumber} wurde erstellt.`,
           });
-          
+
           // Here you can add logic to actually create the new version
           // For example, navigate to the new week/version or update the state
           console.log(`Creating new version: Week ${weekNumber}, Version ${versionNumber}`);
