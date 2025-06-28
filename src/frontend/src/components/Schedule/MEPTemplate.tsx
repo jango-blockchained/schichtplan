@@ -75,7 +75,7 @@ function NewVersionModal({ isOpen, onClose, onSubmit, currentWeekNumber, current
           <h3>Neue Version erstellen</h3>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="modal-form">
           <div className="form-group">
             <label htmlFor="weekNumber">Wochennummer:</label>
@@ -122,7 +122,7 @@ function NewVersionModal({ isOpen, onClose, onSubmit, currentWeekNumber, current
 
 export function MEPTemplate({ data, onPrint, onCreateNewVersion }: MEPTemplateProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+
   // Calculate current week number from the date range
   const getCurrentWeekNumber = () => {
     if (data.dateRangeDays && data.dateRangeDays.length > 0) {
