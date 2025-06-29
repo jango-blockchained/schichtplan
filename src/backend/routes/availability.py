@@ -550,13 +550,27 @@ def get_employee_status_by_date_range():
         ).all()
 
         # Create lookup for employees who have availability records by day of week
+        # AND track whether they have any available hours (is_available = 1) for each day
         employee_availability_by_day = {}
+        employee_available_hours_by_day = {}
         for avail in availability_records:
             emp_id = avail.employee_id
             day_of_week = avail.day_of_week
+
+            # Track that this employee has records for this day
             if emp_id not in employee_availability_by_day:
                 employee_availability_by_day[emp_id] = set()
             employee_availability_by_day[emp_id].add(day_of_week)
+
+            # Track whether this employee has any available hours for this day
+            if emp_id not in employee_available_hours_by_day:
+                employee_available_hours_by_day[emp_id] = {}
+            if day_of_week not in employee_available_hours_by_day[emp_id]:
+                employee_available_hours_by_day[emp_id][day_of_week] = False
+
+            # If this record shows availability (is_available = 1), mark the day as having available hours
+            if getattr(avail, "is_available", 0) == 1:
+                employee_available_hours_by_day[emp_id][day_of_week] = True
 
         # Get all schedules for the date range to determine version per date
         all_schedules = (
@@ -637,15 +651,28 @@ def get_employee_status_by_date_range():
                 else:
                     # Check if employee has availability records for this day of week
                     day_of_week = target_date.weekday()
-                    employee_has_availability = (
+                    employee_has_availability_records = (
                         emp.id in employee_availability_by_day
                         and day_of_week in employee_availability_by_day[emp.id]
                     )
 
-                    if not employee_has_availability:
+                    if not employee_has_availability_records:
                         # Employee has no availability records for this day of week
                         status = "Unavailable"
                         details = {"reason": "No availability records for this day"}
+                    else:
+                        # Employee has availability records, check if they have any available hours
+                        employee_has_available_hours = (
+                            emp.id in employee_available_hours_by_day
+                            and day_of_week in employee_available_hours_by_day[emp.id]
+                            and employee_available_hours_by_day[emp.id][day_of_week]
+                        )
+
+                        if not employee_has_available_hours:
+                            # Employee has availability records but no available hours for this day
+                            status = "Unavailable"
+                            details = {"reason": "No available hours for this day"}
+                        # If employee has available hours, status remains "Available" (the default)
 
                 result[date_str].append(
                     {

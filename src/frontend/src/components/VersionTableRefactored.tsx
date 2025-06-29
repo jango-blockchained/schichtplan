@@ -378,8 +378,8 @@ export function VersionTable({
                 <TableRow
                   key={version.version}
                   className={`${isSelected
-                      ? "bg-primary/10 border-primary/20"
-                      : "hover:bg-muted/30"
+                    ? "bg-primary/10 border-primary/20"
+                    : "hover:bg-muted/30"
                     } ${isNew ? "bg-green-500/10 border-green-500/20" : ""
                     } border-b border-border`}
                 >
