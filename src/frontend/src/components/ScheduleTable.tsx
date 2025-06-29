@@ -518,6 +518,7 @@ const ScheduleCell = ({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [showActions, setShowActions] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   // Use optimized bulk availability checking instead of individual API calls
   const { isAvailable: employeeAvailable, absenceInfo, isLoading: availabilityLoading } = useEmployeeAvailability(employeeId, date);
   const queryClient = useQueryClient();
@@ -641,7 +642,7 @@ const ScheduleCell = ({
           !isUnavailable && !isLoading && isOver && !canDrop && "bg-destructive/10 border-destructive/30"
         )}
         onMouseEnter={() => !isLoading && setShowActions(true)}
-        onMouseLeave={() => setShowActions(false)}
+        onMouseLeave={() => !isDropdownOpen && setShowActions(false)}
       >
         {isLoading && (
           <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -701,7 +702,7 @@ const ScheduleCell = ({
               <div className="w-px h-6 bg-border" />
 
               {/* Dropdown arrow for submenu */}
-              <DropdownMenu>
+              <DropdownMenu onOpenChange={setIsDropdownOpen}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     size="sm"
@@ -784,7 +785,7 @@ const ScheduleCell = ({
         employeeAvailable === false && "opacity-60"
       )}
       onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
+      onMouseLeave={() => !isDropdownOpen && setShowActions(false)}
     >
       {/* Show unavailability indicator if employee is unavailable */}
       {employeeAvailable === false && (
