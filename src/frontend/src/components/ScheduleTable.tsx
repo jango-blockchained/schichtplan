@@ -42,6 +42,7 @@ import {
   ArrowDown,
   ArrowUp,
   Calendar,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Edit2,
@@ -627,7 +628,7 @@ const ScheduleCell = ({
   if (isEmptySchedule(schedule)) {
     // Check if employee is unavailable or still loading
     const isUnavailable = employeeAvailable === false;
-    const isLoading = availabilityLoading;
+    const isLoading = availabilityLoading || employeeAvailable === undefined;
 
     // Render empty cell with loading state, unavailable indicator, or + button
     return (
@@ -668,7 +669,7 @@ const ScheduleCell = ({
               </span>
             )}
             {/* Debug info for specific employee */}
-            {employeeId === 9 && date.getDay() === 2 && (
+            {employeeId === 10 && date.getDay() === 2 && (
               <span className="text-[10px] text-gray-400 mt-1">Debug: {String(employeeAvailable)}</span>
             )}
           </div>
@@ -684,29 +685,47 @@ const ScheduleCell = ({
 
         {!isLoading && !isUnavailable && !hasAbsence && showActions && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  aria-label="Add actions"
-                >
-                  <Plus className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="center" className="w-40">
-                <DropdownMenuItem onClick={() => setIsAddModalOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Schicht hinzufügen
-                </DropdownMenuItem>
-                {onAddAbsence && (
-                  <DropdownMenuItem onClick={() => onAddAbsence(employeeId, date)}>
-                    <Calendar className="h-4 w-4 mr-2" />
-                    Abwesenheit hinzufügen
+            <div className="flex items-center bg-background border border-border rounded-md shadow-sm overflow-hidden">
+              {/* Main add button - direct click to add assignment */}
+              <Button
+                size="sm"
+                variant="ghost"
+                className="rounded-none border-0 px-2 py-1 h-8 hover:bg-accent"
+                onClick={() => setIsAddModalOpen(true)}
+                aria-label="Schicht hinzufügen"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+
+              {/* Visual divider */}
+              <div className="w-px h-6 bg-border" />
+
+              {/* Dropdown arrow for submenu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="rounded-none border-0 px-1.5 py-1 h-8 hover:bg-accent"
+                    aria-label="Weitere Optionen"
+                  >
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center" className="w-44">
+                  <DropdownMenuItem onClick={() => setIsAddModalOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Schicht hinzufügen
                   </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  {onAddAbsence && (
+                    <DropdownMenuItem onClick={() => onAddAbsence(employeeId, date)}>
+                      <Calendar className="h-4 w-4 mr-2" />
+                      Abwesenheit hinzufügen
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         )}
 
@@ -1507,7 +1526,8 @@ function ScheduleTableNormal({
       return grouped;
     }
 
-    const uniqueEmployeeIds = [...new Set(schedules.map((s) => s.employee_id))];
+    const uniqueEmployeeIds = [...new Set(schedules.map((s) => s.employee_id))]
+      .filter(id => id > 0); // Filter out placeholder employee ID (-1)
 
     uniqueEmployeeIds.forEach((employeeId) => {
       const employeeSchedules = schedules.filter(
@@ -1538,7 +1558,8 @@ function ScheduleTableNormal({
 
   // Get unique employees from schedules with sorting
   const sortedEmployeeIds = useMemo(() => {
-    const uniqueIds = [...new Set(schedules.map((s) => s.employee_id))];
+    const uniqueIds = [...new Set(schedules.map((s) => s.employee_id))]
+      .filter(id => id > 0); // Filter out placeholder employee ID (-1)
 
     if (!employees) return uniqueIds;
 
