@@ -716,22 +716,332 @@ export function SchedulePage() {
       `);
       newWindow.document.close();
 
-      // Load the CSS file content and inject it
-      const loadCSS = async () => {
-        try {
-          const response = await fetch('/src/components/Schedule/MEPTemplate.css');
-          const cssContent = await response.text();
+      // Inline the CSS content directly instead of fetching
+      const addInlineCSS = () => {
+        const style = newWindow.document.createElement('style');
+        style.textContent = `
+          /* MEP Template Styles - Landscape Format */
+          .mep-container {
+            width: 100%;
+            background: white;
+          }
 
-          const style = newWindow.document.createElement('style');
-          style.textContent = cssContent;
-          newWindow.document.head.appendChild(style);
+          /* Print Button - Hidden when printing */
+          .print-button-container {
+            text-align: center;
+            padding: 20px;
+            background: #f5f5f5;
+            border-bottom: 1px solid #ddd;
+          }
 
-          // Now render the MEP component
-          renderMEPComponent();
-        } catch {
-          // CSS loading failed, continue with inline styles
-          renderMEPComponent();
-        }
+          .print-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+          }
+
+          .print-button:hover {
+            background: #0056b3;
+          }
+
+          /* MEP Document Container */
+          .mep-document {
+            width: 297mm; /* A4 Landscape width */
+            height: 210mm; /* A4 Landscape height */
+            margin: 0 auto;
+            padding: 15mm;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            line-height: 1.2;
+            background: white;
+            border: 1px solid #ddd;
+          }
+
+          /* Header Section */
+          .mep-header {
+            margin-bottom: 8mm;
+          }
+
+          .mep-title {
+            text-align: center;
+            font-size: 14px;
+            font-weight: bold;
+            border: 2px solid black;
+            padding: 6px;
+            margin-bottom: 6px;
+            background: white;
+          }
+
+          .mep-info-row {
+            display: flex;
+            gap: 8px;
+            font-size: 9px;
+            margin-bottom: 6px;
+          }
+
+          .info-item {
+            flex: 1;
+            white-space: nowrap;
+          }
+
+          /* Main Table */
+          .mep-table {
+            width: 100%;
+            border: 1px solid black;
+            font-size: 8px;
+          }
+
+          /* Table Header */
+          .table-header {
+            display: flex;
+            background: #f0f0f0;
+            border-bottom: 1px solid black;
+            font-weight: bold;
+            text-align: center;
+          }
+
+          .col-employee {
+            width: 40mm;
+            border-right: 1px solid black;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 20px;
+          }
+
+          .col-function {
+            width: 25mm;
+            border-right: 1px solid black;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .col-plan {
+            width: 20mm;
+            border-right: 1px solid black;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .col-time-type {
+            width: 20mm;
+            border-right: 1px solid black;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: yellow; /* Visual indicator for new layout */
+            font-weight: bold;
+          }
+
+          .col-day-single {
+            width: 20mm;
+            border-right: 1px solid black;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .col-weekly {
+            width: 20mm;
+            border-right: 1px solid black;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .col-monthly {
+            width: 20mm;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          /* Employee Rows */
+          .employee-group {
+            border-bottom: 1px solid black;
+          }
+
+          .employee-row {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            min-height: 18px;
+          }
+
+          .employee-row:last-child {
+            border-bottom: 1px solid black;
+          }
+
+          /* Time labels */
+          .col-time-label {
+            width: 20mm;
+            border-right: 1px solid black;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            background: #f8f8f8;
+          }
+
+          /* Day time cells */
+          .col-day-time {
+            width: 20mm;
+            border-right: 1px solid black;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+          }
+
+          /* Employee info cells that span multiple rows */
+          .employee-name-cell {
+            width: 40mm;
+            border-right: 1px solid black;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-weight: bold;
+            background: #f8f8f8;
+          }
+
+          .employee-function-cell {
+            width: 25mm;
+            border-right: 1px solid black;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background: #f8f8f8;
+          }
+
+          .employee-plan-cell {
+            width: 20mm;
+            border-right: 1px solid black;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background: #f8f8f8;
+          }
+
+          .employee-weekly-cell {
+            width: 20mm;
+            border-right: 1px solid black;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background: #f8f8f8;
+            font-weight: bold;
+          }
+
+          .employee-monthly-cell {
+            width: 20mm;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background: #f8f8f8;
+            font-weight: bold;
+          }
+
+          /* Spanning cells for rows that don't show employee info */
+          .col-employee-span, .col-function-span, .col-plan-span, .col-weekly-span, .col-monthly-span {
+            border-right: 1px solid black;
+            padding: 2px;
+          }
+
+          .col-employee-span {
+            width: 40mm;
+          }
+
+          .col-function-span {
+            width: 25mm;
+          }
+
+          .col-plan-span {
+            width: 20mm;
+          }
+
+          .col-weekly-span {
+            width: 20mm;
+          }
+
+          .col-monthly-span {
+            width: 20mm;
+          }
+
+          /* Empty rows */
+          .empty-row {
+            min-height: 18px;
+          }
+
+          /* Footer */
+          .mep-footer {
+            margin-top: 8mm;
+            font-size: 8px;
+            line-height: 1.3;
+          }
+
+          .footer-line {
+            margin-bottom: 2px;
+          }
+
+          .footer-date {
+            margin-top: 4mm;
+            text-align: right;
+            font-style: italic;
+          }
+
+          /* Print styles */
+          @media print {
+            .no-print {
+              display: none !important;
+            }
+
+            .mep-document {
+              border: none;
+              margin: 0;
+              padding: 15mm;
+            }
+
+            body {
+              margin: 0;
+              padding: 0;
+            }
+          }
+
+          @page {
+            size: A4 landscape;
+            margin: 0;
+          }
+        `;
+        newWindow.document.head.appendChild(style);
+
+        // Now render the MEP component
+        renderMEPComponent();
       };
 
       const renderMEPComponent = () => {
@@ -764,7 +1074,7 @@ export function SchedulePage() {
       };
 
       // Load CSS and render
-      loadCSS();
+      addInlineCSS();
 
       addGenerationLog("info", "MEP Template in neuem Fenster geöffnet");
       toast({
