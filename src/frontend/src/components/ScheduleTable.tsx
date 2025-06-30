@@ -86,6 +86,11 @@ const formatTimeHourMin = (hours: number): string => {
   const wholeHours = Math.floor(hours);
   const minutes = Math.round((hours - wholeHours) * 60);
 
+  // Handle case where rounding gives us 60 minutes
+  if (minutes === 60) {
+    return `${wholeHours + 1}h`;
+  }
+
   if (minutes === 0) {
     return `${wholeHours}h`;
   } else if (wholeHours === 0) {
@@ -156,19 +161,43 @@ const getKeyholderAdjustedTimes = (
   return { startTime: adjustedStartTime, endTime: adjustedEndTime };
 };
 
-// Helper function to calculate break duration
+// Helper function to calculate break duration including keyholder extra time
 const calculateBreakDuration = (
   schedule: Schedule,
-  employee: Employee | undefined, // eslint-disable-line @typescript-eslint/no-unused-vars
-  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } } // eslint-disable-line @typescript-eslint/no-unused-vars
+  employee: Employee | undefined,
+  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
 ): number => {
-  // Use the break_duration from the schedule if available
+  // Start with the regular break duration from the schedule
+  let totalBreakTime = 0;
   if (schedule.break_duration && schedule.break_duration > 0) {
-    return schedule.break_duration / 60; // Convert minutes to hours
+    totalBreakTime = schedule.break_duration / 60; // Convert minutes to hours
   }
 
-  // If no break duration is specified, return 0
-  return 0;
+  // Add keyholder extra time as break time
+  const isKeyholderShift = employee?.is_keyholder && schedule?.shift_id;
+  if (isKeyholderShift && schedule.shift_start && schedule.shift_end && settings?.general) {
+    const keyholderBeforeMinutes = settings.general.keyholder_before_minutes || 5;
+    const keyholderAfterMinutes = settings.general.keyholder_after_minutes || 10;
+    const storeOpening = settings.general.store_opening;
+    const storeClosing = settings.general.store_closing;
+
+    let extraKeyholderMinutes = 0;
+
+    // Add before minutes if this is an opening shift
+    if (schedule.shift_start === storeOpening) {
+      extraKeyholderMinutes += keyholderBeforeMinutes;
+    }
+
+    // Add after minutes if this is a closing shift
+    if (schedule.shift_end === storeClosing) {
+      extraKeyholderMinutes += keyholderAfterMinutes;
+    }
+
+    // Convert extra minutes to hours and add to break time
+    totalBreakTime += extraKeyholderMinutes / 60;
+  }
+
+  return totalBreakTime;
 };
 
 // Main function to calculate working time with all adjustments
@@ -182,10 +211,14 @@ const calculateWorkingTime = (
     return { totalTime: 0, breakTime: 0, workingTime: 0 };
   }
 
+  // Calculate total time using keyholder-adjusted times (includes keyholder extra time)
   const { startTime, endTime } = getKeyholderAdjustedTimes(schedule, employee, settings);
-
   const totalTime = calculateBaseDuration(startTime, endTime);
+
+  // Calculate total break time (including keyholder extra time as break)
   const breakTime = calculateBreakDuration(schedule, employee, settings);
+
+  // Working time = total time - total break time (keyholder extra is treated as break)
   const workingTime = Math.max(0, totalTime - breakTime);
 
   return { totalTime, breakTime, workingTime };
@@ -642,7 +675,14 @@ const ScheduleCell = ({
           !isUnavailable && !isLoading && isOver && !canDrop && "bg-destructive/10 border-destructive/30"
         )}
         onMouseEnter={() => !isLoading && setShowActions(true)}
-        onMouseLeave={() => !isDropdownOpen && setShowActions(false)}
+        onMouseLeave={() => {
+          // Use a small delay to prevent flickering when moving between elements
+          setTimeout(() => {
+            if (!isDropdownOpen) {
+              setShowActions(false);
+            }
+          }, 100);
+        }}
       >
         {isLoading && (
           <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -702,7 +742,9 @@ const ScheduleCell = ({
               <div className="w-px h-6 bg-border" />
 
               {/* Dropdown arrow for submenu */}
-              <DropdownMenu onOpenChange={setIsDropdownOpen}>
+              <DropdownMenu onOpenChange={(open) => {
+                setIsDropdownOpen(open);
+              }}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     size="sm"
@@ -785,7 +827,14 @@ const ScheduleCell = ({
         employeeAvailable === false && "opacity-60"
       )}
       onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => !isDropdownOpen && setShowActions(false)}
+      onMouseLeave={() => {
+        // Use a small delay to prevent flickering when moving between elements
+        setTimeout(() => {
+          if (!isDropdownOpen) {
+            setShowActions(false);
+          }
+        }, 100);
+      }}
     >
       {/* Show unavailability indicator if employee is unavailable */}
       {employeeAvailable === false && (
@@ -1594,8 +1643,8 @@ function ScheduleTableNormal({
           break;
         }
         case "workload": {
-          const hoursA = calculateEmployeeHours(a, schedules, dateRange).weeklyHours;
-          const hoursB = calculateEmployeeHours(b, schedules, dateRange).weeklyHours;
+          const hoursA = calculateEmployeeHours(a, schedules, dateRange, employees, settings).weeklyHours;
+          const hoursB = calculateEmployeeHours(b, schedules, dateRange, employees, settings).weeklyHours;
           comparison = hoursA - hoursB;
           if (comparison === 0) {
             // Secondary sort by name
@@ -1631,7 +1680,7 @@ function ScheduleTableNormal({
     });
 
     return sortedIds;
-  }, [schedules, employees, employeeSortBy, employeeSortOrder, dateRange]);
+  }, [schedules, employees, employeeSortBy, employeeSortOrder, dateRange, settings]);
 
   // Get unique employees from schedules (keeping original for compatibility)
   const uniqueEmployeeIds = useMemo(() => {
@@ -1775,7 +1824,7 @@ function ScheduleTableNormal({
                             );
                           }
                           case "workload": {
-                            const hours = calculateEmployeeHours(employeeId, schedules, dateRange);
+                            const hours = calculateEmployeeHours(employeeId, schedules, dateRange, employees, settings);
                             return (
                               <div className="text-xs bg-orange-50 text-orange-700 px-1 py-0.5 rounded">
                                 {hours.weeklyHours.toFixed(1)}h
@@ -1789,7 +1838,7 @@ function ScheduleTableNormal({
                     </div>
                     <div className="text-xs text-muted-foreground mt-2 space-y-1 p-2 bg-muted/20 rounded border border-border">
                       {(() => {
-                        const hours = calculateEmployeeHours(employeeId, schedules, dateRange);
+                        const hours = calculateEmployeeHours(employeeId, schedules, dateRange, employees, settings);
                         const employee = employeeLookup[employeeId];
                         const contractedHours = employee?.contracted_hours || 40;
 
