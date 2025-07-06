@@ -1,6 +1,7 @@
+import { ShinyText } from "@/components/effects/SparkleEffects";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1294,7 +1295,12 @@ export function ScheduleTable({
         <CardHeader className="flex flex-row items-center justify-between sticky top-0 z-[35] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border flex-shrink-0">
           <div>
             <div className="flex items-center gap-3">
-              <CardTitle className="text-xl font-medium">Schichtplan</CardTitle>
+              <ShinyText
+                className="text-xl font-medium"
+                variant="grey"
+              >
+                Schichtplan
+              </ShinyText>
 
               {/* Version and Status Badges */}
               <div className="flex items-center gap-2">
@@ -1710,7 +1716,12 @@ function ScheduleTableNormal({
         <tr className="border-b border-border">
           <th className="w-[220px] sticky left-0 z-[31] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border">
             <div className="flex items-center justify-between">
-              <span>Mitarbeiter ({sortedEmployeeIds.length})</span>
+              <ShinyText
+                variant="grey"
+                className="font-medium"
+              >
+                Mitarbeiter ({sortedEmployeeIds.length})
+              </ShinyText>
               {showNavigation && (
                 <div className="flex items-center gap-1">
                   <Button
@@ -1748,7 +1759,7 @@ function ScheduleTableNormal({
                 <div className="text-sm text-muted-foreground font-medium">
                   {format(date, "dd.MM.")}
                 </div>
-                <div className="text-xs text-blue-600 font-medium mt-1">
+                <div className="text-xs text-blue-600 font-medium mt-1 cursor-pointer">
                   {formatTimeHourMin(dailyHours)}
                 </div>
               </th>

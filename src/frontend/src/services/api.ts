@@ -544,10 +544,10 @@ export const exportSchedule = async (
   filiale?: string,
 ): Promise<Blob> => {
   try {
-    const payload: any = { 
-      start_date: startDate, 
-      end_date: endDate, 
-      layout_config: layoutConfig 
+    const payload: any = {
+      start_date: startDate,
+      end_date: endDate,
+      layout_config: layoutConfig
     };
 
     // Add MEP-specific parameters if MEP format is requested
@@ -989,7 +989,7 @@ export const getAllVersions = async (
 ): Promise<VersionResponse> => {
   try {
     const response = await api.get<VersionResponse>("/api/v2/schedules/versions", {
-      params: { startDate, endDate },
+      params: { start_date: startDate, end_date: endDate },
     });
     return response.data;
   } catch (error) {
@@ -1151,7 +1151,7 @@ export const compareVersions = async (
 ): Promise<CompareVersionsResponse> => {
   // Temporary stub implementation until backend endpoint is available
   console.warn(`compareVersions is not yet implemented in the backend. Attempted to compare versions ${baseVersion} and ${compareVersion}`);
-  
+
   // Return a mock response to prevent frontend errors
   return {
     base_version: baseVersion,
@@ -1198,7 +1198,7 @@ export const updateVersionNotes = async (
 ): Promise<UpdateVersionNotesResponse> => {
   // Temporary stub implementation until backend endpoint is available
   console.warn(`updateVersionNotes is not yet implemented in the backend. Attempted to update version ${version} with notes: ${data.notes}`);
-  
+
   // Return a mock response to prevent frontend errors
   return {
     version,
@@ -1476,7 +1476,7 @@ export const createWeekVersion = async (
   try {
     // Use the existing utility to get week info
     const weekInfo = getWeekFromIdentifier(data.week_identifier);
-    
+
     // Format dates as YYYY-MM-DD
     const formatDate = (date: Date) => {
       const year = date.getFullYear();
@@ -1484,7 +1484,7 @@ export const createWeekVersion = async (
       const day = String(date.getDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
     };
-    
+
     const requestData = {
       start_date: formatDate(weekInfo.startDate),
       end_date: formatDate(weekInfo.endDate),
@@ -1492,9 +1492,9 @@ export const createWeekVersion = async (
       notes: data.notes,
       create_empty_schedules: data.create_empty_schedules ?? true
     };
-    
+
     const response = await api.post("/api/v2/schedules/version", requestData);
-    
+
     // Transform backend response to match frontend interface
     const backendResponse = response.data;
     return {

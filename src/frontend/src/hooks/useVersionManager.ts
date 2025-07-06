@@ -7,18 +7,18 @@
 
 import { useToast } from "@/components/ui/use-toast";
 import {
-    createNewVersion as apiCreateNewVersion,
-    deleteVersion,
-    duplicateVersion,
-    getAllVersions,
-    updateVersionNotes,
-    updateVersionStatus,
-    type VersionMeta,
-    type VersionResponse,
+  createNewVersion as apiCreateNewVersion,
+  deleteVersion,
+  duplicateVersion,
+  getAllVersions,
+  updateVersionNotes,
+  updateVersionStatus,
+  type VersionMeta,
+  type VersionResponse,
 } from "@/services/api";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DateRange } from "react-day-picker";
 
 interface UseVersionManagerProps {
@@ -76,6 +76,27 @@ export function useVersionManager({
   const { toast } = useToast();
   const [selectedVersion, setSelectedVersion] = useState<number | undefined>();
 
+  // Track previous date range to detect changes
+  const prevDateRangeRef = useRef<string | null>(null);
+  const currentDateRangeKey = dateRange?.from?.toISOString() + "-" + dateRange?.to?.toISOString();
+  
+  // Track processed query to prevent duplicate processing
+  const processedQueryRef = useRef<string | null>(null);
+
+  // Clear selected version immediately when date range changes
+  useEffect(() => {
+    if (prevDateRangeRef.current !== null && prevDateRangeRef.current !== currentDateRangeKey) {
+      console.log("📅 Date range changed, clearing version selection immediately");
+      console.log("📅 Previous date range:", prevDateRangeRef.current);
+      console.log("📅 Current date range:", currentDateRangeKey);
+      setSelectedVersion(undefined);
+      onVersionSelected?.(undefined);
+      // Clear processed query ref to allow processing of new date range
+      processedQueryRef.current = null;
+    }
+    prevDateRangeRef.current = currentDateRangeKey;
+  }, [currentDateRangeKey, onVersionSelected]);
+
   // Query for versions
   const versionsQuery = useQuery<VersionResponse, Error>({
     queryKey: [
@@ -96,34 +117,68 @@ export function useVersionManager({
     enabled: !!dateRange?.from && !!dateRange?.to,
   });
 
-  // Auto-select latest version when versions change or date range changes
+    // Auto-select latest version when versions are available and query is complete
   useEffect(() => {
     const versions = versionsQuery.data?.versions || [];
-    
-    if (versions.length === 0) {
-      // No versions available
-      setSelectedVersion(undefined);
-      onVersionSelected?.(undefined);
+
+    // Only proceed if query is complete (not loading) and we have a valid result
+    if (versionsQuery.isLoading || versionsQuery.isError) {
       return;
     }
 
-    if (autoSelectLatest) {
-      // Always deselect current version and select the latest version for the current date range
-      // This ensures proper behavior when navigating between weeks
-      const latestVersion = Math.max(...versions.map(v => v.version));
-      
-      // Always select latest version when date range changes (navigation to another week)
-      setSelectedVersion(latestVersion);
-      onVersionSelected?.(latestVersion);
+    // Create a unique key for this query result to prevent duplicate processing
+    const queryKey = currentDateRangeKey + "-" + JSON.stringify(versions.map(v => v.version).sort());
+    
+    // Skip if we've already processed this exact query result
+    if (processedQueryRef.current === queryKey) {
+      return;
     }
-  }, [versionsQuery.data, onVersionSelected, autoSelectLatest, dateRange?.from, dateRange?.to]);
+    
+    console.log("📅 Processing version query for date range:", currentDateRangeKey);
+    console.log("📅 Available versions:", versions.map(v => v.version));
+    console.log("📅 Current selected version:", selectedVersion);
+
+    if (versions.length === 0) {
+      // No versions available for this date range - ensure selection is cleared
+      if (selectedVersion !== undefined) {
+        console.log("📅 No versions available for current date range, clearing selection");
+        setSelectedVersion(undefined);
+        onVersionSelected?.(undefined);
+      }
+      processedQueryRef.current = queryKey;
+      return;
+    }
+
+    // Check if currently selected version is valid for current date range
+    const isSelectedVersionValid = selectedVersion !== undefined && 
+      versions.some(v => v.version === selectedVersion);
+
+    if (!isSelectedVersionValid) {
+      // Clear invalid selection or auto-select latest if enabled
+      if (autoSelectLatest) {
+        const latestVersion = Math.max(...versions.map(v => v.version));
+        console.log("📅 Auto-selecting latest version for current date range:", latestVersion);
+        setSelectedVersion(latestVersion);
+        onVersionSelected?.(latestVersion);
+      } else {
+        console.log("📅 Clearing invalid version selection");
+        setSelectedVersion(undefined);
+        onVersionSelected?.(undefined);
+      }
+    } else {
+      console.log("📅 Current version selection is valid, keeping it");
+    }
+    
+    // Mark this query as processed
+    processedQueryRef.current = queryKey;
+  }, [versionsQuery.data, versionsQuery.isLoading, versionsQuery.isError, onVersionSelected, autoSelectLatest, currentDateRangeKey]);
 
   // Create version mutation
   const createVersionMutation = useMutation({
     mutationFn: async (options: CreateVersionOptions = {}) => {
-      const startDate = options.startDate || 
+      const startDate = options.startDate ||
         (dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined);
-      const endDate = options.endDate || 
+      const endDate = options.endDate ||
         (dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined);
 
       if (!startDate || !endDate) {
@@ -231,16 +286,16 @@ export function useVersionManager({
 
   // Duplicate version mutation
   const duplicateVersionMutation = useMutation({
-    mutationFn: async ({ 
-      sourceVersion, 
-      options 
-    }: { 
-      sourceVersion: number; 
-      options: DuplicateVersionOptions 
+    mutationFn: async ({
+      sourceVersion,
+      options
+    }: {
+      sourceVersion: number;
+      options: DuplicateVersionOptions
     }) => {
-      const startDate = options.startDate || 
+      const startDate = options.startDate ||
         (dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined);
-      const endDate = options.endDate || 
+      const endDate = options.endDate ||
         (dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined);
 
       if (!startDate || !endDate) {
@@ -308,7 +363,7 @@ export function useVersionManager({
   }, [duplicateVersionMutation]);
 
   // Compute loading state
-  const isLoading = 
+  const isLoading =
     versionsQuery.isLoading ||
     createVersionMutation.isPending ||
     updateStatusMutation.isPending ||

@@ -57,12 +57,44 @@ def get_or_create_initial_version(start_date, end_date):
         return None
 
 
+def get_versions_for_exact_date_range(start_date, end_date):
+    """Helper function to get versions that exactly match a specific date range"""
+    try:
+        logger.debug(
+            f"Getting versions for exact date range: {start_date} to {end_date}"
+        )
+
+        # Get versions that exactly match the requested date range
+        versions = (
+            ScheduleVersionMeta.query.filter(
+                ScheduleVersionMeta.date_range_start == start_date,
+                ScheduleVersionMeta.date_range_end == end_date,
+            )
+            .order_by(desc(ScheduleVersionMeta.version))
+            .all()
+        )
+
+        if versions:
+            logger.debug(f"Found {len(versions)} versions with exact date range match")
+            return versions
+
+        # No exact matches found
+        logger.debug("No versions found with exact date range match")
+        return []
+
+    except Exception as e:
+        logger.error(
+            f"Error in get_versions_for_exact_date_range: {str(e)}", exc_info=True
+        )
+        return []
+
+
 def get_versions_for_date_range(start_date, end_date):
-    """Helper function to get all versions available for a specific date range"""
+    """Helper function to get all versions available for a specific date range (overlap detection)"""
     try:
         logger.debug(f"Getting versions for date range: {start_date} to {end_date}")
 
-        # Try to get versions from version_meta first using the query pattern
+        # Try to get versions from version_meta first using the query pattern (overlap detection)
         versions = (
             ScheduleVersionMeta.query.filter(
                 ScheduleVersionMeta.date_range_start <= end_date,
@@ -1294,18 +1326,18 @@ def get_all_versions():
                     }
                 ), HTTPStatus.BAD_REQUEST
 
-        # Get versions for the specified date range
-        available_versions = get_versions_for_date_range(start_of_week, end_of_week)
+        # Get versions for the specified date range using exact matching
+        # This ensures we only return versions that exactly match the requested week
+        available_versions = get_versions_for_exact_date_range(
+            start_of_week, end_of_week
+        )
 
         # Ensure available_versions is not None (defensive programming)
         if available_versions is None:
             available_versions = []
 
-        # If no versions exist for this week, create initial version
-        if not available_versions:
-            version_meta = get_or_create_initial_version(start_of_week, end_of_week)
-            if version_meta:
-                available_versions = [version_meta]
+        # For week-based navigation, we don't auto-create versions for exact matching
+        # This allows the frontend to properly show "no versions available" state
 
         # Return version information
         return jsonify(
