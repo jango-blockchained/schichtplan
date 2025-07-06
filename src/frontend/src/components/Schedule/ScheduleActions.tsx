@@ -42,7 +42,6 @@ interface ScheduleActionsProps {
   onImportAiResponse: () => void;
   onOpenStatistics: () => void;
   onAddFixed: () => void;
-  onAddUnavailable: () => void;
   onAddPreferred: () => void;
   onAddAbsence: () => void;
   isLoading: boolean;
@@ -67,7 +66,6 @@ export function ScheduleActions({
   onImportAiResponse,
   onOpenStatistics,
   onAddFixed,
-  onAddUnavailable,
   onAddPreferred,
   onAddAbsence,
   isGenerating,
@@ -120,11 +118,6 @@ export function ScheduleActions({
                 <Settings className="h-4 w-4 mr-2" />
                 Bevorzugte Verfügbarkeit
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={onAddUnavailable}>
-                <Settings className="h-4 w-4 mr-2" />
-                Nicht verfügbar
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onAddAbsence}>
                 <Calendar className="h-4 w-4 mr-2" />
                 Abwesenheit hinzufügen

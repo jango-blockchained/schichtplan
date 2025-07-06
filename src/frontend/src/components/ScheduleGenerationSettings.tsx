@@ -1,21 +1,19 @@
-import React, { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
-  CardTitle,
+  CardTitle
 } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Settings } from "@/types";
-import { Button } from "@/components/ui/button";
-import { Save, AlertCircle } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
+import { GenerationOptions } from "@/hooks/useScheduleGeneration";
+import { Settings } from "@/types";
+import { Play, RefreshCw, Save } from "lucide-react";
+import React, { useEffect, useState } from "react";
 import { Checkbox } from "./ui/checkbox";
-import { Play, Settings2, RefreshCw } from "lucide-react";
 import { Separator } from "./ui/separator";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 /**
  * Definition of schedule generation requirements with labels and descriptions
@@ -108,9 +106,13 @@ const DEFAULT_REQUIREMENTS: Record<RequirementKey, boolean> =
 
 interface ScheduleGenerationSettingsProps {
   /** Current generation requirements settings */
-  settings: Partial<Settings["scheduling"]["generation_requirements"]> | null; // Changed type
+  settings: Partial<Settings["scheduling"]["generation_requirements"]> | null;
   /** Callback for updating generation requirements */
-  onUpdate: (updatedRequirements: Record<RequirementKey, boolean>) => void; // Changed type
+  onUpdate: (updatedRequirements: Record<RequirementKey, boolean>) => void;
+  /** Current generation options */
+  generationOptions?: GenerationOptions;
+  /** Callback for updating generation options */
+  onGenerationOptionsUpdate?: (options: GenerationOptions) => void;
   /** Whether to create empty schedules during generation */
   createEmptySchedules?: boolean;
   /** Whether to include empty schedules in the view */
@@ -134,8 +136,15 @@ interface ScheduleGenerationSettingsProps {
  * including constraints, empty schedule handling, and triggering generation.
  */
 export function ScheduleGenerationSettings({
-  settings, // This is now Partial<Settings["scheduling"]["generation_requirements"]> | null
+  settings,
   onUpdate,
+  generationOptions = {
+    keepExistingAssignments: false,
+    usePhase1FixedAssignments: true,
+    usePhase2PreferredAvailability: true,
+    usePhase3StandardGeneration: true,
+  },
+  onGenerationOptionsUpdate,
   createEmptySchedules,
   includeEmpty,
   enableDiagnostics,
@@ -152,11 +161,11 @@ export function ScheduleGenerationSettings({
     Record<RequirementKey, boolean>
   >(() => {
     // Initialize with settings if available, otherwise use defaults
-    if (settings) { // settings is now directly the generation_requirements object or null
+    if (settings) {
       const req = { ...DEFAULT_REQUIREMENTS };
       Object.keys(settings).forEach(
         (key) => {
-          if (key in req && settings[key as RequirementKey] !== undefined) { // Check for undefined
+          if (key in req && settings[key as RequirementKey] !== undefined) {
             req[key as RequirementKey] =
               !!settings[key as RequirementKey];
           }
@@ -169,11 +178,11 @@ export function ScheduleGenerationSettings({
 
   // Update local state when settings change
   useEffect(() => {
-    if (settings) { // settings is now directly the generation_requirements object or null
+    if (settings) {
       const req = { ...DEFAULT_REQUIREMENTS };
       Object.keys(settings).forEach(
         (key) => {
-          if (key in req && settings[key as RequirementKey] !== undefined) { // Check for undefined
+          if (key in req && settings[key as RequirementKey] !== undefined) {
             req[key as RequirementKey] =
               !!settings[key as RequirementKey];
           }
@@ -185,13 +194,21 @@ export function ScheduleGenerationSettings({
     }
   }, [settings]);
 
+  // Local state for generation options
+  const [localGenerationOptions, setLocalGenerationOptions] = useState<GenerationOptions>(generationOptions);
+
+  // Update local generation options when props change
+  useEffect(() => {
+    setLocalGenerationOptions(generationOptions);
+  }, [generationOptions]);
+
   const handleToggle = (key: RequirementKey, checked: boolean) => {
     const updatedRequirements = {
       ...localRequirements,
       [key]: checked,
     };
     setLocalRequirements(updatedRequirements);
-    onUpdate(updatedRequirements); // Correctly calls with Record<RequirementKey, boolean>
+    onUpdate(updatedRequirements);
 
     // Show a small toast to confirm the change
     const requirement = SCHEDULE_REQUIREMENTS.find((r) => r.key === key);
@@ -204,9 +221,18 @@ export function ScheduleGenerationSettings({
     }
   };
 
+  const handleGenerationOptionToggle = (key: keyof GenerationOptions, checked: boolean) => {
+    const updatedOptions = {
+      ...localGenerationOptions,
+      [key]: checked,
+    };
+    setLocalGenerationOptions(updatedOptions);
+    onGenerationOptionsUpdate?.(updatedOptions);
+  };
+
   const handleSave = () => {
     try {
-      onUpdate(localRequirements); // Correctly calls with Record<RequirementKey, boolean>
+      onUpdate(localRequirements);
 
       // Only show success message when explicitly saving
       toast({
@@ -236,81 +262,188 @@ export function ScheduleGenerationSettings({
 
   return (
     <div className="space-y-6">
-      {/* Empty Schedules Settings */}
-      {showGenerationControls && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-6">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="createEmpty"
-                checked={createEmptySchedules}
-                onCheckedChange={onCreateEmptyChange}
+      {/* Generation Strategy Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Generierungsstrategie
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-4">
+            {/* Keep/Delete existing assignments */}
+            <div className="flex items-center justify-between space-x-3 p-3 border rounded-lg">
+              <div className="space-y-1">
+                <Label className="text-sm font-medium">
+                  Vorhandene Zuweisungen beibehalten
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Wenn aktiviert, werden bestehende Schichtzuweisungen nicht überschrieben.
+                  Wenn deaktiviert, werden alle Zuweisungen gelöscht und neu generiert.
+                </p>
+              </div>
+              <Switch
+                checked={localGenerationOptions.keepExistingAssignments}
+                onCheckedChange={(checked) =>
+                  handleGenerationOptionToggle("keepExistingAssignments", checked)
+                }
               />
-              <Label
-                htmlFor="createEmpty"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Leere Dienstpläne erstellen
-              </Label>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="includeEmpty"
-                checked={includeEmpty}
-                onCheckedChange={onIncludeEmptyChange}
-              />
-              <Label
-                htmlFor="includeEmpty"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Leere Dienstpläne anzeigen
-              </Label>
-            </div>
+            <Separator />
 
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="enableDiagnostics"
-                checked={enableDiagnostics}
-                onCheckedChange={onEnableDiagnosticsChange}
-              />
-              <Label
-                htmlFor="enableDiagnostics"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Diagnose-Ergebnisse anzeigen
-              </Label>
+            {/* Phase Controls */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Generierungsphasen</Label>
+              <p className="text-xs text-muted-foreground">
+                Wählen Sie, welche Phasen der Generierung ausgeführt werden sollen.
+              </p>
+
+              <div className="space-y-3">
+                {/* Phase 1: Fixed Assignments */}
+                <div className="flex items-center justify-between space-x-3 p-3 border rounded-lg">
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium">
+                      Phase 1: Feste Schichtzuweisungen
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Verarbeitet feste Verfügbarkeiten und erstellt direkte Schichtzuweisungen
+                    </p>
+                  </div>
+                  <Switch
+                    checked={localGenerationOptions.usePhase1FixedAssignments}
+                    onCheckedChange={(checked) =>
+                      handleGenerationOptionToggle("usePhase1FixedAssignments", checked)
+                    }
+                  />
+                </div>
+
+                {/* Phase 2: Preferred Availability */}
+                <div className="flex items-center justify-between space-x-3 p-3 border rounded-lg">
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium">
+                      Phase 2: Bevorzugte Verfügbarkeiten
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Berücksichtigt bevorzugte Arbeitszeiten bei der Schichtverteilung
+                    </p>
+                  </div>
+                  <Switch
+                    checked={localGenerationOptions.usePhase2PreferredAvailability}
+                    onCheckedChange={(checked) =>
+                      handleGenerationOptionToggle("usePhase2PreferredAvailability", checked)
+                    }
+                  />
+                </div>
+
+                {/* Phase 3: Standard Generation */}
+                <div className="flex items-center justify-between space-x-3 p-3 border rounded-lg">
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium">
+                      Phase 3: Standard-Generierung
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Füllt verbleibende Schichten mit der Standard-Generierungslogik
+                    </p>
+                  </div>
+                  <Switch
+                    checked={localGenerationOptions.usePhase3StandardGeneration}
+                    onCheckedChange={(checked) =>
+                      handleGenerationOptionToggle("usePhase3StandardGeneration", checked)
+                    }
+                  />
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
+
+      {/* Empty Schedules Settings */}
+      {showGenerationControls && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Allgemeine Einstellungen</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-6">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="createEmpty"
+                  checked={createEmptySchedules}
+                  onCheckedChange={onCreateEmptyChange}
+                />
+                <Label
+                  htmlFor="createEmpty"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Leere Dienstpläne erstellen
+                </Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="includeEmpty"
+                  checked={includeEmpty}
+                  onCheckedChange={onIncludeEmptyChange}
+                />
+                <Label
+                  htmlFor="includeEmpty"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Leere Dienstpläne anzeigen
+                </Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="enableDiagnostics"
+                  checked={enableDiagnostics}
+                  onCheckedChange={onEnableDiagnosticsChange}
+                />
+                <Label
+                  htmlFor="enableDiagnostics"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Diagnose-Ergebnisse anzeigen
+                </Label>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Generation Requirements */}
-      <div className="space-y-4">
-        <h3 className="text-sm font-medium">Generierungseinstellungen</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto border rounded-md p-4">
-          {SCHEDULE_REQUIREMENTS.map(({ key, label, description }) => (
-            <div
-              key={key}
-              className="flex items-start space-x-3 p-2 hover:bg-muted/30 rounded-md"
-            >
-              <Switch
-                id={key}
-                checked={localRequirements[key as RequirementKey]}
-                onCheckedChange={(checked) =>
-                  handleToggle(key as RequirementKey, checked)
-                }
-              />
-              <div className="space-y-1">
-                <Label htmlFor={key} className="text-sm font-medium">
-                  {label}
-                </Label>
-                <p className="text-xs text-muted-foreground">{description}</p>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Generierungseinstellungen</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto border rounded-md p-4">
+            {SCHEDULE_REQUIREMENTS.map(({ key, label, description }) => (
+              <div
+                key={key}
+                className="flex items-start space-x-3 p-2 hover:bg-muted/30 rounded-md"
+              >
+                <Switch
+                  id={key}
+                  checked={localRequirements[key as RequirementKey]}
+                  onCheckedChange={(checked) =>
+                    handleToggle(key as RequirementKey, checked)
+                  }
+                />
+                <div className="space-y-1">
+                  <Label htmlFor={key} className="text-sm font-medium">
+                    {label}
+                  </Label>
+                  <p className="text-xs text-muted-foreground">{description}</p>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Action Buttons */}
       <div className="flex gap-2 justify-end">
@@ -333,7 +466,7 @@ export function ScheduleGenerationSettings({
             ) : (
               <>
                 <Play className="mr-2 h-4 w-4" />
-                Dienstplan generieren
+                Mehrstufige Generierung starten
               </>
             )}
           </Button>

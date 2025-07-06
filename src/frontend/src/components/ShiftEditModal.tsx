@@ -193,8 +193,8 @@ export function ShiftEditModal({
       setBreakDuration(autoBreak);
     }
     
-    // Check if current employee is a keyholder
-    setIsKeyholder(currentEmployee?.is_keyholder ?? false);
+    // Default keyholder to false for assignments (don't auto-check based on employee status)
+    setIsKeyholder(false);
     
     console.log(
       "📋 ShiftEditModal initialized with break calculation:",

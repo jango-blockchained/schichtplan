@@ -476,6 +476,13 @@ export const generateSchedule = async (
   createEmptySchedules: boolean = false,
   version: number,
   enableDiagnostics: boolean = false,
+  options?: {
+    keepExistingAssignments?: boolean;
+    usePhase1FixedAssignments?: boolean;
+    usePhase2PreferredAvailability?: boolean;
+    usePhase3StandardGeneration?: boolean;
+    phaseMode?: "fixed_assignments" | "preferred_availability" | "standard_generation" | "finalize";
+  },
 ): Promise<ScheduleResponse> => {
   try {
     const response = await api.post<ScheduleResponse>(
@@ -486,6 +493,7 @@ export const generateSchedule = async (
         create_empty_schedules: createEmptySchedules,
         version: version,
         enable_diagnostics: enableDiagnostics,
+        generation_options: options || {},
       },
     );
     return response.data;
