@@ -201,7 +201,6 @@ export function MEPTemplate({ data, onPrint, onCreateNewVersion }: MEPTemplatePr
             <div className="col-employee">Name,<br />Vorname</div>
             <div className="col-function">Funktion</div>
             <div className="col-plan">Plan /<br />Woche</div>
-            <div className="col-time-type">🔄 Zeit-Typ<br />UPDATED</div>
 
             {data.dateRangeDays.map((day, index) => (
               <div key={index} className="col-day-single">
@@ -214,24 +213,89 @@ export function MEPTemplate({ data, onPrint, onCreateNewVersion }: MEPTemplatePr
             <div className="col-monthly">Summe /<br />Monat</div>
           </div>
 
+          {/* Sub-header for row types */}
+          <div className="table-subheader">
+            <div className="col-employee"></div>
+            <div className="col-function"></div>
+            <div className="col-plan"></div>
+
+            {data.dateRangeDays.map((_, index) => (
+              <div key={index} className="col-day-single-sub">
+                <div className="row-type-labels">
+                  <div className="row-label">Datum</div>
+                  <div className="row-label">Wer/tätig</div>
+                  <div className="row-label">Beginn</div>
+                  <div className="row-label">Pause</div>
+                  <div className="row-label">Ende</div>
+                  <div className="row-label">Summe/Tag</div>
+                </div>
+              </div>
+            ))}
+
+            <div className="col-weekly"></div>
+            <div className="col-monthly"></div>
+          </div>
+
           {/* Employee Rows */}
           {data.employees.map((employee) => (
             <React.Fragment key={employee.id}>
-              {/* Employee Name Row - spans 4 rows */}
+              {/* Employee Block - 6 rows per employee */}
               <div className="employee-group">
-                {/* Beginn Row */}
+                {/* Row 1: Datum */}
                 <div className="employee-row">
-                  <div className="col-employee employee-name-cell">
+                  <div className="col-employee employee-name-cell" rowSpan={6}>
                     {employee.firstName}<br />
                     {employee.lastName}
                   </div>
-                  <div className="col-function employee-function-cell">
+                  <div className="col-function employee-function-cell" rowSpan={6}>
                     {employee.position}
                   </div>
-                  <div className="col-plan employee-plan-cell">
+                  <div className="col-plan employee-plan-cell" rowSpan={6}>
                     Plan /<br />Woche
                   </div>
-                  <div className="col-time-label">Beginn</div>
+
+                  {data.dateRangeDays.map((day, dayIndex) => {
+                    return (
+                      <div key={dayIndex} className="col-day-time">
+                        {day.dateFormatted}
+                      </div>
+                    );
+                  })}
+
+                  <div className="col-weekly employee-weekly-cell" rowSpan={6}>
+                    {employee.weeklySum}
+                  </div>
+                  <div className="col-monthly employee-monthly-cell" rowSpan={6}>
+                    {employee.monthlySum}
+                  </div>
+                </div>
+
+                {/* Row 2: Wer/tätig */}
+                <div className="employee-row">
+                  <div className="col-employee-span"></div>
+                  <div className="col-function-span"></div>
+                  <div className="col-plan-span"></div>
+
+                  {data.dateRangeDays.map((day, dayIndex) => {
+                    const dateStr = day.date.toISOString().split('T')[0];
+                    const schedule = employee.dailySchedules[dateStr] || {};
+
+                    return (
+                      <div key={dayIndex} className="col-day-time">
+                        {schedule.startTime ? 'X' : ''}
+                      </div>
+                    );
+                  })}
+
+                  <div className="col-weekly-span"></div>
+                  <div className="col-monthly-span"></div>
+                </div>
+
+                {/* Row 3: Beginn */}
+                <div className="employee-row">
+                  <div className="col-employee-span"></div>
+                  <div className="col-function-span"></div>
+                  <div className="col-plan-span"></div>
 
                   {data.dateRangeDays.map((day, dayIndex) => {
                     const dateStr = day.date.toISOString().split('T')[0];
@@ -249,20 +313,15 @@ export function MEPTemplate({ data, onPrint, onCreateNewVersion }: MEPTemplatePr
                     );
                   })}
 
-                  <div className="col-weekly employee-weekly-cell">
-                    {employee.weeklySum}
-                  </div>
-                  <div className="col-monthly employee-monthly-cell">
-                    {employee.monthlySum}
-                  </div>
+                  <div className="col-weekly-span"></div>
+                  <div className="col-monthly-span"></div>
                 </div>
 
-                {/* Pause Row */}
+                {/* Row 4: Pause */}
                 <div className="employee-row">
                   <div className="col-employee-span"></div>
                   <div className="col-function-span"></div>
                   <div className="col-plan-span"></div>
-                  <div className="col-time-label">Pause</div>
 
                   {data.dateRangeDays.map((day, dayIndex) => {
                     const dateStr = day.date.toISOString().split('T')[0];
@@ -284,12 +343,11 @@ export function MEPTemplate({ data, onPrint, onCreateNewVersion }: MEPTemplatePr
                   <div className="col-monthly-span"></div>
                 </div>
 
-                {/* Ende Row */}
+                {/* Row 5: Ende */}
                 <div className="employee-row">
                   <div className="col-employee-span"></div>
                   <div className="col-function-span"></div>
                   <div className="col-plan-span"></div>
-                  <div className="col-time-label">Ende</div>
 
                   {data.dateRangeDays.map((day, dayIndex) => {
                     const dateStr = day.date.toISOString().split('T')[0];
@@ -311,12 +369,11 @@ export function MEPTemplate({ data, onPrint, onCreateNewVersion }: MEPTemplatePr
                   <div className="col-monthly-span"></div>
                 </div>
 
-                {/* Summe/Tag Row */}
+                {/* Row 6: Summe/Tag */}
                 <div className="employee-row">
                   <div className="col-employee-span"></div>
                   <div className="col-function-span"></div>
                   <div className="col-plan-span"></div>
-                  <div className="col-time-label">Summe / Tag</div>
 
                   {data.dateRangeDays.map((day, dayIndex) => {
                     const dateStr = day.date.toISOString().split('T')[0];
@@ -345,12 +402,11 @@ export function MEPTemplate({ data, onPrint, onCreateNewVersion }: MEPTemplatePr
           {Array.from({ length: Math.max(0, 8 - data.employees.length) }).map((_, index) => (
             <React.Fragment key={`empty-${index}`}>
               <div className="employee-group">
-                {/* Beginn Row */}
+                {/* Row 1: Datum */}
                 <div className="employee-row empty-row">
                   <div className="col-employee"></div>
                   <div className="col-function"></div>
                   <div className="col-plan"></div>
-                  <div className="col-time-label">Beginn</div>
 
                   {data.dateRangeDays.map((_, dayIndex) => (
                     <div key={dayIndex} className="col-day-time"></div>
@@ -360,12 +416,11 @@ export function MEPTemplate({ data, onPrint, onCreateNewVersion }: MEPTemplatePr
                   <div className="col-monthly"></div>
                 </div>
 
-                {/* Pause Row */}
+                {/* Row 2: Wer/tätig */}
                 <div className="employee-row empty-row">
                   <div className="col-employee-span"></div>
                   <div className="col-function-span"></div>
                   <div className="col-plan-span"></div>
-                  <div className="col-time-label">Pause</div>
 
                   {data.dateRangeDays.map((_, dayIndex) => (
                     <div key={dayIndex} className="col-day-time"></div>
@@ -375,12 +430,11 @@ export function MEPTemplate({ data, onPrint, onCreateNewVersion }: MEPTemplatePr
                   <div className="col-monthly-span"></div>
                 </div>
 
-                {/* Ende Row */}
+                {/* Row 3: Beginn */}
                 <div className="employee-row empty-row">
                   <div className="col-employee-span"></div>
                   <div className="col-function-span"></div>
                   <div className="col-plan-span"></div>
-                  <div className="col-time-label">Ende</div>
 
                   {data.dateRangeDays.map((_, dayIndex) => (
                     <div key={dayIndex} className="col-day-time"></div>
@@ -390,12 +444,39 @@ export function MEPTemplate({ data, onPrint, onCreateNewVersion }: MEPTemplatePr
                   <div className="col-monthly-span"></div>
                 </div>
 
-                {/* Summe/Tag Row */}
+                {/* Row 4: Pause */}
                 <div className="employee-row empty-row">
                   <div className="col-employee-span"></div>
                   <div className="col-function-span"></div>
                   <div className="col-plan-span"></div>
-                  <div className="col-time-label">Summe / Tag</div>
+
+                  {data.dateRangeDays.map((_, dayIndex) => (
+                    <div key={dayIndex} className="col-day-time"></div>
+                  ))}
+
+                  <div className="col-weekly-span"></div>
+                  <div className="col-monthly-span"></div>
+                </div>
+
+                {/* Row 5: Ende */}
+                <div className="employee-row empty-row">
+                  <div className="col-employee-span"></div>
+                  <div className="col-function-span"></div>
+                  <div className="col-plan-span"></div>
+
+                  {data.dateRangeDays.map((_, dayIndex) => (
+                    <div key={dayIndex} className="col-day-time"></div>
+                  ))}
+
+                  <div className="col-weekly-span"></div>
+                  <div className="col-monthly-span"></div>
+                </div>
+
+                {/* Row 6: Summe/Tag */}
+                <div className="employee-row empty-row">
+                  <div className="col-employee-span"></div>
+                  <div className="col-function-span"></div>
+                  <div className="col-plan-span"></div>
 
                   {data.dateRangeDays.map((_, dayIndex) => (
                     <div key={dayIndex} className="col-day-time"></div>

@@ -30,6 +30,47 @@ class VersionManagerService:
 
     # --- Version Querying ---
 
+    def get_versions_for_exact_date_range(
+        self,
+        start_date: date,
+        end_date: date,
+        include_legacy: bool = True,
+        week_identifier: Optional[str] = None,
+    ) -> List[ScheduleVersionMeta]:
+        """
+        Get all versions that exactly match the given date range.
+
+        Args:
+            start_date: Start of date range
+            end_date: End of date range
+            include_legacy: Whether to include legacy numeric versions
+            week_identifier: Optional specific week identifier to filter by
+
+        Returns:
+            List of version metadata objects that exactly match the date range
+        """
+        query = self.session.query(ScheduleVersionMeta).filter(
+            and_(
+                ScheduleVersionMeta.date_range_start == start_date,
+                ScheduleVersionMeta.date_range_end == end_date,
+            )
+        )
+
+        # Filter by version type
+        if not include_legacy:
+            query = query.filter(ScheduleVersionMeta.is_week_based == True)
+
+        # Filter by specific week identifier
+        if week_identifier:
+            query = query.filter(ScheduleVersionMeta.week_identifier == week_identifier)
+
+        versions = query.order_by(desc(ScheduleVersionMeta.version)).all()
+
+        # For exact matching, we don't check legacy versions in schedules table
+        # as they wouldn't have exact date range metadata
+
+        return versions
+
     def get_versions_for_date_range(
         self,
         start_date: date,

@@ -280,8 +280,9 @@ export function SchedulePage() {
   // Use the new unified version manager hook
   const versionManager = useVersionManager({
     dateRange,
-    onVersionSelected: () => {
+    onVersionSelected: (version) => {
       // Version selection is handled internally by the hook
+      console.log("📅 SchedulePage: Version selected:", version);
     },
     autoSelectLatest: true,
   });
@@ -290,10 +291,53 @@ export function SchedulePage() {
   const { state: versionState, actions: versionActions } = versionManager;
   const { selectedVersion, isLoading: isLoadingVersions } = versionState;
 
-  // Use the selected version from version manager
-  const effectiveSelectedVersionNumber = selectedVersion;
+  // Helper function to filter versions by current date range
+  const getVersionsForCurrentDateRange = useCallback(() => {
+    if (!dateRange?.from || !dateRange?.to) {
+      return [];
+    }
+
+    const currentFrom = format(dateRange.from, 'yyyy-MM-dd');
+    const currentTo = format(dateRange.to, 'yyyy-MM-dd');
+
+    console.log("📅 Filtering versions - looking for date range:", currentFrom, "to", currentTo);
+
+    const filteredVersions = versionState.versions.filter(version => {
+      const versionStart = version.date_range.start;
+      const versionEnd = version.date_range.end;
+
+      // Strict date range matching - version must exactly match current date range
+      const exactMatch = versionStart === currentFrom && versionEnd === currentTo;
+
+      console.log(`📅 Version ${version.version}: ${versionStart} - ${versionEnd} ${exactMatch ? "✅ MATCH" : "❌ NO MATCH"}`);
+
+      return exactMatch;
+    });
+
+    console.log("📅 Filtered versions:", filteredVersions.map(v => `v${v.version}`));
+    return filteredVersions;
+  }, [dateRange, versionState.versions]);
+
+  // Filter to get only versions that are valid for current date range
+  const validVersionsForCurrentRange = getVersionsForCurrentDateRange();
+
+  // Only use selected version if it's actually valid for current date range
+  const effectiveSelectedVersionNumber = selectedVersion &&
+    validVersionsForCurrentRange.some(v => v.version === selectedVersion)
+    ? selectedVersion
+    : undefined;
+
+  // Debug logging for version state
+  console.log("📅 SchedulePage Debug:");
+  console.log("📅 Current week:", currentWeek);
+  console.log("📅 Date range:", dateRange?.from?.toDateString(), "to", dateRange?.to?.toDateString());
+  console.log("📅 All versions:", versionState.versions.map(v => `v${v.version} (${v.date_range.start} - ${v.date_range.end})`));
+  console.log("📅 Valid versions for current range:", validVersionsForCurrentRange.map(v => `v${v.version}`));
+  console.log("📅 Selected version from manager:", selectedVersion);
+  console.log("📅 Effective selected version:", effectiveSelectedVersionNumber);
+
   const effectiveDateRange = dateRange;
-  const effectiveSelectedVersion = selectedVersion; // Compatibility alias
+  const effectiveSelectedVersion = effectiveSelectedVersionNumber; // Compatibility alias
 
   // Ensure effectiveDateRange always has .from and .to as Date objects
   const safeEffectiveDateRange = {
@@ -363,6 +407,7 @@ export function SchedulePage() {
     }
 
     // Reset version selection when navigating to new week
+    console.log("📅 Navigating to week:", weekIdentifier, "- resetting version selection");
     versionActions.resetVersionSelection();
   }, [versionActions]);
 
@@ -422,13 +467,15 @@ export function SchedulePage() {
     }
   }, [currentWeek, navigateToWeek, getWeeksInYear]);
 
+  // Note: Version validation is now handled entirely by useVersionManager hook to prevent infinite loops
+
   // Create a compatibility object for components that expect the old week-based structure
   const weekBasedVersionControl = {
     navigationState: {
       currentWeek,
       dateRange,
       isLoading: isLoadingVersions,
-      hasVersions: versionState.versions.length > 0,
+      hasVersions: !isLoadingVersions && !versionState.isError && getVersionsForCurrentDateRange().length > 0,
     },
     currentWeekInfo: (() => {
       try {
@@ -2058,6 +2105,8 @@ export function SchedulePage() {
 
         <VersionManager
           dateRange={safeEffectiveDateRange}
+          versions={validVersionsForCurrentRange}
+          selectedVersion={effectiveSelectedVersionNumber}
           onVersionSelected={(version) => {
             console.log("🔄 SchedulePage: Version selected:", version);
             if (version) {
@@ -2196,7 +2245,7 @@ export function SchedulePage() {
             <div className="relative">
               <AvailabilityProvider dateRange={safeEffectiveDateRange} enabled={!isLoadingSchedule}>
                 <ScheduleManager
-                  schedules={scheduleData || []} // Ensure array even if undefined
+                  schedules={effectiveSelectedVersionNumber ? (scheduleData || []) : []} // Only show schedules when version is selected
                   dateRange={effectiveDateRange}
                   onDrop={handleShiftDrop}
                   onUpdate={handleShiftUpdate}
@@ -2212,10 +2261,11 @@ export function SchedulePage() {
                   versionStatus={versionState.versions[0]?.status as "DRAFT" | "PUBLISHED" | "ARCHIVED" | undefined}
                   openingDays={openingDays}
                   isEmptyState={
+                    !effectiveSelectedVersionNumber || // Show empty state when no version selected
                     !scheduleData ||
                     (scheduleData.length === 0 && !isLoadingSchedule)
                   }
-                  versions={versionState.versions}
+                  versions={validVersionsForCurrentRange}
                   isGenerating={isPending || isAiGenerating}
                   onEmptyStateCreateVersion={handleCreateNewVersionPage}
                   onEmptyStateGenerateSchedule={handleGenerateStandardSchedule}
@@ -2235,21 +2285,21 @@ export function SchedulePage() {
 
         {/* Schedule Dock - Sticky bottom dock for drag and drop */}
         <ActionDock
-          currentVersion={effectiveSelectedVersionNumber || 1}
+          currentVersion={effectiveSelectedVersionNumber}
           selectedDate={effectiveDateRange?.from}
           dateRange={effectiveDateRange}
-          versionMeta={versionState.versions.length > 0 ? convertToWeekVersionMeta({
-            version: versionState.versions[0].version,
+          versionMeta={validVersionsForCurrentRange.length > 0 ? convertToWeekVersionMeta({
+            version: validVersionsForCurrentRange[0].version,
             week_identifier: currentWeek,
             date_range_start: format(dateRange?.from || new Date(), "yyyy-MM-dd"),
             date_range_end: format(dateRange?.to || new Date(), "yyyy-MM-dd"),
             is_week_based: true,
-            status: versionState.versions[0].status,
-            created_at: versionState.versions[0].created_at || new Date().toISOString(),
-            notes: versionState.versions[0].notes || '',
+            status: validVersionsForCurrentRange[0].status,
+            created_at: validVersionsForCurrentRange[0].created_at || new Date().toISOString(),
+            notes: validVersionsForCurrentRange[0].notes || '',
           }) : undefined}
-          versionStatus={versionState.versions[0]?.status as "DRAFT" | "PUBLISHED" | "ARCHIVED" | undefined}
-          schedules={scheduleData || []}
+          versionStatus={validVersionsForCurrentRange[0]?.status as "DRAFT" | "PUBLISHED" | "ARCHIVED" | undefined}
+          schedules={effectiveSelectedVersionNumber ? (scheduleData || []) : []} // Only pass schedules when version is selected
           onDrop={handleDockDrop}
           onAIPrompt={handleAIPrompt}
         />
@@ -2372,7 +2422,7 @@ export function SchedulePage() {
       <ScheduleStatisticsModal
         isOpen={isStatisticsModalOpen}
         onClose={() => setIsStatisticsModalOpen(false)}
-        schedules={scheduleData || []}
+        schedules={effectiveSelectedVersionNumber ? (scheduleData || []) : []} // Only show schedules when version is selected
         employees={employees || []}
         dateRange={effectiveDateRange}
         version={effectiveSelectedVersionNumber || 1}

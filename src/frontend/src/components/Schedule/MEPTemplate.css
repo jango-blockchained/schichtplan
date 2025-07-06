@@ -90,6 +90,46 @@
   text-align: center;
 }
 
+/* Table Subheader for row types */
+.table-subheader {
+  display: flex;
+  background: #f8f8f8;
+  border-bottom: 1px solid black;
+  font-size: 7px;
+  text-align: center;
+  min-height: 60px;
+}
+
+.col-day-single-sub {
+  width: 20mm;
+  border-right: 1px solid black;
+  padding: 1px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.row-type-labels {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.row-label {
+  flex: 1;
+  padding: 1px;
+  border-bottom: 0.5px solid #ccc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 6px;
+  text-align: center;
+}
+
+.row-label:last-child {
+  border-bottom: none;
+}
+
 .col-employee {
   width: 40mm;
   border-right: 1px solid black;
@@ -197,7 +237,7 @@
 
 /* Position employee data to span across rows visually */
 .employee-group .employee-row:first-child .employee-name-cell {
-  height: 24mm; /* Span across 4 rows of 6mm each */
+  height: 36mm; /* Span across 6 rows of 6mm each */
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -213,7 +253,7 @@
 }
 
 .employee-group .employee-row:first-child .employee-function-cell {
-  height: 24mm;
+  height: 36mm;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -229,7 +269,7 @@
 }
 
 .employee-group .employee-row:first-child .employee-plan-cell {
-  height: 24mm;
+  height: 36mm;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -245,7 +285,7 @@
 }
 
 .employee-group .employee-row:first-child .employee-weekly-cell {
-  height: 24mm;
+  height: 36mm;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -261,7 +301,7 @@
 }
 
 .employee-group .employee-row:first-child .employee-monthly-cell {
-  height: 24mm;
+  height: 36mm;
   display: flex;
   align-items: center;
   justify-content: center;

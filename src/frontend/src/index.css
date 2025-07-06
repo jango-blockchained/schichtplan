@@ -1,3 +1,6 @@
+/* Import custom effects */
+@import './components/effects/effects.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

@@ -16,7 +16,14 @@ from reportlab.lib.colors import black, white
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import (
+    PageBreak,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
 from ..models import Schedule
 from .mep_data_processor import MEPDataProcessor
@@ -51,7 +58,7 @@ class MEPPDFGenerator:
 
     # Table dimensions (calculated from reference image)
     TABLE_ROW_HEIGHT = 12 * mm
-    EMPLOYEE_ROWS_PER_BLOCK = 4  # Beginn, Pause, Ende, Summe/Tag
+    EMPLOYEE_ROWS_PER_BLOCK = 6  # Datum, Wer/tätig, Beginn, Pause, Ende, Summe/Tag
     EMPLOYEES_PER_PAGE = 8
 
     def __init__(self):
@@ -258,145 +265,160 @@ class MEPPDFGenerator:
     def _build_main_table(
         self, employee_schedules: Dict[int, Dict], date_range_days: List[Dict]
     ) -> Table:
-        """Build the main schedule table."""
+        """Build the main schedule table with vertical structure per employee."""
 
         # Build table data
         table_data = []
 
-        # Header row 1: Main column headers
-        header_row1 = [
+        # Header row: Column headers
+        header_row = [
             Paragraph("Name,<br/>Vorname", self.table_cell_style),
             Paragraph("Funktion", self.table_cell_style),
             Paragraph("Plan /<br/>Woche", self.table_cell_style),
+            Paragraph("", self.table_cell_style),  # Row label column header (empty)
         ]
 
-        # Add day headers
+        # Add one column per day
         for day_info in date_range_days:
             day_name = day_info["name"]
             day_date = day_info["date_formatted"]
-            header_row1.append(
+            header_row.append(
                 Paragraph(f"{day_name}<br/>{day_date}", self.table_cell_style)
             )
-            # Each day has 4 sub-columns, add empty cells for colspan effect
-            header_row1.extend(["", "", ""])
 
-        header_row1.extend(
+        # Add summary columns
+        header_row.extend(
             [
                 Paragraph("Summe /<br/>Woche", self.table_cell_style),
                 Paragraph("Summe /<br/>Monat", self.table_cell_style),
             ]
         )
 
-        table_data.append(header_row1)
+        table_data.append(header_row)
 
-        # Header row 2: Sub-column headers
-        header_row2 = ["", "", ""]  # Empty for name, function, plan columns
+        # For each employee, create 6 rows (Datum, Wer/tätig, Beginn, Pause, Ende, Summe/Tag)
+        row_labels = ["Datum", "Wer/tätig", "Beginn", "Pause", "Ende", "Summe/Tag"]
 
-        for _ in date_range_days:
-            header_row2.extend(
-                [
-                    Paragraph("Beginn", self.table_cell_style),
-                    Paragraph("Pause", self.table_cell_style),
-                    Paragraph("Ende", self.table_cell_style),
-                    Paragraph("Summe/Tag", self.table_cell_style),
-                ]
-            )
-
-        header_row2.extend(["", ""])  # Empty for weekly/monthly sum columns
-
-        table_data.append(header_row2)
-
-        # Employee data rows
         for emp_id, emp_data in employee_schedules.items():
             employee_info = emp_data["employee_info"]
             daily_schedules = emp_data["daily_schedules"]
 
-            # Employee row
-            emp_row = [
-                Paragraph(
-                    f"{employee_info['first_name']}<br/>{employee_info['last_name']}",
-                    self.table_cell_style,
-                ),
-                Paragraph(employee_info["position"], self.table_cell_style),
-                "",  # Plan/Woche - could show contracted hours if needed
-            ]
-
-            # Add schedule data for each day
-            for day_info in date_range_days:
-                date_str = day_info["date"].strftime("%Y-%m-%d")
-                daily_data = daily_schedules.get(date_str, {})
-
-                start_time = daily_data.get("start_time", "")
-                end_time = daily_data.get("end_time", "")
-                break_start = daily_data.get("break_start", "")
-                daily_sum = daily_data.get("hours_formatted", "")
-
-                # Format break time for display
-                break_display = break_start if break_start else ""
-
-                emp_row.extend([start_time, break_display, end_time, daily_sum])
-
-            # Add weekly and monthly totals
-            emp_row.extend(
-                [
-                    emp_data["weekly_hours_formatted"],
-                    emp_data["monthly_hours_formatted"],
-                ]
+            # Employee base info (will be merged vertically across 6 rows)
+            emp_name = Paragraph(
+                f"{employee_info['first_name']}<br/>{employee_info['last_name']}",
+                self.table_cell_style,
             )
-            table_data.append(emp_row)
+            emp_position = Paragraph(employee_info["position"], self.table_cell_style)
+            emp_plan = ""  # Plan/Woche - could show contracted hours if needed
+            emp_weekly = emp_data["weekly_hours_formatted"]
+            emp_monthly = emp_data["monthly_hours_formatted"]
 
-        # Fill empty rows if needed (reduced to fewer employees per page for testing)
+            # Create 6 rows for this employee
+            for row_idx, row_label in enumerate(row_labels):
+                if row_idx == 0:
+                    # First row: include employee info
+                    row = [emp_name, emp_position, emp_plan, row_label]
+                else:
+                    # Subsequent rows: empty cells for merged employee info
+                    row = ["", "", "", row_label]
+
+                # Add data for each day based on row type
+                for day_info in date_range_days:
+                    date_str = day_info["date"].strftime("%Y-%m-%d")
+                    daily_data = daily_schedules.get(date_str, {})
+
+                    if row_label == "Datum":
+                        cell_value = day_info["date_formatted"]
+                    elif row_label == "Wer/tätig":
+                        # Show 'X' if employee is scheduled, empty if not
+                        cell_value = "X" if daily_data.get("start_time", "") else ""
+                    elif row_label == "Beginn":
+                        cell_value = daily_data.get("start_time", "")
+                    elif row_label == "Pause":
+                        cell_value = daily_data.get("break_start", "")
+                    elif row_label == "Ende":
+                        cell_value = daily_data.get("end_time", "")
+                    elif row_label == "Summe/Tag":
+                        cell_value = daily_data.get("hours_formatted", "")
+                    else:
+                        cell_value = ""
+
+                    row.append(cell_value)
+
+                # Add summary columns (only on first row)
+                if row_idx == 0:
+                    row.extend([emp_weekly, emp_monthly])
+                else:
+                    row.extend(["", ""])
+
+                table_data.append(row)
+
+        # Fill empty rows if needed to maintain page structure
         max_employees_on_page = min(
             self.EMPLOYEES_PER_PAGE, 4
-        )  # Limit to 4 employees for testing
-        while len(table_data) < max_employees_on_page + 2:  # +2 for header rows
-            empty_row = [""] * len(table_data[0]) if table_data else []
-            table_data.append(empty_row)
+        )  # Limit to 4 employees for better readability
+        current_employees = len(employee_schedules)
+
+        # Add empty employee blocks if needed
+        for emp_idx in range(current_employees, max_employees_on_page):
+            for row_idx in range(6):  # 6 rows per employee
+                empty_row = [""] * len(table_data[0]) if table_data else []
+                table_data.append(empty_row)
 
         # Create table with calculated column widths
         col_widths = self._calculate_column_widths(len(date_range_days))
-        table = Table(table_data, colWidths=col_widths, repeatRows=2)
+        table = Table(
+            table_data, colWidths=col_widths, repeatRows=1
+        )  # Only repeat header row
 
         # Apply table styling
-        table.setStyle(self._get_table_style(len(date_range_days)))
+        table.setStyle(
+            self._get_table_style(len(date_range_days), len(employee_schedules))
+        )
 
         return table
 
     def _calculate_column_widths(self, num_days: int) -> List[float]:
-        """Calculate column widths for the table."""
-        # Fixed columns (reduced sizes to fit more content)
-        name_width = 30 * mm
-        function_width = 18 * mm
+        """Calculate column widths for the table with vertical structure."""
+        # Fixed columns (adjusted for vertical structure)
+        name_width = 35 * mm
+        function_width = 20 * mm
         plan_width = 15 * mm
-        weekly_width = 18 * mm
-        monthly_width = 18 * mm
+        row_label_width = 20 * mm  # New column for row labels
+        weekly_width = 20 * mm
+        monthly_width = 20 * mm
 
         # Remaining width for day columns
         fixed_width = (
-            name_width + function_width + plan_width + weekly_width + monthly_width
+            name_width
+            + function_width
+            + plan_width
+            + row_label_width
+            + weekly_width
+            + monthly_width
         )
         remaining_width = self.CONTENT_WIDTH - fixed_width
 
         # Ensure we don't exceed page width
         if remaining_width <= 0:
             # Fallback: distribute evenly with minimal sizes
-            total_cols = 5 + (num_days * 4)  # 5 fixed + 4 per day
+            total_cols = 6 + num_days  # 6 fixed + 1 per day
             col_width = self.CONTENT_WIDTH / total_cols
             return [col_width] * total_cols
 
-        # Each day has 4 sub-columns
-        day_total_width = remaining_width / num_days if num_days > 0 else 0
-        day_sub_width = day_total_width / 4
+        # Each day has one column (vertical structure)
+        day_width = remaining_width / num_days if num_days > 0 else 0
 
         # Ensure minimum width for readability
-        min_day_sub_width = 8 * mm
-        if day_sub_width < min_day_sub_width:
-            day_sub_width = min_day_sub_width
+        min_day_width = 18 * mm
+        if day_width < min_day_width:
+            day_width = min_day_width
 
-        col_widths = [name_width, function_width, plan_width]
+        col_widths = [name_width, function_width, plan_width, row_label_width]
 
+        # Add one column per day
         for _ in range(num_days):
-            col_widths.extend([day_sub_width] * 4)
+            col_widths.append(day_width)
 
         col_widths.extend([weekly_width, monthly_width])
 
@@ -408,28 +430,57 @@ class MEPPDFGenerator:
             col_widths = [w * scale_factor for w in col_widths]
 
         return col_widths
+        total_width = sum(col_widths)
+        if total_width > self.CONTENT_WIDTH:
+            # Scale down proportionally
+            scale_factor = self.CONTENT_WIDTH / total_width
+            col_widths = [w * scale_factor for w in col_widths]
 
-    def _get_table_style(self, num_days: int) -> TableStyle:
-        """Get the table style for the main schedule table."""
+        return col_widths
+        total_width = sum(col_widths)
+        if total_width > self.CONTENT_WIDTH:
+            # Scale down proportionally
+            scale_factor = self.CONTENT_WIDTH / total_width
+            col_widths = [w * scale_factor for w in col_widths]
+
+        return col_widths
+
+    def _get_table_style(self, num_days: int, num_employees: int) -> TableStyle:
+        """Get the table style for the main schedule table with vertical structure."""
         style_commands = [
             # Grid
             ("GRID", (0, 0), (-1, -1), 0.5, black),
             # Header styling
-            ("BACKGROUND", (0, 0), (-1, 1), colors.lightgrey),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
             ("FONTSIZE", (0, 0), (-1, -1), self.TABLE_FONT_SIZE),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-            # Name column left alignment
-            ("ALIGN", (0, 2), (0, -1), "LEFT"),
-            ("ALIGN", (1, 2), (1, -1), "LEFT"),
+            # Name and function columns left alignment
+            ("ALIGN", (0, 1), (0, -1), "LEFT"),
+            ("ALIGN", (1, 1), (1, -1), "LEFT"),
+            # Row label column left alignment
+            ("ALIGN", (3, 1), (3, -1), "LEFT"),
         ]
 
-        # Add column spans for day headers in first row
-        day_start_col = 3
-        for i in range(num_days):
-            col_start = day_start_col + (i * 4)
-            col_end = col_start + 3
-            style_commands.append(("SPAN", (col_start, 0), (col_end, 0)))
+        # Add row spans for employee info (spans 6 rows per employee)
+        # Starting from row 1 (after header), every 6 rows represent one employee
+        employee_start_row = 1
+
+        for emp_idx in range(num_employees):
+            row_start = employee_start_row + (emp_idx * 6)
+            row_end = row_start + 5  # Span 6 rows
+
+            # Span employee name, function, plan, weekly sum, monthly sum across 6 rows
+            style_commands.extend(
+                [
+                    ("SPAN", (0, row_start), (0, row_end)),  # Name column
+                    ("SPAN", (1, row_start), (1, row_end)),  # Function column
+                    ("SPAN", (2, row_start), (2, row_end)),  # Plan column
+                    # Row label column (3) is NOT spanned - each row shows its label
+                    ("SPAN", (-2, row_start), (-2, row_end)),  # Weekly sum column
+                    ("SPAN", (-1, row_start), (-1, row_end)),  # Monthly sum column
+                ]
+            )
 
         return TableStyle(style_commands)
 
@@ -493,7 +544,3 @@ class MEPPDFGenerator:
         """Draw page frame and any additional page elements."""
         # Could add page numbers or other page-level elements here
         pass
-
-
-# Import necessary classes for page break
-from reportlab.platypus import PageBreak
