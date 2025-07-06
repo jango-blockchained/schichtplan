@@ -23,7 +23,7 @@ interface EnhancedAvailabilityModalProps {
     isOpen: boolean;
     onClose: () => void;
     dateRange: { from: Date; to: Date } | undefined;
-    availabilityType: "FIXED" | "PREFERRED" | "UNAVAILABLE";
+    availabilityType: "FIXED" | "PREFERRED";
     currentVersion?: number; // Add current version prop
 }
 
@@ -44,6 +44,12 @@ interface FixedAvailabilityOptions {
     adjustTimes: boolean;
     overwriteExisting: boolean; // Add option to overwrite existing assignments
     cleanupFirst: boolean; // Add option to clean up existing assignments first
+}
+
+interface PreferredAvailabilityOptions {
+    useExistingPattern: boolean;
+    createTimeRangeEntries: boolean;
+    overwriteExisting: boolean;
 }
 
 interface AvailabilityOptions {
@@ -77,6 +83,12 @@ export function EnhancedAvailabilityModal({
         adjustTimes: true,
         overwriteExisting: false,
         cleanupFirst: false,
+    });
+
+    const [preferredOptions, setPreferredOptions] = useState<PreferredAvailabilityOptions>({
+        useExistingPattern: true,
+        createTimeRangeEntries: true,
+        overwriteExisting: false,
     });
 
     const [availabilityOptions, setAvailabilityOptions] = useState<AvailabilityOptions>({
@@ -117,6 +129,11 @@ export function EnhancedAvailabilityModal({
                 adjustTimes: true,
                 overwriteExisting: false,
                 cleanupFirst: false,
+            });
+            setPreferredOptions({
+                useExistingPattern: true,
+                createTimeRangeEntries: true,
+                overwriteExisting: false,
             });
             setAvailabilityOptions({
                 createCompleteEntries: true,
@@ -180,15 +197,15 @@ export function EnhancedAvailabilityModal({
         try {
             // 1. Query employee's availability entries for this date/weekday
             const availabilities = await getEmployeeAvailabilities(employee.id);
-            
+
             // Get the day of week for the target date (Monday=0, Sunday=6)
             const dayOfWeek = date.getDay() === 0 ? 6 : date.getDay() - 1; // Convert JS day (Sunday=0) to backend day (Monday=0)
-            
+
             // Filter for FIXED availability entries for this day of week
             const fixedAvailabilities = availabilities.filter(
-                (avail) => avail.day_of_week === dayOfWeek && 
-                          avail.availability_type === "FIXED" &&
-                          avail.is_available
+                (avail) => avail.day_of_week === dayOfWeek &&
+                    avail.availability_type === "FIXED" &&
+                    avail.is_available
             );
 
             if (fixedAvailabilities.length === 0) {
@@ -227,7 +244,7 @@ export function EnhancedAvailabilityModal({
 
                 // Look for existing shift templates that match this time range
                 const matchingShift = findShiftTemplateByTimes(startTimeStr, endTimeStr, shifts);
-                
+
                 if (matchingShift) {
                     console.log(`Found matching shift template: ${matchingShift.id} for employee ${employee.id}`);
                     return matchingShift;
@@ -239,12 +256,12 @@ export function EnhancedAvailabilityModal({
                 const firstRange = timeRanges[0]; // Use the first time range
                 const startTimeStr = `${firstRange.start.toString().padStart(2, '0')}:00`;
                 const endTimeStr = `${firstRange.end.toString().padStart(2, '0')}:00`;
-                
+
                 console.log(`Creating new shift template ${startTimeStr}-${endTimeStr} for employee ${employee.id}`);
-                
+
                 // Create active_days for all days of the week for now
                 const activeDays = { "0": true, "1": true, "2": true, "3": true, "4": true, "5": true, "6": true };
-                
+
                 const newShift = await createShift({
                     start_time: startTimeStr,
                     end_time: endTimeStr,
@@ -298,6 +315,67 @@ export function EnhancedAvailabilityModal({
             start_time: originalShift.start_time,
             end_time: originalShift.end_time,
         };
+    };
+
+    const findPreferredAvailability = async (employee: Employee, date: Date): Promise<{ start_time: string; end_time: string }[] | null> => {
+        if (availabilityType !== 'PREFERRED') return null;
+
+        try {
+            // 1. Query employee's availability entries for this date/weekday
+            const availabilities = await getEmployeeAvailabilities(employee.id);
+
+            // Get the day of week for the target date (Monday=0, Sunday=6)
+            const dayOfWeek = date.getDay() === 0 ? 6 : date.getDay() - 1; // Convert JS day (Sunday=0) to backend day (Monday=0)
+
+            // Filter for PREFERRED availability entries for this day of week
+            const preferredAvailabilities = availabilities.filter(
+                (avail) => avail.day_of_week === dayOfWeek &&
+                    avail.availability_type === "PREFERRED" &&
+                    avail.is_available
+            );
+
+            if (preferredAvailabilities.length === 0) {
+                console.log(`No preferred availability found for employee ${employee.id} on ${format(date, 'yyyy-MM-dd')}`);
+                return null; // No preferred availability for this employee/date
+            }
+
+            // 2. Group consecutive available hours into time ranges
+            const availableHours = preferredAvailabilities
+                .map(avail => avail.hour)
+                .sort((a, b) => a - b);
+
+            // Group consecutive hours into ranges
+            const timeRanges: { start_time: string; end_time: string }[] = [];
+            let currentStart = availableHours[0];
+            let currentEnd = availableHours[0];
+
+            for (let i = 1; i < availableHours.length; i++) {
+                if (availableHours[i] === currentEnd + 1) {
+                    // Consecutive hour, extend current range
+                    currentEnd = availableHours[i];
+                } else {
+                    // Gap found, save current range and start new one
+                    timeRanges.push({
+                        start_time: `${currentStart.toString().padStart(2, '0')}:00`,
+                        end_time: `${(currentEnd + 1).toString().padStart(2, '0')}:00`
+                    });
+                    currentStart = availableHours[i];
+                    currentEnd = availableHours[i];
+                }
+            }
+            // Add the last range
+            timeRanges.push({
+                start_time: `${currentStart.toString().padStart(2, '0')}:00`,
+                end_time: `${(currentEnd + 1).toString().padStart(2, '0')}:00`
+            });
+
+            console.log(`Found preferred time ranges for employee ${employee.id}:`, timeRanges);
+            return timeRanges;
+
+        } catch (error) {
+            console.error(`Error finding preferred availability for employee ${employee.id}:`, error);
+            return null;
+        }
     };
 
     const handleSubmit = async () => {
@@ -466,33 +544,92 @@ export function EnhancedAvailabilityModal({
                 });
 
             } else {
-                // For PREFERRED and UNAVAILABLE, create availability entries
-                const availabilityEntries = [];
+                // For PREFERRED, create preferred availability entries based on existing patterns
+                if (availabilityType === 'PREFERRED' && preferredOptions.useExistingPattern) {
+                    const preferredAvailabilityEntries = [];
 
-                for (const employee of targetEmployees) {
-                    for (const date of targetDates) {
-                        const availabilityData: Omit<Availability, "id"> = {
-                            employee_id: employee.id,
-                            start_date: format(date, "yyyy-MM-dd"),
-                            end_date: format(date, "yyyy-MM-dd"),
-                            availability_type: availabilityType as "AVAILABLE" | "FIXED" | "PREFERRED" | "UNAVAILABLE",
-                            is_recurring: false,
-                        };
+                    for (const employee of targetEmployees) {
+                        for (const date of targetDates) {
+                            // Find preferred availability patterns for this employee/date
+                            const preferredTimeRanges = await findPreferredAvailability(employee, date);
 
-                        availabilityEntries.push(availabilityData);
+                            if (preferredTimeRanges && preferredTimeRanges.length > 0) {
+                                // Create availability entries for each time range found
+                                for (const timeRange of preferredTimeRanges) {
+                                    const preferredAvailabilityData: Omit<Availability, "id"> = {
+                                        employee_id: employee.id,
+                                        start_date: format(date, "yyyy-MM-dd"),
+                                        end_date: format(date, "yyyy-MM-dd"),
+                                        availability_type: "PREFERRED",
+                                        is_recurring: false,
+                                        // Note: The backend Availability model may need to be extended to support time ranges
+                                        // For now, we create a basic entry. Future enhancement: add start_time and end_time fields
+                                    };
+
+                                    preferredAvailabilityEntries.push(preferredAvailabilityData);
+                                }
+                            } else if (!preferredOptions.useExistingPattern || preferredTimeRanges === null) {
+                                // If no existing pattern found or not using patterns, create a basic entry
+                                const preferredAvailabilityData: Omit<Availability, "id"> = {
+                                    employee_id: employee.id,
+                                    start_date: format(date, "yyyy-MM-dd"),
+                                    end_date: format(date, "yyyy-MM-dd"),
+                                    availability_type: "PREFERRED",
+                                    is_recurring: false,
+                                };
+
+                                preferredAvailabilityEntries.push(preferredAvailabilityData);
+                            }
+                        }
                     }
-                }
 
-                // Create availability entries
-                for (const entry of availabilityEntries) {
-                    await createAvailability(entry);
-                }
+                    // Create preferred availability entries
+                    let createdCount = 0;
+                    for (const entry of preferredAvailabilityEntries) {
+                        try {
+                            await createAvailability(entry);
+                            createdCount++;
+                        } catch (error) {
+                            console.error("Error creating preferred availability entry:", error);
+                            // Continue with other entries even if one fails
+                        }
+                    }
 
-                toast({
-                    title: "Verfügbarkeit erstellt",
-                    description: `${availabilityEntries.length} Verfügbarkeitseinträge wurden erfolgreich erstellt.`,
-                    variant: "default",
-                });
+                    toast({
+                        title: "Bevorzugte Verfügbarkeit erstellt",
+                        description: `${createdCount} von ${preferredAvailabilityEntries.length} bevorzugte Verfügbarkeitseinträge wurden erfolgreich erstellt.`,
+                        variant: "default",
+                    });
+
+                } else {
+                    // Simple PREFERRED entries without pattern matching
+                    const preferredAvailabilityEntries = [];
+
+                    for (const employee of targetEmployees) {
+                        for (const date of targetDates) {
+                            const preferredAvailabilityData: Omit<Availability, "id"> = {
+                                employee_id: employee.id,
+                                start_date: format(date, "yyyy-MM-dd"),
+                                end_date: format(date, "yyyy-MM-dd"),
+                                availability_type: "PREFERRED",
+                                is_recurring: false,
+                            };
+
+                            preferredAvailabilityEntries.push(preferredAvailabilityData);
+                        }
+                    }
+
+                    // Create preferred availability entries
+                    for (const entry of preferredAvailabilityEntries) {
+                        await createAvailability(entry);
+                    }
+
+                    toast({
+                        title: "Bevorzugte Verfügbarkeit erstellt",
+                        description: `${preferredAvailabilityEntries.length} bevorzugte Verfügbarkeitseinträge wurden erfolgreich erstellt.`,
+                        variant: "default",
+                    });
+                }
             }
 
             onClose();
@@ -518,7 +655,7 @@ export function EnhancedAvailabilityModal({
                 title: "Fehler beim Erstellen",
                 description: availabilityType === 'FIXED'
                     ? errorMessage
-                    : "Die Verfügbarkeit konnte nicht erstellt werden.",
+                    : "Die bevorzugte Verfügbarkeit konnte nicht erstellt werden.",
                 variant: "destructive",
             });
         } finally {
@@ -532,8 +669,6 @@ export function EnhancedAvailabilityModal({
                 return 'Feste Schichtzuweisungen erstellen';
             case 'PREFERRED':
                 return 'Bevorzugte Verfügbarkeit hinzufügen';
-            case 'UNAVAILABLE':
-                return 'Nicht verfügbar markieren';
             default:
                 return 'Verfügbarkeit hinzufügen';
         }
@@ -545,8 +680,6 @@ export function EnhancedAvailabilityModal({
                 return 'Erstellen Sie feste Schichtzuweisungen basierend auf vorhandenen Verfügbarkeitsmustern. Dies erstellt direkte Schichtpläne für die ausgewählten Mitarbeiter und Termine.';
             case 'PREFERRED':
                 return 'Markieren Sie bevorzugte Arbeitszeiten für Mitarbeiter. Diese werden bei der Planung berücksichtigt, sind aber nicht zwingend.';
-            case 'UNAVAILABLE':
-                return 'Markieren Sie Zeiten, in denen Mitarbeiter nicht verfügbar sind (z.B. Termine, Urlaub, etc.).';
             default:
                 return 'Verwalten Sie die Verfügbarkeit von Mitarbeitern.';
         }
@@ -561,7 +694,6 @@ export function EnhancedAvailabilityModal({
                     <DialogTitle className="flex items-center gap-2">
                         {availabilityType === 'FIXED' && <Clock className="h-5 w-5" />}
                         {availabilityType === 'PREFERRED' && <CalendarDays className="h-5 w-5" />}
-                        {availabilityType === 'UNAVAILABLE' && <Users className="h-5 w-5" />}
                         {getModalTitle()}
                     </DialogTitle>
                     <DialogDescription>
@@ -773,13 +905,79 @@ export function EnhancedAvailabilityModal({
                     </Card>
                 )}
 
+                {/* Preferred Availability Options */}
+                {availabilityType === 'PREFERRED' && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <CalendarDays className="h-4 w-4" />
+                                Optionen für bevorzugte Verfügbarkeit
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex items-center space-x-2">
+                                <Checkbox
+                                    id="use-existing-preferred-pattern"
+                                    checked={preferredOptions.useExistingPattern}
+                                    onCheckedChange={(checked) =>
+                                        setPreferredOptions(prev => ({ ...prev, useExistingPattern: !!checked }))
+                                    }
+                                />
+                                <Label htmlFor="use-existing-preferred-pattern">
+                                    Bestehende bevorzugte Zeiten als Vorlage verwenden
+                                </Label>
+                            </div>
+
+                            {preferredOptions.useExistingPattern && (
+                                <div className="ml-6 space-y-3 border-l-2 border-gray-200 pl-4">
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id="create-time-range-entries"
+                                            checked={preferredOptions.createTimeRangeEntries}
+                                            onCheckedChange={(checked) =>
+                                                setPreferredOptions(prev => ({ ...prev, createTimeRangeEntries: !!checked }))
+                                            }
+                                        />
+                                        <Label htmlFor="create-time-range-entries" className="text-sm">
+                                            Zeitbereiche als getrennte Einträge erstellen
+                                        </Label>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Overwrite options */}
+                            <div className="space-y-3 border-t pt-4">
+                                <div className="text-sm text-muted-foreground mb-2">
+                                    Bestehende bevorzugte Verfügbarkeiten verwalten:
+                                </div>
+
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox
+                                        id="overwrite-existing-preferred"
+                                        checked={preferredOptions.overwriteExisting}
+                                        onCheckedChange={(checked) =>
+                                            setPreferredOptions(prev => ({ ...prev, overwriteExisting: !!checked }))
+                                        }
+                                    />
+                                    <Label htmlFor="overwrite-existing-preferred" className="text-sm">
+                                        Bestehende bevorzugte Verfügbarkeiten überschreiben
+                                    </Label>
+                                </div>
+                                <div className="text-xs text-muted-foreground ml-6">
+                                    Entfernt vorhandene bevorzugte Verfügbarkeiten an den gleichen Terminen vor dem Erstellen neuer Einträge.
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={isProcessing}>
                         Abbrechen
                     </Button>
                     <Button onClick={handleSubmit} disabled={isProcessing}>
                         {isProcessing ? "Erstelle..." :
-                            availabilityType === 'FIXED' ? "Schichtzuweisungen erstellen" : "Verfügbarkeit hinzufügen"
+                            availabilityType === 'FIXED' ? "Schichtzuweisungen erstellen" : "Bevorzugte Verfügbarkeit hinzufügen"
                         }
                     </Button>
                 </DialogFooter>

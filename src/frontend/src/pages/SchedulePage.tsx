@@ -100,7 +100,7 @@ import GenerationOverlay from "@/components/Schedule/GenerationOverlay";
 import { ScheduleActions } from "@/components/Schedule/ScheduleActions";
 import ScheduleControls from "@/components/Schedule/ScheduleControls";
 import ScheduleErrors from "@/components/Schedule/ScheduleErrors";
-import useScheduleGeneration from "@/hooks/useScheduleGeneration";
+import useScheduleGeneration, { GenerationOptions } from "@/hooks/useScheduleGeneration";
 import { useVersionManager } from "@/hooks/useVersionManager";
 // import { ScheduleFixActions } from '@/components/Schedule/ScheduleFixActions'; // Original, might be unused
 
@@ -159,36 +159,33 @@ function getErrorMessage(error: unknown): string {
 
 export function SchedulePage() {
   // 1. All useState calls
-  // const today = new Date(); // Unused
-  // Legacy dateRange state removed - now using weekBasedVersionControl.navigationState.dateRange
-  // const [weekAmount, setWeekAmount] = useState<number>(1); // Unused
-  // const [selectedVersion, setSelectedVersion] = useState<number | undefined>( // Unused in favor of week-based system
-  //   undefined,
-  // );
-  // const [selectedVersion, setSelectedVersion] = useState<number | undefined>(undefined); // Removed - unused
   const [includeEmpty, setIncludeEmpty] = useState<boolean>(true);
   const [createEmptySchedules, setCreateEmptySchedules] = useState(true);
-  // const [isNewVersionModalOpen, setIsNewVersionModalOpen] = useState(false); // Removed - unused
-  const [isGenerationSettingsOpen, setIsGenerationSettingsOpen] =
-    useState(false);
-  // const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null); // Removed - unused
+  const [isGenerationSettingsOpen, setIsGenerationSettingsOpen] = useState(false);
   const [isAddScheduleDialogOpen, setIsAddScheduleDialogOpen] = useState(false);
   const [isAddAvailabilityDialogOpen, setIsAddAvailabilityDialogOpen] = useState(false);
   const [isEnhancedAvailabilityModalOpen, setIsEnhancedAvailabilityModalOpen] = useState(false);
-  const [selectedAvailabilityType, setSelectedAvailabilityType] = useState<"FIXED" | "PREFERRED" | "UNAVAILABLE">("FIXED");
+  const [selectedAvailabilityType, setSelectedAvailabilityType] = useState<"FIXED" | "PREFERRED">("FIXED");
   const [isAbsenceModalOpen, setIsAbsenceModalOpen] = useState(false);
   const [selectedEmployeeForAbsence, setSelectedEmployeeForAbsence] = useState<number | null>(null);
   const [isStatisticsModalOpen, setIsStatisticsModalOpen] = useState(false);
-  const [employeeAbsences, setEmployeeAbsences] = useState<
-    Record<number, unknown[]>
-  >({}); // Keep if used by ScheduleTable/Manager
+  const [employeeAbsences, setEmployeeAbsences] = useState<Record<number, unknown[]>>({});
   const [enableDiagnostics, setEnableDiagnostics] = useState<boolean>(false);
+
+  // Generation options state
+  const [generationOptions, setGenerationOptions] = useState<GenerationOptions>({
+    keepExistingAssignments: false,
+    usePhase1FixedAssignments: true,
+    usePhase2PreferredAvailability: true,
+    usePhase3StandardGeneration: true,
+  });
+
+  // AI generation states
   const [isAiGenerating, setIsAiGenerating] = useState<boolean>(false);
   const [isAiFastGenerating, setIsAiFastGenerating] = useState<boolean>(false);
   const [isAiDetailedGenerating, setIsAiDetailedGenerating] = useState<boolean>(false);
   const [isDetailedAiModalOpen, setIsDetailedAiModalOpen] = useState<boolean>(false);
-  // Add state for dialog type selection and classic dialog
-  const [aiDialogType, setAiDialogType] = useState<'classic' | 'modern'>('classic'); // Default to classic
+  const [aiDialogType, setAiDialogType] = useState<'classic' | 'modern'>('classic');
   const [isClassicAiModalOpen, setIsClassicAiModalOpen] = useState<boolean>(false);
   const [confirmDeleteMessage, setConfirmDeleteMessage] = useState<{
     title: string;
@@ -570,31 +567,24 @@ export function SchedulePage() {
 
   // Custom Hook for Schedule Generation Logic
   const {
+    generateSchedule,
+    isGenerating,
     generationSteps,
     generationLogs,
     showGenerationOverlay,
-    isPending,
-    generate,
-    resetGenerationState,
-    addGenerationLog,
-    clearGenerationLogs,
-    updateGenerationStep,
-    setGenerationSteps,
-    setShowGenerationOverlay,
     lastSessionId,
+    resetGenerationState,
+    updateGenerationStep,
+    addGenerationLog,
   } = useScheduleGeneration({
     dateRange: effectiveDateRange,
-    selectedVersion: effectiveSelectedVersionNumber, // Use numeric version for generation
+    selectedVersion: effectiveSelectedVersionNumber,
     createEmptySchedules,
     enableDiagnostics,
+    generationOptions,
     onSuccess: useCallback(() => {
-      // Only refetch data once, don't duplicate query invalidations
-      // The hook already handles query invalidation internally
-
-      // Only invalidate versions if they might have changed
+      queryClient.invalidateQueries({ queryKey: ["schedules"] });
       queryClient.invalidateQueries({ queryKey: ["versions"] });
-
-      // Always invalidate week version queries since we're using week navigation
       queryClient.invalidateQueries({ queryKey: ["week-version"] });
     }, [queryClient]),
   });
@@ -1314,12 +1304,27 @@ export function SchedulePage() {
 
     const formattedFromDate = format(effectiveDateRange!.from!, "yyyy-MM-dd");
     const formattedToDate = format(effectiveDateRange!.to!, "yyyy-MM-dd");
+
     addGenerationLog(
       "info",
-      "Starting STANDARD schedule generation",
-      `Version: ${versionNumber}, Date range: ${formattedFromDate} - ${formattedToDate}`,
+      "Starting phased schedule generation",
+      `Version: ${versionNumber}, Date range: ${formattedFromDate} - ${formattedToDate}, Options: ${JSON.stringify(generationOptions)}`,
     );
-    generate();
+
+    try {
+      await generateSchedule();
+
+      toast({
+        title: "Generierung erfolgreich",
+        description: "Mehrstufige Schichtplan-Generierung abgeschlossen.",
+      });
+    } catch (error) {
+      toast({
+        title: "Generierung fehlgeschlagen",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        variant: "destructive",
+      });
+    }
   };
 
   // Unused function - replaced by handleGenerateAiFastSchedule and handleGenerateAiDetailedSchedule
@@ -1621,11 +1626,6 @@ export function SchedulePage() {
 
   const handleAddPreferred = () => {
     setSelectedAvailabilityType("PREFERRED");
-    setIsEnhancedAvailabilityModalOpen(true);
-  };
-
-  const handleAddUnavailable = () => {
-    setSelectedAvailabilityType("UNAVAILABLE");
     setIsEnhancedAvailabilityModalOpen(true);
   };
 
@@ -1998,9 +1998,14 @@ export function SchedulePage() {
 
   const isUpdating =
     !versionState.versions.length ||
-    isPending ||
+    isGenerating ||
     exportMutation.isPending ||
     isAiGenerating;
+
+  // Handler for updating generation options
+  const handleGenerationOptionsUpdate = useCallback((options: GenerationOptions) => {
+    setGenerationOptions(options);
+  }, []);
 
   return (
     <div className="container mx-auto py-4 space-y-4">
@@ -2051,7 +2056,7 @@ export function SchedulePage() {
         <div className="flex gap-2">
           <ScheduleActions
             isLoading={isUpdating}
-            isGenerating={isPending || isAiGenerating}
+            isGenerating={isGenerating || isAiGenerating}
             isAiFastGenerating={isAiFastGenerating}
             isAiDetailedGenerating={isAiDetailedGenerating}
             canAdd={!!effectiveDateRange?.from && !!effectiveDateRange?.to}
@@ -2063,7 +2068,6 @@ export function SchedulePage() {
             onAddSchedule={handleAddSchedule}
             onAddFixed={handleAddFixed}
             onAddPreferred={handleAddPreferred}
-            onAddUnavailable={handleAddUnavailable}
             onAddAbsence={handleAddAbsence}
             onDeleteSchedule={handleDeleteSchedule}
             onGenerateStandardSchedule={handleGenerateStandardSchedule}
@@ -2219,7 +2223,7 @@ export function SchedulePage() {
                     (scheduleData.length === 0 && !isLoadingSchedule)
                   }
                   versions={validVersionsForCurrentRange}
-                  isGenerating={isPending || isAiGenerating}
+                  isGenerating={isGenerating || isAiGenerating}
                   onEmptyStateCreateVersion={handleCreateNewVersionPage}
                   onEmptyStateGenerateSchedule={handleGenerateStandardSchedule}
                   // Week navigation props for fullscreen mode
@@ -2262,7 +2266,7 @@ export function SchedulePage() {
         generationSteps={generationSteps}
         generationLogs={generationLogs}
         showGenerationOverlay={showGenerationOverlay || isAiGenerating}
-        isPending={isPending || isAiGenerating}
+        isPending={isGenerating || isAiGenerating}
         resetGenerationState={() => {
           resetGenerationState();
           setIsAiGenerating(false);
@@ -2298,6 +2302,8 @@ export function SchedulePage() {
             <ScheduleGenerationSettings
               settings={settingsQuery.data?.scheduling?.generation_requirements || null}
               onUpdate={handleGenerationRequirementsUpdate}
+              generationOptions={generationOptions}
+              onGenerationOptionsUpdate={handleGenerationOptionsUpdate}
               createEmptySchedules={createEmptySchedules}
               includeEmpty={includeEmpty}
               enableDiagnostics={enableDiagnostics}
@@ -2308,7 +2314,7 @@ export function SchedulePage() {
                 setIsGenerationSettingsOpen(false);
                 handleGenerateStandardSchedule();
               }}
-              isGenerating={isPending || isAiGenerating}
+              isGenerating={isGenerating || isAiGenerating}
             />
             <DialogFooter>
               <Button
