@@ -109,11 +109,9 @@ import { DiagnosticsDialog } from "@/components/Schedule/DiagnosticsDialog";
 import { MEPTemplate } from "@/components/Schedule/MEPTemplate";
 import { ScheduleStatisticsModal } from "@/components/Schedule/ScheduleStatisticsModal";
 
-import { ScheduleManager } from "@/components/ScheduleManager";
-import { VersionManager } from "@/components/VersionManager";
-import { WeekNavigator } from "@/components/WeekNavigator";
 import { ActionDock } from "@/components/dock/ActionDock";
-import { DetailedAIGenerationModal } from "@/components/modals/DetailedAIGenerationModal";
+import { AIConversationGenerationDialog } from "@/components/Schedule/AIConversationGenerationDialog";
+import { ScheduleManager } from "@/components/ScheduleManager";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -124,6 +122,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { VersionManager } from "@/components/VersionManager";
+import { WeekNavigator } from "@/components/WeekNavigator";
 import { AvailabilityProvider } from "@/contexts/AvailabilityContext";
 import { MEPDataService } from "@/services/mepDataService";
 import ReactDOM from "react-dom/client";
@@ -1561,6 +1561,9 @@ export function SchedulePage() {
           title: "Version erstellt",
           description: "Eine neue Version wurde automatisch erstellt.",
         });
+
+        // Force a state update to ensure the version number is available
+        await versionActions.refresh();
       } catch {
         toast({
           title: "Fehler beim Erstellen der Version",
@@ -1571,102 +1574,11 @@ export function SchedulePage() {
       }
     }
 
-    // Open the detailed AI modal instead of running generation immediately
+    // Open the AI conversation dialog for multi-step generation
     setIsDetailedAiModalOpen(true);
   };
 
-  const handleDetailedAiModalConfirm = async (options: {
-    optimization_criteria?: Record<string, unknown>;
-    constraints?: Record<string, unknown>;
-    generation_strategy?: string;
-  }) => {
-    setIsDetailedAiModalOpen(false);
-    setIsAiDetailedGenerating(true);
-    clearGenerationLogs();
-    const aiSteps = [
-      {
-        id: "ai-detailed-init",
-        title: "Initialisiere erweiterte KI-Generierung",
-        status: "pending" as const,
-      },
-      {
-        id: "ai-detailed-analyze",
-        title: "Detaillierte Analyse mit Konfiguration",
-        status: "pending" as const,
-      },
-      {
-        id: "ai-detailed-generate",
-        title: "Erstelle optimierten Schichtplan",
-        status: "pending" as const,
-      },
-      {
-        id: "ai-detailed-finalize",
-        title: "Finalisiere erweiterten Schichtplan",
-        status: "pending" as const,
-      },
-    ];
-    setGenerationSteps(aiSteps);
-    setShowGenerationOverlay(true);
-
-    // Use the current effective version number, which should be available after creation in handleGenerateAiDetailedSchedule
-    const versionNumber = effectiveSelectedVersionNumber;
-
-    addGenerationLog(
-      "info",
-      "Starting detailed AI schedule generation",
-      `Version: ${versionNumber}, Date range: ${format(effectiveDateRange!.from!, "yyyy-MM-dd")} - ${format(effectiveDateRange!.to!, "yyyy-MM-dd")}, Options: ${JSON.stringify(options)}`,
-    );
-    try {
-      updateGenerationStep("ai-detailed-init", "in-progress");
-      await new Promise((r) => setTimeout(r, 500));
-      const fromStr = format(effectiveDateRange!.from!, "yyyy-MM-dd");
-      const toStr = format(effectiveDateRange!.to!, "yyyy-MM-dd");
-      updateGenerationStep("ai-detailed-init", "completed");
-      updateGenerationStep("ai-detailed-analyze", "in-progress");
-      await new Promise((r) => setTimeout(r, 700));
-      // TODO: Pass options to generateAiSchedule when backend supports detailed options
-      const result = await generateAiSchedule(
-        fromStr,
-        toStr,
-        versionNumber!,
-      );
-      updateGenerationStep("ai-detailed-analyze", "completed");
-      updateGenerationStep("ai-detailed-generate", "in-progress");
-      await new Promise((r) => setTimeout(r, 700));
-      addGenerationLog("info", "Detailed AI schedule generation API call successful");
-      if (result.generated_assignments_count)
-        addGenerationLog(
-          "info",
-          `Generated ${result.generated_assignments_count} schedule entries with detailed options`,
-        );
-      updateGenerationStep("ai-detailed-generate", "completed");
-      updateGenerationStep("ai-detailed-finalize", "in-progress");
-      await new Promise((r) => setTimeout(r, 500));
-      await refetchScheduleData();
-      queryClient.invalidateQueries({ queryKey: ["versions"] });
-      updateGenerationStep("ai-detailed-finalize", "completed");
-      toast({
-        title: "Erweiterte KI-Generierung abgeschlossen",
-        description: "Schichtplan wurde mit erweiterten Optionen generiert.",
-      });
-      if (result.diagnostic_log) {
-        addGenerationLog("info", "Diagnostic log available:", result.diagnostic_log);
-      }
-      setTimeout(() => setIsAiDetailedGenerating(false), 2000);
-    } catch (err: unknown) {
-      const errorMessage = getErrorMessage(err);
-      addGenerationLog("error", "Detailed AI Generation Error", errorMessage);
-      aiSteps.forEach((step) =>
-        updateGenerationStep(step.id, "error", "Generation failed"),
-      );
-      toast({
-        title: "Erweiterte KI-Generierung fehlgeschlagen",
-        description: errorMessage,
-        variant: "destructive",
-      });
-      setTimeout(() => setIsAiDetailedGenerating(false), 3000);
-    }
-  };
+  // No longer needed - the AIConversationGenerationDialog handles the entire flow internally
 
   const handleAddSchedule = async () => {
     if (!effectiveSelectedVersion) {
@@ -2648,12 +2560,22 @@ export function SchedulePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Detailed AI Generation Modal */}
-      <DetailedAIGenerationModal
+      {/* AI Conversation Generation Dialog */}
+      <AIConversationGenerationDialog
         isOpen={isDetailedAiModalOpen}
         onClose={() => setIsDetailedAiModalOpen(false)}
-        onConfirm={handleDetailedAiModalConfirm}
-        isGenerating={isAiDetailedGenerating}
+        startDate={format(effectiveDateRange?.from || new Date(), "yyyy-MM-dd")}
+        endDate={format(effectiveDateRange?.to || new Date(), "yyyy-MM-dd")}
+        versionId={effectiveSelectedVersionNumber || 1}
+        onComplete={() => {
+          setIsAiDetailedGenerating(false);
+          refetchScheduleData();
+          queryClient.invalidateQueries({ queryKey: ["versions"] });
+          toast({
+            title: "KI-Generierung abgeschlossen",
+            description: "Der Schichtplan wurde erfolgreich generiert.",
+          });
+        }}
       />
     </div>
   );
