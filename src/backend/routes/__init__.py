@@ -1,14 +1,15 @@
-from .shifts import shifts
-from .settings import settings
-from .schedules import schedules
-from .employees import employees
-from .availability import availability
-from .ai_schedule_routes import ai_schedule_bp  # Corrected module name
-from .ping import ping_bp  # We created this file
-from .debug import debug_bp  # This file exists
 from .absences import bp as absences_bp  # Renamed to match export
-from .logs import bp as logs_bp  # Renamed to match export
+from .ai_conversation_routes import ai_conversation_bp  # New AI conversation routes
+from .ai_schedule_routes import ai_schedule_bp  # Corrected module name
 from .auth import bp as auth_bp  # Renamed to match export
+from .availability import availability
+from .debug import debug_bp  # This file exists
+from .employees import employees
+from .logs import bp as logs_bp  # Renamed to match export
+from .ping import ping_bp  # We created this file
+from .schedules import schedules
+from .settings import settings
+from .shifts import shifts
 
 __all__ = [
     "shifts",
@@ -17,6 +18,7 @@ __all__ = [
     "employees",
     "availability",
     "ai_schedule_bp",
+    "ai_conversation_bp",
     "ping_bp",
     "debug_bp",
     "absences_bp",
@@ -40,6 +42,7 @@ api_bp.register_blueprint(absences_bp, url_prefix="/absences")
 api_bp.register_blueprint(logs_bp, url_prefix="/logs")
 api_bp.register_blueprint(debug_bp, url_prefix="/debug")
 api_bp.register_blueprint(ai_schedule_bp, url_prefix="/ai-schedule")
+api_bp.register_blueprint(ai_conversation_bp, url_prefix="/ai-conversation")
 api_bp.register_blueprint(auth_bp, url_prefix="/auth")
 
 
