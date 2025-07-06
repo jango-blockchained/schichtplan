@@ -243,7 +243,7 @@ class AIConversationService:
                 version_id=conversation["context"].get("version_id"),
                 ai_model_params={
                     "generationConfig": {
-                        "temperature": 0.6,
+                        "temperature": 0.7,
                         "topP": 0.95,
                         "topK": 40,
                         "maxOutputTokens": 8192,
@@ -264,6 +264,24 @@ class AIConversationService:
                     ConversationAction.FINALIZE_SCHEDULE.value,
                 ],
             }
+
+        except RuntimeError as e:
+            error_msg = str(e)
+            logger.app_logger.error(
+                f"Runtime error in schedule generation: {error_msg}", exc_info=True
+            )
+
+            # Check if it's a missing API key error
+            if "Gemini API key not configured" in error_msg:
+                conversation["state"] = ConversationState.FAILED
+                return {
+                    "status": "error",
+                    "message": "AI generation requires a Gemini API key. Please configure GEMINI_API_KEY in your environment or use the standard scheduler instead.",
+                    "error_type": "missing_api_key",
+                }
+            else:
+                conversation["state"] = ConversationState.FAILED
+                return {"status": "error", "message": f"Generation failed: {error_msg}"}
 
         except Exception as e:
             logger.app_logger.error(f"Error in schedule generation: {e}", exc_info=True)

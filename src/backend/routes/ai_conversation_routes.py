@@ -14,7 +14,7 @@ CORS(ai_conversation_bp, origins="*", methods=["GET", "POST", "OPTIONS"])
 conversation_service = AIConversationService()
 
 
-@ai_conversation_bp.route("/ai/conversation", methods=["POST", "OPTIONS"])
+@ai_conversation_bp.route("/conversation", methods=["POST", "OPTIONS"])
 def handle_conversation():
     """Handle AI conversation requests for multi-step schedule generation"""
     if request.method == "OPTIONS":
@@ -53,7 +53,7 @@ def handle_conversation():
         ), 500
 
 
-@ai_conversation_bp.route("/ai/conversation/<conversation_id>", methods=["GET"])
+@ai_conversation_bp.route("/conversation/<conversation_id>", methods=["GET"])
 def get_conversation_status(conversation_id):
     """Get the status of an ongoing conversation"""
     try:
@@ -89,7 +89,7 @@ def get_conversation_status(conversation_id):
         ), 500
 
 
-@ai_conversation_bp.route("/ai/conversation/preview-optimized-data", methods=["POST"])
+@ai_conversation_bp.route("/conversation/preview-optimized-data", methods=["POST"])
 def preview_optimized_data():
     """Preview the optimized data that would be used for AI generation"""
     try:

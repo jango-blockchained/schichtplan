@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { Availability, createAvailability, createSchedule, getEmployees, getSchedules, getShifts, Shift, updateSchedule } from "@/services/api";
+import { Availability, createAvailability, createSchedule, createShift, getEmployeeAvailabilities, getEmployees, getSchedules, getShifts, Shift, updateSchedule } from "@/services/api";
 import { Employee } from "@/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { eachDayOfInterval, format, isSameDay } from "date-fns";
@@ -174,40 +174,108 @@ export function EnhancedAvailabilityModal({
         return selectedDates.individual;
     };
 
-    const findMatchingShift = (employee: Employee, date: Date): Shift | null => {
+    const findMatchingShift = async (employee: Employee, date: Date): Promise<Shift | null> => {
         if (!shifts || availabilityType !== 'FIXED') return null;
 
-        // Suppress unused parameter warnings for now since this is a stub
-        void employee;
-        void date;
+        try {
+            // 1. Query employee's availability entries for this date/weekday
+            const availabilities = await getEmployeeAvailabilities(employee.id);
+            
+            // Get the day of week for the target date (Monday=0, Sunday=6)
+            const dayOfWeek = date.getDay() === 0 ? 6 : date.getDay() - 1; // Convert JS day (Sunday=0) to backend day (Monday=0)
+            
+            // Filter for FIXED availability entries for this day of week
+            const fixedAvailabilities = availabilities.filter(
+                (avail) => avail.day_of_week === dayOfWeek && 
+                          avail.availability_type === "FIXED" &&
+                          avail.is_available
+            );
 
-        // Simple implementation: For now, find the first shift that matches basic criteria
-        // In a full implementation, this would:
-        // 1. Query employee's existing FIXED availability entries for this weekday
-        // 2. Find shifts that match start/end times based on fixedOptions
-        // 3. Return the best matching shift template
+            if (fixedAvailabilities.length === 0) {
+                console.log(`No fixed availability found for employee ${employee.id} on ${format(date, 'yyyy-MM-dd')}`);
+                return null; // No fixed availability for this employee/date
+            }
 
-        // For now, prefer shifts that look like standard shifts
-        const standardShifts = shifts.filter(shift =>
-            shift.start_time && shift.end_time &&
-            shift.start_time !== shift.end_time
-        );
+            // 2. Group consecutive available hours into time ranges
+            const availableHours = fixedAvailabilities
+                .map(avail => avail.hour)
+                .sort((a, b) => a - b);
 
-        if (standardShifts.length > 0) {
-            // Simple heuristic: prefer shifts in the middle of the day for now
-            const sortedShifts = standardShifts.sort((a, b) => {
-                const aStartHour = parseInt(a.start_time.split(':')[0]);
-                const bStartHour = parseInt(b.start_time.split(':')[0]);
-                // Prefer shifts starting between 8-14 (morning to midday)
-                const aScore = Math.abs(aStartHour - 11); // Distance from 11 AM
-                const bScore = Math.abs(bStartHour - 11);
-                return aScore - bScore;
-            });
-            return sortedShifts[0];
+            // Group consecutive hours into ranges
+            const timeRanges: { start: number; end: number }[] = [];
+            let currentStart = availableHours[0];
+            let currentEnd = availableHours[0];
+
+            for (let i = 1; i < availableHours.length; i++) {
+                if (availableHours[i] === currentEnd + 1) {
+                    // Consecutive hour, extend current range
+                    currentEnd = availableHours[i];
+                } else {
+                    // Gap found, save current range and start new one
+                    timeRanges.push({ start: currentStart, end: currentEnd + 1 }); // end is exclusive
+                    currentStart = availableHours[i];
+                    currentEnd = availableHours[i];
+                }
+            }
+            // Add the last range
+            timeRanges.push({ start: currentStart, end: currentEnd + 1 });
+
+            // 3. Find matching shift templates for each time range
+            for (const timeRange of timeRanges) {
+                const startTimeStr = `${timeRange.start.toString().padStart(2, '0')}:00`;
+                const endTimeStr = `${timeRange.end.toString().padStart(2, '0')}:00`;
+
+                // Look for existing shift templates that match this time range
+                const matchingShift = findShiftTemplateByTimes(startTimeStr, endTimeStr, shifts);
+                
+                if (matchingShift) {
+                    console.log(`Found matching shift template: ${matchingShift.id} for employee ${employee.id}`);
+                    return matchingShift;
+                }
+            }
+
+            // 4. Create new shift template if no match found and we have a valid time range
+            if (timeRanges.length > 0) {
+                const firstRange = timeRanges[0]; // Use the first time range
+                const startTimeStr = `${firstRange.start.toString().padStart(2, '0')}:00`;
+                const endTimeStr = `${firstRange.end.toString().padStart(2, '0')}:00`;
+                
+                console.log(`Creating new shift template ${startTimeStr}-${endTimeStr} for employee ${employee.id}`);
+                
+                // Create active_days for all days of the week for now
+                const activeDays = { "0": true, "1": true, "2": true, "3": true, "4": true, "5": true, "6": true };
+                
+                const newShift = await createShift({
+                    start_time: startTimeStr,
+                    end_time: endTimeStr,
+                    requires_break: (firstRange.end - firstRange.start) > 6, // Require break for shifts longer than 6 hours
+                    active_days: activeDays,
+                    shift_type_id: `FIXED_${startTimeStr.replace(':', '')}_${endTimeStr.replace(':', '')}`
+                });
+
+                console.log(`Created new shift template: ${newShift.id}`);
+                return newShift;
+            }
+
+            return null;
+        } catch (error) {
+            console.error(`Error finding matching shift for employee ${employee.id}:`, error);
+            return null;
         }
+    };
 
-        // Fallback: return first available shift
-        return shifts[0] || null;
+    // Helper function to find shift template by times
+    const findShiftTemplateByTimes = (startTime: string, endTime: string, shifts: Shift[]): Shift | null => {
+        return shifts.find(shift => {
+            if (fixedOptions.matchOnlyStart) {
+                return shift.start_time === startTime;
+            } else if (fixedOptions.matchOnlyEnd) {
+                return shift.end_time === endTime;
+            } else {
+                // Match both start and end times
+                return shift.start_time === startTime && shift.end_time === endTime;
+            }
+        }) || null;
     };
 
     const calculateShiftTimes = (originalShift: Shift, targetDate: Date): { start_time: string; end_time: string } => {
@@ -354,7 +422,7 @@ export function EnhancedAvailabilityModal({
                 for (const employee of targetEmployees) {
                     for (const date of targetDates) {
                         // Find a matching shift template for this employee/date
-                        const matchingShift = findMatchingShift(employee, date);
+                        const matchingShift = await findMatchingShift(employee, date);
 
                         if (matchingShift) {
                             const adjustedTimes = calculateShiftTimes(matchingShift, date);

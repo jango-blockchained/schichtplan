@@ -67,7 +67,10 @@ import {
 import {
   AlertCircle,
   FileTextIcon,
-  RefreshCw
+  RefreshCw,
+  Settings,
+  Sliders,
+  Wand2
 } from "lucide-react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -111,6 +114,7 @@ import { ScheduleStatisticsModal } from "@/components/Schedule/ScheduleStatistic
 
 import { ActionDock } from "@/components/dock/ActionDock";
 import { AIConversationGenerationDialog } from "@/components/Schedule/AIConversationGenerationDialog";
+import { ClassicAIGenerationDialog } from "@/components/Schedule/ClassicAIGenerationDialog";
 import { ScheduleManager } from "@/components/ScheduleManager";
 import {
   AlertDialog,
@@ -183,6 +187,9 @@ export function SchedulePage() {
   const [isAiFastGenerating, setIsAiFastGenerating] = useState<boolean>(false);
   const [isAiDetailedGenerating, setIsAiDetailedGenerating] = useState<boolean>(false);
   const [isDetailedAiModalOpen, setIsDetailedAiModalOpen] = useState<boolean>(false);
+  // Add state for dialog type selection and classic dialog
+  const [aiDialogType, setAiDialogType] = useState<'classic' | 'modern'>('classic'); // Default to classic
+  const [isClassicAiModalOpen, setIsClassicAiModalOpen] = useState<boolean>(false);
   const [confirmDeleteMessage, setConfirmDeleteMessage] = useState<{
     title: string;
     message: string;
@@ -1574,8 +1581,12 @@ export function SchedulePage() {
       }
     }
 
-    // Open the AI conversation dialog for multi-step generation
-    setIsDetailedAiModalOpen(true);
+    // Open the appropriate AI dialog based on user preference
+    if (aiDialogType === 'classic') {
+      setIsClassicAiModalOpen(true);
+    } else {
+      setIsDetailedAiModalOpen(true);
+    }
   };
 
   // No longer needed - the AIConversationGenerationDialog handles the entire flow internally
@@ -2036,33 +2047,63 @@ export function SchedulePage() {
       </div>
 
       {/* 3. Actions */}
-      <div className="flex justify-start gap-2 mb-4">
-        <ScheduleActions
-          isLoading={isUpdating}
-          isGenerating={isPending || isAiGenerating}
-          isAiFastGenerating={isAiFastGenerating}
-          isAiDetailedGenerating={isAiDetailedGenerating}
-          canAdd={!!effectiveDateRange?.from && !!effectiveDateRange?.to}
-          canDelete={
-            scheduleData?.length > 0 && !!effectiveSelectedVersion
-          }
-          canGenerate={!!effectiveDateRange?.from && !!effectiveDateRange?.to}
-          hasScheduleData={scheduleData?.length > 0}
-          onAddSchedule={handleAddSchedule}
-          onAddFixed={handleAddFixed}
-          onAddPreferred={handleAddPreferred}
-          onAddUnavailable={handleAddUnavailable}
-          onAddAbsence={handleAddAbsence}
-          onDeleteSchedule={handleDeleteSchedule}
-          onGenerateStandardSchedule={handleGenerateStandardSchedule}
-          onGenerateAiFastSchedule={handleGenerateAiFastSchedule}
-          onGenerateAiDetailedSchedule={handleGenerateAiDetailedSchedule}
-          onOpenGenerationSettings={() => setIsGenerationSettingsOpen(true)}
-          onOpenStatistics={() => setIsStatisticsModalOpen(true)}
-          isAiEnabled={!!settingsQuery.data?.ai_scheduling?.enabled}
-          onPreviewAiData={handlePreviewAiData}
-          onImportAiResponse={handleImportAiResponse}
-        />
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex gap-2">
+          <ScheduleActions
+            isLoading={isUpdating}
+            isGenerating={isPending || isAiGenerating}
+            isAiFastGenerating={isAiFastGenerating}
+            isAiDetailedGenerating={isAiDetailedGenerating}
+            canAdd={!!effectiveDateRange?.from && !!effectiveDateRange?.to}
+            canDelete={
+              scheduleData?.length > 0 && !!effectiveSelectedVersion
+            }
+            canGenerate={!!effectiveDateRange?.from && !!effectiveDateRange?.to}
+            hasScheduleData={scheduleData?.length > 0}
+            onAddSchedule={handleAddSchedule}
+            onAddFixed={handleAddFixed}
+            onAddPreferred={handleAddPreferred}
+            onAddUnavailable={handleAddUnavailable}
+            onAddAbsence={handleAddAbsence}
+            onDeleteSchedule={handleDeleteSchedule}
+            onGenerateStandardSchedule={handleGenerateStandardSchedule}
+            onGenerateAiFastSchedule={handleGenerateAiFastSchedule}
+            onGenerateAiDetailedSchedule={handleGenerateAiDetailedSchedule}
+            onOpenGenerationSettings={() => setIsGenerationSettingsOpen(true)}
+            onOpenStatistics={() => setIsStatisticsModalOpen(true)}
+            isAiEnabled={!!settingsQuery.data?.ai_scheduling?.enabled}
+            onPreviewAiData={handlePreviewAiData}
+            onImportAiResponse={handleImportAiResponse}
+          />
+        </div>
+
+        {/* AI Dialog Type Selector */}
+        {settingsQuery.data?.ai_scheduling?.enabled && (
+          <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
+            <Settings className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">KI-Dialog:</span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant={aiDialogType === 'classic' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setAiDialogType('classic')}
+                className="h-7 px-2 text-xs"
+              >
+                <Sliders className="h-3 w-3 mr-1" />
+                Klassisch
+              </Button>
+              <Button
+                variant={aiDialogType === 'modern' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setAiDialogType('modern')}
+                className="h-7 px-2 text-xs"
+              >
+                <Wand2 className="h-3 w-3 mr-1" />
+                Modern
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       <DndProvider backend={HTML5Backend}>
@@ -2573,6 +2614,24 @@ export function SchedulePage() {
           queryClient.invalidateQueries({ queryKey: ["versions"] });
           toast({
             title: "KI-Generierung abgeschlossen",
+            description: "Der Schichtplan wurde erfolgreich generiert.",
+          });
+        }}
+      />
+
+      {/* Classic AI Generation Dialog */}
+      <ClassicAIGenerationDialog
+        isOpen={isClassicAiModalOpen}
+        onClose={() => setIsClassicAiModalOpen(false)}
+        startDate={format(effectiveDateRange?.from || new Date(), "yyyy-MM-dd")}
+        endDate={format(effectiveDateRange?.to || new Date(), "yyyy-MM-dd")}
+        versionId={effectiveSelectedVersionNumber || 1}
+        onComplete={() => {
+          setIsAiDetailedGenerating(false);
+          refetchScheduleData();
+          queryClient.invalidateQueries({ queryKey: ["versions"] });
+          toast({
+            title: "Klassische KI-Generierung abgeschlossen",
             description: "Der Schichtplan wurde erfolgreich generiert.",
           });
         }}
