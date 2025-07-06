@@ -40,7 +40,7 @@ class AIConversationService {
      */
     async startConversation(context: ConversationContext): Promise<ConversationResponse> {
         try {
-            const response = await api.post<ConversationResponse>('/api/v2/ai-conversation/ai/conversation', {
+            const response = await api.post<ConversationResponse>('/api/v2/ai-conversation/conversation', {
                 action: 'start_conversation',
                 context
             });
@@ -65,7 +65,7 @@ class AIConversationService {
         }
 
         try {
-            const response = await api.post<ConversationResponse>('/api/v2/ai-conversation/ai/conversation', {
+            const response = await api.post<ConversationResponse>('/api/v2/ai-conversation/conversation', {
                 action: 'analyze_current_state',
                 conversation_id: this.conversationId,
                 include: include || ['conflicts', 'coverage_gaps', 'workload_distribution']
@@ -87,7 +87,7 @@ class AIConversationService {
         }
 
         try {
-            const response = await api.post<ConversationResponse>('/api/v2/ai-conversation/ai/conversation', {
+            const response = await api.post<ConversationResponse>('/api/v2/ai-conversation/conversation', {
                 action: 'get_recommendations',
                 conversation_id: this.conversationId,
                 optimization_goals: optimizationGoals || ['fairness', 'coverage', 'preferences']
@@ -109,7 +109,7 @@ class AIConversationService {
         }
 
         try {
-            const response = await api.post<ConversationResponse>('/api/v2/ai-conversation/ai/conversation', {
+            const response = await api.post<ConversationResponse>('/api/v2/ai-conversation/conversation', {
                 action: 'generate_schedule',
                 conversation_id: this.conversationId,
                 apply_recommendations: applyRecommendations,
@@ -132,7 +132,7 @@ class AIConversationService {
         }
 
         try {
-            const response = await api.post<ConversationResponse>('/api/v2/ai-conversation/ai/conversation', {
+            const response = await api.post<ConversationResponse>('/api/v2/ai-conversation/conversation', {
                 action: 'adjust_schedule',
                 conversation_id: this.conversationId,
                 modifications,
@@ -155,7 +155,7 @@ class AIConversationService {
         }
 
         try {
-            const response = await api.post<ConversationResponse>('/api/v2/ai-conversation/ai/conversation', {
+            const response = await api.post<ConversationResponse>('/api/v2/ai-conversation/conversation', {
                 action: 'finalize_schedule',
                 conversation_id: this.conversationId
             });
@@ -176,7 +176,7 @@ class AIConversationService {
         }
 
         try {
-            const response = await api.post<ConversationResponse>('/api/v2/ai-conversation/ai/conversation', {
+            const response = await api.post<ConversationResponse>('/api/v2/ai-conversation/conversation', {
                 action: 'cancel_conversation',
                 conversation_id: this.conversationId
             });
@@ -198,7 +198,7 @@ class AIConversationService {
         }
 
         try {
-            const response = await api.get(`/api/v2/ai-conversation/ai/conversation/${this.conversationId}`);
+            const response = await api.get(`/api/v2/ai-conversation/conversation/${this.conversationId}`);
             return response.data;
         } catch (error) {
             console.error('Failed to get conversation status:', error);
@@ -211,7 +211,7 @@ class AIConversationService {
      */
     async previewOptimizedData(startDate: string, endDate: string, constraints?: any): Promise<any> {
         try {
-            const response = await api.post('/api/v2/ai-conversation/ai/conversation/preview-optimized-data', {
+            const response = await api.post('/api/v2/ai-conversation/conversation/preview-optimized-data', {
                 start_date: startDate,
                 end_date: endDate,
                 constraints

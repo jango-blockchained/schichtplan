@@ -1,31 +1,34 @@
 # src/backend/services/ai_scheduler_service.py
 
+import csv
+import json
+import logging
+import os
+import uuid
+from datetime import datetime, timedelta
+from io import StringIO
+from pathlib import Path
+
+import requests
+from sqlalchemy.exc import SQLAlchemyError
+
 from src.backend.models import (
-    db,
-    Employee,
-    ShiftTemplate,
-    Coverage,
     Absence,
+    Coverage,
+    Employee,
     EmployeeAvailability,
     Schedule,
+    ShiftTemplate,
+    db,
 )  # Added Schedule model
-from src.backend.utils.logger import (
-    logger,
-)  # Corrected: import the global logger instance
-from src.backend.services.scheduler.logging_utils import ProcessTracker
-import json
-import requests
-import os
-import logging
-import csv
-import uuid
-from io import StringIO
-from datetime import datetime, timedelta
-from pathlib import Path
-from sqlalchemy.exc import SQLAlchemyError
+from src.backend.models.settings import Settings  # Add Settings import
 from src.backend.schemas.ai_schedule import (
     AIScheduleFeedbackRequest,
 )  # Import the feedback schema
+from src.backend.services.scheduler.logging_utils import ProcessTracker
+from src.backend.utils.logger import (
+    logger,
+)  # Corrected: import the global logger instance
 
 # Get src/logs path - fix for log location
 SRC_DIR = Path(__file__).resolve().parent.parent.parent
@@ -35,16 +38,19 @@ DIAGNOSTICS_DIR = LOGS_DIR / "diagnostics"
 
 class AISchedulerService:
     def __init__(self):
-        self.gemini_api_key = self._load_api_key_from_settings()
-        self.gemini_model_name = (
-            "gemini-1.5-flash"  # Using the more available gemini-1.5-flash model
-        )
+        """Initialize the AISchedulerService"""
+        # Don't load the API key immediately - make it lazy
+        self._gemini_api_key = None
+        self._api_key_loaded = False
+
+        self.gemini_model_name = "gemini-1.5-flash"  # Using the recommended model
         self.default_model_params = {
             "generationConfig": {
-                "temperature": 0.6,
+                "temperature": 0.7,
                 "topP": 0.95,
                 "topK": 40,
                 "maxOutputTokens": 8192,
+                "responseMimeType": "text/plain",
             },
             "safetySettings": [
                 {
@@ -67,11 +73,32 @@ class AISchedulerService:
         }
         logger.app_logger.info(
             f"AISchedulerService initialized for model: {self.gemini_model_name}"
-        )  # Use logger.app_logger
+        )
+
+    @property
+    def gemini_api_key(self):
+        """Lazy load the Gemini API key when first accessed"""
+        if not self._api_key_loaded:
+            self._gemini_api_key = self._load_api_key_from_settings()
+            self._api_key_loaded = True
+        return self._gemini_api_key
 
     def _load_api_key_from_settings(self):
         """Load Gemini API key from settings or environment variables"""
-        # The key is expected to be in an environment variable named GEMINI_API_KEY
+        # First, try to get the key from database settings
+        try:
+            settings = Settings.query.first()
+            if settings and settings.ai_scheduling:
+                api_key = settings.ai_scheduling.get("api_key", "").strip()
+                if api_key:
+                    logger.app_logger.info(
+                        "Gemini API key loaded from database settings"
+                    )
+                    return api_key
+        except Exception as e:
+            logger.app_logger.warning(f"Failed to load API key from database: {e}")
+
+        # Fall back to environment variable
         api_key = os.environ.get("GEMINI_API_KEY", None)
 
         if not api_key:
@@ -80,6 +107,7 @@ class AISchedulerService:
             )  # Use logger.app_logger
             return None
 
+        logger.app_logger.info("Gemini API key loaded from environment variable")
         return api_key
 
     def _initialize_process_tracker(self, process_name="AI Schedule Generation"):
@@ -130,7 +158,9 @@ class AISchedulerService:
 
         return process_tracker
 
-    def _validate_shift_coverage_alignment(self, shift_data, coverage_data, tracker=None):
+    def _validate_shift_coverage_alignment(
+        self, shift_data, coverage_data, tracker=None
+    ):
         """Validate that we have sufficient shift templates to potentially cover coverage requirements"""
         if not shift_data:
             warning_msg = "No shift templates available for scheduling"
@@ -139,7 +169,7 @@ class AISchedulerService:
             else:
                 logger.app_logger.warning(warning_msg)
             return False
-        
+
         if not coverage_data:
             warning_msg = "No coverage requirements defined"
             if tracker:
@@ -147,31 +177,33 @@ class AISchedulerService:
             else:
                 logger.app_logger.warning(warning_msg)
             return False
-        
+
         # Log available resources for debugging
         if tracker:
             tracker.log_info(f"Available shift templates: {len(shift_data)}")
             for shift in shift_data:
-                tracker.log_info(f"  - {shift['name']}: {shift['start_time']}-{shift['end_time']} ({shift['shift_type']})")
-            
+                tracker.log_info(
+                    f"  - {shift['name']}: {shift['start_time']}-{shift['end_time']} ({shift['shift_type']})"
+                )
+
             tracker.log_info(f"Coverage requirements: {len(coverage_data)}")
             coverage_periods = set()
             for coverage in coverage_data:
                 coverage_periods.add(coverage["time_period"])
             for period in sorted(coverage_periods):
                 tracker.log_info(f"  - {period}")
-        
+
         return True
 
     def _get_shift_template_summary(self, shift_data):
         """Generate a summary of shift templates for debugging and validation"""
         if not shift_data:
             return "No shift templates available"
-        
+
         summary = f"Available Shift Templates ({len(shift_data)}):\n"
         for shift in shift_data:
             summary += f"  ID {shift['id']}: {shift['name']} ({shift['start_time']}-{shift['end_time']}, {shift['duration_hours']}h, {shift['shift_type']})\n"
-        
+
         return summary
 
     def _collect_data_for_ai_prompt(self, start_date, end_date, tracker=None):
@@ -199,39 +231,64 @@ class AISchedulerService:
 
             # 1. Get active employees with availability pre-filtering
             employees = Employee.query.filter_by(is_active=True).all()
-            
+
             # Pre-filter employees who have some availability or no blocking absences
             filtered_employees = []
             for emp in employees:
-                # Check if employee has any availability during the period
-                has_availability = EmployeeAvailability.query.filter(
-                    EmployeeAvailability.employee_id == emp.id,
-                    db.or_(
-                        EmployeeAvailability.is_recurring.is_(True),
-                        db.and_(
-                            db.or_(EmployeeAvailability.start_date.is_(None), EmployeeAvailability.start_date <= end_date),
-                            db.or_(EmployeeAvailability.end_date.is_(None), EmployeeAvailability.end_date >= start_date)
-                        )
-                    )
-                ).first() is not None
-                
                 # Check if employee has blocking absences for entire period
-                blocking_absence = Absence.query.filter(
-                    Absence.employee_id == emp.id,
-                    Absence.start_date <= start_date,
-                    Absence.end_date >= end_date
-                ).first() is not None
-                
-                # Include employee if they have availability and no blocking absence
-                if has_availability and not blocking_absence:
-                    filtered_employees.append(emp)
+                blocking_absence = (
+                    Absence.query.filter(
+                        Absence.employee_id == emp.id,
+                        Absence.start_date <= start_date,
+                        Absence.end_date >= end_date,
+                    ).first()
+                    is not None
+                )
+
+                # If employee has a blocking absence for the entire period, skip them
+                if blocking_absence:
+                    continue
+
+                # Check if employee has any availability records
+                has_availability_records = (
+                    EmployeeAvailability.query.filter(
+                        EmployeeAvailability.employee_id == emp.id,
+                        db.or_(
+                            EmployeeAvailability.is_recurring.is_(True),
+                            db.and_(
+                                db.or_(
+                                    EmployeeAvailability.start_date.is_(None),
+                                    EmployeeAvailability.start_date <= end_date,
+                                ),
+                                db.or_(
+                                    EmployeeAvailability.end_date.is_(None),
+                                    EmployeeAvailability.end_date >= start_date,
+                                ),
+                            ),
+                        ),
+                    ).first()
+                    is not None
+                )
+
+                # Include employee if they:
+                # 1. Have availability records (regardless of type), OR
+                # 2. Have NO availability records at all (assume generally available)
+                # In both cases, they must not have blocking absences
+                filtered_employees.append(emp)
+
+                if tracker and not has_availability_records:
+                    tracker.log_info(
+                        f"Employee {emp.id} ({emp.first_name} {emp.last_name}) included with no availability records (assumed available)"
+                    )
 
             employee_data = []
             for emp in filtered_employees:
                 emp_dict = {
                     "id": emp.id,
                     "name": f"{emp.first_name} {emp.last_name}",
-                    "role": emp.employee_group.value if emp.employee_group else "UNKNOWN",
+                    "role": emp.employee_group.value
+                    if emp.employee_group
+                    else "UNKNOWN",
                     "is_keyholder": emp.is_keyholder,
                     "max_weekly_hours": emp.get_max_weekly_hours() or 40,
                 }
@@ -240,32 +297,46 @@ class AISchedulerService:
             collected_data["employees"] = employee_data
 
             if tracker:
-                tracker.log_info(f"Collected {len(employee_data)} filtered employees (from {len(employees)} total)")
+                tracker.log_info(
+                    f"Employee filtering: {len(filtered_employees)} of {len(employees)} active employees included"
+                )
 
             # 2. Get shift templates - optimized with only essential fields
             shifts = ShiftTemplate.query.all()
             shift_data = []
             for shift in shifts:
                 # Filter shifts that are active on target weekdays
-                if shift.active_days and any(str(day) in shift.active_days and shift.active_days[str(day)] for day in target_weekdays):
+                if shift.active_days and any(
+                    str(day) in shift.active_days and shift.active_days[str(day)]
+                    for day in target_weekdays
+                ):
                     shift_dict = {
                         "id": shift.id,
                         "start_time": shift.start_time,
                         "end_time": shift.end_time,
-                        "active_days": [day for day in range(7) if str(day) in shift.active_days and shift.active_days[str(day)]],
-                        "requires_keyholder": getattr(shift, 'requires_keyholder', False),
+                        "active_days": [
+                            day
+                            for day in range(7)
+                            if str(day) in shift.active_days
+                            and shift.active_days[str(day)]
+                        ],
+                        "requires_keyholder": getattr(
+                            shift, "requires_keyholder", False
+                        ),
                     }
                     shift_data.append(shift_dict)
 
             collected_data["shifts"] = shift_data
 
             if tracker:
-                tracker.log_info(f"Collected {len(shift_data)} relevant shift templates")
+                tracker.log_info(
+                    f"Collected {len(shift_data)} relevant shift templates"
+                )
 
             # 3. Get coverage needs - optimized with pattern-based structure
             coverage_needs = Coverage.query.all()
             coverage_rules = []
-            
+
             for coverage in coverage_needs:
                 # Only include coverage rules for relevant weekdays
                 if coverage.day_index in target_weekdays:
@@ -279,16 +350,18 @@ class AISchedulerService:
                     coverage_rules.append(coverage_rule)
 
             collected_data["coverage_rules"] = coverage_rules
-            
+
             # Also provide the date range for context
             collected_data["schedule_period"] = {
                 "start_date": start_date.strftime("%Y-%m-%d"),
                 "end_date": end_date.strftime("%Y-%m-%d"),
-                "target_weekdays": sorted(list(target_weekdays))
+                "target_weekdays": sorted(list(target_weekdays)),
             }
 
             if tracker:
-                tracker.log_info(f"Collected {len(coverage_rules)} coverage rules for weekdays {sorted(target_weekdays)}")
+                tracker.log_info(
+                    f"Collected {len(coverage_rules)} coverage rules for weekdays {sorted(target_weekdays)}"
+                )
 
             # 4. Get employee availability - optimized with time windows instead of hour-by-hour
             employee_ids = [emp["id"] for emp in employee_data]
@@ -298,10 +371,16 @@ class AISchedulerService:
                     db.or_(
                         EmployeeAvailability.is_recurring.is_(True),
                         db.and_(
-                            db.or_(EmployeeAvailability.start_date.is_(None), EmployeeAvailability.start_date <= end_date),
-                            db.or_(EmployeeAvailability.end_date.is_(None), EmployeeAvailability.end_date >= start_date)
-                        )
-                    )
+                            db.or_(
+                                EmployeeAvailability.start_date.is_(None),
+                                EmployeeAvailability.start_date <= end_date,
+                            ),
+                            db.or_(
+                                EmployeeAvailability.end_date.is_(None),
+                                EmployeeAvailability.end_date >= start_date,
+                            ),
+                        ),
+                    ),
                 ).all()
 
                 # Convert to time windows per employee per day
@@ -317,17 +396,23 @@ class AISchedulerService:
                                     "day_index": current_date.weekday(),
                                     "available_hours": [],
                                     "preferred_hours": [],
-                                    "fixed_hours": []
+                                    "fixed_hours": [],
                                 }
-                            
+
                             # Categorize by availability type
                             hour_info = avail.hour
                             if avail.availability_type.value == "FIXED":
-                                availability_windows[key]["fixed_hours"].append(hour_info)
+                                availability_windows[key]["fixed_hours"].append(
+                                    hour_info
+                                )
                             elif avail.availability_type.value == "PREFERRED":
-                                availability_windows[key]["preferred_hours"].append(hour_info)
+                                availability_windows[key]["preferred_hours"].append(
+                                    hour_info
+                                )
                             else:  # AVAILABLE
-                                availability_windows[key]["available_hours"].append(hour_info)
+                                availability_windows[key]["available_hours"].append(
+                                    hour_info
+                                )
                         current_date += timedelta(days=1)
 
                 # Convert to time ranges and create simplified availability data
@@ -338,27 +423,35 @@ class AISchedulerService:
                         "employee_id": window_data["employee_id"],
                         "day_index": window_data["day_index"],
                     }
-                    
+
                     # Create time ranges for each availability type
-                    for avail_type in ["fixed_hours", "preferred_hours", "available_hours"]:
+                    for avail_type in [
+                        "fixed_hours",
+                        "preferred_hours",
+                        "available_hours",
+                    ]:
                         hours = sorted(window_data[avail_type])
                         if hours:
                             # Convert hours to time ranges (simplified)
-                            time_range = f"{min(hours):02d}:00-{max(hours)+1:02d}:00"
-                            simplified_window[avail_type.replace("_hours", "_time_range")] = time_range
-                    
+                            time_range = f"{min(hours):02d}:00-{max(hours) + 1:02d}:00"
+                            simplified_window[
+                                avail_type.replace("_hours", "_time_range")
+                            ] = time_range
+
                     availability_data.append(simplified_window)
 
                 collected_data["availability"] = availability_data
 
                 if tracker:
-                    tracker.log_info(f"Collected {len(availability_data)} availability windows")
+                    tracker.log_info(
+                        f"Collected {len(availability_data)} availability windows"
+                    )
 
             # 5. Get absences - already optimized, only overlapping dates
             absences = Absence.query.filter(
                 Absence.employee_id.in_(employee_ids) if employee_ids else False,
-                Absence.start_date <= end_date, 
-                Absence.end_date >= start_date
+                Absence.start_date <= end_date,
+                Absence.end_date >= start_date,
             ).all()
 
             absence_data = []
@@ -380,13 +473,17 @@ class AISchedulerService:
             collected_data_text = json.dumps(collected_data, indent=2)
 
             if tracker:
-                tracker.end_step({
-                    "employees": len(employee_data),
-                    "shifts": len(shift_data), 
-                    "coverage_rules": len(coverage_rules),
-                    "availability_windows": len(availability_data) if 'availability_data' in locals() else 0,
-                    "absences": len(absence_data)
-                })
+                tracker.end_step(
+                    {
+                        "employees": len(employee_data),
+                        "shifts": len(shift_data),
+                        "coverage_rules": len(coverage_rules),
+                        "availability_windows": len(availability_data)
+                        if "availability_data" in locals()
+                        else 0,
+                        "absences": len(absence_data),
+                    }
+                )
 
             return collected_data_text
 
@@ -425,12 +522,26 @@ class AISchedulerService:
         - availability: Employee availability windows by day (simplified time ranges)
         - absences: Employee unavailability periods (exact dates)
 
-        SCHEDULING LOGIC:
-        1. For each date in the schedule period, apply coverage rules that match the weekday
-        2. Select appropriate shift templates that overlap with coverage time periods
-        3. Assign employees based on their availability windows and absence constraints
-        4. Ensure minimum staffing levels are met for each coverage requirement
-        5. Distribute workload fairly across employees and shift types
+        SCHEDULING REQUIREMENTS:
+        1. COMPREHENSIVE COVERAGE: 
+           - For EVERY date in the schedule period, review ALL coverage rules for that weekday
+           - Ensure minimum staffing levels are met for EACH coverage time period
+           - Use multiple overlapping shifts if needed to cover all time periods
+           
+        2. SHIFT VARIETY:
+           - Use DIFFERENT shift templates throughout the week
+           - Avoid assigning the same shift type repeatedly to the same employee
+           - Rotate morning, afternoon, and evening shifts among staff
+           
+        3. EMPLOYEE DISTRIBUTION:
+           - Schedule ALL available employees (not just a few)
+           - Aim for fair distribution of hours across all employees
+           - Each employee should work multiple days per week if possible
+           
+        4. REALISTIC SCHEDULES:
+           - Most full-time employees work 4-5 days per week
+           - Part-time employees work 2-3 days per week
+           - Include appropriate days off between shifts
 
         OUTPUT FORMAT:
         Provide the schedule STRICTLY in CSV format with these columns in exact order:
@@ -439,7 +550,7 @@ class AISchedulerService:
         Example CSV Row:
         101,2024-07-15,3,Morning Shift,08:00,16:00
 
-        SCHEDULING INSTRUCTIONS:
+        DETAILED SCHEDULING INSTRUCTIONS:
         1. COVERAGE FULFILLMENT: 
            - Apply coverage rules to matching weekdays in the schedule period
            - Ensure sufficient employees work during each required time period
@@ -458,10 +569,12 @@ class AISchedulerService:
            - Time format: HH:MM matching the selected shift template
         6. OUTPUT ONLY: Return ONLY the CSV data, no explanations or additional text
 
+        IMPORTANT: Generate a COMPLETE schedule for ALL dates in the period, using ALL available employees and VARIOUS shift templates.
+
         Provided Data:
         {collected_data_text}
 
-        Generate the schedule assignments in CSV format now:"""
+        Generate the complete schedule assignments in CSV format now:"""
 
         if tracker:
             tracker.log_debug("System prompt generated")
@@ -636,13 +749,15 @@ class AISchedulerService:
         try:
             csv_reader = csv.reader(StringIO(csv_text))
             header = next(csv_reader, None)
-            
+
             # Handle empty CSV
             if header is None:
                 if tracker:
                     tracker.log_warning("CSV response is empty or contains no header.")
                 else:
-                    logger.app_logger.warning("CSV response is empty or contains no header.")
+                    logger.app_logger.warning(
+                        "CSV response is empty or contains no header."
+                    )
                 return []
 
             # Verify the header matches expected format
@@ -774,14 +889,18 @@ class AISchedulerService:
                     # Validate shift name (generate if empty since we simplified the data)
                     if not shift_name or shift_name.strip() == "":
                         # Generate a name from the shift template data
-                        shift_name = self._generate_shift_name(shift_template_id, start_time, end_time)
+                        shift_name = self._generate_shift_name(
+                            shift_template_id, start_time, end_time
+                        )
                         if tracker:
                             tracker.log_info(
                                 f"Row {row_count}: Generated shift name '{shift_name}' for empty ShiftName"
                             )
                         else:
                             logger.app_logger.info(
-                                "Row %d: Generated shift name '%s' for empty ShiftName", row_count, shift_name
+                                "Row %d: Generated shift name '%s' for empty ShiftName",
+                                row_count,
+                                shift_name,
                             )
 
                     # Create a structured record for each assignment
@@ -1228,34 +1347,36 @@ class AISchedulerService:
             tracker.end_process({"status": "failed", "reason": "unknown_error"})
             raise RuntimeError(error_message) from e
 
-    def _analyze_coverage_fulfillment_potential(self, shift_data, coverage_data, tracker=None):
+    def _analyze_coverage_fulfillment_potential(
+        self, shift_data, coverage_data, tracker=None
+    ):
         """Analyze how well shift templates can fulfill coverage requirements"""
         if not shift_data or not coverage_data:
             return
-        
+
         def time_to_minutes(time_str):
             """Convert HH:MM to minutes since midnight"""
-            hours, minutes = map(int, time_str.split(':'))
+            hours, minutes = map(int, time_str.split(":"))
             return hours * 60 + minutes
-        
+
         def times_overlap(start1, end1, start2, end2):
             """Check if two time periods overlap"""
             start1_min = time_to_minutes(start1)
             end1_min = time_to_minutes(end1)
             start2_min = time_to_minutes(start2)
             end2_min = time_to_minutes(end2)
-            
+
             # Handle overnight shifts
             if end1_min < start1_min:
                 end1_min += 24 * 60
             if end2_min < start2_min:
                 end2_min += 24 * 60
-            
+
             return not (end1_min <= start2_min or end2_min <= start1_min)
-        
+
         if tracker:
             tracker.log_info("Analyzing coverage fulfillment potential:")
-            
+
             # Group coverage by date for analysis
             coverage_by_date = {}
             for coverage in coverage_data:
@@ -1263,33 +1384,41 @@ class AISchedulerService:
                 if date not in coverage_by_date:
                     coverage_by_date[date] = []
                 coverage_by_date[date].append(coverage)
-            
+
             for date, date_coverage in coverage_by_date.items():
                 tracker.log_info(f"\nDate {date}:")
-                
+
                 for coverage in date_coverage:
-                    period_parts = coverage["time_period"].split('-')
+                    period_parts = coverage["time_period"].split("-")
                     if len(period_parts) != 2:
                         continue
-                    
+
                     cov_start, cov_end = period_parts
                     min_emp = coverage["min_employees"]
                     max_emp = coverage["max_employees"]
-                    
-                    tracker.log_info(f"  Coverage {cov_start}-{cov_end} needs {min_emp}-{max_emp} employees")
-                    
+
+                    tracker.log_info(
+                        f"  Coverage {cov_start}-{cov_end} needs {min_emp}-{max_emp} employees"
+                    )
+
                     # Find overlapping shifts
                     overlapping_shifts = []
                     for shift in shift_data:
-                        if times_overlap(cov_start, cov_end, shift["start_time"], shift["end_time"]):
+                        if times_overlap(
+                            cov_start, cov_end, shift["start_time"], shift["end_time"]
+                        ):
                             overlapping_shifts.append(shift)
-                    
+
                     if overlapping_shifts:
-                        tracker.log_info(f"    Can be covered by {len(overlapping_shifts)} shift templates:")
+                        tracker.log_info(
+                            f"    Can be covered by {len(overlapping_shifts)} shift templates:"
+                        )
                         for shift in overlapping_shifts:
-                            tracker.log_info(f"      - {shift['name']} ({shift['start_time']}-{shift['end_time']})")
+                            tracker.log_info(
+                                f"      - {shift['name']} ({shift['start_time']}-{shift['end_time']})"
+                            )
                     else:
-                        tracker.log_warning(f"    No overlapping shift templates found!")
+                        tracker.log_warning("    No overlapping shift templates found!")
 
     def _generate_shift_name(self, shift_template_id, start_time, end_time):
         """Generate a descriptive shift name from shift template data"""
@@ -1298,9 +1427,9 @@ class AISchedulerService:
             shift = ShiftTemplate.query.get(shift_template_id)
             if shift and shift.name:
                 return shift.name
-            
+
             # Generate name based on time pattern
-            start_hour = int(start_time.split(':')[0])
+            start_hour = int(start_time.split(":")[0])
             if start_hour < 11:
                 return f"Early Shift ({start_time}-{end_time})"
             elif start_hour >= 15:

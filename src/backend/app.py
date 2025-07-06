@@ -39,7 +39,10 @@ from src.backend.config import Config
 from src.backend.models import db
 
 # Import AI models to ensure they're registered with SQLAlchemy
-from src.backend.routes import logs
+from src.backend.routes import (
+    api_bp,  # Import the main API blueprint
+    logs,
+)
 from src.backend.routes.absences import bp as absences_bp
 from src.backend.routes.ai_schedule_routes import ai_schedule_bp
 from src.backend.routes.auth import bp as auth_bp
@@ -179,6 +182,9 @@ def create_app(config_class=Config):
     setup_logging(app)
 
     # Register blueprints
+    # Register the main API blueprint which includes AI conversation routes
+    app.register_blueprint(api_bp, url_prefix="/api/v2")
+
     app.register_blueprint(shifts, url_prefix="/api/v2")
     app.register_blueprint(settings, url_prefix="/api/v2")
     app.register_blueprint(schedules, url_prefix="/api/v2")

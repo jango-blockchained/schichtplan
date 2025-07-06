@@ -179,9 +179,9 @@ export function AIConversationGenerationDialog({
                 setRecommendations(response.recommendations);
                 setCurrentStep('generate');
                 setProgress(60);
-                setIsLoading(false);
 
-                // Don't automatically generate - let user review recommendations first
+                // Automatically proceed to generation
+                setTimeout(() => generateSchedule(), 1000);
             } else {
                 throw new Error(response.message || 'Failed to get recommendations');
             }
@@ -208,8 +208,14 @@ export function AIConversationGenerationDialog({
                 throw new Error(response.message || 'Failed to generate schedule');
             }
         } catch (error) {
-            setError(error instanceof Error ? error.message : 'Failed to generate schedule');
+            const errorMessage = error instanceof Error ? error.message : 'Failed to generate schedule';
+            setError(errorMessage);
             setIsLoading(false);
+
+            // Check if it's a missing API key error
+            if (errorMessage.includes('Gemini API key')) {
+                toast.error('AI generation requires a Gemini API key. Please configure it in your environment settings.');
+            }
         }
     };
 
@@ -375,6 +381,18 @@ export function AIConversationGenerationDialog({
                                 <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
                                 <p className="text-muted-foreground">Generating optimized schedule...</p>
                                 <p className="text-sm text-muted-foreground mt-2">This may take a few moments...</p>
+                            </div>
+                        ) : generationResult ? (
+                            <div className="space-y-4">
+                                <Alert className="border-green-200 bg-green-50 dark:bg-green-950">
+                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                    <AlertDescription>
+                                        Schedule generation in progress...
+                                    </AlertDescription>
+                                </Alert>
+                                <p className="text-sm text-muted-foreground">
+                                    The system is creating your optimized schedule. Please wait...
+                                </p>
                             </div>
                         ) : null}
                     </div>
