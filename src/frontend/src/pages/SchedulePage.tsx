@@ -576,6 +576,7 @@ export function SchedulePage() {
     resetGenerationState,
     updateGenerationStep,
     addGenerationLog,
+    clearGenerationLogs,
   } = useScheduleGeneration({
     dateRange: effectiveDateRange,
     selectedVersion: effectiveSelectedVersionNumber,
