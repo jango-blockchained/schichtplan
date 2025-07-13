@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import { GenerationOptions } from "@/hooks/useScheduleGeneration";
-import { Settings } from "@/types";
+import type { Settings } from "@/types/index";
 import { Play, RefreshCw, Save } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { Checkbox } from "./ui/checkbox";

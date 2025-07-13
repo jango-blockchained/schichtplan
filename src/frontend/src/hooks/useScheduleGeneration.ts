@@ -64,17 +64,14 @@ export function useScheduleGeneration({
   const addGenerationLog = useCallback((
     type: "info" | "warning" | "error",
     message: string,
-    details?: string,
+    details?: string
   ) => {
-    setGenerationLogs((prev) => [
-      ...prev,
-      {
-        timestamp: new Date().toISOString(),
-        type,
-        message,
-        details,
-      },
-    ]);
+    setGenerationLogs(prev => [...prev, {
+      type,
+      timestamp: new Date().toISOString(),
+      message,
+      details
+    }]);
   }, []);
 
   const clearGenerationLogs = useCallback(() => {
