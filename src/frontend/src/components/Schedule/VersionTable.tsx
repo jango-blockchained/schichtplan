@@ -111,7 +111,7 @@ export function VersionTable({
       const end = new Date(endDate);
       const dayDiff = differenceInDays(end, start);
       return Math.ceil((dayDiff + 1) / 7);
-    } catch (error) {
+    } catch {
       return 1;
     }
   };
@@ -144,12 +144,12 @@ export function VersionTable({
   // Filter versions by date range if enabled
   const filteredVersions = filterByDate && dateRange
     ? versions.filter(v => {
-        const vStart = new Date(v.date_range.start);
-        const vEnd = new Date(v.date_range.end);
-        const fStart = new Date(dateRange.start);
-        const fEnd = new Date(dateRange.end);
-        return vStart >= fStart && vEnd <= fEnd;
-      })
+      const vStart = new Date(v.date_range.start);
+      const vEnd = new Date(v.date_range.end);
+      const fStart = new Date(dateRange.start);
+      const fEnd = new Date(dateRange.end);
+      return vStart >= fStart && vEnd <= fEnd;
+    })
     : versions;
 
   // Sort versions by version number descending
@@ -331,7 +331,7 @@ export function VersionTable({
                     const isNew =
                       version.created_at &&
                       new Date(version.created_at) >
-                        new Date(Date.now() - 24 * 60 * 60 * 1000);
+                      new Date(Date.now() - 24 * 60 * 60 * 1000);
 
                     return (
                       <TableRow
@@ -451,8 +451,8 @@ export function VersionTable({
                                   <TooltipContent>
                                     <p>Version duplizieren</p>
                                   </TooltipContent>
-                                </TooltipProvider>
-                              </Tooltip>
+                                </Tooltip>
+                              </TooltipProvider>
                             )}
 
                             {version.status === "DRAFT" && (
@@ -471,8 +471,8 @@ export function VersionTable({
                                   <TooltipContent>
                                     <p>Version löschen</p>
                                   </TooltipContent>
-                                </TooltipProvider>
-                              </Tooltip>
+                                </Tooltip>
+                              </TooltipProvider>
                             )}
                           </div>
                         </TableCell>
