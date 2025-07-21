@@ -1,63 +1,7 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  getSchedules,
-  ScheduleResponse,
-  Schedule as APISchedule,
-  getEmployees,
-  getShifts as getShiftTemplatesApiService,
-  Shift as APIShift,
-  updateSchedule,
-  createSchedule,
-  getEmployeeAvailabilityByDate,
-  exportSchedule,
-  EmployeeAvailabilityStatus,
-  generateDemoData,
-} from '@/services/api';
-import { Employee } from '@/types';
-import { format, startOfMonth, endOfMonth, isSameDay, startOfWeek, endOfWeek, addDays, isWithinInterval, parseISO, addWeeks, subWeeks, isSameMonth } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-import { 
-  Info, 
-  Calendar, 
-  CalendarDays, 
-  CalendarRange,
-  Filter,
-  Download,
-  Copy,
-  Trash2,
-  Plus,
-  Users,
-  Clock,
-  AlertCircle,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  Settings,
-  MoreVertical,
-  Eye,
-  EyeOff,
-  Shuffle,
-  CheckCircle2,
-} from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuCheckboxItem,
-} from "@/components/ui/dropdown-menu";
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -66,13 +10,63 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { useToast } from "@/components/ui/use-toast";
-import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useToast } from "@/components/ui/use-toast";
+import { cn } from "@/lib/utils";
+import {
+  Schedule as APISchedule,
+  Shift as APIShift,
+  createSchedule,
+  exportSchedule,
+  generateDemoData,
+  getEmployeeAvailabilityByDate,
+  getEmployees,
+  getSchedules,
+  getShifts as getShiftTemplatesApiService,
+  ScheduleResponse,
+  updateSchedule,
+} from '@/services/api';
+import { Employee, EmployeeAvailabilityStatus } from '@/types';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { addDays, addWeeks, endOfMonth, endOfWeek, format, isSameDay, startOfMonth, startOfWeek, subWeeks } from 'date-fns';
+import {
+  AlertCircle,
+  Calendar,
+  CalendarDays,
+  CalendarRange,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Copy,
+  Download,
+  Filter,
+  Info,
+  Loader2,
+  MoreVertical,
+  Plus,
+  Shuffle,
+  Trash2,
+  Users
+} from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { DragDropContext, Draggable, Droppable, DropResult } from 'react-beautiful-dnd';
 
 type ViewMode = 'month' | 'week' | 'day';
 
@@ -82,7 +76,7 @@ interface ShiftTypeColor {
 
 const shiftTypeColors: ShiftTypeColor = {
   'EARLY': 'bg-blue-500',
-  'MIDDLE': 'bg-green-500', 
+  'MIDDLE': 'bg-green-500',
   'LATE': 'bg-purple-500',
   'NIGHT': 'bg-indigo-500',
 };
@@ -105,7 +99,7 @@ interface ScheduleAssignment {
 const CalendarPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+
   // State Management
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -153,7 +147,7 @@ const CalendarPage: React.FC = () => {
       selectedVersion,
       filterOptions.showEmpty,
     ],
-    queryFn: () => 
+    queryFn: () =>
       getSchedules(
         format(dateRange.start, 'yyyy-MM-dd'),
         format(dateRange.end, 'yyyy-MM-dd'),
@@ -203,23 +197,23 @@ const CalendarPage: React.FC = () => {
   // Filter schedules based on filter options
   const filteredSchedules = useMemo(() => {
     if (!scheduleResponse?.schedules) return [];
-    
+
     return scheduleResponse.schedules.filter(schedule => {
       // Filter by employees
       if (filterOptions.employees.length > 0 && !filterOptions.employees.includes(schedule.employee_id)) {
         return false;
       }
-      
+
       // Filter by shift types
       if (filterOptions.shiftTypes.length > 0 && schedule.shift_type_id && !filterOptions.shiftTypes.includes(schedule.shift_type_id)) {
         return false;
       }
-      
+
       // Filter empty schedules
       if (!filterOptions.showEmpty && (!schedule.shift_id || schedule.is_empty)) {
         return false;
       }
-      
+
       return true;
     });
   }, [scheduleResponse?.schedules, filterOptions]);
@@ -274,10 +268,10 @@ const CalendarPage: React.FC = () => {
       toast({ title: "Schedule updated successfully" });
     },
     onError: (error) => {
-      toast({ 
-        title: "Failed to update schedule", 
+      toast({
+        title: "Failed to update schedule",
         description: error.message,
-        variant: "destructive" 
+        variant: "destructive"
       });
     },
   });
@@ -290,10 +284,10 @@ const CalendarPage: React.FC = () => {
       setIsScheduleDialogOpen(false);
     },
     onError: (error) => {
-      toast({ 
-        title: "Failed to create schedule", 
+      toast({
+        title: "Failed to create schedule",
         description: error.message,
-        variant: "destructive" 
+        variant: "destructive"
       });
     },
   });
@@ -305,10 +299,10 @@ const CalendarPage: React.FC = () => {
       toast({ title: "Schedule cleared successfully" });
     },
     onError: (error) => {
-      toast({ 
-        title: "Failed to clear schedule", 
+      toast({
+        title: "Failed to clear schedule",
         description: error.message,
-        variant: "destructive" 
+        variant: "destructive"
       });
     },
   });
@@ -365,10 +359,10 @@ const CalendarPage: React.FC = () => {
       document.body.removeChild(a);
       toast({ title: "Schedule exported successfully" });
     } catch (error) {
-      toast({ 
-        title: "Failed to export schedule", 
+      toast({
+        title: "Failed to export schedule",
         description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive" 
+        variant: "destructive"
       });
     }
   };
@@ -379,7 +373,7 @@ const CalendarPage: React.FC = () => {
 
     const sourceId = result.draggableId;
     const [targetDate, targetShiftId, targetEmployeeId] = result.destination.droppableId.split('-');
-    
+
     const schedule = filteredSchedules.find(s => s.id.toString() === sourceId);
     if (!schedule) return;
 
@@ -413,10 +407,10 @@ const CalendarPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['schedules'] });
       toast({ title: "Demo data generated successfully" });
     } catch (error) {
-      toast({ 
-        title: "Failed to generate demo data", 
+      toast({
+        title: "Failed to generate demo data",
         description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive" 
+        variant: "destructive"
       });
     }
   };
@@ -450,7 +444,7 @@ const CalendarPage: React.FC = () => {
           const hasSchedules = daySchedules.length > 0;
           const filledCount = daySchedules.filter(s => s.employee_id && s.shift_id).length;
           const totalCount = daySchedules.filter(s => s.shift_id).length;
-          
+
           return (
             <TooltipProvider>
               <Tooltip>
@@ -471,8 +465,8 @@ const CalendarPage: React.FC = () => {
                       </div>
                     )}
                     {totalCount > filledCount && (
-                      <Badge 
-                        variant="destructive" 
+                      <Badge
+                        variant="destructive"
                         className="absolute -top-1 -right-1 h-4 w-4 p-0 text-[10px] flex items-center justify-center"
                       >
                         {totalCount - filledCount}
@@ -517,12 +511,12 @@ const CalendarPage: React.FC = () => {
             </div>
           ))}
         </div>
-        
+
         {/* Days columns */}
         {weekDays.map((day) => {
           const formattedDate = format(day, 'yyyy-MM-dd');
           const daySchedules = schedulesByDate.get(formattedDate) || [];
-          
+
           return (
             <div key={formattedDate} className="col-span-1">
               <div className={cn(
@@ -533,7 +527,7 @@ const CalendarPage: React.FC = () => {
                 <span>{format(day, 'EEE')}</span>
                 <span className="text-xs">{format(day, 'd')}</span>
               </div>
-              
+
               <ScrollArea className="h-[500px] border-x border-b rounded-b">
                 <DragDropContext onDragEnd={handleDragEnd}>
                   <Droppable droppableId={`${formattedDate}-week`}>
@@ -546,9 +540,9 @@ const CalendarPage: React.FC = () => {
                         {daySchedules.map((schedule, index) => {
                           const employee = employeeMap.get(schedule.employee_id);
                           const shift = shiftTemplateMap.get(schedule.shift_id!);
-                          
+
                           if (!shift) return null;
-                          
+
                           return (
                             <Draggable
                               key={schedule.id}
@@ -598,12 +592,12 @@ const CalendarPage: React.FC = () => {
     const formattedDate = format(currentDate, 'yyyy-MM-dd');
     const daySchedules = schedulesByDate.get(formattedDate) || [];
     const hourlySchedules = new Map<number, APISchedule[]>();
-    
+
     // Group schedules by hour
     daySchedules.forEach(schedule => {
       const shift = shiftTemplateMap.get(schedule.shift_id!);
       if (!shift) return;
-      
+
       const startHour = parseInt(shift.start_time.split(':')[0]);
       if (!hourlySchedules.has(startHour)) {
         hourlySchedules.set(startHour, []);
@@ -634,12 +628,12 @@ const CalendarPage: React.FC = () => {
             </Button>
           </div>
         </div>
-        
+
         <ScrollArea className="h-[600px]">
           <div className="space-y-2">
             {Array.from({ length: 24 }, (_, hour) => {
               const schedules = hourlySchedules.get(hour) || [];
-              
+
               return (
                 <div key={hour} className="flex gap-4 p-2 border rounded">
                   <div className="w-16 text-sm font-medium text-muted-foreground">
@@ -651,7 +645,7 @@ const CalendarPage: React.FC = () => {
                         {schedules.map(schedule => {
                           const employee = employeeMap.get(schedule.employee_id);
                           const shift = shiftTemplateMap.get(schedule.shift_id!);
-                          
+
                           return (
                             <Card key={schedule.id} className="p-3">
                               <div className="flex justify-between items-start">
@@ -663,7 +657,7 @@ const CalendarPage: React.FC = () => {
                                     {shift?.start_time.substring(0, 5)} - {shift?.end_time.substring(0, 5)}
                                   </p>
                                   {schedule.shift_type_id && (
-                                    <Badge 
+                                    <Badge
                                       className={cn(
                                         "mt-1",
                                         shiftTypeColors[schedule.shift_type_id] || 'bg-gray-500'
@@ -686,7 +680,7 @@ const CalendarPage: React.FC = () => {
                                     }}>
                                       Edit
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem 
+                                    <DropdownMenuItem
                                       onClick={() => deleteScheduleMutation.mutate(schedule.id)}
                                       className="text-destructive"
                                     >
@@ -714,10 +708,10 @@ const CalendarPage: React.FC = () => {
 
   const renderSelectedDateSchedules = () => {
     if (!selectedDate) return null;
-    
+
     const formattedDate = format(selectedDate, 'yyyy-MM-dd');
     const daySchedules = schedulesByDate.get(formattedDate) || [];
-    
+
     return (
       <Card>
         <CardHeader className="pb-3">
@@ -743,7 +737,7 @@ const CalendarPage: React.FC = () => {
               <Separator className="my-3" />
             </div>
           )}
-          
+
           <ScrollArea className="h-[400px]">
             <DragDropContext onDragEnd={handleDragEnd}>
               <Droppable droppableId={`${formattedDate}-sidebar`}>
@@ -757,7 +751,7 @@ const CalendarPage: React.FC = () => {
                       daySchedules.map((schedule, index) => {
                         const employee = employeeMap.get(schedule.employee_id);
                         const shift = shiftTemplateMap.get(schedule.shift_id!);
-                        
+
                         return (
                           <Draggable
                             key={schedule.id}
@@ -786,7 +780,7 @@ const CalendarPage: React.FC = () => {
                                       </p>
                                     )}
                                     {schedule.shift_type_id && (
-                                      <Badge 
+                                      <Badge
                                         className={cn(
                                           "mt-1",
                                           shiftTypeColors[schedule.shift_type_id] || 'bg-gray-500'
@@ -815,7 +809,7 @@ const CalendarPage: React.FC = () => {
                                       }}>
                                         Edit
                                       </DropdownMenuItem>
-                                      <DropdownMenuItem 
+                                      <DropdownMenuItem
                                         onClick={() => deleteScheduleMutation.mutate(schedule.id)}
                                         className="text-destructive"
                                       >
@@ -876,7 +870,7 @@ const CalendarPage: React.FC = () => {
             </Tooltip>
           </TooltipProvider>
         </h1>
-        
+
         <div className="flex flex-wrap gap-2 items-center">
           {/* View Mode Tabs */}
           <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
@@ -895,7 +889,7 @@ const CalendarPage: React.FC = () => {
               </TabsTrigger>
             </TabsList>
           </Tabs>
-          
+
           {/* Navigation */}
           <div className="flex items-center gap-1">
             <Button size="sm" variant="outline" onClick={navigateToday}>
@@ -908,7 +902,7 @@ const CalendarPage: React.FC = () => {
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-          
+
           {/* Version Selector */}
           {scheduleResponse?.versions && scheduleResponse.versions.length > 0 && (
             <Select
@@ -935,7 +929,7 @@ const CalendarPage: React.FC = () => {
               </SelectContent>
             </Select>
           )}
-          
+
           {/* Actions */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -993,8 +987,8 @@ const CalendarPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted-foreground" />
               <span className="font-medium">Coverage:</span>
-              <Progress 
-                value={(statistics.filledShifts / (statistics.totalShifts || 1)) * 100} 
+              <Progress
+                value={(statistics.filledShifts / (statistics.totalShifts || 1)) * 100}
                 className="w-24 h-2"
               />
               <span>{Math.round((statistics.filledShifts / (statistics.totalShifts || 1)) * 100)}%</span>
@@ -1034,7 +1028,7 @@ const CalendarPage: React.FC = () => {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div>
                 <Label className="text-sm">Shift Types</Label>
                 <Select
@@ -1056,7 +1050,7 @@ const CalendarPage: React.FC = () => {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div className="flex flex-col gap-2">
                 <Label className="text-sm">Options</Label>
                 <div className="space-y-2">
@@ -1116,7 +1110,7 @@ const CalendarPage: React.FC = () => {
             )}
           </CardContent>
         </Card>
-        
+
         {/* Sidebar for selected date */}
         {viewMode === 'month' && (
           <div className="w-full lg:w-96">
@@ -1136,11 +1130,11 @@ const CalendarPage: React.FC = () => {
               {editingSchedule ? 'Update the schedule details below.' : 'Fill in the details to create a new schedule.'}
             </DialogDescription>
           </DialogHeader>
-          
+
           <form onSubmit={(e) => {
             e.preventDefault();
             const formData = new FormData(e.currentTarget);
-            
+
             if (editingSchedule) {
               // Update existing schedule
               updateScheduleMutation.mutate({
@@ -1161,7 +1155,7 @@ const CalendarPage: React.FC = () => {
                 notes: formData.get('notes')?.toString() || null,
               });
             }
-            
+
             setEditingSchedule(null);
           }}>
             <div className="space-y-4">
@@ -1176,7 +1170,7 @@ const CalendarPage: React.FC = () => {
                   required={!editingSchedule}
                 />
               </div>
-              
+
               <div>
                 <Label htmlFor="employee">Employee</Label>
                 <Select name="employee" defaultValue={editingSchedule?.employee_id?.toString() || 'unassigned'}>
@@ -1193,7 +1187,7 @@ const CalendarPage: React.FC = () => {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div>
                 <Label htmlFor="shift">Shift</Label>
                 <Select name="shift" defaultValue={editingSchedule?.shift_id?.toString()} required>
@@ -1209,7 +1203,7 @@ const CalendarPage: React.FC = () => {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div>
                 <Label htmlFor="notes">Notes</Label>
                 <Textarea
@@ -1220,7 +1214,7 @@ const CalendarPage: React.FC = () => {
                 />
               </div>
             </div>
-            
+
             <DialogFooter className="mt-6">
               <Button type="button" variant="outline" onClick={() => {
                 setIsScheduleDialogOpen(false);

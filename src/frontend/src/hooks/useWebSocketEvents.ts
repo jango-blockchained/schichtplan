@@ -1,9 +1,11 @@
-import { useEffect } from 'react';
 import { useWebSocket } from '@/contexts/WebSocketContext';
+import { useEffect } from 'react';
 
 export type WebSocketEventType =
     | 'schedule_updated'
     | 'availability_updated'
+    | 'coverage_updated'
+    | 'absence_updated'
     | 'connect'
     | 'disconnect'
     | 'reconnecting'
