@@ -491,3 +491,21 @@ export interface SpecialDay {
     closing: string; // HH:MM format
   };
 }
+
+// Add missing Availability interface
+export interface Availability {
+  id?: number;
+  employee_id: number;
+  start_date: string;
+  end_date: string;
+  start_time?: string;
+  end_time?: string;
+  availability_type: "AVAILABLE" | "FIXED" | "PREFERRED" | "UNAVAILABLE";
+  reason?: string;
+  is_recurring: boolean;
+  recurrence_day?: number;
+}
+
+// Add missing week navigation types
+export type WeekendStart = "MONDAY" | "SUNDAY";
+export type MonthBoundaryMode = "keep_intact" | "split_by_month";

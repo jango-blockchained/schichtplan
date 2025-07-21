@@ -87,7 +87,6 @@ pyinstaller --onefile \
     --workpath ../../electron/build/backend \
     --specpath ../../electron/build/backend \
     --add-data ".:backend" \
-    --add-data "../../electron/src/desktop_server.py:." \
     --hidden-import flask \
     --hidden-import flask_sqlalchemy \
     --hidden-import flask_migrate \
