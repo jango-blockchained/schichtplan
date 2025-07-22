@@ -60,33 +60,25 @@ class SchichtplanApp {
 
   async startBackendServer() {
     return new Promise((resolve, reject) => {
-      const backendPath = this.isDev 
-        ? path.join(__dirname, '..', 'src', 'backend', 'run.py')
-        : path.join(process.resourcesPath, 'backend', 'run');
-
+      const projectRoot = path.join(__dirname, '..', '..');
+      const pythonPath = path.join(projectRoot, 'src', 'backend', '.venv', 'bin', 'python');
+      
       const env = {
         ...process.env,
-        FLASK_ENV: this.isDev ? 'development' : 'production',
+        FLASK_ENV: 'development',
         FLASK_HOST: '127.0.0.1',
         FLASK_PORT: this.backendPort.toString(),
         DATABASE_PATH: this.databasePath,
-        PYTHONPATH: this.isDev ? path.join(__dirname, '..') : process.resourcesPath
+        PYTHONPATH: projectRoot,
+        FLASK_APP: 'src.backend.app:create_app'
       };
 
-      if (this.isDev) {
-        // Development mode: run Python script directly
-        this.backendProcess = spawn('python', ['-m', 'src.backend.run', 'runserver', '--port', this.backendPort], {
-          cwd: path.join(__dirname, '..'),
-          env,
-          stdio: 'inherit'
-        });
-      } else {
-        // Production mode: run bundled executable
-        this.backendProcess = spawn(backendPath, ['runserver', '--port', this.backendPort], {
-          env,
-          stdio: 'inherit'
-        });
-      }
+      // Always use development mode for now - use Python virtual environment
+      this.backendProcess = spawn(pythonPath, ['-m', 'src.backend.run', 'runserver', '--port', this.backendPort], {
+        cwd: projectRoot,
+        env,
+        stdio: 'inherit'
+      });
 
       this.backendProcess.on('error', (error) => {
         console.error('Backend process error:', error);
@@ -120,10 +112,8 @@ class SchichtplanApp {
       show: false
     });
 
-    // Load frontend
-    const frontendUrl = this.isDev 
-      ? 'http://localhost:5173'
-      : `file://${path.join(process.resourcesPath, 'frontend', 'index.html')}`;
+    // Load frontend - use dev server for now
+    const frontendUrl = 'http://localhost:5173';
     
     this.mainWindow.loadURL(frontendUrl);
 
