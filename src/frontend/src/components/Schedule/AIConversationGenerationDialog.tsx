@@ -205,15 +205,18 @@ export function AIConversationGenerationDialog({
                 setProgress(90);
                 setIsLoading(false);
             } else {
+                // If the API returns a structured error code, handle it here
+                if (response.error_code === 'MISSING_GEMINI_API_KEY') {
+                    toast.error('AI generation requires a Gemini API key. Please configure it in your environment settings.');
+                }
                 throw new Error(response.message || 'Failed to generate schedule');
             }
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Failed to generate schedule';
-            setError(errorMessage);
+        } catch (error: any) {
+            setError(error?.message || 'Failed to generate schedule');
             setIsLoading(false);
 
-            // Check if it's a missing API key error
-            if (errorMessage.includes('Gemini API key')) {
+            // Optionally, fallback to string matching if error_code is not available
+            if (error?.error_code === 'MISSING_GEMINI_API_KEY' || (error?.message && error.message.includes('Gemini API key'))) {
                 toast.error('AI generation requires a Gemini API key. Please configure it in your environment settings.');
             }
         }

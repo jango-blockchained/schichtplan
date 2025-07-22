@@ -430,20 +430,6 @@ class MEPPDFGenerator:
             col_widths = [w * scale_factor for w in col_widths]
 
         return col_widths
-        total_width = sum(col_widths)
-        if total_width > self.CONTENT_WIDTH:
-            # Scale down proportionally
-            scale_factor = self.CONTENT_WIDTH / total_width
-            col_widths = [w * scale_factor for w in col_widths]
-
-        return col_widths
-        total_width = sum(col_widths)
-        if total_width > self.CONTENT_WIDTH:
-            # Scale down proportionally
-            scale_factor = self.CONTENT_WIDTH / total_width
-            col_widths = [w * scale_factor for w in col_widths]
-
-        return col_widths
 
     def _get_table_style(self, num_days: int, num_employees: int) -> TableStyle:
         """Get the table style for the main schedule table with vertical structure."""
