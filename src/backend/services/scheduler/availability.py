@@ -459,8 +459,6 @@ class AvailabilityChecker:
             self.log_error(f"Error checking employee availability for date: {str(e)}")
             # Default to unavailable on error for safety
             return False
-            # Default to unavailable on error for safety
-            return False
 
     # Logging methods
     def log_error(self, message):

@@ -295,9 +295,8 @@ export function EnhancedAvailabilityModal({
         }) || null;
     };
 
-    const calculateShiftTimes = (originalShift: Shift, targetDate: Date): { start_time: string; end_time: string } => {
-        // Suppress unused parameter warning for now since this is a stub
-        void targetDate;
+    const calculateShiftTimes = (originalShift: Shift, _targetDate: Date): { start_time: string; end_time: string } => {
+        // _targetDate is intentionally unused for now
 
         if (!fixedOptions.adjustTimes) {
             return {
