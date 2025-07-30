@@ -81,11 +81,17 @@ pip install -r requirements.txt
 
 # Build backend executable
 print_status "Creating backend executable..."
+# Clean up any existing build artifacts first
+rm -rf ../../electron/build/backend_temp
+rm -rf ../../electron/resources/backend/*
+mkdir -p ../../electron/build/backend_temp
+mkdir -p ../../electron/resources/backend
+
 pyinstaller --onefile \
     --name schichtplan-backend \
     --distpath ../../electron/resources/backend \
-    --workpath ../../electron/build/backend \
-    --specpath ../../electron/build/backend \
+    --workpath ../../electron/build/backend_temp \
+    --specpath ../../electron/build/backend_temp \
     --add-data ".:backend" \
     --hidden-import flask \
     --hidden-import flask_sqlalchemy \
