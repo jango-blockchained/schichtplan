@@ -9,6 +9,7 @@ import { ScheduleTable } from "./ScheduleTable";
 
 interface ScheduleManagerProps {
   schedules: Schedule[];
+  monthlyPublishedSchedules?: Schedule[];
   dateRange: DateRange | undefined;
   onDrop: (
     scheduleId: number,
@@ -50,6 +51,7 @@ interface ScheduleManagerProps {
 
 export function ScheduleManager({
   schedules,
+  monthlyPublishedSchedules,
   dateRange,
   onDrop,
   onUpdate,
@@ -183,6 +185,7 @@ export function ScheduleManager({
       <CardContent className="p-0">
         <ScheduleTable
           schedules={schedules}
+          monthlyPublishedSchedules={monthlyPublishedSchedules}
           dateRange={dateRange}
           onDrop={onDrop}
           onUpdate={onUpdate}

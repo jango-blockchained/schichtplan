@@ -11,21 +11,38 @@ check_port() {
     nc -z localhost $1 >/dev/null 2>&1
 }
 
-# Function to kill process using a port
+# Consistent port killer (align with start.sh): use npx kill-port and verify
 kill_port() {
-    pid=$(lsof -t -i:$1)
-    if [ ! -z "$pid" ]; then
-        echo "Killing process on port $1 (PID: $pid)"
-        kill -9 $pid
+    local port=$1
+    if check_port "$port"; then
+        echo "Found process(es) on port $port, attempting to free it with npx kill-port..."
+        if sudo npx kill-port "$port" 2>/dev/null; then
+            sleep 1
+            if check_port "$port"; then
+                echo "ERROR: Port $port is still in use after kill attempt." >&2
+                return 1
+            else
+                echo "Successfully freed port $port."
+            fi
+        else
+            echo "ERROR: Failed to run 'sudo npx kill-port $port'." >&2
+            return 1
+        fi
+    else
+        echo "No processes found using port $port."
     fi
 }
 
 # Function to restart backend
 restart_backend() {
     echo "Restarting backend..."
+    # Ensure old backend is actually stopped (free the port used by the server)
+    kill_port 5000 || true
+    # Stop the existing tail so we can relaunch cleanly
     tmux send-keys -t schichtplan:0.0 C-c
     sleep 1
     clear_pane 0
+    # Relaunch backend and reattach tail
     tmux send-keys -t schichtplan:0.0 "python3 -m src.backend.run runserver > src/logs/tmux_backend_output.log 2>&1 &" C-m
     sleep 1
     tmux send-keys -t schichtplan:0.0 "tail -f src/logs/tmux_backend_output.log" C-m
@@ -35,11 +52,13 @@ restart_backend() {
 # Function to restart frontend
 restart_frontend() {
     echo "Restarting frontend..."
-    kill_port 5173
+    kill_port 5173 || true
     sleep 1
+    # Stop the existing tail so we can relaunch cleanly
     tmux send-keys -t schichtplan:0.1 C-c
     sleep 1
     clear_pane 1
+    # Relaunch frontend and reattach tail
     tmux send-keys -t schichtplan:0.1 "cd src/frontend" C-m
     tmux send-keys -t schichtplan:0.1 "npx vite > ../logs/tmux_frontend_output.log 2>&1 &" C-m
     sleep 1
@@ -57,14 +76,16 @@ restart_all() {
 # Function to stop backend
 stop_backend() {
     echo "Stopping backend..."
+    # Stop tail first, then free backend port to actually terminate server
     tmux send-keys -t schichtplan:0.0 C-c
-    echo "Backend stop signal sent via C-c."
+    kill_port 5000 || true
+    echo "Backend stopped."
 }
 
 # Function to stop frontend
 stop_frontend() {
     echo "Stopping frontend..."
-    kill_port 5173
+    kill_port 5173 || true
     tmux send-keys -t schichtplan:0.1 C-c
     echo "Frontend stopped!"
 }

@@ -237,6 +237,7 @@ interface AbsenceRecord {
 
 interface ScheduleTableProps {
   schedules: Schedule[];
+  monthlyPublishedSchedules?: Schedule[];
   dateRange: DateRange | undefined;
   onDrop: (
     scheduleId: number,
@@ -1083,6 +1084,7 @@ const checkForAbsence = (
 const calculateEmployeeHours = (
   employeeId: number,
   schedules: Schedule[],
+  monthlyPublishedSchedules: Schedule[] | undefined,
   dateRange: DateRange | undefined,
   employees?: Employee[],
   settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
@@ -1091,44 +1093,62 @@ const calculateEmployeeHours = (
     return { weeklyHours: 0, monthlyHours: 0, totalHours: 0 };
   }
 
-  const employeeSchedules = schedules.filter(
-    (s) => s.employee_id === employeeId && s.shift_id !== null && !s.is_empty
-  );
-
   // Find the employee for keyholder calculations
   const employee = employees?.find(emp => emp.id === employeeId);
 
-  let totalHours = 0;
+  // Calculate weekly hours from current version schedules
+  const weeklySchedules = schedules.filter(
+    (s) => s.employee_id === employeeId && s.shift_id !== null && !s.is_empty
+  );
 
-  employeeSchedules.forEach((schedule) => {
+  let weeklyHours = 0;
+  weeklySchedules.forEach((schedule) => {
     if (!schedule.shift_start || !schedule.shift_end || !schedule.date) return;
 
     try {
       const scheduleDate = parseISO(schedule.date);
 
-      // Only include schedules within the actual displayed date range
+      // Only include schedules within the actual displayed date range (week)
       if (isWithinInterval(scheduleDate, { start: dateRange.from, end: dateRange.to })) {
         // Use the centralized calculateWorkingTime function that handles breaks and keyholder adjustments
         const timeCalc = calculateWorkingTime(schedule, employee, settings);
-        const workingHours = timeCalc.workingTime;
-
-        totalHours += workingHours;
+        weeklyHours += timeCalc.workingTime;
       }
     } catch (error) {
-      console.error("Error calculating hours for schedule:", error);
+      console.error("Error calculating weekly hours for schedule:", error);
     }
   });
 
-  // For weekly/monthly views, the total hours within the date range IS the weekly/monthly total
+  // Calculate monthly hours from published schedules only
+  let monthlyHours = 0;
+  if (monthlyPublishedSchedules) {
+    const monthlySchedules = monthlyPublishedSchedules.filter(
+      (s) => s.employee_id === employeeId && s.shift_id !== null && !s.is_empty
+    );
+
+    monthlySchedules.forEach((schedule) => {
+      if (!schedule.shift_start || !schedule.shift_end || !schedule.date) return;
+
+      try {
+        // Use the centralized calculateWorkingTime function that handles breaks and keyholder adjustments
+        const timeCalc = calculateWorkingTime(schedule, employee, settings);
+        monthlyHours += timeCalc.workingTime;
+      } catch (error) {
+        console.error("Error calculating monthly hours for schedule:", error);
+      }
+    });
+  }
+
   return {
-    weeklyHours: totalHours,
-    monthlyHours: totalHours,
-    totalHours: totalHours
+    weeklyHours: weeklyHours,
+    monthlyHours: monthlyHours,
+    totalHours: weeklyHours // Total hours is same as weekly for compatibility
   };
 };
 
 export function ScheduleTable({
   schedules,
+  monthlyPublishedSchedules,
   dateRange,
   onDrop,
   onUpdate,
@@ -1457,6 +1477,7 @@ export function ScheduleTable({
             <div className={cn("w-full", isFullWidth ? "h-full overflow-auto" : "overflow-x-auto")} style={{ maxWidth: "100%" }}>
               <ScheduleTableNormal
                 schedules={schedules}
+                monthlyPublishedSchedules={monthlyPublishedSchedules}
                 dateRange={dateRange}
                 onDrop={onDrop}
                 onUpdate={onUpdate}
@@ -1491,6 +1512,7 @@ export function ScheduleTable({
 // Normal table view (Employee rows, Date columns)
 function ScheduleTableNormal({
   schedules,
+  monthlyPublishedSchedules,
   dateRange,
   onDrop,
   onUpdate,
@@ -1649,8 +1671,8 @@ function ScheduleTableNormal({
           break;
         }
         case "workload": {
-          const hoursA = calculateEmployeeHours(a, schedules, dateRange, employees, settings).weeklyHours;
-          const hoursB = calculateEmployeeHours(b, schedules, dateRange, employees, settings).weeklyHours;
+          const hoursA = calculateEmployeeHours(a, schedules, monthlyPublishedSchedules, dateRange, employees, settings).weeklyHours;
+          const hoursB = calculateEmployeeHours(b, schedules, monthlyPublishedSchedules, dateRange, employees, settings).weeklyHours;
           comparison = hoursA - hoursB;
           if (comparison === 0) {
             // Secondary sort by name
@@ -1835,7 +1857,7 @@ function ScheduleTableNormal({
                             );
                           }
                           case "workload": {
-                            const hours = calculateEmployeeHours(employeeId, schedules, dateRange, employees, settings);
+                            const hours = calculateEmployeeHours(employeeId, schedules, monthlyPublishedSchedules, dateRange, employees, settings);
                             return (
                               <div className="text-xs bg-orange-50 text-orange-700 px-1 py-0.5 rounded">
                                 {hours.weeklyHours.toFixed(1)}h
@@ -1849,7 +1871,7 @@ function ScheduleTableNormal({
                     </div>
                     <div className="text-xs text-muted-foreground mt-2 space-y-1 p-2 bg-muted/20 rounded border border-border">
                       {(() => {
-                        const hours = calculateEmployeeHours(employeeId, schedules, dateRange, employees, settings);
+                        const hours = calculateEmployeeHours(employeeId, schedules, monthlyPublishedSchedules, dateRange, employees, settings);
                         const employee = employeeLookup[employeeId];
                         const contractedHours = employee?.contracted_hours || 40;
 

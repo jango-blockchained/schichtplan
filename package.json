@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
+    "caniuse-lite": "^1.0.30001735",
     "date-fns": "^4.1.0",
     "ogl": "^1.0.11",
     "react-hook-form": "^7.56.4",

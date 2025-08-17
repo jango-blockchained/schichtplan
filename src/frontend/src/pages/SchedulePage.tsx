@@ -23,7 +23,7 @@
  *    - Remove unused isDuplicateVersionOpen dialog
  */
 
-import React, { useCallback, useEffect, useState } from "react"; // Added useCallback
+import React, { useCallback, useEffect, useMemo, useState } from "react"; // Added useCallback and useMemo
 import { DateRange } from "react-day-picker";
 // import { ShiftTable } from '@/components/ShiftTable'; // Original, might be unused if ScheduleManager is primary
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -564,6 +564,54 @@ export function SchedulePage() {
     effectiveSelectedVersionNumber, // Use the numeric version for API compatibility
     includeEmpty,
   );
+
+  // Calculate the month range for fetching monthly published schedules
+  const monthRange = useMemo(() => {
+    const from = safeEffectiveDateRange.from;
+    const startOfMonth = new Date(from.getFullYear(), from.getMonth(), 1);
+    const endOfMonth = new Date(from.getFullYear(), from.getMonth() + 1, 0);
+    return { from: startOfMonth, to: endOfMonth };
+  }, [safeEffectiveDateRange.from]);
+
+  // Fetch published schedules for the entire month
+  const { data: monthlyScheduleResponse } = useQuery({
+    queryKey: [
+      "monthlyPublishedSchedules",
+      format(monthRange.from, "yyyy-MM-dd"),
+      format(monthRange.to, "yyyy-MM-dd"),
+    ],
+    queryFn: async () => {
+      // Fetch all schedules for the month (no version filter)
+      const response = await getSchedules(
+        format(monthRange.from, "yyyy-MM-dd"),
+        format(monthRange.to, "yyyy-MM-dd"),
+        undefined, // No version filter - get all versions
+        false // Don't include empty schedules
+      );
+      return response;
+    },
+    enabled: !!monthRange.from && !!monthRange.to,
+  });
+
+  // Filter monthly schedules to only include published versions
+  const monthlyPublishedSchedules = useMemo(() => {
+    if (!monthlyScheduleResponse) return undefined;
+
+    // Get all published versions from the version metadata
+    const publishedVersions = new Set<number>();
+    if (monthlyScheduleResponse.version_statuses) {
+      Object.entries(monthlyScheduleResponse.version_statuses).forEach(([version, status]) => {
+        if (status === "PUBLISHED") {
+          publishedVersions.add(parseInt(version));
+        }
+      });
+    }
+
+    // Filter schedules to only include those from published versions
+    return monthlyScheduleResponse.schedules.filter(
+      schedule => publishedVersions.has(schedule.version)
+    );
+  }, [monthlyScheduleResponse]);
 
   // Custom Hook for Schedule Generation Logic
   const {
@@ -2204,6 +2252,7 @@ export function SchedulePage() {
               <AvailabilityProvider dateRange={safeEffectiveDateRange} enabled={!isLoadingSchedule}>
                 <ScheduleManager
                   schedules={effectiveSelectedVersionNumber ? (scheduleData || []) : []} // Only show schedules when version is selected
+                  monthlyPublishedSchedules={monthlyPublishedSchedules}
                   dateRange={effectiveDateRange}
                   onDrop={handleShiftDrop}
                   onUpdate={handleShiftUpdate}
