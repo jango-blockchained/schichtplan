@@ -284,6 +284,12 @@ const isEmptySchedule = (schedule: Schedule | undefined) => {
   return !schedule || schedule.shift_id === null;
 };
 
+// Treat shifts with 00:00-00:00 as placeholders (should not count toward hours)
+const isPlaceholderShift = (schedule: Schedule | undefined) => {
+  if (!schedule) return false;
+  return schedule.shift_start === "00:00" && schedule.shift_end === "00:00";
+};
+
 interface TimeSlotDisplayProps {
   startTime: string;
   endTime: string;
@@ -405,7 +411,9 @@ const TimeSlotDisplay = ({
   };
 
   // Add a more visible diagnostic indicator for missing time data
-  const hasMissingTimeData = (!startTime || !endTime) && schedule?.shift_id;
+  const hasMissingTimeData = (
+    (!startTime || !endTime) || (startTime === "00:00" && endTime === "00:00")
+  ) && schedule?.shift_id;
 
   // Enhanced debug logging for time slot display
   // Remove debug logging for production
@@ -1096,21 +1104,37 @@ const calculateEmployeeHours = (
   // Find the employee for keyholder calculations
   const employee = employees?.find(emp => emp.id === employeeId);
 
-  // Calculate weekly hours from current version schedules
-  const weeklySchedules = schedules.filter(
+  // Calculate weekly hours from current version schedules, deduplicating by date
+  const weeklyCandidateSchedules = schedules.filter(
     (s) => s.employee_id === employeeId && s.shift_id !== null && !s.is_empty
   );
 
+  // Build a best-per-day map to avoid double-counting multiple entries on the same day
+  const weeklyBestByDate = new Map<string, Schedule>();
+  weeklyCandidateSchedules.forEach((s) => {
+    const dateKey = (typeof s.date === 'string' ? s.date.split('T')[0] : format(s.date as unknown as Date, 'yyyy-MM-dd'));
+    const existing = weeklyBestByDate.get(dateKey);
+    const isPlaceholder = s.shift_start === '00:00' && s.shift_end === '00:00';
+    const hasTimes = !!s.shift_start && !!s.shift_end;
+    if (!existing) {
+      if (hasTimes && !isPlaceholder) weeklyBestByDate.set(dateKey, s);
+      else weeklyBestByDate.set(dateKey, s);
+    } else {
+      const existingPlaceholder = existing.shift_start === '00:00' && existing.shift_end === '00:00';
+      const existingHasTimes = !!existing.shift_start && !!existing.shift_end;
+      // Prefer schedules with real times over missing/placeholder
+      const currentScore = (hasTimes ? 2 : 0) + (!isPlaceholder ? 1 : 0);
+      const existingScore = (existingHasTimes ? 2 : 0) + (!existingPlaceholder ? 1 : 0);
+      if (currentScore > existingScore) weeklyBestByDate.set(dateKey, s);
+    }
+  });
+
   let weeklyHours = 0;
-  weeklySchedules.forEach((schedule) => {
+  weeklyBestByDate.forEach((schedule, dateKey) => {
     if (!schedule.shift_start || !schedule.shift_end || !schedule.date) return;
-
     try {
-      const scheduleDate = parseISO(schedule.date);
-
-      // Only include schedules within the actual displayed date range (week)
+      const scheduleDate = parseISO(`${dateKey}`);
       if (isWithinInterval(scheduleDate, { start: dateRange.from, end: dateRange.to })) {
-        // Use the centralized calculateWorkingTime function that handles breaks and keyholder adjustments
         const timeCalc = calculateWorkingTime(schedule, employee, settings);
         weeklyHours += timeCalc.workingTime;
       }
@@ -1122,15 +1146,31 @@ const calculateEmployeeHours = (
   // Calculate monthly hours from published schedules only
   let monthlyHours = 0;
   if (monthlyPublishedSchedules) {
-    const monthlySchedules = monthlyPublishedSchedules.filter(
+    const monthlyCandidates = monthlyPublishedSchedules.filter(
       (s) => s.employee_id === employeeId && s.shift_id !== null && !s.is_empty
     );
 
-    monthlySchedules.forEach((schedule) => {
-      if (!schedule.shift_start || !schedule.shift_end || !schedule.date) return;
+    const monthlyBestByDate = new Map<string, Schedule>();
+    monthlyCandidates.forEach((s) => {
+      const dateKey = (typeof s.date === 'string' ? s.date.split('T')[0] : format(s.date as unknown as Date, 'yyyy-MM-dd'));
+      const existing = monthlyBestByDate.get(dateKey);
+      const isPlaceholder = s.shift_start === '00:00' && s.shift_end === '00:00';
+      const hasTimes = !!s.shift_start && !!s.shift_end;
+      if (!existing) {
+        if (hasTimes && !isPlaceholder) monthlyBestByDate.set(dateKey, s);
+        else monthlyBestByDate.set(dateKey, s);
+      } else {
+        const existingPlaceholder = existing.shift_start === '00:00' && existing.shift_end === '00:00';
+        const existingHasTimes = !!existing.shift_start && !!existing.shift_end;
+        const currentScore = (hasTimes ? 2 : 0) + (!isPlaceholder ? 1 : 0);
+        const existingScore = (existingHasTimes ? 2 : 0) + (!existingPlaceholder ? 1 : 0);
+        if (currentScore > existingScore) monthlyBestByDate.set(dateKey, s);
+      }
+    });
 
+    monthlyBestByDate.forEach((schedule) => {
+      if (!schedule.shift_start || !schedule.shift_end || !schedule.date) return;
       try {
-        // Use the centralized calculateWorkingTime function that handles breaks and keyholder adjustments
         const timeCalc = calculateWorkingTime(schedule, employee, settings);
         monthlyHours += timeCalc.workingTime;
       } catch (error) {
@@ -1495,6 +1535,7 @@ export function ScheduleTable({
                 isFullWidth={isFullWidth}
                 employeeSortBy={employeeSortBy}
                 employeeSortOrder={employeeSortOrder}
+                weekNavigationSettings={weekNavigationSettings}
               />
             </div>
           )}
@@ -1529,6 +1570,7 @@ function ScheduleTableNormal({
   canNavigateNext,
   employeeSortBy,
   employeeSortOrder,
+  weekNavigationSettings,
 }: Omit<ScheduleTableProps, 'isLoading'> & {
   daysToDisplay: Date[];
   showNavigation: boolean;
@@ -1539,6 +1581,10 @@ function ScheduleTableNormal({
   isFullWidth: boolean;
   employeeSortBy: "name" | "group" | "hours" | "alphabetical" | "keyholder" | "shifts" | "workload";
   employeeSortOrder: "asc" | "desc";
+  weekNavigationSettings?: {
+    weekendStart?: number;
+    monthBoundaryMode?: string;
+  };
 }) {
   // Get employees data
   const { data: employees } = useQuery({
@@ -1595,6 +1641,15 @@ function ScheduleTableNormal({
     Saturday: "Sa.",
     Sunday: "So.",
   };
+
+  // Helper function to check if a date is at the start of a new month segment
+  const isMonthBoundary = (currentDate: Date, prevDate: Date | null): boolean => {
+    if (!prevDate) return false;
+    return currentDate.getMonth() !== prevDate.getMonth();
+  };
+
+  // Check if we're in split month mode
+  const isSplitMonthMode = weekNavigationSettings?.monthBoundaryMode === 'split_by_month';
 
   // Group schedules by employee ID and then by date for quick lookup
   const groupedSchedules = useMemo(() => {
@@ -1768,13 +1823,24 @@ function ScheduleTableNormal({
               )}
             </div>
           </th>
-          {daysToDisplay.map((date) => {
+          {daysToDisplay.map((date, index) => {
             const dailyHours = calculateDailyHours(schedules, date, employees, settings);
+            const prevDate = index > 0 ? daysToDisplay[index - 1] : null;
+            const isAtMonthBoundary = isSplitMonthMode && isMonthBoundary(date, prevDate);
+
             return (
               <th
                 key={date.toISOString()}
-                className="w-[160px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+                className={cn(
+                  "w-[160px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
+                  isAtMonthBoundary && "border-l-4 border-l-amber-500 bg-amber-50/50"
+                )}
               >
+                {isAtMonthBoundary && (
+                  <div className="text-xs text-amber-700 font-semibold mb-1 px-2 py-1 bg-amber-100 rounded-md border">
+                    {format(date, "MMM yyyy")}
+                  </div>
+                )}
                 <div className="font-semibold text-base">
                   {weekdayAbbr[format(date, "EEEE")]}
                 </div>
@@ -1901,9 +1967,11 @@ function ScheduleTableNormal({
                   </div>
                 </div>
               </td>
-              {daysToDisplay.map((date) => {
+              {daysToDisplay.map((date, dateIndex) => {
                 const dateString = format(date, "yyyy-MM-dd");
                 const schedule = employeeSchedules[dateString];
+                const prevDate = dateIndex > 0 ? daysToDisplay[dateIndex - 1] : null;
+                const isAtMonthBoundary = isSplitMonthMode && isMonthBoundary(date, prevDate);
 
                 const hasAbsence = checkForAbsence(
                   employeeId,
@@ -1918,6 +1986,7 @@ function ScheduleTableNormal({
                     className={cn(
                       "text-center p-0 w-[160px] h-[130px] border-r border-border last:border-r-0 transition-colors",
                       hasAbsence ? "relative" : "",
+                      isAtMonthBoundary && "border-l-4 border-l-amber-500 bg-amber-50/20",
                     )}
                     title={
                       hasAbsence
@@ -2049,27 +2118,42 @@ const calculateDailyHours = (schedules: Schedule[], date: Date, employees?: Empl
         scheduleDate = scheduleDate.split('T')[0];
       }
 
-      return scheduleDate === dateString && !schedule.is_empty && schedule.shift_id;
+      // Exclude placeholder shifts (00:00-00:00) from hour sums even if assigned
+      const isAssigned = !!schedule.shift_id;
+      const isPlaceholder = schedule.shift_start === "00:00" && schedule.shift_end === "00:00";
+      return scheduleDate === dateString && !schedule.is_empty && isAssigned && !isPlaceholder;
     }
   );
 
-  return daySchedules.reduce((sum, schedule) => {
-    if (schedule.shift_start && schedule.shift_end) {
-      try {
-        // Find the employee for this schedule
-        const employee = employees?.find(emp => emp.id === schedule.employee_id);
-
-        // Use the centralized calculateWorkingTime function that handles keyholder adjustments
-        const timeCalc = calculateWorkingTime(schedule, employee, settings);
-
-        return sum + timeCalc.workingTime;
-      } catch (error) {
-        console.error("Error calculating daily hours:", error);
-        return sum;
+  // Deduplicate by employee: take the best schedule (with real times) per employee for the day
+  const bestByEmployee = new Map<number, Schedule>();
+  daySchedules.forEach((s) => {
+    const existing = bestByEmployee.get(s.employee_id);
+    const hasTimes = !!s.shift_start && !!s.shift_end;
+    if (!existing) {
+      bestByEmployee.set(s.employee_id, s);
+    } else {
+      const existingHasTimes = !!existing.shift_start && !!existing.shift_end;
+      // Prefer schedules with real times over missing
+      if (hasTimes && !existingHasTimes) {
+        bestByEmployee.set(s.employee_id, s);
       }
     }
-    return sum;
-  }, 0);
+  });
+
+  let total = 0;
+  bestByEmployee.forEach((schedule) => {
+    if (!schedule.shift_start || !schedule.shift_end) return;
+    try {
+      const employee = employees?.find(emp => emp.id === schedule.employee_id);
+      const timeCalc = calculateWorkingTime(schedule, employee, settings);
+      total += timeCalc.workingTime;
+    } catch (error) {
+      console.error("Error calculating daily hours:", error);
+    }
+  });
+
+  return total;
 };
 
 // Cache functionality is now handled by the bulk availability hook and React Query

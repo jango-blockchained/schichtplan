@@ -1478,6 +1478,50 @@ export const getPreviousWeek = async (weekIdentifier: string): Promise<WeekInfo>
   }
 };
 
+export interface WeekSegmentsResponse {
+  weekIdentifier: string;
+  isSplit: boolean;
+  segments: Array<{
+    segment_id: string;
+    segment_number: number;
+    total_segments: number;
+    start_date: string;
+    end_date: string;
+    month: string;
+    year: number;
+    is_first_segment: boolean;
+    is_last_segment: boolean;
+  }>;
+}
+
+export const getWeekSegments = async (weekIdentifier: string): Promise<WeekSegmentsResponse> => {
+  try {
+    const response = await api.get<any>(`/api/weeks/${weekIdentifier}/segments`);
+
+    // Transform snake_case to camelCase for frontend consistency
+    return {
+      weekIdentifier: response.data.week_identifier,
+      isSplit: response.data.is_split,
+      segments: response.data.segments.map((seg: any) => ({
+        segment_id: seg.segment_id,
+        segment_number: seg.segment_number,
+        total_segments: seg.total_segments,
+        start_date: seg.start_date,
+        end_date: seg.end_date,
+        month: seg.month,
+        year: seg.year,
+        is_first_segment: seg.is_first_segment,
+        is_last_segment: seg.is_last_segment,
+      }))
+    };
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to get week segments for ${weekIdentifier}: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
 export const createWeekVersion = async (
   data: CreateWeekVersionRequest,
 ): Promise<CreateWeekVersionResponse> => {

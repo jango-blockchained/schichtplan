@@ -11,6 +11,19 @@ import { DateRange } from 'react-day-picker';
 export { MonthBoundaryMode, WeekendStart } from '../utils/weekUtils';
 export type { WeekInfo, WeekRange } from '../utils/weekUtils';
 
+// Week segment information for split weeks
+export interface WeekSegmentInfo {
+  segmentId: string;
+  segmentNumber: number;
+  totalSegments: number;
+  startDate: string;
+  endDate: string;
+  month: string;
+  year: number;
+  isFirstSegment: boolean;
+  isLastSegment: boolean;
+}
+
 // Version identifier types
 export type LegacyVersionIdentifier = number;
 export type WeekVersionIdentifier = string; // e.g., "2024-W15" or "2024-W15-W17"

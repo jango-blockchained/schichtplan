@@ -8,17 +8,18 @@ integrating with the existing scheduling system.
 from datetime import date, datetime
 from typing import List, Optional
 
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from ..models import db
 from ..models.schedule import Schedule, ScheduleStatus, ScheduleVersionMeta
+from ..models.settings import Settings
 from ..utils.logger import logger
 from ..utils.version_utils import date_range_to_week_identifier
 from ..utils.week_utils import (
     MonthBoundaryMode,
     get_week_from_identifier,
-    handle_month_boundary,
+    get_week_segments,
 )
 
 
@@ -32,7 +33,7 @@ class WeekVersionService:
         self,
         week_identifier: str,
         base_version: Optional[int] = None,
-        month_boundary_mode: MonthBoundaryMode = MonthBoundaryMode.KEEP_INTACT,
+        month_boundary_mode: Optional[MonthBoundaryMode] = None,
         notes: Optional[str] = None,
         create_empty_schedules: bool = True,
     ) -> ScheduleVersionMeta:
@@ -42,60 +43,86 @@ class WeekVersionService:
         Args:
             week_identifier: Week identifier like "2024-W15"
             base_version: Base version to copy from (optional)
-            month_boundary_mode: How to handle month boundaries
+            month_boundary_mode: How to handle month boundaries (uses settings if not specified)
             notes: Optional notes for the version
             create_empty_schedules: Whether to create empty schedule entries
 
         Returns:
-            Created ScheduleVersionMeta object
+            Created ScheduleVersionMeta object (or parent meta if split)
         """
         try:
-            # Parse week identifier and get date range
+            # Get month boundary mode from settings if not specified
+            if month_boundary_mode is None:
+                settings = Settings.query.first()
+                month_boundary_mode = MonthBoundaryMode.KEEP_INTACT
+                if settings and settings.week_month_boundary_mode == "split_by_month":
+                    month_boundary_mode = MonthBoundaryMode.SPLIT_ON_MONTH
+
+            # Parse week identifier and get segments
             week_info = get_week_from_identifier(week_identifier)
+            segments = get_week_segments(week_info, month_boundary_mode)
 
-            # Handle month boundaries
-            date_periods = handle_month_boundary(week_info, month_boundary_mode)
-            start_date = date_periods[0][0]
-            end_date = date_periods[-1][1]
+            created_versions = []
+            parent_version_meta = None
 
-            # Get next version number
-            max_version = self._get_next_version_number()
+            # Create a version for each segment
+            for segment in segments:
+                # Get next version number for each segment
+                max_version = self._get_next_version_number()
 
-            logger.info(f"Creating week version {max_version} for {week_identifier}")
+                # Determine segment identifier and notes
+                segment_identifier = segment.segment_id
+                segment_notes = notes or f"Week-based version for {segment_identifier}"
+                if segment.total_segments > 1:
+                    segment_notes += (
+                        f" (Part {segment.segment_number} of {segment.total_segments})"
+                    )
 
-            # Create version metadata
-            version_meta = ScheduleVersionMeta(
-                version=max_version,
-                created_at=datetime.utcnow(),
-                status=ScheduleStatus.DRAFT,
-                date_range_start=start_date,
-                date_range_end=end_date,
-                base_version=base_version,
-                notes=notes or f"Week-based version for {week_identifier}",
-                week_identifier=week_identifier,
-                month_boundary_mode=month_boundary_mode.value,
-                is_week_based=True,
-            )
-
-            self.session.add(version_meta)
-            self.session.flush()  # Get the ID
-
-            # Copy schedules from base version if specified
-            if base_version:
-                self._copy_schedules_from_base(
-                    max_version, base_version, start_date, end_date
-                )
-            elif create_empty_schedules:
-                # Skip creating empty schedules for now - just create the version metadata
                 logger.info(
-                    f"Skipping empty schedule creation for version {max_version}"
+                    f"Creating week version {max_version} for {segment_identifier}"
                 )
-                pass
+
+                # Create version metadata for this segment
+                version_meta = ScheduleVersionMeta(
+                    version=max_version,
+                    created_at=datetime.utcnow(),
+                    status=ScheduleStatus.DRAFT,
+                    date_range_start=segment.start_date,
+                    date_range_end=segment.end_date,
+                    base_version=base_version,
+                    notes=segment_notes,
+                    week_identifier=segment_identifier,
+                    month_boundary_mode=month_boundary_mode.value,
+                    is_week_based=True,
+                )
+
+                self.session.add(version_meta)
+                self.session.flush()  # Get the ID
+
+                created_versions.append(version_meta)
+
+                # Keep reference to first segment as parent
+                if segment.is_first_segment:
+                    parent_version_meta = version_meta
+
+                # Copy schedules from base version if specified
+                if base_version:
+                    self._copy_schedules_from_base(
+                        max_version, base_version, segment.start_date, segment.end_date
+                    )
+                elif create_empty_schedules:
+                    # Skip creating empty schedules for now
+                    logger.info(
+                        f"Skipping empty schedule creation for version {max_version}"
+                    )
 
             self.session.commit()
-            logger.info(f"Successfully created week version {max_version}")
+            logger.info(
+                f"Successfully created {len(created_versions)} week version(s) for {week_identifier}"
+            )
 
-            return version_meta
+            # Return the parent version (first segment) or single version
+            return parent_version_meta or created_versions[0]
 
         except Exception as e:
             self.session.rollback()
@@ -183,11 +210,44 @@ class WeekVersionService:
     def get_version_by_week(
         self, week_identifier: str
     ) -> Optional[ScheduleVersionMeta]:
-        """Get version metadata by week identifier."""
-        return (
+        """Get version metadata by week identifier.
+
+        For split weeks, returns the first segment's version.
+        """
+        # First try exact match
+        exact_match = (
             self.session.query(ScheduleVersionMeta)
             .filter(ScheduleVersionMeta.week_identifier == week_identifier)
             .first()
+        )
+
+        if exact_match:
+            return exact_match
+
+        # Try to find first segment of split week
+        segment_match = (
+            self.session.query(ScheduleVersionMeta)
+            .filter(ScheduleVersionMeta.week_identifier == f"{week_identifier}-S1")
+            .first()
+        )
+
+        return segment_match
+
+    def get_all_segments_for_week(
+        self, week_identifier: str
+    ) -> List[ScheduleVersionMeta]:
+        """Get all version segments for a split week."""
+        # Find all versions that start with the week identifier
+        return (
+            self.session.query(ScheduleVersionMeta)
+            .filter(
+                or_(
+                    ScheduleVersionMeta.week_identifier == week_identifier,
+                    ScheduleVersionMeta.week_identifier.like(f"{week_identifier}-S%"),
+                )
+            )
+            .order_by(ScheduleVersionMeta.week_identifier)
+            .all()
         )
 
     def get_versions_for_date_range(

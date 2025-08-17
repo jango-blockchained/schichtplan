@@ -291,28 +291,43 @@ def get_schedules():
             else:
                 schedule_dict["break_duration"] = 0
 
-            # If the schedule has a shift_id but missing relationship data, fix it
-            if schedule.shift_id is not None and (
-                not hasattr(schedule, "shift") or schedule.shift is None
-            ):
-                # Try to get the shift from our lookup
-                if schedule.shift_id in shift_lookup:
+            # If the schedule has a shift_id but missing timing/type fields, enrich from shift
+            if schedule.shift_id is not None:
+                shift = None
+                # Prefer already-loaded relationship to avoid extra DB hits
+                if hasattr(schedule, "shift") and schedule.shift is not None:
+                    shift = schedule.shift
+                elif schedule.shift_id in shift_lookup:
                     shift = shift_lookup[schedule.shift_id]
 
-                    # Add shift details to the schedule dict
-                    schedule_dict["shift_start"] = shift.start_time
-                    schedule_dict["shift_end"] = shift.end_time
-                    schedule_dict["duration_hours"] = shift.duration_hours
-                    schedule_dict["requires_break"] = shift.requires_break
-                    schedule_dict["shift_type_id"] = shift.shift_type_id
-                    schedule_dict["shift_type_name"] = (
-                        shift.shift_type.value if shift.shift_type else None
-                    )
-
-                    # Log the enrichment
-                    logger.info(
-                        f"Enriched schedule {schedule.id} with missing shift data from shift {shift.id}"
-                    )
+                if shift is not None:
+                    # Only fill if missing to preserve user-edited independent fields
+                    if not schedule_dict.get("shift_start"):
+                        schedule_dict["shift_start"] = getattr(
+                            shift, "start_time", None
+                        )
+                    if not schedule_dict.get("shift_end"):
+                        schedule_dict["shift_end"] = getattr(shift, "end_time", None)
+                    if schedule_dict.get("duration_hours") in (None, 0):
+                        schedule_dict["duration_hours"] = getattr(
+                            shift, "duration_hours", None
+                        )
+                    if schedule_dict.get("requires_break") is None:
+                        schedule_dict["requires_break"] = getattr(
+                            shift, "requires_break", None
+                        )
+                    if not schedule_dict.get("shift_type_id"):
+                        schedule_dict["shift_type_id"] = getattr(
+                            shift, "shift_type_id", None
+                        )
+                    if not schedule_dict.get("shift_type_name"):
+                        schedule_dict["shift_type_name"] = (
+                            shift.shift_type.value
+                            if getattr(shift, "shift_type", None)
+                            else None
+                        )
+                    # Optional: log enrichment when any field was missing
+                    # logger.debug(f"Enriched schedule {schedule.id} timing/type fields from shift {getattr(shift, 'id', None)}")
 
             enriched_schedules.append(schedule_dict)
 

@@ -17,6 +17,8 @@ import {
   getPreviousWeek as apiGetPreviousWeek,
   getSettings,
   getWeekInfo,
+  getWeekSegments,
+  WeekSegmentsResponse,
 } from '@/services/api';
 import type { Settings } from '@/types';
 import {
@@ -49,7 +51,15 @@ export function useWeekBasedVersionControl({
 }: UseWeekBasedVersionControlProps = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+
+  // Initialize current week
+  const [currentWeek, setCurrentWeek] = useState<string>(
+    initialWeek || getCurrentWeekIdentifier()
+  );
+
+  // State for tracking current segment when in split mode
+  const [currentSegment, setCurrentSegment] = useState<number>(1);
+
   // Fetch settings from the settings system
   const { data: settings, isLoading: isSettingsLoading } = useQuery<Settings>({
     queryKey: ['settings'],
@@ -66,20 +76,23 @@ export function useWeekBasedVersionControl({
 
     return {
       enableWeekNavigation: overrideSettings?.enableWeekNavigation ?? true, // Always enable week navigation
-      weekendStart: overrideSettings?.weekendStart ?? 
+      weekendStart: overrideSettings?.weekendStart ??
         (weekNavSettings.week_weekend_start === 'SUNDAY' ? WeekendStart.SUNDAY : WeekendStart.MONDAY),
-      monthBoundaryMode: overrideSettings?.monthBoundaryMode ?? 
+      monthBoundaryMode: overrideSettings?.monthBoundaryMode ??
         (weekNavSettings.week_month_boundary_mode === 'split_by_month' ? MonthBoundaryMode.SPLIT_ON_MONTH : MonthBoundaryMode.KEEP_INTACT),
     };
   }, [settings, overrideSettings]);
-  
-  // Initialize current week
-  const [currentWeek, setCurrentWeek] = useState<string>(
-    initialWeek || getCurrentWeekIdentifier()
-  );
-  
+
   const [selectedVersion, setSelectedVersion] = useState<VersionIdentifier | undefined>();
   const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch week segments when month boundary mode is SPLIT_ON_MONTH
+  const { data: segmentsData } = useQuery<WeekSegmentsResponse>({
+    queryKey: ['week-segments', currentWeek],
+    queryFn: () => getWeekSegments(currentWeek),
+    enabled: weekNavigationSettings.monthBoundaryMode === MonthBoundaryMode.SPLIT_ON_MONTH && !!currentWeek,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const navigateToWeek = useCallback(async (weekIdentifier: string) => {
     try {
@@ -148,7 +161,7 @@ export function useWeekBasedVersionControl({
         title: "Version Created",
         description: `Created version ${result.version} for week ${weekIdentifier}`
       });
-      
+
       // Set the new version as selected and trigger callback
       if (result.version) {
         setSelectedVersion(result.version);
@@ -161,12 +174,12 @@ export function useWeekBasedVersionControl({
       queryClient.invalidateQueries({ queryKey: ['versions'] });
       queryClient.invalidateQueries({ queryKey: ['week-version', weekIdentifier] });
       queryClient.invalidateQueries({ queryKey: ['week-version'] }); // Invalidate all week version queries
-      
+
       return result;
     } catch (error) {
       console.error('[DEBUG] Week version creation error for', weekIdentifier, error);
       toast({
-        title: "Creation Error", 
+        title: "Creation Error",
         description: `Failed to create version for week ${weekIdentifier}: ${error instanceof Error ? error.message : String(error)}`,
         variant: "destructive"
       });
@@ -183,10 +196,27 @@ export function useWeekBasedVersionControl({
     return getWeekFromIdentifier(currentWeek);
   }, [currentWeek]);
 
-  const dateRange: DateRange = useMemo(() => ({
-    from: currentWeekInfo.startDate,
-    to: currentWeekInfo.endDate
-  }), [currentWeekInfo]);
+  const dateRange: DateRange = useMemo(() => {
+    // If in split mode and segments are available, use segment dates
+    if (segmentsData?.isSplit && segmentsData.segments.length > 0) {
+      const segment = segmentsData.segments.find(s => s.segment_number === currentSegment);
+      if (segment) {
+        return {
+          from: new Date(segment.start_date),
+          to: new Date(segment.end_date)
+        };
+      }
+    }
+    return {
+      from: currentWeekInfo.startDate,
+      to: currentWeekInfo.endDate
+    };
+  }, [currentWeekInfo, segmentsData, currentSegment]);
+
+  // Handle segment change
+  const handleSegmentChange = useCallback((segmentNumber: number) => {
+    setCurrentSegment(segmentNumber);
+  }, []);
 
   return {
     navigationState: {
@@ -205,6 +235,10 @@ export function useWeekBasedVersionControl({
     createVersionForWeek,
     currentWeekInfo,
     setSelectedVersion,
+    // Segment management
+    currentSegment,
+    handleSegmentChange,
+    weekSegments: segmentsData,
     // Backwards compatibility
     selectedVersion,
     versions: [], // Would be populated by API

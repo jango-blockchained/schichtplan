@@ -95,10 +95,10 @@ const QUICK_PROMPT_TEMPLATES = [
   },
 ];
 
-const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({ 
-  employee, 
+const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({
+  employee,
   selectedDate,
-  currentVersion 
+  currentVersion
 }) => {
   const [{ isDragging }, drag] = useDrag({
     type: "SCHEDULE",
@@ -157,10 +157,10 @@ const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({
   );
 };
 
-const DraggableShift: React.FC<DraggableShiftProps> = ({ 
-  shift, 
+const DraggableShift: React.FC<DraggableShiftProps> = ({
+  shift,
   selectedDate,
-  currentVersion 
+  currentVersion
 }) => {
   const [{ isDragging }, drag] = useDrag({
     type: "SCHEDULE",
@@ -264,12 +264,12 @@ const calculateBaseDuration = (startTime: string, endTime: string): number => {
   try {
     const startMinutes = timeToMinutes(startTime);
     let endMinutes = timeToMinutes(endTime);
-    
+
     // Handle overnight shifts
     if (endMinutes < startMinutes) {
       endMinutes += 24 * 60;
     }
-    
+
     return (endMinutes - startMinutes) / 60; // Return in hours
   } catch {
     return 0;
@@ -283,12 +283,12 @@ const calculateBreakDuration = (schedule: Schedule, employee?: Employee, setting
     if (schedule.break_start && schedule.break_end) {
       return calculateBaseDuration(schedule.break_start, schedule.break_end);
     }
-    
+
     // Priority 2: Stored break_duration (convert from minutes to hours)
     if (schedule.break_duration && schedule.break_duration > 0) {
       return schedule.break_duration / 60;
     }
-    
+
     // Priority 3: Auto-calculate based on shift duration (30min for >6h)
     // For keyholders, the extra opening/closing time counts as additional break time
     let shiftDuration: number;
@@ -297,20 +297,20 @@ const calculateBreakDuration = (schedule: Schedule, employee?: Employee, setting
     } else {
       return 0;
     }
-    
+
     // Base break calculation: 30min for >6h shifts
     let baseBreak = shiftDuration > 6 ? 0.5 : 0;
-    
+
     // For keyholders, add the extra time as additional break
     if (employee && settings && employee.is_keyholder && schedule.shift_start && schedule.shift_end) {
       const { startTime, endTime } = getKeyholderAdjustedTimes(schedule, employee, settings);
       const totalDuration = calculateBaseDuration(startTime, endTime);
       const extraTime = totalDuration - shiftDuration;
-      
+
       // Add keyholder extra time as break time
       baseBreak += extraTime;
     }
-    
+
     return baseBreak;
   } catch {
     return 0;
@@ -319,59 +319,59 @@ const calculateBreakDuration = (schedule: Schedule, employee?: Employee, setting
 
 // Get keyholder-adjusted times for a schedule
 const getKeyholderAdjustedTimes = (
-  schedule: Schedule, 
-  employee: Employee | undefined, 
+  schedule: Schedule,
+  employee: Employee | undefined,
   settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
 ): { startTime: string, endTime: string } => {
-  
+
   if (!employee?.is_keyholder || !schedule.shift_start || !schedule.shift_end || !settings?.general) {
     return { startTime: schedule.shift_start || "", endTime: schedule.shift_end || "" };
   }
-  
+
   const { keyholder_before_minutes = 5, keyholder_after_minutes = 10, store_opening, store_closing } = settings.general;
-  
+
   let adjustedStart = schedule.shift_start;
   let adjustedEnd = schedule.shift_end;
-  
+
   // Early shift adjustment (EARLY type or starts at/before store opening)
-  if (schedule.shift_type_id === 'EARLY' || 
-      (store_opening && schedule.shift_start <= store_opening)) {
+  if (schedule.shift_type_id === 'EARLY' ||
+    (store_opening && schedule.shift_start <= store_opening)) {
     adjustedStart = subtractMinutes(schedule.shift_start, keyholder_before_minutes);
   }
-  
+
   // Late shift adjustment (LATE type or ends at/after store closing)
-  if (schedule.shift_type_id === 'LATE' || 
-      (store_closing && schedule.shift_end >= store_closing)) {
+  if (schedule.shift_type_id === 'LATE' ||
+    (store_closing && schedule.shift_end >= store_closing)) {
     adjustedEnd = addMinutes(schedule.shift_end, keyholder_after_minutes);
   }
-  
+
   return { startTime: adjustedStart, endTime: adjustedEnd };
 };
 
 // Calculate final working time with all adjustments for ActionDock
 const calculateWorkingTimeForDock = (
-  schedule: Schedule, 
-  employee: Employee | undefined, 
+  schedule: Schedule,
+  employee: Employee | undefined,
   settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
 ): { totalTime: number, breakTime: number, workingTime: number } => {
-  
+
   if (!schedule.shift_start || !schedule.shift_end) {
     return { totalTime: 0, breakTime: 0, workingTime: 0 };
   }
-  
+
   const { startTime, endTime } = getKeyholderAdjustedTimes(schedule, employee, settings);
-  
+
   const totalTime = calculateBaseDuration(startTime, endTime);
   const breakTime = calculateBreakDuration(schedule, employee, settings);
   const workingTime = Math.max(0, totalTime - breakTime);
-  
+
   return { totalTime, breakTime, workingTime };
 };
 
 // === END CENTRALIZED TIME CALCULATION FUNCTIONS ===
 
-export const ActionDock: React.FC<ActionDockProps> = ({ 
-  currentVersion, 
+export const ActionDock: React.FC<ActionDockProps> = ({
+  currentVersion,
   selectedDate,
   dateRange,
   versionMeta,
@@ -397,26 +397,26 @@ export const ActionDock: React.FC<ActionDockProps> = ({
     queryFn: getShifts,
   });
 
-  const activeEmployees = useMemo(() => 
-    employees.filter(emp => emp.is_active), 
+  const activeEmployees = useMemo(() =>
+    employees.filter(emp => emp.is_active),
     [employees]
   );
 
   const availableShifts = useMemo(() => {
     if (!selectedDate) return shifts;
-    
+
     const dayOfWeek = selectedDate.getDay();
     const backendDayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    
+
     return shifts.filter(shift => {
       if (!shift.active_days) return true;
-      
+
       if (Array.isArray(shift.active_days)) {
         return shift.active_days.includes(backendDayIndex);
       } else if (typeof shift.active_days === 'object') {
         return shift.active_days[backendDayIndex.toString()] === true;
       }
-      
+
       return true;
     });
   }, [shifts, selectedDate]);
@@ -430,26 +430,44 @@ export const ActionDock: React.FC<ActionDockProps> = ({
     },
   });
 
-  // Calculate total weekly hours from schedules using the same logic as ScheduleTable
+  // Calculate total weekly hours with deduplication and placeholder filtering
   const totalWeeklyHours = useMemo(() => {
     if (!schedules.length || !dateRange?.from || !dateRange?.to || !employees.length) return 0;
 
-    return schedules.reduce((total, schedule) => {
-      if (schedule.is_empty || !schedule.shift_start || !schedule.shift_end || schedule.shift_id === null) return total;
-      
+    // Filter to assigned schedules in range and exclude placeholder 00:00-00:00
+    const inRangeAssigned = schedules.filter((s) => {
+      if (s.is_empty || s.shift_id === null) return false;
+      if (!s.shift_start || !s.shift_end) return false;
+      if (s.shift_start === '00:00' && s.shift_end === '00:00') return false;
       try {
-        // Find the employee for keyholder calculations
+        const d = typeof s.date === 'string' ? new Date(s.date) : (s.date as unknown as Date);
+        return d >= dateRange.from! && d <= dateRange.to!;
+      } catch { return false; }
+    });
+
+    // Deduplicate by employee per day, prefer entries with real times (already filtered)
+    const bestByEmployeeDate = new Map<string, Schedule>();
+    inRangeAssigned.forEach((s) => {
+      const dateKey = (typeof s.date === 'string' ? s.date.split('T')[0] : format(s.date as unknown as Date, 'yyyy-MM-dd'));
+      const key = `${s.employee_id}:${dateKey}`;
+      if (!bestByEmployeeDate.has(key)) bestByEmployeeDate.set(key, s);
+      else {
+        // If both exist, keep existing; times already valid, so no extra scoring needed
+      }
+    });
+
+    let total = 0;
+    bestByEmployeeDate.forEach((schedule) => {
+      try {
         const employee = employees.find(emp => emp.id === schedule.employee_id);
-        
-        // Use the same centralized calculateWorkingTime function from ScheduleTable
         const timeCalc = calculateWorkingTimeForDock(schedule, employee, settings);
-        
-        return total + timeCalc.workingTime;
+        total += timeCalc.workingTime;
       } catch (error) {
         console.error('Error calculating hours for schedule:', schedule, error);
-        return total;
       }
-    }, 0);
+    });
+
+    return total;
   }, [schedules, dateRange, employees, settings]);
 
   const handleQuickPrompt = (template: typeof QUICK_PROMPT_TEMPLATES[0]) => {
@@ -459,17 +477,17 @@ export const ActionDock: React.FC<ActionDockProps> = ({
 
   const handleSendPrompt = async () => {
     if (!aiPrompt.trim()) return;
-    
+
     setIsAiPromptSending(true);
     try {
       await onAIPrompt?.(aiPrompt);
-      
+
       // Add to recent prompts (max 5)
       setRecentPrompts(prev => {
         const updated = [aiPrompt, ...prev.filter(p => p !== aiPrompt)];
         return updated.slice(0, 5);
       });
-      
+
       setAiPrompt("");
     } catch (error) {
       console.error("AI prompt error:", error);
@@ -496,10 +514,10 @@ export const ActionDock: React.FC<ActionDockProps> = ({
             {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
             <span className="font-medium">Action Dock</span>
             <Badge variant="secondary" className="ml-2">
-              {activeTab === "drag-drop" 
+              {activeTab === "drag-drop"
                 ? availableShifts.length
                 : activeTab === "ai-assistant" ? "AI" : "Tools"
-              } 
+              }
             </Badge>
           </Button>
           {!isExpanded && (
@@ -508,7 +526,7 @@ export const ActionDock: React.FC<ActionDockProps> = ({
             </div>
           )}
         </div>
-        
+
         <div className="flex items-center gap-2">
           {/* Enhanced Date Badge with Version, Date Range, and Status */}
           {(selectedDate || dateRange || currentVersion || versionStatus || totalWeeklyHours > 0) && (
@@ -520,14 +538,14 @@ export const ActionDock: React.FC<ActionDockProps> = ({
                   {totalWeeklyHours.toFixed(1)}h
                 </Badge>
               )}
-              
+
               {/* Version Badge */}
               {currentVersion && (
                 <Badge variant="secondary" className="text-xs font-mono">
                   v{currentVersion}
                 </Badge>
               )}
-              
+
               {/* Date Range Badge */}
               {dateRange?.from && dateRange?.to ? (
                 <Badge variant="outline" className="text-xs">
@@ -538,11 +556,11 @@ export const ActionDock: React.FC<ActionDockProps> = ({
                   {format(selectedDate, "dd.MM.yyyy")}
                 </Badge>
               ) : null}
-              
+
               {/* Status Badge */}
               {(versionStatus || versionMeta?.status) && (
-                <Badge 
-                  variant="outline" 
+                <Badge
+                  variant="outline"
                   className={cn(
                     "text-xs",
                     (versionStatus || versionMeta?.status) === "PUBLISHED" && "bg-green-500/20 text-green-300 border-green-500/30",
@@ -673,7 +691,7 @@ export const ActionDock: React.FC<ActionDockProps> = ({
                   </div>
 
                   <div className="flex gap-2">
-                    <Button 
+                    <Button
                       onClick={handleSendPrompt}
                       disabled={!aiPrompt.trim() || isAiPromptSending}
                       className="flex-1"
@@ -690,7 +708,7 @@ export const ActionDock: React.FC<ActionDockProps> = ({
                         </>
                       )}
                     </Button>
-                    
+
                     {recentPrompts.length > 0 && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

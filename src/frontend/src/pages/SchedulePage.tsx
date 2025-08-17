@@ -1773,7 +1773,7 @@ export function SchedulePage() {
     }
     setConfirmDeleteMessage({
       title: "Schichtplan endgültig löschen?",
-      message: `Alle ${scheduleData.length} Schichtpläne der Version ${effectiveSelectedVersion} löschen. Betrifft:`,
+      message: `Alle ${scheduleData.filter((s) => s.shift_id !== null).length} zugewiesenen Schichten der Version ${effectiveSelectedVersion} löschen. Betrifft:`,
       details: [
         `• ${new Set(scheduleData.map((s) => s.employee_id)).size} Mitarbeiter`,
         `• Zeitraum: ${format(effectiveDateRange?.from || new Date(), "dd.MM.yyyy")} - ${format(effectiveDateRange?.to || new Date(), "dd.MM.yyyy")}`,
@@ -2078,6 +2078,8 @@ export function SchedulePage() {
             weekendStart: weekBasedVersionControl.settings.weekendStart,
             monthBoundaryMode: weekBasedVersionControl.settings.monthBoundaryMode,
           }}
+          currentSegment={weekBasedVersionControl.currentSegment}
+          onSegmentChange={weekBasedVersionControl.handleSegmentChange}
         />
 
         <VersionManager

@@ -8,13 +8,16 @@ from http import HTTPStatus
 
 from flask import Blueprint, jsonify, request
 
+from ..models.settings import Settings
 from ..services.week_version_service import WeekVersionService
 from ..utils.logger import logger
 from ..utils.week_utils import (
+    MonthBoundaryMode,
     get_current_week_identifier,
     get_next_week,
     get_previous_week,
     get_week_from_identifier,
+    get_week_segments,
 )
 
 # Create blueprint
@@ -45,11 +48,22 @@ def get_current_week():
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
+# Support both "/:week_identifier" and "/:week_identifier/info" for compatibility
+@bp.route("/<string:week_identifier>", methods=["GET"])
 @bp.route("/<string:week_identifier>/info", methods=["GET"])
 def get_week_info(week_identifier: str):
     """Get information about a specific week."""
     try:
         week_info = get_week_from_identifier(week_identifier)
+
+        # Get month boundary mode from settings
+        settings = Settings.query.first()
+        month_boundary_mode = MonthBoundaryMode.KEEP_INTACT
+        if settings and settings.week_month_boundary_mode == "split_by_month":
+            month_boundary_mode = MonthBoundaryMode.SPLIT_ON_MONTH
+
+        # Get week segments
+        segments = get_week_segments(week_info, month_boundary_mode)
 
         # Check if version exists for this week
         service = WeekVersionService()
@@ -64,7 +78,25 @@ def get_week_info(week_identifier: str):
             "spans_months": week_info.spans_months,
             "months": week_info.months,
             "has_version": version_meta is not None,
+            "is_split": len(segments) > 1,
         }
+
+        # Add segment information if week is split
+        if len(segments) > 1:
+            response_data["segments"] = [
+                {
+                    "segment_id": seg.segment_id,
+                    "segment_number": seg.segment_number,
+                    "total_segments": seg.total_segments,
+                    "start_date": seg.start_date.isoformat(),
+                    "end_date": seg.end_date.isoformat(),
+                    "month": seg.month,
+                    "year": seg.year,
+                    "is_first_segment": seg.is_first_segment,
+                    "is_last_segment": seg.is_last_segment,
+                }
+                for seg in segments
+            ]
 
         if version_meta:
             response_data["version"] = version_meta.to_dict()
@@ -87,17 +119,43 @@ def get_next_week_endpoint(week_identifier: str):
         next_week_id = get_next_week(week_identifier)
         next_week_info = get_week_from_identifier(next_week_id)
 
-        return jsonify(
-            {
-                "week_identifier": next_week_id,
-                "year": next_week_info.year,
-                "week_number": next_week_info.week_number,
-                "start_date": next_week_info.start_date.isoformat(),
-                "end_date": next_week_info.end_date.isoformat(),
-                "spans_months": next_week_info.spans_months,
-                "months": next_week_info.months,
-            }
-        )
+        # Determine month boundary mode from settings
+        settings = Settings.query.first()
+        month_boundary_mode = MonthBoundaryMode.KEEP_INTACT
+        if settings and settings.week_month_boundary_mode == "split_by_month":
+            month_boundary_mode = MonthBoundaryMode.SPLIT_ON_MONTH
+
+        # Compute segments for the returned week so the frontend can navigate segments seamlessly
+        segments = get_week_segments(next_week_info, month_boundary_mode)
+
+        response = {
+            "week_identifier": next_week_id,
+            "year": next_week_info.year,
+            "week_number": next_week_info.week_number,
+            "start_date": next_week_info.start_date.isoformat(),
+            "end_date": next_week_info.end_date.isoformat(),
+            "spans_months": next_week_info.spans_months,
+            "months": next_week_info.months,
+            "is_split": len(segments) > 1,
+        }
+
+        if len(segments) > 1:
+            response["segments"] = [
+                {
+                    "segment_id": seg.segment_id,
+                    "segment_number": seg.segment_number,
+                    "total_segments": seg.total_segments,
+                    "start_date": seg.start_date.isoformat(),
+                    "end_date": seg.end_date.isoformat(),
+                    "month": seg.month,
+                    "year": seg.year,
+                    "is_first_segment": seg.is_first_segment,
+                    "is_last_segment": seg.is_last_segment,
+                }
+                for seg in segments
+            ]
+
+        return jsonify(response)
 
     except ValueError as e:
         return jsonify(
@@ -115,17 +173,43 @@ def get_previous_week_endpoint(week_identifier: str):
         prev_week_id = get_previous_week(week_identifier)
         prev_week_info = get_week_from_identifier(prev_week_id)
 
-        return jsonify(
-            {
-                "week_identifier": prev_week_id,
-                "year": prev_week_info.year,
-                "week_number": prev_week_info.week_number,
-                "start_date": prev_week_info.start_date.isoformat(),
-                "end_date": prev_week_info.end_date.isoformat(),
-                "spans_months": prev_week_info.spans_months,
-                "months": prev_week_info.months,
-            }
-        )
+        # Determine month boundary mode from settings
+        settings = Settings.query.first()
+        month_boundary_mode = MonthBoundaryMode.KEEP_INTACT
+        if settings and settings.week_month_boundary_mode == "split_by_month":
+            month_boundary_mode = MonthBoundaryMode.SPLIT_ON_MONTH
+
+        # Compute segments for the returned week so the frontend can navigate segments seamlessly
+        segments = get_week_segments(prev_week_info, month_boundary_mode)
+
+        response = {
+            "week_identifier": prev_week_id,
+            "year": prev_week_info.year,
+            "week_number": prev_week_info.week_number,
+            "start_date": prev_week_info.start_date.isoformat(),
+            "end_date": prev_week_info.end_date.isoformat(),
+            "spans_months": prev_week_info.spans_months,
+            "months": prev_week_info.months,
+            "is_split": len(segments) > 1,
+        }
+
+        if len(segments) > 1:
+            response["segments"] = [
+                {
+                    "segment_id": seg.segment_id,
+                    "segment_number": seg.segment_number,
+                    "total_segments": seg.total_segments,
+                    "start_date": seg.start_date.isoformat(),
+                    "end_date": seg.end_date.isoformat(),
+                    "month": seg.month,
+                    "year": seg.year,
+                    "is_first_segment": seg.is_first_segment,
+                    "is_last_segment": seg.is_last_segment,
+                }
+                for seg in segments
+            ]
+
+        return jsonify(response)
 
     except ValueError as e:
         return jsonify(
@@ -136,16 +220,63 @@ def get_previous_week_endpoint(week_identifier: str):
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
+@bp.route("/<string:week_identifier>/segments", methods=["GET"])
+def get_week_segments_endpoint(week_identifier: str):
+    """Get segments for a week when using split month boundary mode."""
+    try:
+        week_info = get_week_from_identifier(week_identifier)
+
+        # Get month boundary mode from settings
+        settings = Settings.query.first()
+        month_boundary_mode = MonthBoundaryMode.KEEP_INTACT
+        if settings and settings.week_month_boundary_mode == "split_by_month":
+            month_boundary_mode = MonthBoundaryMode.SPLIT_ON_MONTH
+
+        # Get week segments
+        segments = get_week_segments(week_info, month_boundary_mode)
+
+        response_data = {
+            "week_identifier": week_identifier,
+            "is_split": len(segments) > 1,
+            "segments": [
+                {
+                    "segment_id": seg.segment_id,
+                    "segment_number": seg.segment_number,
+                    "total_segments": seg.total_segments,
+                    "start_date": seg.start_date.isoformat(),
+                    "end_date": seg.end_date.isoformat(),
+                    "month": seg.month,
+                    "year": seg.year,
+                    "is_first_segment": seg.is_first_segment,
+                    "is_last_segment": seg.is_last_segment,
+                }
+                for seg in segments
+            ],
+        }
+
+        return jsonify(response_data)
+
+    except ValueError as e:
+        return jsonify(
+            {"error": f"Invalid week identifier: {str(e)}"}
+        ), HTTPStatus.BAD_REQUEST
+    except Exception as e:
+        logger.error(f"Error getting week segments: {str(e)}")
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
 @bp.route("/<string:week_identifier>/versions", methods=["GET"])
 def get_week_versions(week_identifier: str):
-    """Get all versions for a specific week."""
+    """Get all versions for a specific week (including all segments if split)."""
     try:
         service = WeekVersionService()
-        version_meta = service.get_version_by_week(week_identifier)
 
-        if version_meta:
-            # Return as array since frontend expects CreateWeekVersionResponse[]
-            return jsonify([version_meta.to_dict()])
+        # Get all segments for this week (will return single version if not split)
+        all_segments = service.get_all_segments_for_week(week_identifier)
+
+        if all_segments:
+            # Return all segments as array
+            return jsonify([segment.to_dict() for segment in all_segments])
         else:
             # Return empty array if no version exists for this week
             return jsonify([])
