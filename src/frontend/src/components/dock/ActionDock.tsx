@@ -15,7 +15,7 @@ import { getEmployees, getShifts } from "@/services/api";
 import { Employee, Schedule, Shift } from "@/types";
 import type { WeekVersionMeta } from "@/types/weekVersion";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { endOfDay, format, startOfDay } from "date-fns";
 import {
   ChevronDown,
   ChevronUp,
@@ -453,21 +453,29 @@ export const ActionDock: React.FC<ActionDockProps> = ({
     });
     console.log('DEBUG: Input schedules by day:', schedulesByDay);
 
+    // Normalize range to local day boundaries to avoid timezone drift (e.g., dropping Mondays)
+    const rangeStart = startOfDay(dateRange.from);
+    const rangeEnd = endOfDay(dateRange.to);
+
     // Filter to assigned schedules in range and exclude placeholder 00:00-00:00
     const inRangeAssigned = schedules.filter((s) => {
       if (s.is_empty || s.shift_id === null) return false;
       if (!s.shift_start || !s.shift_end) return false;
       if (s.shift_start === '00:00' && s.shift_end === '00:00') return false;
       try {
-        const d = typeof s.date === 'string' ? new Date(s.date) : (s.date as unknown as Date);
-
-        // Normalize dates to avoid timezone issues - compare at midnight local time
-        const scheduleDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-        const rangeStart = new Date(dateRange.from!.getFullYear(), dateRange.from!.getMonth(), dateRange.from!.getDate());
-        const rangeEnd = new Date(dateRange.to!.getFullYear(), dateRange.to!.getMonth(), dateRange.to!.getDate());
+        // Parse schedule date in a timezone-safe way by constructing a local date from parts
+        let scheduleDate: Date;
+        if (typeof s.date === 'string') {
+          const iso = s.date.includes('T') ? s.date.split('T')[0] : s.date;
+          const [y, m, d] = iso.split('-').map(Number);
+          scheduleDate = new Date(y, (m || 1) - 1, d || 1);
+        } else {
+          const dObj = s.date as unknown as Date;
+          scheduleDate = new Date(dObj.getFullYear(), dObj.getMonth(), dObj.getDate());
+        }
 
         const inRange = scheduleDate >= rangeStart && scheduleDate <= rangeEnd;
-        const dayOfWeek = d.getDay(); // 0=Sunday, 1=Monday, etc.
+        const dayOfWeek = scheduleDate.getDay(); // 0=Sunday, 1=Monday, etc.
 
         // Debug logging for Monday schedules (dayOfWeek === 1)
         if (dayOfWeek === 1) {

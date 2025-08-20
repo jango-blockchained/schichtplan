@@ -38,7 +38,7 @@ import {
 import { Employee, Schedule, ScheduleUpdate } from "@/types";
 import { WeekInfo } from "@/utils/weekUtils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { addDays, format, isWithinInterval, parseISO } from "date-fns";
+import { addDays, endOfDay, format, isWithinInterval, parseISO, startOfDay } from "date-fns";
 import {
   ArrowDown,
   ArrowUp,
@@ -1133,8 +1133,15 @@ const calculateEmployeeHours = (
   weeklyBestByDate.forEach((schedule, dateKey) => {
     if (!schedule.shift_start || !schedule.shift_end || !schedule.date) return;
     try {
-      const scheduleDate = parseISO(`${dateKey}`);
-      if (isWithinInterval(scheduleDate, { start: dateRange.from, end: dateRange.to })) {
+      // Parse schedule date without timezone to avoid off-by-one-day issues
+      let scheduleDate = startOfDay(parseISO(`${dateKey}`));
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+        const [y, m, d] = dateKey.split('-').map(Number);
+        scheduleDate = new Date(y, (m || 1) - 1, d || 1);
+      }
+      const start = startOfDay(dateRange.from);
+      const end = endOfDay(dateRange.to);
+      if (isWithinInterval(scheduleDate, { start, end })) {
         const timeCalc = calculateWorkingTime(schedule, employee, settings);
         weeklyHours += timeCalc.workingTime;
       }

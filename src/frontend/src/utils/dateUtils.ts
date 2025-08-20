@@ -1,5 +1,5 @@
-import { getWeekStartsOn } from '@/utils/weekStart';
 import type { Settings } from '@/types';
+import { getWeekStartsOn } from '@/utils/weekStart';
 import { addDays, endOfWeek, getWeek, startOfWeek } from "date-fns";
 import { DateRange } from "react-day-picker";
 

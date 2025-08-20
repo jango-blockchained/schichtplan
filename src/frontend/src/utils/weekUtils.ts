@@ -6,6 +6,7 @@
  */
 
 import { getSettings } from '@/services/api';
+import type { Settings } from '@/types';
 import { QueryClient } from '@tanstack/react-query';
 import { addDays, addWeeks, endOfWeek, format, getWeek, getYear, startOfWeek } from 'date-fns';
 import { getWeekStartsOn } from './weekStart';
@@ -170,9 +171,8 @@ export function dateRangeToWeekIdentifier(startDate: Date, endDate: Date, opts?:
 export async function getDynamicWeekStartsOn(queryClient?: QueryClient): Promise<0 | 1> {
   try {
     if (queryClient) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const cached = queryClient.getQueryData<any>(["settings"]);
-      if (cached) return getWeekStartsOn(cached);
+  const cached = queryClient.getQueryData<Settings | undefined>(["settings"]);
+  if (cached) return getWeekStartsOn(cached);
     }
     const settings = await getSettings();
     return getWeekStartsOn(settings);

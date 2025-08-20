@@ -25,6 +25,48 @@ from ..models import (
 )
 from ..services.scheduler import ScheduleGenerationError, ScheduleGenerator
 
+
+def _get_week_start_settings() -> int:
+    """Return configured week start (0=Sunday,1=Monday) with Monday fallback.
+
+    Prefers Settings.week_weekend_start (week_navigation)
+    else Settings.start_of_week.
+    """
+    try:
+        settings: Settings | None = Settings.query.first()  # type: ignore
+        if not settings:
+            return 1
+        # New week_navigation config (string)
+        if (
+            hasattr(settings, 'week_weekend_start')
+            and settings.week_weekend_start in ("SUNDAY", "MONDAY")
+        ):
+            return 0 if settings.week_weekend_start == "SUNDAY" else 1
+        # Legacy numeric start_of_week (0-6) restrict to 0/1 behaviour for now
+        if (
+            hasattr(settings, 'start_of_week')
+            and settings.start_of_week in (0, 1)  # type: ignore[attr-defined]
+        ):
+            return int(settings.start_of_week)  # type: ignore
+    except Exception as e:  # pragma: no cover - defensive
+        logger.warning(
+            "Falling back to Monday week start due to settings error: %s", e
+        )
+    return 1
+
+
+def _calc_week_bounds(reference: date) -> tuple[date, date]:
+    """Calculate week start/end using dynamic configured start."""
+    week_start_cfg = _get_week_start_settings()
+    if week_start_cfg == 0:  # Sunday
+        # Python weekday(): Mon=0..Sun=6. For Sunday, shift by (weekday()+1)%7
+        offset = (reference.weekday() + 1) % 7
+    else:  # Monday
+        offset = reference.weekday()
+    start_of_week = reference - timedelta(days=offset)
+    end_of_week = start_of_week + timedelta(days=6)
+    return start_of_week, end_of_week
+
 logger = logging.getLogger(__name__)
 
 bp = Blueprint("schedules", __name__, url_prefix="/api/v2/schedules")
@@ -53,17 +95,18 @@ def get_schedules():
         version = request.args.get("version", type=int)
         include_empty = request.args.get("include_empty", "false").lower() == "true"
 
-        # Provide default date range (current week) if not specified
-        if not start_date or not end_date:
+    # Provide default date range (current week) if not specified
+    if not start_date or not end_date:
             today = date.today()
-            # Start from Monday of the current week
-            start_of_week = today - timedelta(days=today.weekday())
-            # End on Sunday of the current week
-            end_of_week = start_of_week + timedelta(days=6)
-
+            start_of_week, end_of_week = _calc_week_bounds(today)
             start_date = start_of_week.strftime("%Y-%m-%d")
             end_date = end_of_week.strftime("%Y-%m-%d")
-            logger.info(f"Using default date range: {start_date} to {end_date}")
+            logger.info(
+                "Using default date range (dynamic week start %s): %s to %s",
+                _get_week_start_settings(),
+                start_date,
+                end_date,
+            )
 
         try:
             start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()

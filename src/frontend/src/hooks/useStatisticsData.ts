@@ -1,16 +1,16 @@
 import { getEmployees, getSettings } from "@/services/api";
 import { Employee, Schedule } from "@/types";
 import {
-    calculateShiftDuration,
-    createEmployeeLookup,
-    getSchedulesForDate,
-    getShiftType,
-    getValidSchedules,
-    isDayOpen,
+  calculateShiftDuration,
+  createEmployeeLookup,
+  getSchedulesForDate,
+  getShiftType,
+  getValidSchedules,
+  isDayOpen,
 } from "@/utils/statisticsUtils";
 import { getWeekStartsOn } from "@/utils/weekStart";
 import { useQuery } from "@tanstack/react-query";
-import { eachWeekOfInterval, endOfWeek, format, parseISO } from "date-fns";
+import { eachWeekOfInterval, endOfDay, endOfWeek, format, parseISO, startOfDay } from "date-fns";
 import { useMemo } from "react";
 import { DateRange } from "react-day-picker";
 
@@ -56,7 +56,7 @@ export const useStatisticsData = ({
     const totalEmployees = new Set(validSchedules.map(s => s.employee_id)).size;
     const totalHours = validSchedules.reduce((sum, s) => sum + calculateShiftDuration(s), 0);
     const avgHoursPerShift = totalSchedules > 0 ? totalHours / totalSchedules : 0;
-    
+
     const shiftsWithBreaks = validSchedules.filter(s => s.break_start && s.break_end).length;
     const breakCoverage = totalSchedules > 0 ? (shiftsWithBreaks / totalSchedules) * 100 : 0;
 
@@ -73,7 +73,7 @@ export const useStatisticsData = ({
   // Shift type distribution
   const shiftTypeStats = useMemo(() => {
     const distribution = { early: 0, mid: 0, late: 0 };
-    
+
     validSchedules.forEach(schedule => {
       const type = getShiftType(schedule.shift_start!);
       distribution[type]++;
@@ -90,24 +90,24 @@ export const useStatisticsData = ({
 
     const coverageByDay: { date: Date; coverage: number; dayName: string }[] = [];
     const currentDate = new Date(dateRange.from);
-    
+
     while (currentDate <= dateRange.to) {
       if (isDayOpen(currentDate, openingDays)) {
         const daySchedules = getSchedulesForDate(validSchedules, currentDate);
-        
+
         coverageByDay.push({
           date: new Date(currentDate),
           coverage: daySchedules.length,
           dayName: format(currentDate, 'EEEE'),
         });
       }
-      
+
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
     const coverageValues = coverageByDay.map(d => d.coverage);
-    const avgCoverage = coverageValues.length > 0 
-      ? coverageValues.reduce((a, b) => a + b, 0) / coverageValues.length 
+    const avgCoverage = coverageValues.length > 0
+      ? coverageValues.reduce((a, b) => a + b, 0) / coverageValues.length
       : 0;
     const minCoverage = coverageValues.length > 0 ? Math.min(...coverageValues) : 0;
     const maxCoverage = coverageValues.length > 0 ? Math.max(...coverageValues) : 0;
@@ -117,14 +117,14 @@ export const useStatisticsData = ({
 
   // Employee workload distribution
   const workloadStats = useMemo(() => {
-    const employeeWorkload: Record<number, { 
-      hours: number; 
-      shifts: number; 
-      name: string; 
-      group: string; 
+    const employeeWorkload: Record<number, {
+      hours: number;
+      shifts: number;
+      name: string;
+      group: string;
       isKeyholder: boolean;
     }> = {};
-    
+
     validSchedules.forEach(schedule => {
       if (!employeeWorkload[schedule.employee_id]) {
         const employee = employeeLookup[schedule.employee_id];
@@ -136,7 +136,7 @@ export const useStatisticsData = ({
           isKeyholder: employee?.is_keyholder || false,
         };
       }
-      
+
       employeeWorkload[schedule.employee_id].hours += calculateShiftDuration(schedule);
       employeeWorkload[schedule.employee_id].shifts += 1;
     });
@@ -155,11 +155,11 @@ export const useStatisticsData = ({
     // Find under and over-worked employees
     const underWorked = workloadArray.filter(w => w.hours < avgHours * 0.8);
     const overWorked = workloadArray.filter(w => w.hours > avgHours * 1.2);
-    
+
     // Keyholder statistics
     const keyholders = workloadArray.filter(w => w.isKeyholder);
-    const keyholderCoverage = keyholders.length > 0 
-      ? (keyholders.length / workloadArray.length) * 100 
+    const keyholderCoverage = keyholders.length > 0
+      ? (keyholders.length / workloadArray.length) * 100
       : 0;
 
     return {
@@ -197,8 +197,10 @@ export const useStatisticsData = ({
 
       validSchedules.forEach(schedule => {
         if (schedule.date) {
-          const scheduleDate = parseISO(schedule.date);
-          if (scheduleDate >= weekStart && scheduleDate <= weekEnd) {
+          const scheduleDate = startOfDay(parseISO(schedule.date));
+          const start = startOfDay(weekStart);
+          const end = endOfDay(weekEnd);
+          if (scheduleDate >= start && scheduleDate <= end) {
             weekHours += calculateShiftDuration(schedule);
             weekShifts += 1;
             uniqueEmployees.add(schedule.employee_id);
