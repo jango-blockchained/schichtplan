@@ -1,9 +1,5 @@
-import React from "react";
-import { DateRange } from "react-day-picker";
-import { format, getWeek, getYear, addWeeks, startOfWeek } from "date-fns";
-import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -11,6 +7,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getSettings } from "@/services/api";
+import { getWeekStartsOn } from "@/utils/weekStart";
+import { useQuery } from "@tanstack/react-query";
+import { format, getWeek, getYear } from "date-fns";
+import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import { DateRange } from "react-day-picker";
 
 interface DateRangeSelectorProps {
   dateRange: DateRange | undefined;
@@ -25,6 +27,14 @@ export function DateRangeSelector({
   onWeekChange,
   onDurationChange,
 }: DateRangeSelectorProps) {
+  // Always call hooks first
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+    staleTime: 300_000,
+  });
+  const weekStartsOn = getWeekStartsOn(settings);
+
   // If no date range is set, show placeholder
   if (!dateRange?.from || !dateRange?.to) {
     return (
@@ -44,14 +54,17 @@ export function DateRangeSelector({
   // Helper function to format week number and date range as string
   const formatWeekLabel = () => {
     const fromDate = dateRange.from!;
-    const weekNumber = getWeek(fromDate, { weekStartsOn: 1 });
+    const weekNumber = getWeek(fromDate, { weekStartsOn });
     const year = getYear(fromDate);
     return `Kalenderwoche ${weekNumber}/${year}`;
   };
 
   // Helper function to format date range
   const formatDateRangeLabel = () => {
-    return `${format(dateRange.from!, "dd.MM.yyyy")} - ${format(dateRange.to!, "dd.MM.yyyy")}`;
+    return `${format(dateRange.from!, "dd.MM.yyyy")} - ${format(
+      dateRange.to!,
+      "dd.MM.yyyy"
+    )}`;
   };
 
   return (

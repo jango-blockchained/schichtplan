@@ -1,4 +1,4 @@
-import { getEmployees } from "@/services/api";
+import { getEmployees, getSettings } from "@/services/api";
 import { Employee, Schedule } from "@/types";
 import {
     calculateShiftDuration,
@@ -8,6 +8,7 @@ import {
     getValidSchedules,
     isDayOpen,
 } from "@/utils/statisticsUtils";
+import { getWeekStartsOn } from "@/utils/weekStart";
 import { useQuery } from "@tanstack/react-query";
 import { eachWeekOfInterval, endOfWeek, format, parseISO } from "date-fns";
 import { useMemo } from "react";
@@ -173,6 +174,10 @@ export const useStatisticsData = ({
     };
   }, [validSchedules, employeeLookup]);
 
+  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: getSettings, staleTime: 300_000 });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const weekStartsOn = getWeekStartsOn(settings as any);
   // Weekly breakdown
   const weeklyBreakdown = useMemo(() => {
     if (!dateRange?.from || !dateRange?.to || validSchedules.length === 0) {
@@ -181,11 +186,11 @@ export const useStatisticsData = ({
 
     const weeks = eachWeekOfInterval(
       { start: dateRange.from, end: dateRange.to },
-      { weekStartsOn: 1 } // Monday
+      { weekStartsOn } // dynamic
     );
 
     return weeks.map(weekStart => {
-      const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(weekStart, { weekStartsOn });
       let weekHours = 0;
       let weekShifts = 0;
       const uniqueEmployees = new Set<number>();
@@ -210,7 +215,7 @@ export const useStatisticsData = ({
         employees: uniqueEmployees.size,
       };
     });
-  }, [validSchedules, dateRange]);
+  }, [validSchedules, dateRange, weekStartsOn]);
 
   return {
     employees,

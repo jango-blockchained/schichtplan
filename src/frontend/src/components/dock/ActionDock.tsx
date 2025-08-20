@@ -434,6 +434,25 @@ export const ActionDock: React.FC<ActionDockProps> = ({
   const totalWeeklyHours = useMemo(() => {
     if (!schedules.length || !dateRange?.from || !dateRange?.to || !employees.length) return 0;
 
+    console.log('DEBUG: Weekly hours calculation', {
+      totalSchedules: schedules.length,
+      dateRange: {
+        from: dateRange.from?.toISOString(),
+        to: dateRange.to?.toISOString()
+      }
+    });
+
+    // Log schedules by day to understand what we're getting
+    const schedulesByDay: { [day: string]: number } = {};
+    schedules.forEach(s => {
+      try {
+        const d = typeof s.date === 'string' ? new Date(s.date) : (s.date as unknown as Date);
+        const dayName = d.toLocaleDateString('en', { weekday: 'long' });
+        schedulesByDay[dayName] = (schedulesByDay[dayName] || 0) + 1;
+      } catch { }
+    });
+    console.log('DEBUG: Input schedules by day:', schedulesByDay);
+
     // Filter to assigned schedules in range and exclude placeholder 00:00-00:00
     const inRangeAssigned = schedules.filter((s) => {
       if (s.is_empty || s.shift_id === null) return false;
@@ -441,7 +460,30 @@ export const ActionDock: React.FC<ActionDockProps> = ({
       if (s.shift_start === '00:00' && s.shift_end === '00:00') return false;
       try {
         const d = typeof s.date === 'string' ? new Date(s.date) : (s.date as unknown as Date);
-        return d >= dateRange.from! && d <= dateRange.to!;
+
+        // Normalize dates to avoid timezone issues - compare at midnight local time
+        const scheduleDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const rangeStart = new Date(dateRange.from!.getFullYear(), dateRange.from!.getMonth(), dateRange.from!.getDate());
+        const rangeEnd = new Date(dateRange.to!.getFullYear(), dateRange.to!.getMonth(), dateRange.to!.getDate());
+
+        const inRange = scheduleDate >= rangeStart && scheduleDate <= rangeEnd;
+        const dayOfWeek = d.getDay(); // 0=Sunday, 1=Monday, etc.
+
+        // Debug logging for Monday schedules (dayOfWeek === 1)
+        if (dayOfWeek === 1) {
+          console.log('DEBUG: Monday schedule', {
+            originalDate: d.toISOString(),
+            normalizedScheduleDate: scheduleDate.toISOString(),
+            normalizedRangeStart: rangeStart.toISOString(),
+            normalizedRangeEnd: rangeEnd.toISOString(),
+            inRange,
+            employee_id: s.employee_id,
+            shift_start: s.shift_start,
+            shift_end: s.shift_end
+          });
+        }
+
+        return inRange;
       } catch { return false; }
     });
 
@@ -457,15 +499,25 @@ export const ActionDock: React.FC<ActionDockProps> = ({
     });
 
     let total = 0;
+    const dailyTotals: { [day: string]: number } = {};
+
     bestByEmployeeDate.forEach((schedule) => {
       try {
         const employee = employees.find(emp => emp.id === schedule.employee_id);
         const timeCalc = calculateWorkingTimeForDock(schedule, employee, settings);
         total += timeCalc.workingTime;
+
+        // Track by day for debugging
+        const scheduleDate = typeof schedule.date === 'string' ? schedule.date.split('T')[0] : format(schedule.date as unknown as Date, 'yyyy-MM-dd');
+        const dayOfWeek = new Date(scheduleDate).toLocaleDateString('en', { weekday: 'long' });
+        dailyTotals[dayOfWeek] = (dailyTotals[dayOfWeek] || 0) + timeCalc.workingTime;
       } catch (error) {
         console.error('Error calculating hours for schedule:', schedule, error);
       }
     });
+
+    console.log('DEBUG: Daily totals breakdown', dailyTotals);
+    console.log('DEBUG: Final weekly total', total);
 
     return total;
   }, [schedules, dateRange, employees, settings]);

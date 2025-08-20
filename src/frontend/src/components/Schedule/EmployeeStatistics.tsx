@@ -1,22 +1,24 @@
 import { Badge } from "@/components/ui/badge";
 import {
-    Card,
-    CardContent,
+  Card,
+  CardContent,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { getEmployees } from "@/services/api";
+import { getEmployees, getSettings } from "@/services/api";
 import { Schedule } from "@/types";
+import { getWeekStartsOn } from '@/utils/weekStart';
 import { useQuery } from "@tanstack/react-query";
 import {
-    differenceInHours,
-    eachMonthOfInterval,
-    eachWeekOfInterval,
-    endOfMonth,
-    endOfWeek,
-    format,
-    isWithinInterval,
-    parseISO,
+  differenceInHours,
+  eachMonthOfInterval,
+  eachWeekOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isWithinInterval,
+  parseISO,
+  startOfWeek,
 } from "date-fns";
 import { useMemo } from "react";
 
@@ -84,7 +86,7 @@ export function EmployeeStatistics({
   // Fetch employees if contractedHours or employeeGroup is not provided
   const needEmployeeData =
     contractedHours === undefined || employeeGroup === undefined;
-  const { data: employees, isLoading } = useQuery({
+  const { data: employees } = useQuery({
     queryKey: ["employees"],
     queryFn: getEmployees,
     enabled: needEmployeeData,
@@ -106,12 +108,17 @@ export function EmployeeStatistics({
 
   // Default values if still undefined
   effectiveContractedHours = effectiveContractedHours ?? 40;
-  effectiveEmployeeGroup = effectiveEmployeeGroup ?? "VZ";
+  // effectiveEmployeeGroup retained (currently unused but may influence future group-based stats)
+  effectiveEmployeeGroup = effectiveEmployeeGroup ?? "VZ"; // eslint-disable-line @typescript-eslint/no-unused-vars
 
   // Filter schedules for this employee
   const employeeSchedules = schedules.filter(
     (s) => s.employee_id === employeeId && s.shift_id !== null,
   );
+
+  // Settings for dynamic week start
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings, staleTime: 300_000 });
+  const weekStartsOn = getWeekStartsOn(settings);
 
   // Calculate statistics
   const totalShifts = employeeSchedules.length;
@@ -179,93 +186,93 @@ export function EmployeeStatistics({
   // Calculate weekly and monthly hours breakdown
   const weeklyHoursBreakdown = useMemo(() => {
     const breakdown: { week: string; hours: number; percentage: number }[] = [];
-    
+
     if (employeeSchedules.length === 0) return breakdown;
-    
+
     // Get date range from schedules
     const dates = employeeSchedules
       .map(s => s.date ? parseISO(s.date) : null)
       .filter((d): d is Date => d !== null)
       .sort((a, b) => a.getTime() - b.getTime());
-    
+
     if (dates.length === 0) return breakdown;
-    
+
     const firstDate = dates[0];
     const lastDate = dates[dates.length - 1];
-    
+
     // Get all weeks in the range
     const weeks = eachWeekOfInterval(
-      { start: firstDate, end: lastDate },
-      { weekStartsOn: 1 } // Monday
+      { start: startOfWeek(firstDate, { weekStartsOn }), end: lastDate },
+      { weekStartsOn }
     );
-    
+
     weeks.forEach(weekStart => {
-      const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(weekStart, { weekStartsOn });
       let weekHours = 0;
-      
+
       employeeSchedules.forEach(schedule => {
         if (!schedule.date || !schedule.shift_start || !schedule.shift_end) return;
-        
+
         const scheduleDate = parseISO(schedule.date);
         if (isWithinInterval(scheduleDate, { start: weekStart, end: weekEnd })) {
           weekHours += calculateShiftDuration(schedule);
         }
       });
-      
+
       breakdown.push({
         week: format(weekStart, "dd.MM"),
         hours: weekHours,
         percentage: effectiveContractedHours > 0 ? (weekHours / effectiveContractedHours) * 100 : 0
       });
     });
-    
+
     return breakdown;
-  }, [employeeSchedules, effectiveContractedHours]);
+  }, [employeeSchedules, effectiveContractedHours, weekStartsOn]);
 
   // Calculate cumulative monthly hours
   const monthlyHoursCumulative = useMemo(() => {
     const cumulative: { month: string; hours: number; cumulative: number }[] = [];
-    
+
     if (employeeSchedules.length === 0) return cumulative;
-    
+
     // Get date range from schedules
     const dates = employeeSchedules
       .map(s => s.date ? parseISO(s.date) : null)
       .filter((d): d is Date => d !== null)
       .sort((a, b) => a.getTime() - b.getTime());
-    
+
     if (dates.length === 0) return cumulative;
-    
+
     const firstDate = dates[0];
     const lastDate = dates[dates.length - 1];
-    
+
     // Get all months in the range
     const months = eachMonthOfInterval({ start: firstDate, end: lastDate });
-    
+
     let cumulativeTotal = 0;
-    
+
     months.forEach(monthStart => {
       const monthEnd = endOfMonth(monthStart);
       let monthHours = 0;
-      
+
       employeeSchedules.forEach(schedule => {
         if (!schedule.date || !schedule.shift_start || !schedule.shift_end) return;
-        
+
         const scheduleDate = parseISO(schedule.date);
         if (isWithinInterval(scheduleDate, { start: monthStart, end: monthEnd })) {
           monthHours += calculateShiftDuration(schedule);
         }
       });
-      
+
       cumulativeTotal += monthHours;
-      
+
       cumulative.push({
         month: format(monthStart, "MMM yyyy"),
         hours: monthHours,
         cumulative: cumulativeTotal
       });
     });
-    
+
     return cumulative;
   }, [employeeSchedules]);
 
@@ -334,9 +341,9 @@ export function EmployeeStatistics({
                       <span className="text-foreground dark:text-foreground">{week.hours.toFixed(1)}h</span>
                       <span className={cn(
                         "font-medium",
-                        week.percentage > 100 ? "text-red-600 dark:text-red-400" : 
-                        week.percentage < 90 ? "text-amber-600 dark:text-amber-400" : 
-                        "text-green-600 dark:text-green-400"
+                        week.percentage > 100 ? "text-red-600 dark:text-red-400" :
+                          week.percentage < 90 ? "text-amber-600 dark:text-amber-400" :
+                            "text-green-600 dark:text-green-400"
                       )}>
                         ({week.percentage.toFixed(0)}%)
                       </span>

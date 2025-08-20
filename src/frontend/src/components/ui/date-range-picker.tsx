@@ -1,16 +1,3 @@
-import * as React from "react";
-import {
-  addDays,
-  format,
-  isBefore,
-  startOfToday,
-  startOfWeek,
-  endOfWeek,
-} from "date-fns";
-import { de } from "date-fns/locale";
-import { Calendar as CalendarIcon } from "lucide-react";
-import { DateRange } from "react-day-picker";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -18,6 +5,22 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { getSettings } from "@/services/api";
+import { getWeekStartsOn } from "@/utils/weekStart";
+import { useQuery } from "@tanstack/react-query";
+import {
+  addDays,
+  endOfWeek,
+  format,
+  isBefore,
+  startOfToday,
+  startOfWeek,
+} from "date-fns";
+import { de } from "date-fns/locale";
+import { Calendar as CalendarIcon } from "lucide-react";
+import * as React from "react";
+import { DateRange } from "react-day-picker";
 
 export interface DateRangePickerProps {
   className?: string;
@@ -37,19 +40,22 @@ export function DateRangePicker({
   const today = startOfToday();
   const [isOpen, setIsOpen] = React.useState(false);
 
+  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: getSettings, staleTime: 300_000 });
+  const weekStartsOn = getWeekStartsOn(settings);
+
   const defaultPresets = [
     {
       label: "Diese Woche",
       dateRange: {
-        from: startOfWeek(today, { weekStartsOn: 1 }),
-        to: endOfWeek(today, { weekStartsOn: 1 }),
+        from: startOfWeek(today, { weekStartsOn }),
+        to: endOfWeek(today, { weekStartsOn }),
       },
     },
     {
       label: "Nächste Woche",
       dateRange: {
-        from: startOfWeek(addDays(today, 7), { weekStartsOn: 1 }),
-        to: endOfWeek(addDays(today, 7), { weekStartsOn: 1 }),
+        from: startOfWeek(addDays(today, 7), { weekStartsOn }),
+        to: endOfWeek(addDays(today, 7), { weekStartsOn }),
       },
     },
     {
@@ -127,7 +133,7 @@ export function DateRangePicker({
               numberOfMonths={2}
               disabled={(date) => isBefore(date, fromDate)}
               locale={de}
-              weekStartsOn={1}
+              weekStartsOn={weekStartsOn}
               showOutsideDays={true}
               fixedWeeks={true}
               formatters={{

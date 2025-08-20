@@ -5,6 +5,9 @@
  * when duplicating a schedule version.
  */
 
+import { getSettings } from "@/services/api";
+import { getWeekStartsOn } from "@/utils/weekStart";
+import { useQuery } from "@tanstack/react-query";
 import { addWeeks, endOfWeek, format, getWeek, parseISO, startOfWeek } from "date-fns";
 import { de } from "date-fns/locale";
 import { Calendar, Copy } from "lucide-react";
@@ -12,20 +15,20 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -58,32 +61,27 @@ export function DuplicateVersionModal({
   onDuplicate,
   isLoading = false,
 }: DuplicateVersionModalProps) {
+  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: getSettings, staleTime: 300_000 });
+  const weekStartsOn = getWeekStartsOn(settings);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [selectedWeek, setSelectedWeek] = useState<number>(getWeek(new Date(), { locale: de }));
+  const [selectedWeek, setSelectedWeek] = useState<number>(getWeek(new Date(), { locale: de, weekStartsOn }));
   const [notes, setNotes] = useState<string>("");
   const [weekVersion, setWeekVersion] = useState<string>("1"); // Second versioning parameter
 
   // Calculate date range for selected week
   const getDateRangeForWeek = (year: number, week: number) => {
-    // Create a date in the selected year
     const yearStart = new Date(year, 0, 1);
-    // Find the first Monday of the year
-    const firstMonday = startOfWeek(yearStart, { weekStartsOn: 1 });
-    // Calculate the target week
-    const targetWeek = addWeeks(firstMonday, week - 1);
-    const startDate = startOfWeek(targetWeek, { weekStartsOn: 1 });
-    const endDate = endOfWeek(targetWeek, { weekStartsOn: 1 });
-    
+    const firstWeekStart = startOfWeek(yearStart, { weekStartsOn });
+    const targetWeek = addWeeks(firstWeekStart, week - 1);
+    const startDate = startOfWeek(targetWeek, { weekStartsOn });
+    const endDate = endOfWeek(targetWeek, { weekStartsOn });
     return { startDate, endDate };
   };
 
   const { startDate, endDate } = getDateRangeForWeek(selectedYear, selectedWeek);
 
-  // Generate year options (current year ± 2 years)
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
-
-  // Generate week options (1-53)
   const weekOptions = Array.from({ length: 53 }, (_, i) => i + 1);
 
   const handleDuplicate = () => {
@@ -100,9 +98,8 @@ export function DuplicateVersionModal({
 
   const handleClose = () => {
     onOpenChange(false);
-    // Reset form state when closing
     setSelectedYear(new Date().getFullYear());
-    setSelectedWeek(getWeek(new Date(), { locale: de }));
+    setSelectedWeek(getWeek(new Date(), { locale: de, weekStartsOn }));
     setNotes("");
     setWeekVersion("1");
   };
@@ -134,7 +131,7 @@ export function DuplicateVersionModal({
                 <>
                   {sourceVersionMeta.date_range_start && sourceVersionMeta.date_range_end && (
                     <div className="text-muted-foreground mt-1">
-                      {format(parseISO(sourceVersionMeta.date_range_start), "dd.MM.yyyy", { locale: de })} -{" "}
+                      {format(parseISO(sourceVersionMeta.date_range_start), "dd.MM.yyyy", { locale: de })} - {" "}
                       {format(parseISO(sourceVersionMeta.date_range_end), "dd.MM.yyyy", { locale: de })}
                     </div>
                   )}

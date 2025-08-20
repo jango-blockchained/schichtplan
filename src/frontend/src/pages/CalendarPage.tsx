@@ -38,11 +38,13 @@ import {
   getEmployeeAvailabilityByDate,
   getEmployees,
   getSchedules,
+  getSettings,
   getShifts as getShiftTemplatesApiService,
   ScheduleResponse,
   updateSchedule,
 } from '@/services/api';
 import { Employee, EmployeeAvailabilityStatus } from '@/types';
+import { getWeekStartsOn } from '@/utils/weekStart';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { addDays, addWeeks, endOfMonth, endOfWeek, format, isSameDay, startOfMonth, startOfWeek, subWeeks } from 'date-fns';
 import {
@@ -89,6 +91,7 @@ interface FilterOptions {
   showAvailability: boolean;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface ScheduleAssignment {
   id: string;
   schedule: APISchedule;
@@ -115,7 +118,11 @@ const CalendarPage: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<APISchedule | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  // const [isDragging, setIsDragging] = useState(false); // (drag state currently unused)
+
+  // Settings for dynamic week start
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings, staleTime: 300_000 });
+  const weekStartsOn = getWeekStartsOn(settings);
 
   // Date calculations
   const dateRange = useMemo(() => {
@@ -127,8 +134,8 @@ const CalendarPage: React.FC = () => {
         };
       case 'week':
         return {
-          start: startOfWeek(currentDate, { weekStartsOn: 1 }),
-          end: endOfWeek(currentDate, { weekStartsOn: 1 })
+          start: startOfWeek(currentDate, { weekStartsOn }),
+          end: endOfWeek(currentDate, { weekStartsOn })
         };
       case 'day':
         return {
@@ -136,10 +143,11 @@ const CalendarPage: React.FC = () => {
           end: currentDate
         };
     }
-  }, [currentDate, viewMode]);
+  }, [currentDate, viewMode, weekStartsOn]);
 
   // Fetch Schedules
-  const { data: scheduleResponse, isLoading: isLoadingSchedules, error: schedulesError, refetch: refetchSchedules } = useQuery<ScheduleResponse, Error>({
+  // refetchSchedules omitted (unused)
+  const { data: scheduleResponse, isLoading: isLoadingSchedules, error: schedulesError } = useQuery<ScheduleResponse, Error>({
     queryKey: [
       'schedules',
       format(dateRange.start, 'yyyy-MM-dd'),
@@ -262,6 +270,7 @@ const CalendarPage: React.FC = () => {
 
   // Mutations
   const updateScheduleMutation = useMutation({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mutationFn: ({ id, data }: { id: number; data: any }) => updateSchedule(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['schedules'] });
@@ -277,6 +286,7 @@ const CalendarPage: React.FC = () => {
   });
 
   const createScheduleMutation = useMutation({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mutationFn: (data: any) => createSchedule(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['schedules'] });
@@ -438,6 +448,7 @@ const CalendarPage: React.FC = () => {
         day_outside: "text-muted-foreground opacity-50",
       }}
       components={{
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         Day: ({ date, displayMonth }) => {
           const formattedDate = format(date, 'yyyy-MM-dd');
           const daySchedules = schedulesByDate.get(formattedDate) || [];
@@ -497,7 +508,7 @@ const CalendarPage: React.FC = () => {
   );
 
   const renderWeekView = () => {
-    const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+    const weekStart = startOfWeek(currentDate, { weekStartsOn });
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
     return (
@@ -913,12 +924,15 @@ const CalendarPage: React.FC = () => {
                 <SelectValue placeholder="Select Version" />
               </SelectTrigger>
               <SelectContent>
-                {scheduleResponse.versions.map((ver: any) => {
+                {scheduleResponse.versions.map((ver: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
                   const versionNumber = typeof ver === 'number' ? ver : ver.version;
-                  let currentVersionNumber = scheduleResponse.current_version;
-                  if (typeof currentVersionNumber === 'object' && currentVersionNumber !== null) {
-                    currentVersionNumber = currentVersionNumber.version;
+                  let currentVersionNumber: number | null = (scheduleResponse.current_version as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  if (typeof currentVersionNumber === 'object' && currentVersionNumber !== null && 'version' in (currentVersionNumber as any)) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    currentVersionNumber = (currentVersionNumber as any).version;
                   }
+                  if (currentVersionNumber == null) currentVersionNumber = -1; // fallback sentinel
                   return (
                     <SelectItem key={versionNumber} value={versionNumber.toString()}>
                       Version {versionNumber}

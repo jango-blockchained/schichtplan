@@ -1,37 +1,40 @@
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Label } from "@/components/ui/label";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
+import { getSettings } from "@/services/api";
+import { getWeekStartsOn } from "@/utils/weekStart";
+import { useQuery } from "@tanstack/react-query";
 import {
-    addDays,
-    addWeeks,
-    format,
-    getWeek,
-    getYear,
-    startOfWeek
+  addDays,
+  addWeeks,
+  format,
+  getWeek,
+  getYear,
+  startOfWeek
 } from "date-fns";
 import {
-    AlertTriangle,
-    Calendar,
-    ChevronLeft,
-    ChevronRight,
+  AlertTriangle,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useState } from "react";
 import { DateRange } from "react-day-picker";
@@ -55,11 +58,14 @@ export function EnhancedDateRangeSelector({
   onWeekChange,
   onDurationChange,
   hasVersions,
-  onCreateNewVersion,
   onCreateNewVersionWithSpecificDateRange,
   currentVersion,
 }: EnhancedDateRangeSelectorProps) {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+
+  // Fetch settings early (must be before any conditional return for hooks rules)
+  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: getSettings, staleTime: 300_000 });
+  const weekStartsOn = getWeekStartsOn(settings);
 
   // State for the date range selected within the dialog
   const [dialogSelectedDateRange, setDialogSelectedDateRange] = useState<
@@ -85,7 +91,7 @@ export function EnhancedDateRangeSelector({
   // Helper function to format week number and date range as string
   const formatWeekLabel = () => {
     const fromDate = dateRange.from!;
-    const weekNumber = getWeek(fromDate, { weekStartsOn: 1 });
+    const weekNumber = getWeek(fromDate, { weekStartsOn });
     const year = getYear(fromDate);
     return `Kalenderwoche ${weekNumber}/${year}`;
   };
@@ -105,7 +111,7 @@ export function EnhancedDateRangeSelector({
     if (hasVersions) {
       if (dateRange?.from) {
         const from = addWeeks(
-          startOfWeek(dateRange.from, { weekStartsOn: 1 }),
+          startOfWeek(dateRange.from, { weekStartsOn }),
           weekOffset,
         );
         from.setHours(0, 0, 0, 0);
@@ -124,7 +130,7 @@ export function EnhancedDateRangeSelector({
       if (dateRange?.from) {
         const from = dateRange.from;
         const to = addDays(
-          startOfWeek(from, { weekStartsOn: 1 }),
+          startOfWeek(from, { weekStartsOn }),
           6 * newDuration,
         );
         to.setHours(23, 59, 59, 999);
@@ -250,7 +256,6 @@ export function EnhancedDateRangeSelector({
                 Zeitraum für neue Version
               </Label>
               <DateRangePicker
-                id="dialogDateRangePicker"
                 dateRange={dialogSelectedDateRange}
                 onChange={setDialogSelectedDateRange}
                 className="w-full"

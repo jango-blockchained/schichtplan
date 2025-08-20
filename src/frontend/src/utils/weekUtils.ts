@@ -5,7 +5,10 @@
  * providing utilities for ISO week calculations with month boundary logic.
  */
 
-import { format, getWeek, getYear, addWeeks, startOfWeek, endOfWeek, addDays } from 'date-fns';
+import { getSettings } from '@/services/api';
+import { QueryClient } from '@tanstack/react-query';
+import { addDays, addWeeks, endOfWeek, format, getWeek, getYear, startOfWeek } from 'date-fns';
+import { getWeekStartsOn } from './weekStart';
 
 export enum WeekendStart {
   SUNDAY = 0,
@@ -34,13 +37,14 @@ export interface WeekRange {
 }/**
  * Get ISO week information for a given date.
  */
-export function getISOWeekInfo(targetDate: Date): WeekInfo {
+export function getISOWeekInfo(targetDate: Date, opts?: { weekStartsOn?: 0 | 1 }): WeekInfo {
+  const weekStartsOn = opts?.weekStartsOn ?? 1; // default Monday if not supplied
   const year = getYear(targetDate);
-  const weekNumber = getWeek(targetDate, { weekStartsOn: 1 }); // Monday start
+  const weekNumber = getWeek(targetDate, { weekStartsOn });
   
-  // Calculate start and end dates for the ISO week (Monday to Sunday)
-  const startDate = startOfWeek(targetDate, { weekStartsOn: 1 });
-  const endDate = endOfWeek(targetDate, { weekStartsOn: 1 });
+  // Calculate start and end dates for the week
+  const startDate = startOfWeek(targetDate, { weekStartsOn });
+  const endDate = endOfWeek(targetDate, { weekStartsOn });
   
   // Check if week spans multiple months
   const spansMonths = startDate.getMonth() !== endDate.getMonth();
@@ -71,7 +75,7 @@ export function createWeekIdentifier(year: number, weekNumber: number): string {
 /**
  * Parse a week identifier and return week information.
  */
-export function getWeekFromIdentifier(weekIdentifier: string): WeekInfo {
+export function getWeekFromIdentifier(weekIdentifier: string, opts?: { weekStartsOn?: 0 | 1 }): WeekInfo {
   const parts = weekIdentifier.split('-W');
   if (parts.length !== 2) {
     throw new Error(`Invalid week identifier format: ${weekIdentifier}`);
@@ -87,10 +91,11 @@ export function getWeekFromIdentifier(weekIdentifier: string): WeekInfo {
   // Calculate the start date of the target week
   // Find January 4th of the year (always in week 1)
   const jan4 = new Date(year, 0, 4);
-  const week1Monday = startOfWeek(jan4, { weekStartsOn: 1 });
+  const weekStartsOn = opts?.weekStartsOn ?? 1;
+  const week1Start = startOfWeek(jan4, { weekStartsOn });
   
-  const startDate = addWeeks(week1Monday, weekNumber - 1);
-  const endDate = endOfWeek(startDate, { weekStartsOn: 1 });
+  const startDate = addWeeks(week1Start, weekNumber - 1);
+  const endDate = endOfWeek(startDate, { weekStartsOn });
   
   const spansMonths = startDate.getMonth() !== endDate.getMonth();
   const months = [format(startDate, 'MMMM')];
@@ -109,38 +114,38 @@ export function getWeekFromIdentifier(weekIdentifier: string): WeekInfo {
 }/**
  * Get the next week identifier.
  */
-export function getNextWeek(weekIdentifier: string): string {
-  const weekInfo = getWeekFromIdentifier(weekIdentifier);
+export function getNextWeek(weekIdentifier: string, opts?: { weekStartsOn?: 0 | 1 }): string {
+  const weekInfo = getWeekFromIdentifier(weekIdentifier, opts);
   const nextDate = addDays(weekInfo.endDate, 1);
-  const nextWeekInfo = getISOWeekInfo(nextDate);
+  const nextWeekInfo = getISOWeekInfo(nextDate, opts);
   return createWeekIdentifier(nextWeekInfo.year, nextWeekInfo.weekNumber);
 }
 
 /**
  * Get the previous week identifier.
  */
-export function getPreviousWeek(weekIdentifier: string): string {
-  const weekInfo = getWeekFromIdentifier(weekIdentifier);
+export function getPreviousWeek(weekIdentifier: string, opts?: { weekStartsOn?: 0 | 1 }): string {
+  const weekInfo = getWeekFromIdentifier(weekIdentifier, opts);
   const prevDate = addDays(weekInfo.startDate, -1);
-  const prevWeekInfo = getISOWeekInfo(prevDate);
+  const prevWeekInfo = getISOWeekInfo(prevDate, opts);
   return createWeekIdentifier(prevWeekInfo.year, prevWeekInfo.weekNumber);
 }
 
 /**
  * Get the current week identifier.
  */
-export function getCurrentWeekIdentifier(): string {
+export function getCurrentWeekIdentifier(opts?: { weekStartsOn?: 0 | 1 }): string {
   const today = new Date();
-  const weekInfo = getISOWeekInfo(today);
+  const weekInfo = getISOWeekInfo(today, opts);
   return createWeekIdentifier(weekInfo.year, weekInfo.weekNumber);
 }
 
 /**
  * Convert a date range to a week identifier.
  */
-export function dateRangeToWeekIdentifier(startDate: Date, endDate: Date): string {
-  const startWeek = getISOWeekInfo(startDate);
-  const endWeek = getISOWeekInfo(endDate);
+export function dateRangeToWeekIdentifier(startDate: Date, endDate: Date, opts?: { weekStartsOn?: 0 | 1 }): string {
+  const startWeek = getISOWeekInfo(startDate, opts);
+  const endWeek = getISOWeekInfo(endDate, opts);
   
   // If it's a single week
   if (startWeek.year === endWeek.year && startWeek.weekNumber === endWeek.weekNumber) {
@@ -156,4 +161,22 @@ export function dateRangeToWeekIdentifier(startDate: Date, endDate: Date): strin
   const startId = createWeekIdentifier(startWeek.year, startWeek.weekNumber);
   const endId = createWeekIdentifier(endWeek.year, endWeek.weekNumber);
   return `${startId}-${endId}`;
+}
+
+/**
+ * Convenience helpers that leverage cached settings via a provided QueryClient (optional) or fetch directly.
+ * These avoid prop-drilling weekStartsOn. Use sparingly in non-react contexts.
+ */
+export async function getDynamicWeekStartsOn(queryClient?: QueryClient): Promise<0 | 1> {
+  try {
+    if (queryClient) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cached = queryClient.getQueryData<any>(["settings"]);
+      if (cached) return getWeekStartsOn(cached);
+    }
+    const settings = await getSettings();
+    return getWeekStartsOn(settings);
+  } catch {
+    return 1;
+  }
 }
