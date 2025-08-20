@@ -8,7 +8,8 @@ import type {
   EmployeeAvailabilityStatus,
   ScheduleError,
   ScheduleUpdate,
-  Settings
+  Settings,
+  SpecialDay
 } from "@/types/index";
 import axios, { AxiosError } from "axios";
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from "../types";
@@ -781,21 +782,56 @@ export const updateEmployeeAvailability = async (
 // TODO: Update backend API and this frontend function to support fetching absences by date range.
 export const getAbsences = async (employeeId?: number): Promise<Absence[]> => {
   try {
-    // Check if employeeId is provided
-    if (employeeId === undefined) {
-      console.warn("getAbsences called without employeeId. Backend currently only supports fetching absences for a specific employee.");
-      // Return an empty array or throw an error if fetching all absences is not supported
-      return []; // Or throw new Error("Fetching all absences is not supported.");
+    // If employeeId is provided, use employee-specific endpoint for backward compatibility
+    if (employeeId !== undefined) {
+      const response = await api.get<Absence[]>(`/api/v2/absences/employees/${employeeId}/absences`);
+      return response.data;
     }
 
-    // Use the employee-specific endpoint
-    const response = await api.get<Absence>(`/api/v2/absences/employees/${employeeId}/absences`);
+    // Otherwise, get all absences (optionally filtered by date range in a separate function)
+    const response = await api.get<Absence[]>(`/api/v2/absences/`);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(
         `Failed to fetch absences for employee ${employeeId}: ${error.message}`,
       );
+    }
+    throw error;
+  }
+};
+
+// New: Fetch absences by date range (and optional employee filter)
+export const getAbsencesByRange = async (
+  startDate: string,
+  endDate: string,
+  employeeId?: number,
+): Promise<Absence[]> => {
+  try {
+    const response = await api.get<Absence[]>(`/api/v2/absences/`, {
+      params: { start_date: startDate, end_date: endDate, employee_id: employeeId },
+    });
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to fetch absences for range ${startDate} to ${endDate}: ${error.message}`,
+      );
+    }
+    throw error;
+  }
+};
+
+// New: Special days API
+export const getSpecialDays = async (): Promise<Record<string, SpecialDay>> => {
+  try {
+    const response = await api.get<{ special_days: Record<string, SpecialDay> }>(
+      "/api/v2/settings/special-days/",
+    );
+    return response.data.special_days || {};
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to fetch special days: ${error.message}`);
     }
     throw error;
   }

@@ -36,6 +36,7 @@ import {
   getSettings,
 } from "@/services/api";
 import { Employee, Schedule, ScheduleUpdate } from "@/types";
+import { categorizeShift } from "@/utils/shiftType";
 import { WeekInfo } from "@/utils/weekUtils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, endOfDay, format, isWithinInterval, parseISO, startOfDay } from "date-fns";
@@ -172,6 +173,19 @@ const calculateBreakDuration = (
   let totalBreakTime = 0;
   if (schedule.break_duration && schedule.break_duration > 0) {
     totalBreakTime = schedule.break_duration / 60; // Convert minutes to hours
+  }
+
+  // Fallback to auto break when no manual duration is stored
+  if ((!schedule.break_duration || schedule.break_duration <= 0) && schedule.shift_start && schedule.shift_end) {
+    const baseHours = calculateBaseDuration(schedule.shift_start, schedule.shift_end);
+    // Standard: 30 minutes for shifts > 6h
+    if (baseHours > 6 || schedule.requires_break) {
+      totalBreakTime += 0.5;
+    }
+    // Optionally handle very long shifts (>9h) with an extra 15 minutes
+    if (baseHours > 9) {
+      totalBreakTime += 0.25;
+    }
   }
 
   // Add keyholder extra time as break time
@@ -385,27 +399,9 @@ const TimeSlotDisplay = ({
       if (name.includes("mitte") || name.includes("middle")) return "MIDDLE";
     }
 
-    // Calculate from start and end times using user rules:
-    // EARLY: if start time is 09:00 or 10:00
-    // LATE: if end time is 19:00 or 20:00
-    // MIDDLE: for any shift that is neither EARLY nor LATE
-    if (startTime && endTime) {
-      const [startHours] = startTime.split(":").map(Number);
-      const [endHours] = endTime.split(":").map(Number);
-
-      // Check for EARLY shift (start time is 09:00 or 10:00)
-      if (startHours === 9 || startHours === 10) {
-        return "EARLY";
-      }
-
-      // Check for LATE shift (end time is 19:00 or 20:00)
-      if (endHours === 19 || endHours === 20) {
-        return "LATE";
-      }
-
-      // Everything else is MIDDLE
-      return "MIDDLE";
-    }
+    // Use global categorization based on opening/closing
+    const cat = categorizeShift(startTime, endTime, settings as any);
+    return cat;
 
     return "MIDDLE"; // Default fallback
   };
@@ -498,6 +494,9 @@ const TimeSlotDisplay = ({
         <GripVertical className="h-4 w-4 text-muted-foreground" />
         {isKeyholderShift && (
           <Key className="h-4 w-4 text-amber-600" />
+        )}
+        {schedule?.availability_type === "FIXED" && (
+          <Calendar className="h-4 w-4 text-blue-600" />
         )}
       </div>
       <div className="text-sm font-medium text-center mb-2">

@@ -35,15 +35,17 @@ import {
   createSchedule,
   exportSchedule,
   generateDemoData,
+  getAbsencesByRange,
   getEmployeeAvailabilityByDate,
   getEmployees,
   getSchedules,
   getSettings,
   getShifts as getShiftTemplatesApiService,
+  getSpecialDays,
   ScheduleResponse,
   updateSchedule,
 } from '@/services/api';
-import { Employee, EmployeeAvailabilityStatus } from '@/types';
+import { Absence, Employee, EmployeeAvailabilityStatus, SpecialDay } from '@/types';
 import { getWeekStartsOn } from '@/utils/weekStart';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { addDays, addWeeks, endOfMonth, endOfWeek, format, isSameDay, startOfMonth, startOfWeek, subWeeks } from 'date-fns';
@@ -145,6 +147,22 @@ const CalendarPage: React.FC = () => {
     }
   }, [currentDate, viewMode, weekStartsOn]);
 
+  // Fetch Special Days / Holidays
+  const { data: specialDays } = useQuery<Record<string, SpecialDay>>({
+    queryKey: ['specialDays'],
+    queryFn: getSpecialDays,
+    staleTime: 300_000,
+  });
+
+  // Fetch Absences for current date range
+  const { data: absences } = useQuery<Absence[], Error>({
+    queryKey: ['absences', format(dateRange.start, 'yyyy-MM-dd'), format(dateRange.end, 'yyyy-MM-dd')],
+    queryFn: () => getAbsencesByRange(
+      format(dateRange.start, 'yyyy-MM-dd'),
+      format(dateRange.end, 'yyyy-MM-dd')
+    ),
+  });
+
   // Fetch Schedules
   // refetchSchedules omitted (unused)
   const { data: scheduleResponse, isLoading: isLoadingSchedules, error: schedulesError } = useQuery<ScheduleResponse, Error>({
@@ -238,6 +256,26 @@ const CalendarPage: React.FC = () => {
     });
     return grouped;
   }, [filteredSchedules]);
+
+  // Group absences by date (expand multi-day absences into daily buckets)
+  const absencesByDate = useMemo(() => {
+    const grouped = new Map<string, Absence[]>();
+    if (!absences) return grouped;
+    for (const a of absences) {
+      let cursor = new Date(a.start_date);
+      const end = new Date(a.end_date);
+      // Normalize time to 00:00 to avoid DST issues
+      cursor.setHours(0, 0, 0, 0);
+      end.setHours(0, 0, 0, 0);
+      while (cursor.getTime() <= end.getTime()) {
+        const key = format(cursor, 'yyyy-MM-dd');
+        if (!grouped.has(key)) grouped.set(key, []);
+        grouped.get(key)!.push(a);
+        cursor = addDays(cursor, 1);
+      }
+    }
+    return grouped;
+  }, [absences]);
 
   // Calculate statistics
   const statistics = useMemo(() => {
@@ -382,7 +420,10 @@ const CalendarPage: React.FC = () => {
     if (!result.destination) return;
 
     const sourceId = result.draggableId;
-    const [targetDate, targetShiftId, targetEmployeeId] = result.destination.droppableId.split('-');
+    const parts = result.destination.droppableId.split('-');
+    // Expect pattern: date-shiftId-employeeId; otherwise ignore
+    if (parts.length < 3) return;
+    const [targetDate, targetShiftId, targetEmployeeId] = parts;
 
     const schedule = filteredSchedules.find(s => s.id.toString() === sourceId);
     if (!schedule) return;
@@ -455,12 +496,17 @@ const CalendarPage: React.FC = () => {
           const hasSchedules = daySchedules.length > 0;
           const filledCount = daySchedules.filter(s => s.employee_id && s.shift_id).length;
           const totalCount = daySchedules.filter(s => s.shift_id).length;
+          const holiday = specialDays && specialDays[formattedDate];
+          const absencesCount = absencesByDate.get(formattedDate)?.length || 0;
 
           return (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="relative h-full w-full flex flex-col items-center justify-center group">
+                    {holiday && (
+                      <div className="absolute top-0 left-0 w-2 h-2 rounded-full bg-amber-500" />
+                    )}
                     <span className="text-sm font-medium">{format(date, "d")}</span>
                     {hasSchedules && (
                       <div className="absolute bottom-0 left-0 right-0 flex justify-center gap-0.5 px-1">
@@ -483,11 +529,25 @@ const CalendarPage: React.FC = () => {
                         {totalCount - filledCount}
                       </Badge>
                     )}
+                    {absencesCount > 0 && (
+                      <Badge
+                        variant="secondary"
+                        className="absolute -bottom-1 -right-1 h-4 w-5 p-0 text-[10px] flex items-center justify-center"
+                      >
+                        A{absencesCount}
+                      </Badge>
+                    )}
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
                   <div className="text-xs">
                     <p className="font-semibold">{format(date, 'PPP')}</p>
+                    {holiday && (
+                      <p>Holiday: {holiday.description}{holiday.is_closed ? ' (Closed)' : ''}</p>
+                    )}
+                    {absencesCount > 0 && (
+                      <p>Absences: {absencesCount}</p>
+                    )}
                     {hasSchedules ? (
                       <>
                         <p>Total shifts: {totalCount}</p>
@@ -527,6 +587,8 @@ const CalendarPage: React.FC = () => {
         {weekDays.map((day) => {
           const formattedDate = format(day, 'yyyy-MM-dd');
           const daySchedules = schedulesByDate.get(formattedDate) || [];
+          const holiday = specialDays && specialDays[formattedDate];
+          const absencesCount = absencesByDate.get(formattedDate)?.length || 0;
 
           return (
             <div key={formattedDate} className="col-span-1">
@@ -537,6 +599,10 @@ const CalendarPage: React.FC = () => {
               )}>
                 <span>{format(day, 'EEE')}</span>
                 <span className="text-xs">{format(day, 'd')}</span>
+                <div className="flex gap-1 mt-0.5">
+                  {holiday && <Badge variant="secondary" className="h-4 px-1 text-[10px]">Holiday</Badge>}
+                  {absencesCount > 0 && <Badge variant="outline" className="h-4 px-1 text-[10px]">A{absencesCount}</Badge>}
+                </div>
               </div>
 
               <ScrollArea className="h-[500px] border-x border-b rounded-b">
@@ -602,6 +668,8 @@ const CalendarPage: React.FC = () => {
   const renderDayView = () => {
     const formattedDate = format(currentDate, 'yyyy-MM-dd');
     const daySchedules = schedulesByDate.get(formattedDate) || [];
+    const holiday = specialDays && specialDays[formattedDate];
+    const absencesCount = absencesByDate.get(formattedDate)?.length || 0;
     const hourlySchedules = new Map<number, APISchedule[]>();
 
     // Group schedules by hour
@@ -619,7 +687,11 @@ const CalendarPage: React.FC = () => {
     return (
       <div className="w-full">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">{format(currentDate, 'PPPP')}</h2>
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            {format(currentDate, 'PPPP')}
+            {holiday && <Badge variant="secondary">Holiday{holiday.is_closed ? ' (Closed)' : ''}</Badge>}
+            {absencesCount > 0 && <Badge variant="outline">Absences: {absencesCount}</Badge>}
+          </h2>
           <div className="flex gap-2">
             <Button
               size="sm"

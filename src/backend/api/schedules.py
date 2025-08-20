@@ -37,21 +37,18 @@ def _get_week_start_settings() -> int:
         if not settings:
             return 1
         # New week_navigation config (string)
-        if (
-            hasattr(settings, 'week_weekend_start')
-            and settings.week_weekend_start in ("SUNDAY", "MONDAY")
+        if hasattr(settings, "week_weekend_start") and settings.week_weekend_start in (
+            "SUNDAY",
+            "MONDAY",
         ):
             return 0 if settings.week_weekend_start == "SUNDAY" else 1
         # Legacy numeric start_of_week (0-6) restrict to 0/1 behaviour for now
         if (
-            hasattr(settings, 'start_of_week')
-            and settings.start_of_week in (0, 1)  # type: ignore[attr-defined]
+            hasattr(settings, "start_of_week") and settings.start_of_week in (0, 1)  # type: ignore[attr-defined]
         ):
             return int(settings.start_of_week)  # type: ignore
     except Exception as e:  # pragma: no cover - defensive
-        logger.warning(
-            "Falling back to Monday week start due to settings error: %s", e
-        )
+        logger.warning("Falling back to Monday week start due to settings error: %s", e)
     return 1
 
 
@@ -66,6 +63,7 @@ def _calc_week_bounds(reference: date) -> tuple[date, date]:
     start_of_week = reference - timedelta(days=offset)
     end_of_week = start_of_week + timedelta(days=6)
     return start_of_week, end_of_week
+
 
 logger = logging.getLogger(__name__)
 
@@ -95,8 +93,8 @@ def get_schedules():
         version = request.args.get("version", type=int)
         include_empty = request.args.get("include_empty", "false").lower() == "true"
 
-    # Provide default date range (current week) if not specified
-    if not start_date or not end_date:
+        # Provide default date range (current week) if not specified
+        if not start_date or not end_date:
             today = date.today()
             start_of_week, end_of_week = _calc_week_bounds(today)
             start_date = start_of_week.strftime("%Y-%m-%d")
@@ -208,9 +206,11 @@ def get_schedules():
                 "shift_id": schedule.shift.id if schedule.shift else None,
                 "break_start": schedule.break_start,
                 "break_end": schedule.break_end,
+                "break_duration": getattr(schedule, "break_duration", None),
                 "notes": schedule.notes,
                 "version": schedule.version,
                 "is_empty": not bool(schedule.shift_id),
+                "availability_type": getattr(schedule, "availability_type", None),
             }
 
             # Add enriched shift data

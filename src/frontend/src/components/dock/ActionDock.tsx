@@ -276,7 +276,7 @@ const calculateBaseDuration = (startTime: string, endTime: string): number => {
   }
 };
 
-// Calculate break duration with auto 30min rule for >6h shifts
+// Calculate break duration to mirror ScheduleTable logic (no auto 30min rule)
 const calculateBreakDuration = (schedule: Schedule, employee?: Employee, settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }): number => {
   try {
     // Priority 1: Manual break times
@@ -289,29 +289,20 @@ const calculateBreakDuration = (schedule: Schedule, employee?: Employee, setting
       return schedule.break_duration / 60;
     }
 
-    // Priority 3: Auto-calculate based on shift duration (30min for >6h)
-    // For keyholders, the extra opening/closing time counts as additional break time
-    let shiftDuration: number;
-    if (schedule.shift_start && schedule.shift_end) {
-      shiftDuration = calculateBaseDuration(schedule.shift_start, schedule.shift_end);
-    } else {
-      return 0;
-    }
-
-    // Base break calculation: 30min for >6h shifts
-    let baseBreak = shiftDuration > 6 ? 0.5 : 0;
-
-    // For keyholders, add the extra time as additional break
+    // Priority 3: Keyholder extra minutes only when matching store open/close (mirror table logic)
     if (employee && settings && employee.is_keyholder && schedule.shift_start && schedule.shift_end) {
-      const { startTime, endTime } = getKeyholderAdjustedTimes(schedule, employee, settings);
-      const totalDuration = calculateBaseDuration(startTime, endTime);
-      const extraTime = totalDuration - shiftDuration;
-
-      // Add keyholder extra time as break time
-      baseBreak += extraTime;
+      const { store_opening, store_closing, keyholder_before_minutes = 5, keyholder_after_minutes = 10 } = settings.general || {};
+      let extraMinutes = 0;
+      if (store_opening && schedule.shift_start === store_opening) {
+        extraMinutes += keyholder_before_minutes;
+      }
+      if (store_closing && schedule.shift_end === store_closing) {
+        extraMinutes += keyholder_after_minutes;
+      }
+      return extraMinutes / 60;
     }
 
-    return baseBreak;
+    return 0;
   } catch {
     return 0;
   }
@@ -479,16 +470,17 @@ export const ActionDock: React.FC<ActionDockProps> = ({
 
         // Debug logging for Monday schedules (dayOfWeek === 1)
         if (dayOfWeek === 1) {
-          console.log('DEBUG: Monday schedule', {
-            originalDate: d.toISOString(),
-            normalizedScheduleDate: scheduleDate.toISOString(),
-            normalizedRangeStart: rangeStart.toISOString(),
-            normalizedRangeEnd: rangeEnd.toISOString(),
-            inRange,
-            employee_id: s.employee_id,
-            shift_start: s.shift_start,
-            shift_end: s.shift_end
-          });
+          try {
+            console.log('DEBUG: Monday schedule', {
+              normalizedScheduleDate: scheduleDate.toISOString(),
+              normalizedRangeStart: rangeStart.toISOString(),
+              normalizedRangeEnd: rangeEnd.toISOString(),
+              inRange,
+              employee_id: s.employee_id,
+              shift_start: s.shift_start,
+              shift_end: s.shift_end
+            });
+          } catch { /* noop for logging */ }
         }
 
         return inRange;

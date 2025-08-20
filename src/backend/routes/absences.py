@@ -1,6 +1,9 @@
+from datetime import datetime
+
 from flask import Blueprint, jsonify, request
-from src.backend.models import db, Absence, Employee
 from pydantic import ValidationError
+
+from src.backend.models import Absence, Employee, db
 from src.backend.schemas.absences import AbsenceCreateRequest, AbsenceUpdateRequest
 
 bp = Blueprint("absences", __name__)
@@ -43,6 +46,53 @@ def create_absence_direct():
         ), 400  # Return validation details
     except Exception as e:  # Catch any other exceptions
         db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@bp.route("/", methods=["GET"])
+@bp.route("/absences/", methods=["GET"])
+def list_absences():
+    """List absences filtered by optional date range and employee.
+
+    Query params:
+      - start_date: YYYY-MM-DD (optional)
+      - end_date: YYYY-MM-DD (optional)
+      - employee_id: int (optional)
+
+    If no dates are provided, returns all absences (use cautiously).
+    If only one of start_date/end_date is provided, the other will default to the same value.
+    """
+    try:
+        start_date_str = request.args.get("start_date")
+        end_date_str = request.args.get("end_date")
+        employee_id = request.args.get("employee_id", type=int)
+
+        query = Absence.query
+
+        # Date parsing and overlap filtering
+        if start_date_str or end_date_str:
+            if not end_date_str:
+                end_date_str = start_date_str
+            if not start_date_str:
+                start_date_str = end_date_str
+
+            try:
+                start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                return jsonify({"error": "Invalid date format. Use YYYY-MM-DD."}), 400
+
+            # Overlap condition: (absence.start_date <= end_date) and (absence.end_date >= start_date)
+            query = query.filter(
+                Absence.start_date <= end_date, Absence.end_date >= start_date
+            )
+
+        if employee_id is not None:
+            query = query.filter_by(employee_id=employee_id)
+
+        absences = query.all()
+        return jsonify([a.to_dict() for a in absences]), 200
+    except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 
 

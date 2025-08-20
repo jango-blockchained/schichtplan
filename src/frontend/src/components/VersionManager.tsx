@@ -107,7 +107,8 @@ export function VersionManager({
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [versionToDuplicate, setVersionToDuplicate] = useState<number | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(initiallyCollapsed);
-  const [filterByDate, setFilterByDate] = useState(false);
+  // Removed extra checkbox UI for filtering by date; always filter to current range
+  const [filterByDate] = useState(true);
 
   // Get selected version metadata
   const selectedVersionMeta = state.selectedVersion
@@ -223,17 +224,7 @@ export function VersionManager({
               onDuplicateVersion={handleDuplicateVersion}
               isLoading={state.isLoading}
             />
-            {/* Date Range Filter UI - moved below the table */}
-            <div className="flex items-center gap-4 px-2 py-2 mt-4">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={filterByDate}
-                  onChange={e => setFilterByDate(e.target.checked)}
-                />
-                <span className="text-sm">Nur Versionen im ausgewählten Zeitraum anzeigen</span>
-              </label>
-            </div>
+            {/* Filter UI removed */}
           </div>
         );
 
@@ -267,17 +258,7 @@ export function VersionManager({
               isLoading={state.isLoading}
               isCollapsible={true}
             />
-            {/* Date Range Filter UI - moved below the table */}
-            <div className="flex items-center gap-4 px-2 py-2">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={filterByDate}
-                  onChange={e => setFilterByDate(e.target.checked)}
-                />
-                <span className="text-sm">Nur Versionen im ausgewählten Zeitraum anzeigen</span>
-              </label>
-            </div>
+            {/* Filter UI removed */}
 
             {/* Version Details */}
             <VersionDetailsPanel
@@ -310,17 +291,7 @@ export function VersionManager({
                 showPagination={true}
                 initialPageSize={8}
               />
-              {/* Date Range Filter UI - moved below the table */}
-              <div className="flex items-center gap-4 px-2 py-2 mt-4">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={filterByDate}
-                    onChange={e => setFilterByDate(e.target.checked)}
-                  />
-                  <span className="text-sm">Nur Versionen im ausgewählten Zeitraum anzeigen</span>
-                </label>
-              </div>
+              {/* Filter UI removed */}
             </div>
 
             {/* Version Details - takes 1/3 on large screens */}
