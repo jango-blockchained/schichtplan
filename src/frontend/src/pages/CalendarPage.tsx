@@ -113,7 +113,7 @@ const CalendarPage: React.FC = () => {
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     employees: [],
     shiftTypes: [],
-    showEmpty: true,
+    showEmpty: true, // Include empty schedules by default like SchedulePage
     showConflicts: false,
     showAvailability: false,
   });
@@ -248,7 +248,8 @@ const CalendarPage: React.FC = () => {
   const schedulesByDate = useMemo(() => {
     const grouped = new Map<string, APISchedule[]>();
     filteredSchedules.forEach(schedule => {
-      const dateKey = schedule.date;
+      // Handle both date formats: "2025-08-20" and "2025-08-20T00:00:00"
+      const dateKey = schedule.date.split('T')[0]; // Extract just the date part
       if (!grouped.has(dateKey)) {
         grouped.set(dateKey, []);
       }
@@ -470,101 +471,127 @@ const CalendarPage: React.FC = () => {
 
   // Render functions
   const renderMonthView = () => (
-    <CalendarComponent
-      mode="single"
-      selected={selectedDate}
-      onSelect={setSelectedDate}
-      month={currentDate}
-      onMonthChange={setCurrentDate}
-      className="rounded-md p-0"
-      classNames={{
-        day: cn(
-          "relative h-12 w-12 p-0 text-center transition-all duration-150",
-          "hover:bg-accent hover:text-accent-foreground focus-visible:ring-1 focus-visible:ring-ring rounded-md",
-          "group cursor-pointer",
-        ),
-        day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
-        day_today: "bg-accent text-accent-foreground border-2 border-primary",
-        day_disabled: "text-muted-foreground opacity-50",
-        day_outside: "text-muted-foreground opacity-50",
-      }}
-      components={{
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        Day: ({ date, displayMonth }) => {
-          const formattedDate = format(date, 'yyyy-MM-dd');
-          const daySchedules = schedulesByDate.get(formattedDate) || [];
-          const hasSchedules = daySchedules.length > 0;
-          const filledCount = daySchedules.filter(s => s.employee_id && s.shift_id).length;
-          const totalCount = daySchedules.filter(s => s.shift_id).length;
-          const holiday = specialDays && specialDays[formattedDate];
-          const absencesCount = absencesByDate.get(formattedDate)?.length || 0;
+    <div className="w-full">
+      <CalendarComponent
+        mode="single"
+        selected={selectedDate}
+        onSelect={setSelectedDate}
+        month={currentDate}
+        onMonthChange={setCurrentDate}
+        className="rounded-md border w-full"
+        classNames={{
+          months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
+          month: "space-y-4",
+          caption: "flex justify-center pt-1 relative items-center",
+          caption_label: "text-sm font-medium",
+          nav: "space-x-1 flex items-center",
+          nav_button: cn(
+            "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
+            "inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+          ),
+          nav_button_previous: "absolute left-1",
+          nav_button_next: "absolute right-1",
+          table: "w-full border-collapse space-y-1",
+          head_row: "flex",
+          head_cell: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
+          row: "flex w-full mt-2",
+          cell: "text-center text-sm p-0 relative [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+          day: cn(
+            "h-9 w-9 p-0 font-normal aria-selected:opacity-100",
+            "inline-flex items-center justify-center rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+            "hover:bg-accent hover:text-accent-foreground"
+          ),
+          day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+          day_today: "bg-accent text-accent-foreground",
+          day_outside: "text-muted-foreground opacity-50",
+          day_disabled: "text-muted-foreground opacity-50",
+          day_range_middle: "aria-selected:bg-accent aria-selected:text-accent-foreground",
+          day_hidden: "invisible",
+        }}
+        components={{
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          Day: ({ date, displayMonth }) => {
+            const formattedDate = format(date, 'yyyy-MM-dd');
+            const daySchedules = schedulesByDate.get(formattedDate) || [];
+            const hasSchedules = daySchedules.length > 0;
+            const filledCount = daySchedules.filter(s => s.employee_id && s.shift_id).length;
+            const totalCount = daySchedules.length; // Count ALL schedules, not just those with shift_id
+            const shiftsCount = daySchedules.filter(s => s.shift_id).length;
+            const holiday = specialDays && specialDays[formattedDate];
+            const absencesCount = absencesByDate.get(formattedDate)?.length || 0;
 
-          return (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="relative h-full w-full flex flex-col items-center justify-center group">
-                    {holiday && (
-                      <div className="absolute top-0 left-0 w-2 h-2 rounded-full bg-amber-500" />
-                    )}
-                    <span className="text-sm font-medium">{format(date, "d")}</span>
-                    {hasSchedules && (
-                      <div className="absolute bottom-0 left-0 right-0 flex justify-center gap-0.5 px-1">
-                        {Array.from(new Set(daySchedules.filter(s => s.shift_type_id).map(s => s.shift_type_id))).map((shiftType, idx) => (
-                          <div
-                            key={idx}
-                            className={cn(
-                              "w-1.5 h-1.5 rounded-full",
-                              shiftTypeColors[shiftType as string] || 'bg-gray-500'
-                            )}
-                          />
-                        ))}
-                      </div>
-                    )}
-                    {totalCount > filledCount && (
-                      <Badge
-                        variant="destructive"
-                        className="absolute -top-1 -right-1 h-4 w-4 p-0 text-[10px] flex items-center justify-center"
-                      >
-                        {totalCount - filledCount}
-                      </Badge>
-                    )}
-                    {absencesCount > 0 && (
-                      <Badge
-                        variant="secondary"
-                        className="absolute -bottom-1 -right-1 h-4 w-5 p-0 text-[10px] flex items-center justify-center"
-                      >
-                        A{absencesCount}
-                      </Badge>
-                    )}
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <div className="text-xs">
-                    <p className="font-semibold">{format(date, 'PPP')}</p>
-                    {holiday && (
-                      <p>Holiday: {holiday.description}{holiday.is_closed ? ' (Closed)' : ''}</p>
-                    )}
-                    {absencesCount > 0 && (
-                      <p>Absences: {absencesCount}</p>
-                    )}
-                    {hasSchedules ? (
-                      <>
-                        <p>Total shifts: {totalCount}</p>
-                        <p>Filled: {filledCount}</p>
-                        <p>Empty: {totalCount - filledCount}</p>
-                      </>
-                    ) : (
-                      <p>No schedules</p>
-                    )}
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          );
-        }
-      }}
-    />
+            return (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="relative h-full w-full flex flex-col items-center justify-center group">
+                      {holiday && (
+                        <div className="absolute top-0 left-0 w-2 h-2 rounded-full bg-amber-500" />
+                      )}
+                      <span className="text-sm font-medium">{format(date, "d")}</span>
+                      {hasSchedules && (
+                        <div className="absolute bottom-0 left-0 right-0 flex justify-center gap-0.5 px-1">
+                          {Array.from(new Set(daySchedules.filter(s => s.shift_type_id).map(s => s.shift_type_id))).map((shiftType, idx) => (
+                            <div
+                              key={idx}
+                              className={cn(
+                                "w-1.5 h-1.5 rounded-full",
+                                shiftTypeColors[shiftType as string] || 'bg-gray-500'
+                              )}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      {shiftsCount > filledCount && (
+                        <Badge
+                          variant="destructive"
+                          className="absolute -top-1 -right-1 h-4 w-4 p-0 text-[10px] flex items-center justify-center"
+                        >
+                          {shiftsCount - filledCount}
+                        </Badge>
+                      )}
+                      {absencesCount > 0 && (
+                        <Badge
+                          variant="secondary"
+                          className="absolute -bottom-1 -right-1 h-4 w-5 p-0 text-[10px] flex items-center justify-center"
+                        >
+                          A{absencesCount}
+                        </Badge>
+                      )}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <div className="text-xs">
+                      <p className="font-semibold">{format(date, 'PPP')}</p>
+                      {holiday && (
+                        <p>Holiday: {holiday.description}{holiday.is_closed ? ' (Closed)' : ''}</p>
+                      )}
+                      {absencesCount > 0 && (
+                        <p>Absences: {absencesCount}</p>
+                      )}
+                      {hasSchedules ? (
+                        <>
+                          <p>Total schedules: {totalCount}</p>
+                          {shiftsCount > 0 && (
+                            <>
+                              <p>Shifts assigned: {shiftsCount}</p>
+                              <p>Filled: {filledCount}</p>
+                              <p>Empty: {shiftsCount - filledCount}</p>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <p>No schedules</p>
+                      )}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            );
+          }
+        }}
+      />
+    </div>
   );
 
   const renderWeekView = () => {

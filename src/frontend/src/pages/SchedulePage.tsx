@@ -340,18 +340,8 @@ export function SchedulePage() {
   console.log("📅 Selected version from manager:", selectedVersion);
   console.log("📅 Effective selected version:", effectiveSelectedVersionNumber);
 
-  const effectiveDateRange = dateRange;
+  // Will compute effectiveDateRange after weekBasedVersionControl is defined
   const effectiveSelectedVersion = effectiveSelectedVersionNumber; // Compatibility alias
-
-  // Ensure effectiveDateRange always has .from and .to as Date objects
-  const safeEffectiveDateRange = {
-    from: effectiveDateRange?.from && !isNaN(effectiveDateRange.from.getTime())
-      ? new Date(effectiveDateRange.from)
-      : new Date(),
-    to: effectiveDateRange?.to && !isNaN(effectiveDateRange.to.getTime())
-      ? new Date(effectiveDateRange.to)
-      : new Date(),
-  };
 
   // Helper function to get the number of weeks in a year (52 or 53)
   const getWeeksInYear = useCallback((year: number): number => {
@@ -472,6 +462,18 @@ export function SchedulePage() {
   }, [currentWeek, navigateToWeek, getWeeksInYear]);
 
   // Note: Version validation is now handled entirely by useVersionManager hook to prevent infinite loops
+
+  // Effective date range used throughout (segment changes update local dateRange)
+  const effectiveDateRange = dateRange;
+  // Ensure effectiveDateRange always has .from and .to as Date objects
+  const safeEffectiveDateRange = {
+    from: effectiveDateRange?.from && !isNaN(effectiveDateRange.from.getTime())
+      ? new Date(effectiveDateRange.from)
+      : new Date(),
+    to: effectiveDateRange?.to && !isNaN(effectiveDateRange.to.getTime())
+      ? new Date(effectiveDateRange.to)
+      : new Date(),
+  };
 
   // Create a compatibility object for components that expect the old week-based structure
   const weekBasedVersionControl = {
@@ -2079,7 +2081,21 @@ export function SchedulePage() {
             monthBoundaryMode: weekBasedVersionControl.settings.monthBoundaryMode,
           }}
           currentSegment={weekBasedVersionControl.currentSegment}
-          onSegmentChange={weekBasedVersionControl.handleSegmentChange}
+          onSegmentChange={(seg) => {
+            weekBasedVersionControl.handleSegmentChange(seg);
+            // Force dateRange to be replaced with the segment's dates immediately
+            const segData = weekBasedVersionControl.weekSegments;
+            if (segData?.isSplit) {
+              const chosen = segData.segments.find(s => s.segment_number === seg);
+              if (chosen) {
+                setDateRange({ from: new Date(chosen.start_date), to: new Date(chosen.end_date) });
+                // Reset version selection for the new segment and refetch data
+                versionActions.resetVersionSelection();
+                queryClient.invalidateQueries({ queryKey: ["schedules"] });
+                queryClient.invalidateQueries({ queryKey: ["monthlyPublishedSchedules"] });
+              }
+            }
+          }}
         />
 
         <VersionManager
