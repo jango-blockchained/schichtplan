@@ -5,7 +5,7 @@ export type ShiftCategory = "EARLY" | "MIDDLE" | "LATE";
 export function categorizeShift(
     startTime?: string | null,
     endTime?: string | null,
-    settings?: Settings | undefined,
+    settings?: Pick<Settings, "general"> | undefined,
 ): ShiftCategory {
     if (!startTime || !endTime) return "MIDDLE";
 

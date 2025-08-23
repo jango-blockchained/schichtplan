@@ -146,34 +146,15 @@ class Employee(db.Model):
         )
         logging.info(f"Contracted hours: {self.contracted_hours}")
 
-        if not 0 <= self.contracted_hours <= 48:  # German labor law maximum
+        # Dynamic validation: allow any non-negative float up to a legal upper bound
+        if not 0 <= self.contracted_hours <= 48:  # German labor law maximum/week
             logging.warning(
                 f"Contracted hours outside of legal limit: {self.contracted_hours}"
             )
             return False
 
-        if self.employee_group in [EmployeeGroup.VZ, EmployeeGroup.TL]:
-            # Full-time employees should work between 35 and 48 hours
-            valid = 35 <= self.contracted_hours <= 48
-            logging.info(f"VZ/TL validation result: {valid}")
-            return valid
-        elif self.employee_group == EmployeeGroup.TZ:
-            # Part-time employees should work between 10 and 35 hours
-            valid = 10 <= self.contracted_hours <= 35
-            logging.info(f"TZ validation result: {valid}")
-            return valid
-        elif self.employee_group == EmployeeGroup.GFB:
-            # Geringfügig Beschäftigt employees must stay under the monthly limit (556 EUR / 12.41 EUR minimum wage)
-            max_monthly_hours = 556 / 12.41  # ~44.8 hours per month
-            max_weekly_hours = max_monthly_hours / 4.33  # Convert to weekly hours
-            valid = 0 <= self.contracted_hours <= max_weekly_hours
-            logging.info(
-                f"GFB validation result: {valid}, max_weekly_hours: {max_weekly_hours}"
-            )
-            return valid
-
-        logging.warning(f"Unknown employee group: {self.employee_group}")
-        return False
+        # No group-specific constraints; treat as dynamic float
+        return True
 
     def get_max_daily_hours(self) -> float:
         """Get maximum allowed daily hours"""

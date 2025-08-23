@@ -1,19 +1,19 @@
 import { Button } from "@/components/ui/button";
 import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from "@/types";
@@ -52,7 +52,7 @@ export function EmployeeModal({
     first_name: employee?.first_name || "",
     last_name: employee?.last_name || "",
     employee_group: employee?.employee_group || "VZ",
-    contracted_hours: employee?.contracted_hours || 40,
+    contracted_hours: employee?.contracted_hours ?? 0,
     is_keyholder: employee?.is_keyholder || false,
     is_active: employee?.is_active || true,
     birthday: employee?.birthday || null,
@@ -73,20 +73,7 @@ export function EmployeeModal({
     }
   };
 
-  const getHoursRange = (group: string) => {
-    switch (group) {
-      case "VZ":
-        return [35, 40];
-      case "TZ":
-        return [10, 34];
-      case "GFB":
-        return [0, 20];
-      case "TL":
-        return [35, 40];
-      default:
-        return [0, 40];
-    }
-  };
+  // No group-based hours range; allow dynamic float input
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -190,8 +177,8 @@ export function EmployeeModal({
               <Input
                 type="number"
                 step="0.5"
-                min={getHoursRange(formData.employee_group)[0]}
-                max={getHoursRange(formData.employee_group)[1]}
+                min={0}
+                max={48}
                 value={formData.contracted_hours}
                 onChange={(e) =>
                   setFormData({

@@ -58,7 +58,7 @@ class MEPPDFGenerator:
 
     # Table dimensions (calculated from reference image)
     TABLE_ROW_HEIGHT = 12 * mm
-    EMPLOYEE_ROWS_PER_BLOCK = 6  # Datum, Wer/tätig, Beginn, Pause, Ende, Summe/Tag
+    ROWS_PER_EMPLOYEE = 5  # Tätigkeit, Beginn, Pause, Ende, Summe/Tag
     EMPLOYEES_PER_PAGE = 8
 
     def __init__(self):

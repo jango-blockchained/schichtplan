@@ -209,14 +209,17 @@ export function AIConversationGenerationDialog({
                 if (response.error_code === 'MISSING_GEMINI_API_KEY') {
                     toast.error('AI generation requires a Gemini API key. Please configure it in your environment settings.');
                 }
+                handleMissingGeminiApiKeyError(response);
                 throw new Error(response.message || 'Failed to generate schedule');
             }
-        } catch (error: any) {
-            setError(error?.message || 'Failed to generate schedule');
+        } catch (error) {
+            const errMsg = error instanceof Error ? error.message : (error && (error as any).message) || 'Failed to generate schedule';
+            setError(errMsg);
             setIsLoading(false);
 
             // Optionally, fallback to string matching if error_code is not available
-            if (error?.error_code === 'MISSING_GEMINI_API_KEY' || (error?.message && error.message.includes('Gemini API key'))) {
+            const errObj = error as any;
+            if (errObj?.error_code === 'MISSING_GEMINI_API_KEY' || (errObj?.message && errObj.message.includes('Gemini API key'))) {
                 toast.error('AI generation requires a Gemini API key. Please configure it in your environment settings.');
             }
         }

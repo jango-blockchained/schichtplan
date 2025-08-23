@@ -134,8 +134,8 @@ export const EmployeesPage = () => {
   const [formData, setFormData] = useState<EmployeeFormData>(initialFormData);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { employeeGroups, getGroup, getHoursRange } = useEmployeeGroups();
-  
+  const { employeeGroups, getGroup } = useEmployeeGroups();
+
   // Load settings for absence types
   const { data: settings } = useQuery({
     queryKey: ["settings"],
@@ -212,8 +212,8 @@ export const EmployeesPage = () => {
       setEditingEmployee(null);
       setFormData({
         ...initialFormData,
-        employee_group: defaultGroup.id,
-        contracted_hours: defaultGroup.minHours,
+        employee_group: defaultGroup ? defaultGroup.id : "",
+        contracted_hours: 0,
       });
     }
     setIsDialogOpen(true);
@@ -257,27 +257,14 @@ export const EmployeesPage = () => {
   };
 
   const handleEmployeeGroupChange = (groupId: string) => {
-    const group = getGroup(groupId);
-    if (group) {
-      setFormData({
-        ...formData,
-        employee_group: groupId,
-        contracted_hours: group.minHours,
-      });
-    }
+    // Keep selected group but do not force contracted_hours from preset
+    setFormData({
+      ...formData,
+      employee_group: groupId,
+    });
   };
 
-  const getAvailableHours = (groupId: string): number[] => {
-    const [min, max] = getHoursRange(groupId);
-    if (min === max) {
-      return [min];
-    }
-    const hours: number[] = [];
-    for (let i = min; i <= max; i += 10) {
-      hours.push(i);
-    }
-    return hours;
-  };
+  // Dynamic hours: no preset list needed
 
   const handleSort = (key: keyof SortableEmployee) => {
     setSortConfig({
@@ -415,12 +402,12 @@ export const EmployeesPage = () => {
   const handleCSVImportComplete = (result: any) => {
     toast({
       title: result.success ? "Erfolg" : "Fehler",
-      description: result.success 
+      description: result.success
         ? `${result.imported_count || 0} Mitarbeiter erfolgreich importiert.`
         : result.error,
       variant: result.success ? "default" : "destructive",
     });
-    
+
     if (result.success) {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
     }
@@ -471,7 +458,7 @@ export const EmployeesPage = () => {
       </div>
     );
   }
-  
+
   // After employees have loaded (or failed with errorEmployees), 
   // if employeeGroups are still not available, it implies a settings issue or empty settings.
   // This check should come after isLoadingEmployees is confirmed false.
@@ -514,8 +501,8 @@ export const EmployeesPage = () => {
                 </Button>
               </>
             )}
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setIsCSVImportOpen(true)}
             >
               <Upload className="mr-2 h-4 w-4" />
@@ -884,8 +871,8 @@ export const EmployeesPage = () => {
                 <Input
                   type="number"
                   step="0.5"
-                  min={getHoursRange(formData.employee_group)[0]}
-                  max={getHoursRange(formData.employee_group)[1]}
+                  min={0}
+                  max={48}
                   value={formData.contracted_hours}
                   onChange={(e) =>
                     setFormData({

@@ -1,31 +1,32 @@
 import { FloatingActionButton } from "@/components/ui/FloatingActionButton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-    Sidebar,
-    SidebarContent,
-    SidebarGroup,
-    SidebarGroupContent,
-    SidebarGroupLabel,
-    SidebarHeader,
-    SidebarMenu,
-    SidebarMenuButton,
-    SidebarMenuItem,
-    SidebarProvider,
-    SidebarRail,
-    SidebarTrigger,
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { getSettings } from "@/services/api";
 import { useQuery } from "@tanstack/react-query";
 import {
-    BarChart,
-    Bot,
-    CalendarDays,
-    Cog,
-    FileText,
-    LayoutDashboard,
-    List,
-    Settings as SettingsIcon,
-    Users
+  BarChart,
+  Bot,
+  CalendarDays,
+  Cog,
+  FileText,
+  LayoutDashboard,
+  List,
+  Settings as SettingsIcon,
+  Users
 } from "lucide-react";
 import React from "react";
 import { Outlet, Link as RouterLink, useLocation } from "react-router-dom";
@@ -37,47 +38,62 @@ export const MainLayout = () => {
     queryFn: getSettings,
   });
 
+  // Page width control (default vs full page width)
+  const [pageWidth, setPageWidth] = React.useState<"default" | "full">(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("pageWidth");
+      if (stored === "full" || stored === "default") return stored;
+    }
+    return "default";
+  });
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem("pageWidth", pageWidth);
+    } catch { }
+  }, [pageWidth]);
+
   const mainNavItems = React.useMemo(
     () => [
-      { 
-        label: "Schichtplan", 
-        path: "/", 
+      {
+        label: "Schichtplan",
+        path: "/",
         icon: LayoutDashboard,
         description: "Schichtplanung und -verwaltung"
       },
-      { 
-        label: "Kalender", 
-        path: "/calendar", 
+      {
+        label: "Kalender",
+        path: "/calendar",
         icon: CalendarDays,
         description: "Kalenderansicht der Schichten"
       },
-      { 
-        label: "AI Dashboard", 
-        path: "/ai", 
+      {
+        label: "AI Dashboard",
+        path: "/ai",
         icon: Bot,
         description: "KI-gestütztes System für intelligente Schichtplanung"
       },
-      { 
-        label: "Mitarbeiter", 
-        path: "/employees", 
+      {
+        label: "Mitarbeiter",
+        path: "/employees",
         icon: Users,
         description: "Mitarbeiterverwaltung"
       },
-      { 
-        label: "Coverage", 
-        path: "/coverage", 
+      {
+        label: "Coverage",
+        path: "/coverage",
         icon: BarChart,
         description: "Besetzungsplanung"
       },
-      { 
-        label: "Schichten", 
-        path: "/shifts", 
+      {
+        label: "Schichten",
+        path: "/shifts",
         icon: FileText,
         description: "Schichtvorlagen verwalten"
       },
-      { 
-        label: "Formulars", 
-        path: "/formulars", 
+      {
+        label: "Formulars",
+        path: "/formulars",
         icon: FileText,
         description: "Dokumente und Formulare"
       },
@@ -87,27 +103,27 @@ export const MainLayout = () => {
 
   const systemNavItems = React.useMemo(
     () => [
-      { 
-        label: "Design System", 
-        path: "/design-system", 
+      {
+        label: "Design System",
+        path: "/design-system",
         icon: Cog,
         description: "Design System Dokumentation"
       },
-      { 
-        label: "PDF Layout", 
-        path: "/pdf-layout", 
+      {
+        label: "PDF Layout",
+        path: "/pdf-layout",
         icon: FileText,
         description: "PDF Layout Customizer mit Live-Vorschau"
       },
-      { 
-        label: "Logs", 
-        path: "/logs", 
+      {
+        label: "Logs",
+        path: "/logs",
         icon: List,
         description: "System-Protokolle"
       },
-      { 
-        label: "Einstellungen", 
-        path: "/settings", 
+      {
+        label: "Einstellungen",
+        path: "/settings",
         icon: SettingsIcon,
         description: "Anwendungseinstellungen"
       },
@@ -138,7 +154,7 @@ export const MainLayout = () => {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      
+
       <SidebarContent>
         {/* Main Navigation */}
         <SidebarGroup>
@@ -184,7 +200,7 @@ export const MainLayout = () => {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      
+
       <SidebarRail />
     </Sidebar>
   );
@@ -194,7 +210,7 @@ export const MainLayout = () => {
       <div className="flex min-h-screen w-full bg-background">
         {/* Desktop Sidebar */}
         <AppSidebar />
-        
+
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col">
           {/* Mobile Header */}
@@ -206,7 +222,18 @@ export const MainLayout = () => {
                   {settings?.general?.store_name || "Schichtplan"}
                 </span>
               </div>
-              <ThemeToggle />
+              <div className="flex items-center gap-2">
+                <Select value={pageWidth} onValueChange={(v) => setPageWidth(v as "default" | "full")}>
+                  <SelectTrigger className="h-8 w-[160px]">
+                    <SelectValue placeholder="Page width" />
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    <SelectItem value="default">Current width</SelectItem>
+                    <SelectItem value="full">Full page width</SelectItem>
+                  </SelectContent>
+                </Select>
+                <ThemeToggle />
+              </div>
             </div>
           </header>
 
@@ -216,18 +243,29 @@ export const MainLayout = () => {
               <div className="flex items-center gap-2">
                 <SidebarTrigger className="-ml-1" />
               </div>
-              <ThemeToggle />
+              <div className="flex items-center gap-2">
+                <Select value={pageWidth} onValueChange={(v) => setPageWidth(v as "default" | "full")}>
+                  <SelectTrigger className="h-8 w-[180px]">
+                    <SelectValue placeholder="Page width" />
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    <SelectItem value="default">Current width</SelectItem>
+                    <SelectItem value="full">Full page width</SelectItem>
+                  </SelectContent>
+                </Select>
+                <ThemeToggle />
+              </div>
             </div>
           </header>
 
           {/* Page Content */}
           <main className="flex-1 overflow-auto">
-            <div className="container mx-auto p-4 md:p-6 lg:p-8 max-w-7xl">
+            <div className={pageWidth === "full" ? "w-full px-4 md:px-6 lg:px-8" : "container mx-auto p-4 md:p-6 lg:p-8 max-w-7xl"}>
               <Outlet />
             </div>
           </main>
         </div>
-        
+
         {/* Floating Action Button */}
         <FloatingActionButton />
       </div>

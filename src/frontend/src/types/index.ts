@@ -68,6 +68,7 @@ export interface Schedule {
   break_start?: string | null;
   break_end?: string | null;
   break_duration?: number | null; // Duration in minutes
+  requires_break?: boolean | null;
   notes?: string | null;
   employee_name?: string;
   availability_type?: AvailabilityTypeStrings;
@@ -327,7 +328,7 @@ export interface Settings {
   week_navigation?: {
     week_weekend_start?: 'MONDAY' | 'SUNDAY' | null;
     week_month_boundary_mode?: 'keep_intact' | 'split_by_month' | null;
-  } | null;   
+  } | null;
 
 }
 

@@ -179,7 +179,7 @@ const calculateBreakDuration = (
   if ((!schedule.break_duration || schedule.break_duration <= 0) && schedule.shift_start && schedule.shift_end) {
     const baseHours = calculateBaseDuration(schedule.shift_start, schedule.shift_end);
     // Standard: 30 minutes for shifts > 6h
-    if (baseHours > 6 || schedule.requires_break) {
+    if (baseHours > 6) {
       totalBreakTime += 0.5;
     }
     // Optionally handle very long shifts (>9h) with an extra 15 minutes
@@ -299,10 +299,10 @@ const isEmptySchedule = (schedule: Schedule | undefined) => {
 };
 
 // Treat shifts with 00:00-00:00 as placeholders (should not count toward hours)
-const isPlaceholderShift = (schedule: Schedule | undefined) => {
-  if (!schedule) return false;
-  return schedule.shift_start === "00:00" && schedule.shift_end === "00:00";
-};
+// const isPlaceholderShift = (schedule: Schedule | undefined) => {
+//   if (!schedule) return false;
+//   return schedule.shift_start === "00:00" && schedule.shift_end === "00:00";
+// };
 
 interface TimeSlotDisplayProps {
   startTime: string;
@@ -400,10 +400,9 @@ const TimeSlotDisplay = ({
     }
 
     // Use global categorization based on opening/closing
-    const cat = categorizeShift(startTime, endTime, settings as any);
+    const cat = categorizeShift(startTime, endTime, settings as { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } } | undefined);
     return cat;
 
-    return "MIDDLE"; // Default fallback
   };
 
   // Add a more visible diagnostic indicator for missing time data
@@ -1094,7 +1093,9 @@ const calculateEmployeeHours = (
   monthlyPublishedSchedules: Schedule[] | undefined,
   dateRange: DateRange | undefined,
   employees?: Employee[],
-  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
+  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } },
+  employeeAbsences?: Record<number, unknown[]>,
+  absenceTypes?: Array<{ id: string; name: string; color: string; type: "absence" }>
 ) => {
   if (!dateRange?.from || !dateRange?.to) {
     return { weeklyHours: 0, monthlyHours: 0, totalHours: 0 };
@@ -1183,6 +1184,36 @@ const calculateEmployeeHours = (
         console.error("Error calculating monthly hours for schedule:", error);
       }
     });
+  }
+
+  // Add absence credits for days without worked schedules within the selected range
+  if (dateRange?.from && dateRange?.to && employees && employeeAbsences) {
+    const employee = employees.find(emp => emp.id === employeeId);
+    if (employee) {
+      let dayCursor = startOfDay(dateRange.from);
+      const end = endOfDay(dateRange.to);
+      while (dayCursor <= end) {
+        const dateKey = format(dayCursor, 'yyyy-MM-dd');
+        const scheduled = weeklyBestByDate.get(dateKey);
+        const hasWorkedSchedule = scheduled && scheduled.shift_start && scheduled.shift_end;
+        if (!hasWorkedSchedule) {
+          const absence = checkForAbsence(employeeId, dateKey, employeeAbsences, absenceTypes);
+          if (absence) {
+            // Credit based on rules: VZ/TL -> 8h, else contracted_hours / 6
+            let creditHours = 0;
+            if (employee.employee_group === 'VZ' || employee.employee_group === 'TL') {
+              creditHours = 8;
+            } else {
+              const raw = (employee.contracted_hours || 0) / 6;
+              const minutes = Math.round((raw - Math.floor(raw)) * 60);
+              creditHours = Math.floor(raw) + minutes / 60;
+            }
+            weeklyHours += creditHours;
+          }
+        }
+        dayCursor = addDays(dayCursor, 1);
+      }
+    }
   }
 
   return {
@@ -1732,8 +1763,8 @@ function ScheduleTableNormal({
           break;
         }
         case "workload": {
-          const hoursA = calculateEmployeeHours(a, schedules, monthlyPublishedSchedules, dateRange, employees, settings).weeklyHours;
-          const hoursB = calculateEmployeeHours(b, schedules, monthlyPublishedSchedules, dateRange, employees, settings).weeklyHours;
+          const hoursA = calculateEmployeeHours(a, schedules, monthlyPublishedSchedules, dateRange, employees, settings, employeeAbsences, absenceTypes).weeklyHours;
+          const hoursB = calculateEmployeeHours(b, schedules, monthlyPublishedSchedules, dateRange, employees, settings, employeeAbsences, absenceTypes).weeklyHours;
           comparison = hoursA - hoursB;
           if (comparison === 0) {
             // Secondary sort by name
@@ -1830,7 +1861,7 @@ function ScheduleTableNormal({
             </div>
           </th>
           {daysToDisplay.map((date, index) => {
-            const dailyHours = calculateDailyHours(schedules, date, employees, settings);
+            const dailyHours = calculateDailyHours(schedules, date, employees, settings, employeeAbsences, absenceTypes);
             const prevDate = index > 0 ? daysToDisplay[index - 1] : null;
             const isAtMonthBoundary = isSplitMonthMode && isMonthBoundary(date, prevDate);
 
@@ -1929,7 +1960,7 @@ function ScheduleTableNormal({
                             );
                           }
                           case "workload": {
-                            const hours = calculateEmployeeHours(employeeId, schedules, monthlyPublishedSchedules, dateRange, employees, settings);
+                            const hours = calculateEmployeeHours(employeeId, schedules, monthlyPublishedSchedules, dateRange, employees, settings, employeeAbsences, absenceTypes);
                             return (
                               <div className="text-xs bg-orange-50 text-orange-700 px-1 py-0.5 rounded">
                                 {hours.weeklyHours.toFixed(1)}h
@@ -2110,7 +2141,14 @@ function ScheduleColorLegend({
 }
 
 // Calculate daily working hours (excluding breaks) for a specific date
-const calculateDailyHours = (schedules: Schedule[], date: Date, employees?: Employee[], settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }): number => {
+const calculateDailyHours = (
+  schedules: Schedule[],
+  date: Date,
+  employees?: Employee[],
+  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } },
+  employeeAbsences?: Record<number, unknown[]>,
+  absenceTypes?: Array<{ id: string; name: string; color: string; type: "absence" }>
+): number => {
   const dateString = format(date, "yyyy-MM-dd");
   const daySchedules = schedules.filter(
     schedule => {
@@ -2158,6 +2196,27 @@ const calculateDailyHours = (schedules: Schedule[], date: Date, employees?: Empl
       console.error("Error calculating daily hours:", error);
     }
   });
+
+  // Credit absence if no worked schedule and employee has an absence that day
+  if (employees && employeeAbsences) {
+    employees.forEach(emp => {
+      const hasWorked = Array.from(bestByEmployee.values()).some(s => s.employee_id === emp.id && s.shift_start && s.shift_end);
+      if (!hasWorked) {
+        const dateKey = format(date, "yyyy-MM-dd");
+        const absence = checkForAbsence(emp.id, dateKey, employeeAbsences, absenceTypes);
+        if (absence) {
+          let credit = 0;
+          if (emp.employee_group === 'VZ' || emp.employee_group === 'TL') {
+            credit = 8;
+          } else {
+            const raw = (emp.contracted_hours || 0) / 6;
+            credit = Math.floor(raw) + Math.round((raw - Math.floor(raw)) * 60) / 60;
+          }
+          total += credit;
+        }
+      }
+    });
+  }
 
   return total;
 };
