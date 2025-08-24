@@ -16,4 +16,7 @@ export const GRID_CONSTANTS = {
   TIME_ROW_HEIGHT: 24,
   BLOCK_VERTICAL_PADDING: 0,
   GRID_GAP: 0,
+  FONT_SIZE: {
+    TIMELINE: 12,
+  },
 } as const;

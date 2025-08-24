@@ -1,9 +1,8 @@
-import React from 'react';
 import { cn } from '@/lib/utils';
-import { CoverageTimeSlot, StoreConfig } from '../types';
-import { DAYS_SHORT } from '../utils/constants';
 import { Key } from 'lucide-react';
-import { GRID_CONSTANTS } from '../utils/constants';
+import React from 'react';
+import { CoverageTimeSlot, StoreConfig } from '../types';
+import { DAYS_SHORT, GRID_CONSTANTS } from '../utils/constants';
 
 interface NewCoverageGridProps {
     coverage: {
@@ -37,7 +36,7 @@ const generateTimeSlots = (storeConfig: StoreConfig): {
     }
 
     // Regular store hours
-    let current = new Date(`2024-01-01 ${storeConfig.store_opening}`);
+    const current = new Date(`2024-01-01 ${storeConfig.store_opening}`);
     const storeEnd = new Date(`2024-01-01 ${storeConfig.store_closing}`);
 
     while (current <= storeEnd) {
@@ -86,7 +85,7 @@ export const NewCoverageGrid: React.FC<NewCoverageGridProps> = ({
                                     ? "bg-amber-500/10 text-amber-600"
                                     : "text-muted-foreground"
                             )}
-                            style={{ fontSize: GRID_CONSTANTS.FONT_SIZE.TIMELINE }}
+                            style={{ fontSize: `${GRID_CONSTANTS.FONT_SIZE.TIMELINE}px` }}
                         >
                             {time === beforeSlot && (
                                 <div className="flex items-center justify-center gap-1">

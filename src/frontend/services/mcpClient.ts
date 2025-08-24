@@ -305,17 +305,30 @@ export class MCPClientService {
       if (!this.isConnected) {
         throw new Error('MCP service is not connected');
       }
-
-      const response = await fetch(`${this.baseUrl}/api/v2/mcp/execute`, {
+  const response = await fetch(`${this.baseUrl}/api/v2/mcp/execute`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
       });
 
       if (!response.ok) {
-        throw new Error(`Tool execution failed: ${response.status}`);
+        // Fallback to test-tool endpoint available in backend
+        const fallback = await fetch(`${this.baseUrl}/api/v2/mcp/test-tool`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tool_name: request.tool, parameters: request.parameters }),
+        });
+        if (!fallback.ok) {
+          throw new Error(`Tool execution failed: ${response.status}`);
+        }
+        const data = await fallback.json();
+        const result: MCPResponse = {
+          status: data.status === 'success' ? 'success' : 'error',
+          result: data.result,
+          error: data.error,
+        } as MCPResponse;
+        this.emit('toolExecuted', { request, result });
+        return result;
       }
 
       const result: MCPResponse = await response.json();

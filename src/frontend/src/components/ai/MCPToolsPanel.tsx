@@ -9,27 +9,29 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { type MCPTool } from "@/services/aiService";
 import {
-    AlertCircle,
-    BarChart3,
-    Calendar,
-    CheckCircle,
-    Code,
-    Database,
-    Download,
-    Filter,
-    Play,
-    RefreshCw,
-    Search,
-    Settings,
-    Users,
-    Zap
+  AlertCircle,
+  BarChart3,
+  Calendar,
+  CheckCircle,
+  Code,
+  Database,
+  Download,
+  Filter,
+  Play,
+  RefreshCw,
+  Search,
+  Settings,
+  Users,
+  Zap
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { GlobalMCPService } from "../../../services/mcpClient";
 
 interface LocalMCPTool extends MCPTool {
   average_response_time: number;
 }
+
 
 interface ToolExecution {
   id: string;
@@ -43,211 +45,70 @@ interface ToolExecution {
 }
 
 export const MCPToolsPanel: React.FC = () => {
-  const [tools, setTools] = useState<MCPTool[]>([]);
+  const [tools, setTools] = useState<LocalMCPTool[]>([]);
   const [executions, setExecutions] = useState<ToolExecution[]>([]);
-  const [selectedTool, setSelectedTool] = useState<MCPTool | null>(null);
+  const [selectedTool, setSelectedTool] = useState<LocalMCPTool | null>(null);
   const [parameters, setParameters] = useState<Record<string, unknown>>({});
   const [searchFilter, setSearchFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [isExecuting, setIsExecuting] = useState(false);
 
   useEffect(() => {
-    // Initialize MCP tools data
-    setTools([
-      {
-        id: "analyze_schedule_conflicts",
-        name: "Analyze Schedule Conflicts",
-        description: "Identify and analyze conflicts in the current schedule",
-        category: "schedule",
-        parameters: [
-          {
-            name: "start_date",
-            type: "date",
-            required: true,
-            description: "Start date for conflict analysis"
-          },
-          {
-            name: "end_date",
-            type: "date",
-            required: true,
-            description: "End date for conflict analysis"
-          },
-          {
-            name: "include_warnings",
-            type: "boolean",
-            required: false,
-            description: "Include potential conflicts as warnings",
-            default_value: true
-          }
-        ],
-        status: "available",
-        usage_count: 156,
-        last_used: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        average_response_time: 2.3
-      },
-      {
-        id: "get_employee_availability",
-        name: "Get Employee Availability",
-        description: "Retrieve employee availability information for scheduling",
-        category: "employee",
-        parameters: [
-          {
-            name: "employee_id",
-            type: "number",
-            required: false,
-            description: "Specific employee ID (optional for all employees)"
-          },
-          {
-            name: "start_date",
-            type: "date",
-            required: true,
-            description: "Start date for availability query"
-          },
-          {
-            name: "end_date",
-            type: "date",
-            required: true,
-            description: "End date for availability query"
-          }
-        ],
-        status: "available",
-        usage_count: 203,
-        last_used: new Date(Date.now() - 30 * 60 * 1000),
-        average_response_time: 1.2
-      },
-      {
-        id: "optimize_schedule_ai",
-        name: "AI Schedule Optimization",
-        description: "Use AI to optimize schedule with advanced algorithms",
-        category: "schedule",
-        parameters: [
-          {
-            name: "start_date",
-            type: "date",
-            required: true,
-            description: "Start date for optimization"
-          },
-          {
-            name: "end_date",
-            type: "date",
-            required: true,
-            description: "End date for optimization"
-          },
-          {
-            name: "optimization_goals",
-            type: "array",
-            required: false,
-            description: "List of optimization goals",
-            default_value: ["balance_workload", "minimize_conflicts"]
-          }
-        ],
-        status: "available",
-        usage_count: 89,
-        last_used: new Date(Date.now() - 4 * 60 * 60 * 1000),
-        average_response_time: 4.7
-      },
-      {
-        id: "get_schedule_statistics",
-        name: "Get Schedule Statistics",
-        description: "Generate comprehensive schedule statistics and metrics",
-        category: "analysis",
-        parameters: [
-          {
-            name: "start_date",
-            type: "date",
-            required: true,
-            description: "Start date for statistics"
-          },
-          {
-            name: "end_date",
-            type: "date",
-            required: true,
-            description: "End date for statistics"
-          },
-          {
-            name: "include_trends",
-            type: "boolean",
-            required: false,
-            description: "Include trend analysis",
-            default_value: true
-          }
-        ],
-        status: "available",
-        usage_count: 67,
-        last_used: new Date(Date.now() - 6 * 60 * 60 * 1000),
-        average_response_time: 3.1
-      },
-      {
-        id: "get_coverage_requirements",
-        name: "Get Coverage Requirements",
-        description: "Retrieve coverage requirements for scheduling",
-        category: "schedule",
-        parameters: [
-          {
-            name: "query_date",
-            type: "date",
-            required: false,
-            description: "Specific date for coverage query (optional)"
-          }
-        ],
-        status: "available",
-        usage_count: 134,
-        last_used: new Date(Date.now() - 1 * 60 * 60 * 1000),
-        average_response_time: 0.8
-      },
-      {
-        id: "mcp_health_check",
-        name: "MCP Health Check",
-        description: "Check MCP server connectivity and health status",
-        category: "system",
-        parameters: [],
-        status: "available",
-        usage_count: 45,
-        last_used: new Date(Date.now() - 10 * 60 * 1000),
-        average_response_time: 0.3
+    // Load tools from MCP backend
+    (async () => {
+      try {
+        // no-op loading state for now
+        const svc = await GlobalMCPService.getInstance(window.location.origin);
+        const discovery = await svc.discoverTools();
+        const mapped: LocalMCPTool[] = (discovery.available_tools || []).map((t: {
+          name: string;
+          description: string;
+          category?: string;
+          parameters?: Record<string, unknown> | Array<LocalMCPTool['parameters'][number]>;
+        }) => ({
+          id: t.name,
+          name: t.name,
+          description: t.description,
+          category: t.category || 'general',
+          // Map object parameters to array expected by UI
+          parameters: Array.isArray(t.parameters)
+            ? ((Array.isArray(t.parameters) && typeof (t.parameters as unknown[])[0] === 'string')
+              // Map array of strings to object descriptors
+              ? ((t.parameters as unknown[] as string[]).map((p) => ({
+                name: p,
+                type: 'string',
+                description: '',
+                required: false,
+              })) as LocalMCPTool['parameters'])
+              : (t.parameters as LocalMCPTool['parameters']))
+            : Object.entries((t.parameters || {}) as Record<string, unknown>).map(([name, def]) => {
+              const d = def as { type?: string; description?: string; required?: boolean; default?: unknown };
+              return {
+                name,
+                type: d?.type || 'string',
+                description: d?.description || '',
+                required: !!d?.required,
+                default: d?.default,
+              };
+            }),
+          status: 'available',
+          usage_count: 0,
+          last_used: undefined,
+          average_response_time: 0,
+        }));
+        setTools(mapped);
+        setExecutions([]);
+      } catch (e) {
+        console.warn('MCP tool discovery failed:', e);
+      } finally {
+        // done
       }
-    ]);
-
-    // Initialize recent executions
-    setExecutions([
-      {
-        id: "exec_001",
-        tool_id: "analyze_schedule_conflicts",
-        parameters: {
-          start_date: "2025-06-23",
-          end_date: "2025-06-29",
-          include_warnings: true
-        },
-        status: "completed",
-        started_at: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        completed_at: new Date(Date.now() - 2 * 60 * 60 * 1000 + 2300),
-        result: {
-          conflicts_found: 3,
-          warnings: 2,
-          recommendations: 5
-        }
-      },
-      {
-        id: "exec_002",
-        tool_id: "get_employee_availability",
-        parameters: {
-          start_date: "2025-06-23",
-          end_date: "2025-06-29"
-        },
-        status: "completed",
-        started_at: new Date(Date.now() - 30 * 60 * 1000),
-        completed_at: new Date(Date.now() - 30 * 60 * 1000 + 1200),
-        result: {
-          employees_analyzed: 12,
-          availability_data: "Retrieved successfully"
-        }
-      }
-    ]);
+    })();
   }, []);
 
   const filteredTools = tools.filter(tool => {
     const matchesSearch = tool.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
-                         tool.description.toLowerCase().includes(searchFilter.toLowerCase());
+      tool.description.toLowerCase().includes(searchFilter.toLowerCase());
     const matchesCategory = categoryFilter === "all" || tool.category === categoryFilter;
     return matchesSearch && matchesCategory;
   });
@@ -257,7 +118,7 @@ export const MCPToolsPanel: React.FC = () => {
 
     setIsExecuting(true);
     const executionId = `exec_${Date.now()}`;
-    
+
     const newExecution: ToolExecution = {
       id: executionId,
       tool_id: selectedTool.id,
@@ -269,46 +130,47 @@ export const MCPToolsPanel: React.FC = () => {
     setExecutions(prev => [newExecution, ...prev]);
 
     try {
-      // Simulate tool execution
-      await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
-      
-      // Update execution with result
-      setExecutions(prev => prev.map(exec => 
-        exec.id === executionId 
+      // Execute via MCP backend (with fallback handled in service)
+      const svc = await GlobalMCPService.getInstance(window.location.origin);
+      const res = await svc.executeToolRequest({ tool: selectedTool.id, parameters });
+
+      setExecutions(prev => prev.map(exec =>
+        exec.id === executionId
           ? {
-              ...exec,
-              status: "completed" as const,
-              completed_at: new Date(),
-              result: {
-                success: true,
-                message: `Tool ${selectedTool.name} executed successfully`,
-                data: generateMockResult(selectedTool.id)
-              }
-            }
+            ...exec,
+            status: res.status === 'success' ? 'completed' as const : 'failed' as const,
+            completed_at: new Date(),
+            result: res.status === 'success' ? res.result : undefined,
+            error: res.status === 'success' ? undefined : (res.error as string | undefined)
+          }
           : exec
       ));
 
       // Update tool usage statistics
-      setTools(prev => prev.map(tool => 
-        tool.id === selectedTool.id 
+      setTools(prev => prev.map(tool =>
+        tool.id === selectedTool.id
           ? {
-              ...tool,
-              usage_count: tool.usage_count + 1,
-              last_used: new Date()
-            }
+            ...tool,
+            usage_count: tool.usage_count + 1,
+            last_used: new Date().toISOString()
+          }
           : tool
       ));
 
-      toast.success(`Tool "${selectedTool.name}" executed successfully`);
-    } catch {
-      setExecutions(prev => prev.map(exec => 
-        exec.id === executionId 
+      if (res.status === 'success') {
+        toast.success(`Tool "${selectedTool.name}" executed successfully`);
+      } else {
+        toast.error(res.error || "Tool execution failed");
+      }
+    } catch (e) {
+      setExecutions(prev => prev.map(exec =>
+        exec.id === executionId
           ? {
-              ...exec,
-              status: "failed" as const,
-              completed_at: new Date(),
-              error: "Tool execution failed"
-            }
+            ...exec,
+            status: "failed" as const,
+            completed_at: new Date(),
+            error: (e as Error).message || "Tool execution failed"
+          }
           : exec
       ));
       toast.error("Tool execution failed");
@@ -317,30 +179,7 @@ export const MCPToolsPanel: React.FC = () => {
     }
   };
 
-  const generateMockResult = (toolId: string) => {
-    switch (toolId) {
-      case "analyze_schedule_conflicts":
-        return {
-          conflicts_found: Math.floor(Math.random() * 5),
-          warnings: Math.floor(Math.random() * 8),
-          recommendations: Math.floor(Math.random() * 10) + 3
-        };
-      case "get_employee_availability":
-        return {
-          employees_analyzed: 12,
-          total_hours_available: 480,
-          conflicts_detected: Math.floor(Math.random() * 3)
-        };
-      case "optimize_schedule_ai":
-        return {
-          optimization_score: 85 + Math.random() * 15,
-          improvements_made: Math.floor(Math.random() * 20) + 5,
-          conflicts_resolved: Math.floor(Math.random() * 8)
-        };
-      default:
-        return { status: "completed", message: "Tool executed successfully" };
-    }
-  };
+  // Tool result rendering is now based on actual MCP response
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
@@ -372,14 +211,14 @@ export const MCPToolsPanel: React.FC = () => {
     }
   };
 
-  const formatTimestamp = (timestamp: Date | null) => {
+  const formatTimestamp = (timestamp?: string | Date | null) => {
     if (!timestamp) return "Never";
-    
+    const t = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
     const now = new Date();
-    const diff = now.getTime() - timestamp.getTime();
+    const diff = now.getTime() - t.getTime();
     const minutes = Math.floor(diff / (1000 * 60));
     const hours = Math.floor(minutes / 60);
-    
+
     if (minutes < 60) {
       return `${minutes}m ago`;
     } else if (hours < 24) {
@@ -390,9 +229,9 @@ export const MCPToolsPanel: React.FC = () => {
     }
   };
 
-  const renderParameterInput = (param: MCPParameter) => {
+  const renderParameterInput = (param: LocalMCPTool['parameters'][number]) => {
     const value = parameters[param.name];
-    
+
     switch (param.type) {
       case "boolean":
         return (
@@ -400,7 +239,13 @@ export const MCPToolsPanel: React.FC = () => {
             <input
               type="checkbox"
               id={param.name}
-              checked={value as boolean || param.default_value as boolean || false}
+              checked={
+                (value as boolean) || (
+                  ('default' in param && typeof (param as { default?: unknown }).default === 'boolean')
+                    ? (param as { default?: boolean }).default!
+                    : false
+                )
+              }
               onChange={(e) => setParameters(prev => ({
                 ...prev,
                 [param.name]: e.target.checked
@@ -520,8 +365,8 @@ export const MCPToolsPanel: React.FC = () => {
                       key={tool.id}
                       className={cn(
                         "p-3 rounded-lg border cursor-pointer transition-colors",
-                        selectedTool?.id === tool.id 
-                          ? "border-primary bg-primary/5" 
+                        selectedTool?.id === tool.id
+                          ? "border-primary bg-primary/5"
                           : "hover:bg-muted/50"
                       )}
                       onClick={() => setSelectedTool(tool)}
@@ -618,7 +463,7 @@ export const MCPToolsPanel: React.FC = () => {
                     Export
                   </Button>
                 </div>
-                
+
                 <ScrollArea className="h-[300px]">
                   <div className="space-y-3">
                     {executions.map((execution) => {
@@ -645,7 +490,7 @@ export const MCPToolsPanel: React.FC = () => {
                               </Badge>
                             </div>
                           </div>
-                          
+
                           <div className="text-xs text-muted-foreground space-y-1">
                             <div className="flex justify-between">
                               <span>Started:</span>

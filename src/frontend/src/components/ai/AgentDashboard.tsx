@@ -7,22 +7,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { aiService, type Agent } from "@/services/aiService";
 import {
-    Activity,
-    AlertCircle,
-    BarChart3,
-    Bot,
-    Calendar,
-    CheckCircle,
-    Clock,
-    MessageSquare,
-    Pause,
-    Play,
-    RefreshCw,
-    Settings,
-    TrendingUp,
-    Users,
-    Workflow,
-    Zap
+  Activity,
+  AlertCircle,
+  BarChart3,
+  Bot,
+  Calendar,
+  CheckCircle,
+  Clock,
+  MessageSquare,
+  Pause,
+  Play,
+  RefreshCw,
+  Settings,
+  TrendingUp,
+  Users,
+  Workflow,
+  Zap
 } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -38,7 +38,10 @@ interface AgentInteraction {
   tools_used: string[];
 }
 
-interface LocalAgent extends Agent {
+type AllowedStatus = Agent['status'] | 'processing' | 'idle';
+
+interface LocalAgent extends Omit<Agent, 'status' | 'performance'> {
+  status: AllowedStatus;
   current_task?: {
     id: string;
     description: string;
@@ -49,6 +52,13 @@ interface LocalAgent extends Agent {
     requests_today: number;
     success_rate_24h: number;
     avg_response_time_24h: number;
+  };
+  performance: Agent['performance'] & {
+    // allow extra mock-only metrics
+    uptime_percentage?: number;
+    successful_requests?: number;
+    average_response_time?: number;
+    last_activity?: Date; // mock uses Date while Agent uses string
   };
 }
 
@@ -63,13 +73,17 @@ export const AgentDashboard: React.FC = () => {
     try {
       const apiAgents = await aiService.getAgents();
       // Convert API agents to local format with additional fields
-      const localAgents: LocalAgent[] = apiAgents.map(agent => ({
+      const localAgents: LocalAgent[] = apiAgents.map((agent) => ({
         ...agent,
+        status: agent.status as AllowedStatus,
         metrics: {
           requests_today: Math.floor(Math.random() * 100),
           success_rate_24h: agent.performance.success_rate,
-          avg_response_time_24h: agent.performance.avg_response_time
-        }
+          avg_response_time_24h: agent.performance.avg_response_time,
+        },
+        performance: {
+          ...agent.performance,
+        },
       }));
       setAgents(localAgents);
     } catch (error) {
@@ -261,20 +275,20 @@ export const AgentDashboard: React.FC = () => {
     try {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setAgents(prev => prev.map(agent => 
-        agent.id === agentId 
-          ? { 
-              ...agent, 
-              status: action === "pause" ? "idle" : "active",
-              performance: {
-                ...agent.performance,
-                last_activity: new Date()
-              }
+
+      setAgents(prev => prev.map(agent =>
+        agent.id === agentId
+          ? {
+            ...agent,
+            status: action === "pause" ? "idle" : "active",
+            performance: {
+              ...agent.performance,
+              last_activity: new Date()
             }
+          }
           : agent
       ));
-      
+
       toast.success(`Agent ${action} successful`);
     } catch {
       toast.error(`Failed to ${action} agent`);
@@ -301,8 +315,8 @@ export const AgentDashboard: React.FC = () => {
       {/* Agent Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {agents.map((agent) => (
-          <Card 
-            key={agent.id} 
+          <Card
+            key={agent.id}
             className={cn(
               "cursor-pointer transition-all hover:scale-105",
               selectedAgent?.id === agent.id && "ring-2 ring-primary"
@@ -324,7 +338,7 @@ export const AgentDashboard: React.FC = () => {
               <p className="text-sm text-muted-foreground">
                 {agent.description}
               </p>
-              
+
               {/* Current Task */}
               {agent.current_task && (
                 <div className="space-y-2">
@@ -359,7 +373,7 @@ export const AgentDashboard: React.FC = () => {
                 </div>
                 <div className="space-y-1">
                   <p className="text-muted-foreground">Uptime</p>
-                  <p className="font-semibold">{agent.performance.uptime_percentage}%</p>
+                  <p className="font-semibold">{agent.performance.uptime_percentage ?? 0}%</p>
                 </div>
               </div>
 
@@ -523,7 +537,7 @@ export const AgentDashboard: React.FC = () => {
                               </Badge>
                             </div>
                           </div>
-                          
+
                           <div className="space-y-2">
                             <div>
                               <p className="text-sm font-medium">Request:</p>
@@ -565,7 +579,7 @@ export const AgentDashboard: React.FC = () => {
                     <p className="text-sm text-muted-foreground">
                       {agent.description}
                     </p>
-                    
+
                     <div>
                       <h4 className="text-sm font-medium mb-2">Capabilities:</h4>
                       <div className="space-y-1">

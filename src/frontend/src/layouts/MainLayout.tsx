@@ -1,3 +1,4 @@
+import { GlobalAIChat } from "@/components/ai/GlobalAIChat";
 import { FloatingActionButton } from "@/components/ui/FloatingActionButton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -268,6 +269,8 @@ export const MainLayout = () => {
 
         {/* Floating Action Button */}
         <FloatingActionButton />
+        {/* Global AI Chat */}
+        <GlobalAIChat />
       </div>
     </SidebarProvider>
   );

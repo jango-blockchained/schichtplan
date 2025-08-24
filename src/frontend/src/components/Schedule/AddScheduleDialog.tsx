@@ -1,10 +1,10 @@
 import { format } from "date-fns";
 import {
-    AlertTriangle,
-    Calendar as CalendarIcon,
-    Check,
-    Clock,
-    X,
+  AlertTriangle,
+  Calendar as CalendarIcon,
+  Check,
+  Clock,
+  X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 // Removed unused useQuery, useMutation, useQueryClient for now, can be added back if other parts need them
@@ -13,49 +13,51 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import {
-    getApplicableShiftsForEmployee,
-    getEmployeeAvailabilityByDate,
-    getEmployees,
-    getSettings,
-    getShifts,
-    updateEmployee,
+  getApplicableShiftsForEmployee,
+  getEmployeeAvailabilityByDate,
+  getEmployees,
+  getSettings,
+  getShifts,
+  updateEmployee,
 } from "@/services/api";
 import {
-    createRequiredConsecutiveShifts,
-    validateConsecutiveShiftRequirements,
+  createRequiredConsecutiveShifts,
+  validateConsecutiveShiftRequirements,
 } from "@/services/scheduleUtils";
 import {
-    ApplicableShift,
-    AvailabilityTypeStrings,
-    EmployeeAvailabilityStatus,
+  ApplicableShift,
+  AvailabilityTypeStrings,
+  EmployeeAvailabilityStatus,
 } from "@/types";
 
 interface AddScheduleDialogProps {
   isOpen: boolean;
-  onClose: () => void;
+  // Support both onClose and onOpenChange(open:boolean)
+  onClose?: () => void;
+  onOpenChange?: (open: boolean) => void;
   onAddSchedule: (scheduleData: {
     employee_id: number;
     date: string;
@@ -67,15 +69,21 @@ interface AddScheduleDialogProps {
   version: number;
   defaultDate?: Date;
   defaultEmployeeId?: number;
+  // Optional props used by tests
+  defaultShiftId?: number | null;
+  scheduleId?: number | null;
 }
 
 export function AddScheduleDialog({
   isOpen,
   onClose,
+  onOpenChange,
   onAddSchedule,
   version,
   defaultDate: initialDefaultDate, // Renamed to avoid conflict in useEffect
   defaultEmployeeId: initialDefaultEmployeeId, // Renamed
+  defaultShiftId,
+  scheduleId,
 }: AddScheduleDialogProps) {
   const { toast } = useToast();
 
@@ -130,11 +138,11 @@ export function AddScheduleDialog({
       }
 
       // Reset shift selection
-      setSelectedShift(null);
+      setSelectedShift(defaultShiftId ?? null);
       setSelectedAvailabilityType(null);
       setIsKeyholder(false);
     }
-  }, [isOpen, initialDefaultDate, initialDefaultEmployeeId]);
+  }, [isOpen, initialDefaultDate, initialDefaultEmployeeId, defaultShiftId]);
 
   // Fetch employee availability status when selectedDate changes or dialog opens
   useEffect(() => {
@@ -245,19 +253,19 @@ export function AddScheduleDialog({
     try {
       // Get shift details for consecutive shift validation
       const selectedShiftDetails = applicableShiftsList.find(s => s.shift_id === selectedShift);
-      
+
       if (selectedShiftDetails) {
         // Validate consecutive shift requirements
         const settings = await getSettings();
         const openingDays = settings?.general?.opening_days;
-        
+
         const validation = await validateConsecutiveShiftRequirements(
           selectedEmployee,
           selectedShiftDetails,
           selectedDate,
           openingDays
         );
-        
+
         if (!validation.isValid) {
           toast({
             title: "Consecutive Shift Requirement Conflict",
@@ -274,21 +282,21 @@ export function AddScheduleDialog({
           // Get all employees to find other keyholders
           const employees = await getEmployees();
           // Find and unset other keyholders
-          const otherKeyholders = employees.filter(emp => 
+          const otherKeyholders = employees.filter(emp =>
             emp.id !== selectedEmployee && emp.is_keyholder
           );
           for (const keyholder of otherKeyholders) {
-            await updateEmployee(keyholder.id, { 
-              ...keyholder, 
-              is_keyholder: false 
+            await updateEmployee(keyholder.id, {
+              ...keyholder,
+              is_keyholder: false
             });
           }
           // Set the selected employee as keyholder
           const currentEmployee = employees.find(emp => emp.id === selectedEmployee);
           if (currentEmployee && !currentEmployee.is_keyholder) {
-            await updateEmployee(currentEmployee.id, { 
-              ...currentEmployee, 
-              is_keyholder: true 
+            await updateEmployee(currentEmployee.id, {
+              ...currentEmployee,
+              is_keyholder: true
             });
           }
         } catch (error) {
@@ -309,14 +317,14 @@ export function AddScheduleDialog({
         availability_type: selectedAvailabilityType,
         is_keyholder: isKeyholder,
       });
-      
+
       // Create required consecutive shifts after successful schedule creation
       if (selectedShiftDetails) {
         try {
           const settings = await getSettings();
           const shifts = await getShifts();
           const openingDays = settings?.general?.opening_days;
-          
+
           await createRequiredConsecutiveShifts(
             selectedEmployee,
             selectedShiftDetails,
@@ -334,7 +342,7 @@ export function AddScheduleDialog({
           });
         }
       }
-      
+
       onClose(); // Close dialog on success
     } catch (error) {
       toast({
@@ -455,8 +463,17 @@ export function AddScheduleDialog({
     );
   };
 
+  const handleDialogOpenChange = (open: boolean) => {
+    if (!open) {
+      if (onClose) onClose();
+      if (onOpenChange) onOpenChange(false);
+    } else if (onOpenChange) {
+      onOpenChange(true);
+    }
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
           <DialogTitle>Neuen Schichtplan hinzufügen</DialogTitle>
@@ -546,7 +563,7 @@ export function AddScheduleDialog({
                       className={cn(
                         "text-xs opacity-80 ml-2",
                         empStatus.status.startsWith("Absence") &&
-                          "text-red-500",
+                        "text-red-500",
                         empStatus.status.startsWith("Shift") && "text-blue-500",
                         empStatus.status === "Available" && "text-green-500",
                       )}
@@ -613,10 +630,10 @@ export function AddScheduleDialog({
                 {/* Then show unavailable shifts (if any) */}
                 {applicableShiftsList.filter((s) => !s.is_available).length >
                   0 && (
-                  <div className="py-1 px-2 text-xs text-muted-foreground border-t">
-                    Nicht verfügbare Schichten:
-                  </div>
-                )}
+                    <div className="py-1 px-2 text-xs text-muted-foreground border-t">
+                      Nicht verfügbare Schichten:
+                    </div>
+                  )}
                 {applicableShiftsList
                   .filter((s) => !s.is_available)
                   .map((shift) => (
@@ -642,8 +659,8 @@ export function AddScheduleDialog({
                 onCheckedChange={(checked) => setIsKeyholder(checked as boolean)}
                 disabled={isSubmitting}
               />
-              <Label 
-                htmlFor="keyholder" 
+              <Label
+                htmlFor="keyholder"
                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
               >
                 Als Schlüsselträger markieren

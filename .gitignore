@@ -175,3 +175,10 @@ coverage.xml
 !.cursor/
 .plandex-v2/
 .ruff_cache/
+ 
+# AppImage artifacts
+# Ignore built AppImage binaries and AppDir build output
+*.AppImage
+*.appimage
+*.AppImage.zsync
+*.AppDir/
