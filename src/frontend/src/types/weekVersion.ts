@@ -6,6 +6,7 @@
  */
 
 import { DateRange } from 'react-day-picker';
+import { MonthBoundaryMode, WeekendStart } from '../utils/weekUtils';
 
 // Re-export week utilities types for convenience
 export { MonthBoundaryMode, WeekendStart } from '../utils/weekUtils';

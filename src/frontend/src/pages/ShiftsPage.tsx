@@ -1,25 +1,18 @@
-import React, { useEffect, useState } from "react";
-import { useToast } from "@/components/ui/use-toast";
 import { PageHeader } from "@/components/PageHeader";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Plus, Loader2 } from "lucide-react";
 import { ShiftEditor } from "@/components/shifts-editor/components/ShiftEditor";
-import { Settings } from "@/types";
+import { useToast } from "@/components/ui/use-toast";
+import { DEFAULT_SETTINGS } from "@/hooks/useSettings";
 import {
   Shift,
-  getShifts,
   createShift,
-  updateShift,
   deleteShift,
+  getSettings,
+  getShifts,
+  updateShift,
 } from "@/services/api";
-import { getSettings } from "@/services/api";
+import { Settings } from "@/types";
+import { Loader2 } from "lucide-react";
+import React, { useEffect, useState } from "react";
 
 // Helper function to convert active_days from object to array if needed
 const convertActiveDaysToArray = (activeDays: {

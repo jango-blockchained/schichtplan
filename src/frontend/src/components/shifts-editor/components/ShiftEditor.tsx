@@ -1,18 +1,17 @@
-import React, { useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Plus, Edit2, Trash2 } from "lucide-react";
-import { Settings } from "@/types";
 import { Shift } from "@/services/api";
-import { ShiftForm } from "./ShiftForm";
+import { Edit2, Plus, Trash2 } from "lucide-react";
+import React, { useState } from "react";
 import { ShiftEditorProps } from "../types";
+import { ShiftForm } from "./ShiftForm";
 
 export const ShiftEditor: React.FC<ShiftEditorProps> = ({
   shifts,
@@ -34,9 +33,12 @@ export const ShiftEditor: React.FC<ShiftEditorProps> = ({
 
   // IMPORTANT: The application uses the Python convention where Monday=0, Sunday=6
   // This is different from JavaScript's Date where Sunday=0
-  const getDayNames = (activeDays: { [key: string]: boolean }) => {
+  const getDayNames = (activeDays: number[] | { [key: string]: boolean }) => {
     // Days ordered to match the Python/backend convention where Monday=0 through Sunday=6
     const days = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+    if (Array.isArray(activeDays)) {
+      return activeDays.map(idx => days[idx]).join(", ");
+    }
     return Object.entries(activeDays)
       .filter(([_, isActive]) => isActive)
       .map(([day]) => days[parseInt(day)])

@@ -11,20 +11,31 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { Settings, Split } from 'lucide-react';
 
-interface WeekNavigationSectionProps {
-  settings: {
+export interface WeekNavigationSectionProps {
+  settings: Partial<{
     week_weekend_start: 'MONDAY' | 'SUNDAY';
     week_month_boundary_mode: 'keep_intact' | 'split_by_month';
-  };
+  }>;
   onChange: (key: keyof WeekNavigationSectionProps['settings'], value: boolean | string) => void;
+  onImmediateUpdate: () => void;
+}
+export interface WeekNavigationSectionProps {
+  settings: Partial<{
+    week_weekend_start: "MONDAY" | "SUNDAY";
+    week_month_boundary_mode: "keep_intact" | "split_by_month";
+  }>;
+  onUpdate: (updates: Partial<{
+    week_weekend_start: "MONDAY" | "SUNDAY";
+    week_month_boundary_mode: "keep_intact" | "split_by_month";
+  }>) => void;
   onImmediateUpdate: () => void;
 }
 
@@ -33,7 +44,7 @@ export default function WeekNavigationSection({
   onChange,
   onImmediateUpdate
 }: WeekNavigationSectionProps) {
-  
+
   const handleSelectChange = (key: keyof WeekNavigationSectionProps['settings']) => (value: string) => {
     onChange(key, value);
     onImmediateUpdate();
@@ -101,7 +112,7 @@ export default function WeekNavigationSection({
         <CardContent>
           <div className="text-sm text-muted-foreground space-y-2">
             <p>
-              <strong>Week-based navigation</strong> allows users to browse schedules by ISO calendar weeks (e.g., "2024-W15") 
+              <strong>Week-based navigation</strong> allows users to browse schedules by ISO calendar weeks (e.g., "2024-W15")
               instead of manually selecting date ranges.
             </p>
             <p>

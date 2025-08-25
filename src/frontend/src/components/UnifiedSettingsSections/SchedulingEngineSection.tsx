@@ -1,16 +1,18 @@
-import React from "react";
+import { ScheduleGenerationSettings } from "@/components/ScheduleGenerationSettings"; // Assuming this component is in this path
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
-  CardTitle,
+  CardTitle
 } from "@/components/ui/card";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -18,21 +20,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
-import { Info, Loader2 } from "lucide-react";
-import { ScheduleGenerationSettings } from "@/components/ScheduleGenerationSettings"; // Assuming this component is in this path
+import { Switch } from "@/components/ui/switch";
 import type { Settings } from "@/types/index";
+import { Info } from "lucide-react";
+import React from "react";
 
 interface SchedulingEngineSectionProps {
-  settings: Settings["scheduling"];
+  settings: Partial<Settings["scheduling"]>;
   onInputChange: (key: string, value: any, isNumeric?: boolean) => void;
   onDiagnosticsChange: (checked: boolean) => void;
   onGenerationSettingsUpdate: (updates: Partial<Settings["scheduling"]["generation_requirements"]>) => void;
-  onImmediateUpdate: () => void;
+  onImmediateUpdate?: () => void;
 }
 
 export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = ({

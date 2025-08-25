@@ -5,30 +5,32 @@ import { useDebouncedCallback } from "use-debounce";
 import ColorPicker from "./ColorPicker";
 import { Button } from "./ui/button";
 import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "./ui/dialog";
 import { Input } from "./ui/input";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "./ui/table";
+// Re-export types so other modules can import Editor types from this component file
+export type { AbsenceType, EmployeeType };
 
 // Import react-hook-form and Shadcn Form components
 import {
-    Form,
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
 } from "@/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod"; // Resolver for zod
 import { useForm } from "react-hook-form";
@@ -48,7 +50,7 @@ const EmployeeTypeSchemaRaw = z.object({
 const AbsenceTypeSchemaRaw = z.object({
   id: z.string().min(1, "ID is required"),
   name: z.string().min(1, "Name is required"),
-  color: z.string().min(4, "Color is required"), 
+  color: z.string().min(4, "Color is required"),
   type: z.literal("absence_type" as const),
 });
 
@@ -63,7 +65,7 @@ const GroupTypeSchema = z.discriminatedUnion("type", [
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "Max hours cannot be less than min hours",
-          path: ["max_hours"], 
+          path: ["max_hours"],
         });
       }
     }
@@ -75,19 +77,19 @@ type InferredGroupType = z.infer<typeof GroupTypeSchema>;
 
 interface EmployeeSettingsEditorProps {
   type: "employee" | "absence";
-  groups: GroupType[]; 
+  groups: GroupType[];
   onChange: (groups: GroupType[]) => void;
   isLoading?: boolean;
 }
 
 export default function EmployeeSettingsEditor({
-  groups, 
+  groups,
   onChange,
   type,
   isLoading,
 }: EmployeeSettingsEditorProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<GroupType | null>(null); 
+  const [editingGroup, setEditingGroup] = useState<GroupType | null>(null);
   const [localGroups, setLocalGroups] = useState<GroupType[]>(groups);
 
   const getTypedDefaultGroup = useCallback((): InferredGroupType => {
@@ -125,17 +127,17 @@ export default function EmployeeSettingsEditor({
   );
 
   const handleOpenModal = (group?: GroupType) => {
-    setEditingGroup(group || null); 
+    setEditingGroup(group || null);
     setIsModalOpen(true); // This will trigger the useEffect to reset the form
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setEditingGroup(null); 
+    setEditingGroup(null);
     // Form will be reset by useEffect when isModalOpen changes or editingGroup becomes null
     // However, explicitly resetting to default on close might be cleaner if needed.
     form.reset(getTypedDefaultGroup());
-    form.clearErrors(); 
+    form.clearErrors();
   };
 
   const handleSaveGroup = (formData: InferredGroupType) => {
@@ -293,34 +295,34 @@ export default function EmployeeSettingsEditor({
               </div>
 
               {form.watch("type") === "employee_type" && (
-                 <div className="grid grid-cols-2 gap-4">
-                   <FormField
-                     control={form.control}
-                     name={"min_hours"} // Name is string literal
-                     render={({ field }) => (
-                       <FormItem>
-                         <FormLabel>Min Hours</FormLabel>
-                         <FormControl>
-                           <Input type="number" step="0.5" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
-                         </FormControl>
-                         <FormMessage />
-                       </FormItem>
-                     )}
-                   />
-                   <FormField
-                     control={form.control}
-                     name={"max_hours"} // Name is string literal
-                     render={({ field }) => (
-                       <FormItem>
-                         <FormLabel>Max Hours</FormLabel>
-                         <FormControl>
-                           <Input type="number" step="0.5" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
-                         </FormControl>
-                         <FormMessage />
-                       </FormItem>
-                     )}
-                   />
-                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name={"min_hours"} // Name is string literal
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Min Hours</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.5" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={"max_hours"} // Name is string literal
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Max Hours</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.5" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               )}
 
               {form.watch("type") === "absence_type" && (
@@ -331,7 +333,7 @@ export default function EmployeeSettingsEditor({
                     <FormItem>
                       <FormLabel>Color</FormLabel>
                       <FormControl>
-                         <ColorPicker color={(field.value as string) || ''} onChange={field.onChange} label={form.watch('name') || 'Selected Color'} />
+                        <ColorPicker color={(field.value as string) || ''} onChange={field.onChange} label={form.watch('name') || 'Selected Color'} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

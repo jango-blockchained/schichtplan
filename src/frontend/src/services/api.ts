@@ -2,15 +2,16 @@ import type {
   Absence,
   AiImportResponse,
   ApplicableShift,
-  AvailabilityTypeStrings,
   DailyCoverage,
   Employee,
   EmployeeAvailabilityStatus,
-  ScheduleError,
   ScheduleUpdate,
   Settings,
-  SpecialDay
+  SpecialDay,
+  Schedule as TSchedule,
+  ScheduleResponse as TScheduleResponse
 } from "@/types/index";
+import type { PDFLayoutConfig } from "@/types/pdf";
 import axios, { AxiosError } from "axios";
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from "../types";
 import { getWeekFromIdentifier } from '../utils/weekUtils';
@@ -37,44 +38,10 @@ export interface EmployeeAvailabilityForDate {
   absence_info?: AbsenceInfo;
 }
 
-export interface Schedule {
-  id: number;
-  date: string;
-  employee_id: number;
-  shift_id: number | null;
-  version: number;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  break_start?: string | null;
-  break_end?: string | null;
-  notes?: string | null;
-  is_empty?: boolean;
-  shift_start?: string | null;
-  shift_end?: string | null;
-  duration_hours?: number;
-  requires_break?: boolean;
-  availability_type?: AvailabilityTypeStrings;
-  shift_type_id?: string; // EARLY, MIDDLE, LATE
-  shift_type_name?: string; // early, middle, late
-}
-
-export interface ScheduleResponse {
-  schedules: Schedule[];
-  versions: number[];
-  version_statuses?: Record<number, string>;
-  current_version?: number;
-  version_meta?: VersionMeta;
-  errors?: ScheduleError[];
-  version?: number;
-  total_shifts?: number;
-  filled_shifts_count?: number;
-  total_schedules?: number;
-  filtered_schedules?: number;
-  logs?: string[];
-  diagnostic_logs?: string[];
-  session_id?: string;
-}
+// Re-export canonical types from the shared types file to avoid duplicate/conflicting definitions
+export type Schedule = TSchedule;
+export type ScheduleResponse = TScheduleResponse;
+export type ApiSchedule = Schedule;
 
 export interface AiGenerationResponse {
   status: string;
@@ -269,8 +236,8 @@ export const getEmployeeAvailabilityByDate = async (
   date: string,
 ): Promise<EmployeeAvailabilityStatus[]> => {
   try {
-    const response = await api.get<EmployeeAvailabilityStatus[]>(
-      "/api/v2/availability/by_date",
+  const response = await api.get<EmployeeAvailabilityStatus[]>(
+      "/api/v2/availability/status/by-date",
       {
         params: { date },
       },
@@ -288,7 +255,10 @@ export const getEmployeeAvailabilityByDate = async (
 
 // Legacy alias for backwards compatibility with older tests/code
 // TODO: Remove after refactoring tests to use getEmployeeAvailabilityByDate
-export const fetchEmployeesWithAvailabilityByDate = getEmployeeAvailabilityByDate;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const fetchEmployeesWithAvailabilityByDate = getEmployeeAvailabilityByDate as unknown as (
+  date: string,
+) => Promise<EmployeeAvailabilityStatus[]>;
 
 // New function for Employee Availability Status by Date Range
 export const getEmployeeAvailabilityByDateRange = async (
@@ -319,7 +289,7 @@ export const getApplicableShiftsForEmployee = async (
   employeeId: number,
 ): Promise<ApplicableShift[]> => {
   try {
-    const response = await api.get<ApplicableShift[]>(
+  const response = await api.get<ApplicableShift[]>(
       "/api/v2/availability/shifts_for_employee",
       {
         params: { date, employee_id: employeeId }, // Ensure param name matches backend (employee_id)
@@ -338,7 +308,11 @@ export const getApplicableShiftsForEmployee = async (
 
 // Legacy alias for backwards compatibility with older tests/code
 // TODO: Remove after refactoring tests to use getApplicableShiftsForEmployee
-export const fetchApplicableShiftsForEmployee = getApplicableShiftsForEmployee;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const fetchApplicableShiftsForEmployee = getApplicableShiftsForEmployee as unknown as (
+  date: string,
+  employeeId: string | number,
+) => Promise<ApplicableShift[]>;
 
 // Shifts
 export interface Shift {
@@ -365,6 +339,8 @@ export const getShifts = async (): Promise<Shift[]> => {
     throw error;
   }
 };
+
+// Fetch schedules by date range (canonical)
 
 export const createShift = async (
   data: Omit<Shift, "id" | "duration_hours" | "created_at" | "updated_at">,
@@ -459,6 +435,9 @@ export const getSchedules = async (
     throw error;
   }
 };
+
+// Named export alias for compatibility in pages that import it explicitly
+export { getSchedules as fetchSchedules };
 
 export const generateAiSchedule = async (
   startDate: string,
@@ -557,15 +536,21 @@ export const importAiScheduleResponse = async (formData: FormData): Promise<AiIm
 export const exportSchedule = async (
   startDate: string,
   endDate: string,
-  layoutConfig?: any,
+  layoutConfig?: PDFLayoutConfig,
   format?: 'standard' | 'mep' | 'mep-html',
   filiale?: string,
 ): Promise<Blob> => {
   try {
-    const payload: any = {
+    const payload: {
+      start_date: string;
+      end_date: string;
+      layout_config?: PDFLayoutConfig;
+      format?: 'standard' | 'mep' | 'mep-html';
+      filiale?: string;
+    } = {
       start_date: startDate,
       end_date: endDate,
-      layout_config: layoutConfig
+      layout_config: layoutConfig,
     };
 
     // Add MEP-specific parameters if MEP format is requested
@@ -862,7 +847,6 @@ export const createAbsence = async (
 
 export const deleteAbsence = async (
   id: number,
-  employeeId: number,
 ): Promise<void> => {
   try {
     await api.delete(`/api/v2/absences/${id}`);
@@ -1125,7 +1109,7 @@ export interface DuplicateVersionResponse {
   message: string;
   version: number;
   status: string;
-  version_meta?: any;
+  version_meta?: VersionMeta;
 }
 
 export const duplicateVersion = async (
@@ -1539,15 +1523,33 @@ export interface WeekSegmentsResponse {
   }>;
 }
 
+interface BackendWeekSegment {
+  segment_id: string;
+  segment_number: number;
+  total_segments: number;
+  start_date: string;
+  end_date: string;
+  month: string;
+  year: number;
+  is_first_segment: boolean;
+  is_last_segment: boolean;
+}
+
+interface BackendWeekSegmentsResponse {
+  week_identifier: string;
+  is_split: boolean;
+  segments: BackendWeekSegment[];
+}
+
 export const getWeekSegments = async (weekIdentifier: string): Promise<WeekSegmentsResponse> => {
   try {
-    const response = await api.get<any>(`/api/weeks/${weekIdentifier}/segments`);
+    const response = await api.get<BackendWeekSegmentsResponse>(`/api/weeks/${weekIdentifier}/segments`);
 
     // Transform snake_case to camelCase for frontend consistency
     return {
       weekIdentifier: response.data.week_identifier,
       isSplit: response.data.is_split,
-      segments: response.data.segments.map((seg: any) => ({
+      segments: response.data.segments.map((seg: BackendWeekSegment) => ({
         segment_id: seg.segment_id,
         segment_number: seg.segment_number,
         total_segments: seg.total_segments,

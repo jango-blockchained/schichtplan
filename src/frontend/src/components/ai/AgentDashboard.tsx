@@ -113,6 +113,10 @@ export const AgentDashboard: React.FC = () => {
         ],
         performance: {
           total_requests: 1247,
+          success_rate: 96.6,
+          avg_response_time: 2.3,
+          last_active: new Date().toISOString(),
+          // mock-only extras
           successful_requests: 1205,
           average_response_time: 2.3,
           uptime_percentage: 99.2,
@@ -145,6 +149,9 @@ export const AgentDashboard: React.FC = () => {
         ],
         performance: {
           total_requests: 892,
+          success_rate: 94.8,
+          avg_response_time: 1.8,
+          last_active: new Date().toISOString(),
           successful_requests: 847,
           average_response_time: 1.8,
           uptime_percentage: 98.7,
@@ -171,6 +178,9 @@ export const AgentDashboard: React.FC = () => {
         ],
         performance: {
           total_requests: 456,
+          success_rate: 96.7,
+          avg_response_time: 4.2,
+          last_active: new Date().toISOString(),
           successful_requests: 441,
           average_response_time: 4.2,
           uptime_percentage: 97.8,

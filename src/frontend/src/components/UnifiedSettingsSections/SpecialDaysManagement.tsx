@@ -1,12 +1,29 @@
-import React, { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
-  CardFooter,
+  CardTitle
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -15,34 +32,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Calendar } from "@/components/ui/calendar";
 import { TimePicker } from "@/components/ui/time-picker";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { format, parse, isValid } from "date-fns";
+import { format, isValid, parse } from "date-fns";
 import {
   CalendarPlus,
   Edit,
-  Trash,
-  Calendar as CalendarIcon,
   Import,
+  Trash
 } from "lucide-react";
+import React, { useState } from "react";
 
 // Define the SpecialDay type
 export interface SpecialDay {
@@ -56,7 +54,7 @@ export interface SpecialDay {
 }
 
 export interface SpecialDaysMap {
-  [date: string]: SpecialDay;
+  [date: string]: SpecialDay | Omit<SpecialDay, 'date'>;
 }
 
 interface SpecialDaysManagementProps {

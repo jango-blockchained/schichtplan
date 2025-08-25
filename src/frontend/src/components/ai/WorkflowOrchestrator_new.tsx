@@ -7,20 +7,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { aiService, type WorkflowExecution, type WorkflowTemplate } from "@/services/aiService";
 import {
-    AlertCircle,
-    BarChart3,
-    CheckCircle,
-    Clock,
-    Download,
-    Eye,
-    Pause,
-    Play,
-    Plus,
-    RefreshCw,
-    Square,
-    Users,
-    Workflow,
-    Zap
+  AlertCircle,
+  BarChart3,
+  CheckCircle,
+  Clock,
+  Download,
+  Eye,
+  Pause,
+  Play,
+  Plus,
+  RefreshCw,
+  Square,
+  Users,
+  Workflow,
+  Zap
 } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -56,6 +56,7 @@ export const WorkflowOrchestrator: React.FC = () => {
   const [activeWorkflows, setActiveWorkflows] = useState<ActiveWorkflow[]>([]);
   const [customParameters, setCustomParameters] = useState<Record<string, string>>({});
   const [isCreating, setIsCreating] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<LocalWorkflowTemplate | null>(null);
 
   const loadWorkflowTemplates = useCallback(async () => {
     try {
@@ -231,7 +232,7 @@ export const WorkflowOrchestrator: React.FC = () => {
 
       const inputs = { ...customParameters };
       const execution = await aiService.executeWorkflow(templateId, inputs);
-      
+
       const newActiveWorkflow: ActiveWorkflow = {
         ...execution,
         completed_steps: [],
@@ -250,15 +251,15 @@ export const WorkflowOrchestrator: React.FC = () => {
 
   const handleWorkflowAction = async (workflowId: string, action: "pause" | "resume" | "stop") => {
     try {
-      setActiveWorkflows(prev => prev.map(wf => 
-        wf.id === workflowId 
-          ? { 
-              ...wf, 
-              status: action === "pause" ? "paused" : action === "resume" ? "running" : "completed"
-            }
+      setActiveWorkflows(prev => prev.map(wf =>
+        wf.id === workflowId
+          ? {
+            ...wf,
+            status: action === "pause" ? "paused" : action === "resume" ? "running" : "completed"
+          }
           : wf
       ));
-      
+
       toast.success(`Workflow ${action} successful`);
     } catch (error) {
       console.error(`Failed to ${action} workflow:`, error);
@@ -505,7 +506,7 @@ export const WorkflowOrchestrator: React.FC = () => {
                 </CardContent>
               </Card>
             ))}
-            
+
             {activeWorkflows.filter(wf => wf.status === "running" || wf.status === "paused" || wf.status === "pending").length === 0 && (
               <Card>
                 <CardContent className="py-8 text-center">
@@ -571,7 +572,7 @@ export const WorkflowOrchestrator: React.FC = () => {
                 </CardContent>
               </Card>
             ))}
-            
+
             {activeWorkflows.filter(wf => wf.status === "completed" || wf.status === "failed").length === 0 && (
               <Card>
                 <CardContent className="py-8 text-center">

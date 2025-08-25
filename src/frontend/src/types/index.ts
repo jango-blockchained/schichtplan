@@ -456,6 +456,31 @@ export interface ApplicableShift {
   is_assigned_to_other?: boolean; // Whether this shift is assigned to another employee
 }
 
+// Backwards-compat test types
+export type EmployeeWithAvailability = {
+  employee_id: string | number;
+  first_name: string;
+  last_name: string;
+  status: string;
+  is_active: boolean;
+};
+
+export type ShiftForEmployee = {
+  shift_id: string | number;
+  name: string;
+  availability_type: AvailabilityTypeStrings;
+};
+
+export type ScheduleEntry = {
+  id: string | number;
+  employee_id: string | number;
+  shift_id: string | number | null;
+  date: string;
+  version: number;
+  availability_type?: AvailabilityTypeStrings;
+  notes?: string;
+};
+
 export interface AiImportResponse {
   status: string; // e.g., "success", "warning", "error"
   message: string; // A human-readable message

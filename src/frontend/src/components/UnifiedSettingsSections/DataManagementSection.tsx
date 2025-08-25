@@ -1,20 +1,3 @@
-import React, { useState, useEffect, useRef } from "react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useToast } from "@/components/ui/use-toast";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,18 +9,35 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox"; // For table selection
 import { Input } from "@/components/ui/input"; // For file input in restore
 import { Label } from "@/components/ui/label"; // For table selection
-import { Checkbox } from "@/components/ui/checkbox"; // For table selection
-import { Loader2 } from "lucide-react";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  backupDatabase,
+  fetchTables,
   generateDemoData,
   generateOptimizedDemoData,
-  backupDatabase,
   restoreDatabase,
   wipeTables,
-  fetchTables, // Corrected import name
 } from "@/services/api"; // Using actual API imports
+import { Loader2 } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
 
 const DataManagementSection: React.FC = () => {
   const { toast } = useToast();
@@ -109,7 +109,7 @@ const DataManagementSection: React.FC = () => {
       toast({
         title: "Invalid employee count",
         description: "Please enter a valid number of employees greater than 0.",
-        variant: "warning",
+        // fallback to default styling
       });
       return;
     }
@@ -129,7 +129,6 @@ const DataManagementSection: React.FC = () => {
       toast({
         title: "Invalid employee count",
         description: "Please enter a valid number of employees greater than 0.",
-        variant: "warning",
       });
       return;
     }

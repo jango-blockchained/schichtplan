@@ -11,8 +11,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import type { Shift as ApiShift } from "@/services/api";
 import { getEmployees, getShifts } from "@/services/api";
-import { Employee, Schedule, Shift } from "@/types";
+import type { Shift as AppShift } from "@/types";
+import { Employee, Schedule } from "@/types";
 import type { WeekVersionMeta } from "@/types/weekVersion";
 import { useQuery } from "@tanstack/react-query";
 import { endOfDay, format, startOfDay } from "date-fns";
@@ -62,8 +64,9 @@ interface DraggableEmployeeProps {
   currentVersion?: number;
 }
 
+type ShiftLike = ApiShift | AppShift;
 interface DraggableShiftProps {
-  shift: Shift;
+  shift: ShiftLike;
   selectedDate?: Date;
   currentVersion?: number;
 }

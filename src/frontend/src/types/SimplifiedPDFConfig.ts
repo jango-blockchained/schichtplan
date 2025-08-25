@@ -126,10 +126,37 @@ export interface MEPColors {
   table_text: string;
 }
 
+// Alias/compatibility fields used by various UI components (camelCase and
+// alternative names). These are kept optional and mapped from the canonical
+// fields in DEFAULT_CONFIG so code accessing either shape typechecks.
+export interface MEPColorAliases {
+  primary?: string;
+  secondary?: string;
+  text?: string;
+  border?: string;
+  header_background?: string;
+  header_text?: string;
+  table_bg?: string;
+  tableBorder?: string;
+  headerBackground?: string;
+  headerText?: string;
+  cellBackground?: string;
+  cellText?: string;
+  alternateRowBackground?: string;
+}
+
 export interface MEPSpacing {
   page_margin: number;
   section_spacing: number;
   row_height: number;
+}
+
+export interface MEPSpacingAliases {
+  cell_padding?: number;
+  cellPadding?: number;
+  rowHeight?: number;
+  borderWidth?: number;
+  headerSpacing?: number;
 }
 
 export interface MEPTableStyle {
@@ -138,11 +165,37 @@ export interface MEPTableStyle {
   cell_padding: number;
 }
 
+export interface MEPTableStyleAliases {
+  alternate_rows?: boolean;
+  alternateRowColors?: boolean;
+  grid_lines?: boolean;
+  header_style?: 'bold' | 'normal';
+  showBorders?: boolean;
+  boldHeaders?: boolean;
+}
+
 export interface MEPStyling {
   fonts: MEPFonts;
-  colors: MEPColors;
-  spacing: MEPSpacing;
-  table_style: MEPTableStyle;
+  colors: MEPColors & Partial<MEPColorAliases>;
+  spacing: MEPSpacing & Partial<MEPSpacingAliases>;
+  table_style: MEPTableStyle & Partial<MEPTableStyleAliases>;
+
+  // Additional optional aliases used by components
+  fontFamily?: string;
+  // fontSize groups commonly used in the UI (base/header/title/etc.)
+  fontSize?: Partial<{
+    base: number;
+    header: number;
+    title: number;
+    headerTitle: number;
+    columnHeaders: number;
+    subHeaders: number;
+    tableContent: number;
+    footer: number;
+  }>;
+
+  // camelCase table style used in some components
+  tableStyle?: MEPTableStyle & Partial<MEPTableStyleAliases>;
 }
 
 export interface SimplifiedPDFConfig {
@@ -370,17 +423,67 @@ export const DEFAULT_CONFIG: SimplifiedPDFConfig = {
       header_text: '#000000',
       table_border: '#000000',
       table_bg: '#FFFFFF',
-      table_text: '#000000'
+      table_text: '#000000',
+      // aliases for components
+      primary: '#000000',
+      secondary: '#666666',
+      text: '#000000',
+      border: '#000000',
+      header_background: '#FFFFFF',
+      header_text: '#000000',
+      table_bg: '#FFFFFF',
+      tableBorder: '#000000',
+      headerBackground: '#FFFFFF',
+      headerText: '#000000',
+      cellBackground: '#FFFFFF',
+      cellText: '#000000',
+      alternateRowBackground: '#F7F7F7'
     },
     spacing: {
       page_margin: 15,
       section_spacing: 6,
-      row_height: 12
+      row_height: 12,
+      // aliases
+      cell_padding: 2,
+      cellPadding: 2,
+      rowHeight: 12,
+      borderWidth: 0.5,
+      headerSpacing: 6
     },
     table_style: {
       border_width: 0.5,
       grid_style: 'solid',
-      cell_padding: 2
+      cell_padding: 2,
+      // aliases
+      alternate_rows: false,
+      grid_lines: true,
+      header_style: 'bold',
+      showBorders: true,
+      alternateRowColors: false,
+      boldHeaders: true
+    },
+    tableStyle: {
+      border_width: 0.5,
+      grid_style: 'solid',
+      cell_padding: 2,
+      alternate_rows: false,
+      grid_lines: true,
+      header_style: 'bold',
+      showBorders: true,
+      alternateRowColors: false,
+      boldHeaders: true
+    },
+    // optional convenience aliases
+    fontFamily: 'Helvetica',
+    fontSize: {
+      base: 7,
+      header: 11,
+      title: 11,
+      headerTitle: 11,
+      columnHeaders: 7,
+      subHeaders: 7,
+      tableContent: 7,
+      footer: 6
     }
   },
   pageSetup: {

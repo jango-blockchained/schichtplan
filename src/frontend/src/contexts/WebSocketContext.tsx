@@ -1,10 +1,12 @@
+import { useToast } from '@/components/ui/use-toast';
 import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { io, Socket as SocketIOClient } from 'socket.io-client';
-import { useToast } from '@/components/ui/use-toast';
 
 interface WebSocketContextType {
     socket: SocketIOClient | null;
     isConnected: boolean;
+    lastError?: Error | null;
+    reconnect?: () => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType>({
@@ -20,6 +22,7 @@ interface WebSocketProviderProps {
 
 export function WebSocketProvider({ children }: WebSocketProviderProps) {
     const [isConnected, setIsConnected] = React.useState(false);
+    const [lastError, setLastError] = React.useState<Error | null>(null);
     const socketRef = useRef<SocketIOClient | null>(null);
     const { toast } = useToast();
 
@@ -46,6 +49,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
 
         socket.on('disconnect', () => {
             setIsConnected(false);
+            setLastError(new Error('Disconnected'));
             window.dispatchEvent(new CustomEvent('websocket-disconnect'));
             toast({
                 title: "Disconnected",
@@ -64,6 +68,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
 
         socket.on('reconnect_error', () => {
             window.dispatchEvent(new CustomEvent('websocket-reconnect_error'));
+            setLastError(new Error('Reconnect error'));
             toast({
                 title: "Reconnection Error",
                 description: "Failed to reconnect to real-time connection",
@@ -89,6 +94,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
         // Listen for manual reconnection requests
         const handleReconnectRequest = () => {
             if (socketRef.current) {
+                setLastError(null);
                 socketRef.current.connect();
             }
         };
@@ -105,7 +111,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
     }, [toast]);
 
     return (
-        <WebSocketContext.Provider value={{ socket: socketRef.current, isConnected }}>
+        <WebSocketContext.Provider value={{ socket: socketRef.current, isConnected, lastError, reconnect: () => window.dispatchEvent(new CustomEvent('websocket-reconnect-requested')) }}>
             {children}
         </WebSocketContext.Provider>
     );

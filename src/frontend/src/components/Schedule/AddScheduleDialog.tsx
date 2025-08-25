@@ -58,6 +58,15 @@ interface AddScheduleDialogProps {
   // Support both onClose and onOpenChange(open:boolean)
   onClose?: () => void;
   onOpenChange?: (open: boolean) => void;
+  // Back-compat test prop: notify when a schedule is added
+  onScheduleAdded?: (entry: {
+    id: number | string;
+    employee_id: number | string;
+    shift_id: number | string | null;
+    date: string;
+    version: number;
+    availability_type?: AvailabilityTypeStrings | null;
+  }) => void;
   onAddSchedule: (scheduleData: {
     employee_id: number;
     date: string;
@@ -78,6 +87,7 @@ export function AddScheduleDialog({
   isOpen,
   onClose,
   onOpenChange,
+  onScheduleAdded,
   onAddSchedule,
   version,
   defaultDate: initialDefaultDate, // Renamed to avoid conflict in useEffect
@@ -316,6 +326,15 @@ export function AddScheduleDialog({
         version,
         availability_type: selectedAvailabilityType,
         is_keyholder: isKeyholder,
+      });
+      // Fire back-compat test callback
+      onScheduleAdded?.({
+        id: scheduleId ?? `${selectedEmployee}-${format(selectedDate, "yyyy-MM-dd")}`,
+        employee_id: selectedEmployee,
+        shift_id: selectedShift,
+        date: format(selectedDate, "yyyy-MM-dd"),
+        version,
+        availability_type: selectedAvailabilityType,
       });
 
       // Create required consecutive shifts after successful schedule creation
