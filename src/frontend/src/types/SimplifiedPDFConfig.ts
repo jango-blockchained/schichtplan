@@ -424,14 +424,12 @@ export const DEFAULT_CONFIG: SimplifiedPDFConfig = {
       table_border: '#000000',
       table_bg: '#FFFFFF',
       table_text: '#000000',
-      // aliases for components
+      // aliases for components (no duplicates of canonical keys)
       primary: '#000000',
       secondary: '#666666',
       text: '#000000',
       border: '#000000',
       header_background: '#FFFFFF',
-      header_text: '#000000',
-      table_bg: '#FFFFFF',
       tableBorder: '#000000',
       headerBackground: '#FFFFFF',
       headerText: '#000000',

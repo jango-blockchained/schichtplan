@@ -96,6 +96,8 @@ export interface ScheduleResponse {
   version_meta?: any;
   logs?: string[];
   diagnostic_logs?: string[];
+  // Optional session id returned by some API flows (AI generation phases)
+  session_id?: string;
 }
 
 export interface ScheduleUpdate {
@@ -209,7 +211,7 @@ export interface Settings {
     auto_schedule_preferences: boolean | null;
     enable_diagnostics?: boolean | null;
     total_weekly_working_hours?: number | null;
-    generation_requirements: {
+  generation_requirements: {
       enforce_minimum_coverage: boolean;
       enforce_contracted_hours: boolean;
       enforce_keyholder_coverage: boolean;
@@ -225,6 +227,9 @@ export interface Settings {
       enforce_qualifications: boolean;
       enforce_opening_hours: boolean;
     } | null;
+  // Optional aliases for min/max employees per shift used in Coverage UI
+  min_employees_per_shift?: number | null;
+  max_employees_per_shift?: number | null;
     scheduling_algorithm?: "standard" | "optimized" | null;
     max_generation_attempts?: number | null;
   };
@@ -434,7 +439,7 @@ export interface EmployeeAvailabilityStatus {
   employee_id: number;
   employee_name: string;
   status: string; // e.g., "Available", "Absence: Vacation", "Shift: Early (07:00-15:00)"
-  details?: any; // Could be Absence object or Schedule object for more info
+  details?: unknown; // Could be Absence object or Schedule object for more info
 }
 
 // String literals for AvailabilityType, matching backend Enum values
