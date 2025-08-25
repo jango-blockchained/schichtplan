@@ -7,6 +7,7 @@ import type {
   EmployeeAvailabilityStatus,
   ScheduleUpdate,
   Settings,
+  Shift,
   SpecialDay,
   Schedule as TSchedule,
   ScheduleResponse as TScheduleResponse
@@ -15,6 +16,7 @@ import type { PDFLayoutConfig } from "@/types/pdf";
 import axios, { AxiosError } from "axios";
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from "../types";
 import { getWeekFromIdentifier } from '../utils/weekUtils';
+export type { Shift } from "@/types/index";
 
 interface APIErrorResponse {
   error?: string;
@@ -315,19 +317,6 @@ export const fetchApplicableShiftsForEmployee = getApplicableShiftsForEmployee a
 ) => Promise<ApplicableShift[]>;
 
 // Shifts
-export interface Shift {
-  id: number;
-  start_time: string;
-  end_time: string;
-  duration_hours: number;
-  requires_break: boolean;
-  // Align with app-wide Shift type where active_days are number[] (weekday indices)
-  active_days: number[] | { [key: string]: boolean };
-  created_at?: string;
-  updated_at?: string;
-  shift_type_id?: string;
-}
-
 export const getShifts = async (): Promise<Shift[]> => {
   try {
     const response = await api.get<Shift[]>("/api/v2/shifts/");

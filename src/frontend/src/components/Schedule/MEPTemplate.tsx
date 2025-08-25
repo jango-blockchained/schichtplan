@@ -13,12 +13,7 @@ interface MEPData {
     firstName: string;
     lastName: string;
     position: string;
-    dailySchedules: Record<string, {
-      startTime: string;
-      endTime: string;
-      breakStart: string;
-      dailySum: string;
-    }>;
+  dailySchedules: Record<string, DailyScheduleEntry>;
     weeklySum: string;
     monthlySum: string;
   }>;
@@ -27,6 +22,13 @@ interface MEPData {
     name: string;
     dateFormatted: string;
   }>;
+}
+
+interface DailyScheduleEntry {
+  startTime?: string;
+  endTime?: string;
+  breakStart?: string;
+  dailySum?: string;
 }
 
 interface MEPTemplateProps {
@@ -243,14 +245,14 @@ export function MEPTemplate({ data, onPrint, onCreateNewVersion }: MEPTemplatePr
               <div className="employee-group">
                 {/* Row 1: Datum */}
                 <div className="employee-row">
-                  <div className="col-employee employee-name-cell" rowSpan={6}>
+                  <div className="col-employee employee-name-cell" data-row-span={6}>
                     {employee.firstName}<br />
                     {employee.lastName}
                   </div>
-                  <div className="col-function employee-function-cell" rowSpan={6}>
+                  <div className="col-function employee-function-cell" data-row-span={6}>
                     {employee.position}
                   </div>
-                  <div className="col-plan employee-plan-cell" rowSpan={6}>
+                  <div className="col-plan employee-plan-cell" data-row-span={6}>
                     Plan /<br />Woche
                   </div>
 
@@ -262,10 +264,10 @@ export function MEPTemplate({ data, onPrint, onCreateNewVersion }: MEPTemplatePr
                     );
                   })}
 
-                  <div className="col-weekly employee-weekly-cell" rowSpan={6}>
+                  <div className="col-weekly employee-weekly-cell" data-row-span={6}>
                     {employee.weeklySum}
                   </div>
-                  <div className="col-monthly employee-monthly-cell" rowSpan={6}>
+                  <div className="col-monthly employee-monthly-cell" data-row-span={6}>
                     {employee.monthlySum}
                   </div>
                 </div>
