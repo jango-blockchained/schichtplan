@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/PageHeader";
-import { ShiftEditor } from "@/components/shifts-editor/components/ShiftEditor";
+import { ShiftTable } from "@/components/tables";
 import { useToast } from "@/components/ui/use-toast";
 import { DEFAULT_SETTINGS } from "@/hooks/useSettings";
 import {
@@ -11,28 +11,9 @@ import {
   updateShift,
 } from "@/services/api";
 import { Settings } from "@/types";
-import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 import React, { useEffect, useState } from "react";
-
-// Helper function to convert active_days from object to array if needed
-const convertActiveDaysToArray = (activeDays: {
-  [key: string]: boolean;
-}): number[] => {
-  return Object.entries(activeDays)
-    .filter(([_, isActive]) => isActive)
-    .map(([day]) => parseInt(day));
-};
-
-// Helper function to convert active_days from array to object if needed
-const convertActiveDaysToObject = (
-  activeDays: number[],
-): { [key: string]: boolean } => {
-  const result: { [key: string]: boolean } = {};
-  for (let i = 0; i < 7; i++) {
-    result[i.toString()] = activeDays.includes(i);
-  }
-  return result;
-};
 
 export const ShiftsPage: React.FC = () => {
   const { toast } = useToast();
@@ -87,7 +68,9 @@ export const ShiftsPage: React.FC = () => {
         start_time: generalSettings.store_opening || "09:00",
         end_time: generalSettings.store_closing || "17:00",
         requires_break: true,
-        active_days: generalSettings.opening_days || { monday: true, tuesday: true, wednesday: true, thursday: true, friday: true, saturday: false, sunday: false },
+        active_days: Object.keys(generalSettings.opening_days || {})
+          .filter(key => generalSettings.opening_days?.[key])
+          .map(key => parseInt(key)),
         shift_type_id: defaultShiftTypeId,
       };
 
@@ -128,47 +111,75 @@ export const ShiftsPage: React.FC = () => {
     }
   };
 
-  const handleDeleteShift = async (shiftId: number) => {
+  const handleDeleteShift = async (shift: Shift) => {
+    if (window.confirm(`Delete shift ${shift.start_time} - ${shift.end_time}?`)) {
+      try {
+        await deleteShift(shift.id);
+        setShifts((prev) => prev.filter((s) => s.id !== shift.id));
+        toast({
+          title: "Success",
+          description: "Shift deleted successfully",
+        });
+      } catch (error) {
+        console.error("Error deleting shift:", error);
+        toast({
+          title: "Error",
+          description: "Failed to delete shift",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  const handleDuplicateShift = async (shift: Shift) => {
     try {
-      await deleteShift(shiftId);
-      setShifts((prev) => prev.filter((shift) => shift.id !== shiftId));
+      const duplicatedShift = {
+        start_time: shift.start_time,
+        end_time: shift.end_time,
+        requires_break: shift.requires_break,
+        active_days: shift.active_days,
+        shift_type_id: shift.shift_type_id,
+      };
+
+      const newShift = await createShift(duplicatedShift);
+      setShifts((prev) => [...prev, newShift]);
       toast({
         title: "Success",
-        description: "Shift deleted successfully",
+        description: "Shift duplicated successfully",
       });
     } catch (error) {
-      console.error("Error deleting shift:", error);
+      console.error("Error duplicating shift:", error);
       toast({
         title: "Error",
-        description: "Failed to delete shift",
+        description: "Failed to duplicate shift",
         variant: "destructive",
       });
     }
   };
 
-  if (loading || !settings) {
-    return (
-      <div className="container mx-auto py-6 space-y-8">
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      </div>
-    );
-  }
+  const shiftTypes = settings?.employee_groups?.shift_types || [];
 
   return (
     <div className="container mx-auto py-6 space-y-8">
       <PageHeader
         title="Schichten"
         description="Verwalte die Schichten für deinen Betrieb"
+        actions={
+          <Button onClick={handleAddShift}>
+            <Plus className="mr-2 h-4 w-4" />
+            Schicht hinzufügen
+          </Button>
+        }
       />
 
-      <ShiftEditor
+      <ShiftTable
         shifts={shifts}
-        settings={settings}
-        onAddShift={handleAddShift}
-        onUpdateShift={handleUpdateShift}
-        onDeleteShift={handleDeleteShift}
+        shiftTypes={shiftTypes}
+        loading={loading}
+        error={loading ? null : ""}
+        onEdit={handleUpdateShift}
+        onDelete={handleDeleteShift}
+        onDuplicate={handleDuplicateShift}
       />
     </div>
   );

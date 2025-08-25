@@ -1,5 +1,15 @@
-import React, { useState, useEffect } from "react";
-import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -8,21 +18,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Settings } from "@/types";
 import { Shift } from "@/services/api";
+import { Settings } from "@/types";
 import { Trash } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import React, { useEffect, useState } from "react";
 
 interface ShiftFormProps {
   settings?: Settings;
@@ -55,7 +54,7 @@ const ALL_DAYS = [
 ]; // Mon=0, Sun=6
 
 // Helper function to convert active_days from various formats to object {[key: string]: boolean} with Mon=0 index
-const normalizeActiveDays = (activeDays: any): { [key: string]: boolean } => {
+const normalizeActiveDays = (activeDays: unknown): { [key: string]: boolean } => {
   const result: { [key: string]: boolean } = {};
   // Initialize all days to false (Mon=0 to Sun=6)
   for (let i = 0; i < 7; i++) {
@@ -168,8 +167,8 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({
   };
 
   // Get shift types from settings
-  const shiftTypes = settings?.shift_types ||
-    defaultSettings.shift_types || [
+  const shiftTypes = (settings as any)?.shift_types ||
+    (defaultSettings as any).shift_types || [
       { id: "EARLY", name: "Frühschicht", color: "#4CAF50", type: "shift" },
       { id: "MIDDLE", name: "Mittelschicht", color: "#2196F3", type: "shift" },
       { id: "LATE", name: "Spätschicht", color: "#9C27B0", type: "shift" },
@@ -197,7 +196,7 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({
         <div className="grid gap-4">
           <div className="grid gap-2">
             <Label>Öffnungszeiten</Label>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 items-end">
               <div>
                 <Label htmlFor="start_time">Beginn</Label>
                 <Input
@@ -208,6 +207,7 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({
                     setFormData({ ...formData, start_time: e.target.value })
                   }
                   required
+                  className="h-10"
                 />
               </div>
               <div>
@@ -220,6 +220,7 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({
                     setFormData({ ...formData, end_time: e.target.value })
                   }
                   required
+                  className="h-10"
                 />
               </div>
             </div>
@@ -297,25 +298,23 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({
 
           <div className="grid gap-2">
             <Label>Schicht Visualisierung</Label>
-            <Card className="p-6">
-              <div className="relative h-12 bg-muted rounded-md">
-                {/* Store hours background */}
-                <div className="absolute inset-0 flex items-center justify-between px-2 text-xs text-muted-foreground">
-                  <span>{defaultSettings.general.store_opening}</span>
-                  <span>{defaultSettings.general.store_closing}</span>
-                </div>
-
-                {/* Shift visualization */}
+            <Card className="p-4">
+              <div className="text-xs text-muted-foreground mb-2 flex justify-between">
+                <span>{defaultSettings.general.store_opening}</span>
+                <span>{defaultSettings.general.store_closing}</span>
+              </div>
+              <div className="relative h-10 bg-muted rounded-md">
+                <div className="absolute inset-1 rounded-md bg-muted/60" />
                 <div
-                  className="absolute h-8 top-2 bg-primary/20 border border-primary rounded"
+                  className="absolute h-8 top-1 left-1 flex items-center justify-center text-xs rounded-md bg-gradient-to-r from-primary/30 to-primary/10 border border-primary/30 px-2"
                   style={{
-                    left: `${((timeToMinutes(formData.start_time) - timeToMinutes(defaultSettings.general.store_opening)) / (timeToMinutes(defaultSettings.general.store_closing) - timeToMinutes(defaultSettings.general.store_opening))) * 100}%`,
+                    transform: `translateX(${((timeToMinutes(formData.start_time) - timeToMinutes(defaultSettings.general.store_opening)) / (timeToMinutes(defaultSettings.general.store_closing) - timeToMinutes(defaultSettings.general.store_opening))) * 100}%)`,
                     width: `${((timeToMinutes(formData.end_time) - timeToMinutes(formData.start_time)) / (timeToMinutes(defaultSettings.general.store_closing) - timeToMinutes(defaultSettings.general.store_opening))) * 100}%`,
                   }}
                 >
-                  <div className="absolute inset-0 flex items-center justify-center text-xs">
-                    {calculateDuration().toFixed(1)}h
-                  </div>
+                  <span className="text-xs font-medium">
+                    {calculateDuration().toFixed(1)} h
+                  </span>
                 </div>
               </div>
             </Card>

@@ -238,8 +238,8 @@ export const getEmployeeAvailabilityByDate = async (
   date: string,
 ): Promise<EmployeeAvailabilityStatus[]> => {
   try {
-  const response = await api.get<EmployeeAvailabilityStatus[]>(
-      "/api/v2/availability/status/by-date",
+    const response = await api.get<EmployeeAvailabilityStatus[]>(
+      "/api/v2/availability/by_date",
       {
         params: { date },
       },

@@ -7,11 +7,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Shift } from "@/services/api";
 import { Edit2, Plus, Trash2 } from "lucide-react";
 import React, { useState } from "react";
 import { ShiftEditorProps } from "../types";
 import { ShiftForm } from "./ShiftForm";
+import ShiftListTable from "./ShiftListTable";
 
 export const ShiftEditor: React.FC<ShiftEditorProps> = ({
   shifts,
@@ -19,9 +21,9 @@ export const ShiftEditor: React.FC<ShiftEditorProps> = ({
   onAddShift,
   onUpdateShift,
   onDeleteShift,
-  onEmployeeCountChange,
 }) => {
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
 
   const formatTime = (time: string) => {
     return new Date(`2000-01-01T${time}`).toLocaleTimeString("de-DE", {
@@ -40,65 +42,90 @@ export const ShiftEditor: React.FC<ShiftEditorProps> = ({
       return activeDays.map(idx => days[idx]).join(", ");
     }
     return Object.entries(activeDays)
-      .filter(([_, isActive]) => isActive)
+      .filter(([, isActive]) => isActive)
       .map(([day]) => days[parseInt(day)])
       .join(", ");
   };
 
   return (
     <>
-      <div className="flex justify-end mb-4">
-        {onAddShift && (
-          <Button onClick={onAddShift}>
-            <Plus className="mr-2 h-4 w-4" /> Add Shift
-          </Button>
-        )}
+      <div className="flex justify-between mb-4 items-center">
+        <div className="flex items-center gap-2">
+          <SegmentedControl
+            value={viewMode}
+            onChange={(val) => setViewMode(val as "cards" | "table")}
+            className="bg-muted"
+          >
+            <SegmentedControl.Item value="cards">Cards</SegmentedControl.Item>
+            <SegmentedControl.Item value="table">Table</SegmentedControl.Item>
+          </SegmentedControl>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {onAddShift && (
+            <Button onClick={onAddShift}>
+              <Plus className="mr-2 h-4 w-4" /> Add Shift
+            </Button>
+          )}
+        </div>
       </div>
 
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        {shifts.map((shift) => (
-          <Card key={shift.id} className="flex flex-col">
-            <CardHeader>
-              <CardTitle className="text-lg">Schicht {shift.id}</CardTitle>
-              <CardDescription>
-                {formatTime(shift.start_time)} - {formatTime(shift.end_time)}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                <div>
-                  <span className="font-medium">Active Days:</span>{" "}
-                  {getDayNames(shift.active_days)}
+      {viewMode === "cards" ? (
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          {shifts.map((shift) => (
+            <Card key={shift.id} className="flex flex-col">
+              <CardHeader>
+                <CardTitle className="text-lg">Schicht {shift.id}</CardTitle>
+                <CardDescription>
+                  {formatTime(shift.start_time)} - {formatTime(shift.end_time)}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <span className="font-medium">Active Days:</span>{" "}
+                    {getDayNames(shift.active_days)}
+                  </div>
+                  <div>
+                    <span className="font-medium">Break Required:</span>{" "}
+                    {shift.requires_break ? "Yes" : "No"}
+                  </div>
                 </div>
-                <div>
-                  <span className="font-medium">Break Required:</span>{" "}
-                  {shift.requires_break ? "Yes" : "No"}
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-end gap-2 mt-auto">
-              {onDeleteShift && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => onDeleteShift(shift.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-              {onUpdateShift && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setEditingShift(shift)}
-                >
-                  <Edit2 className="h-4 w-4" />
-                </Button>
-              )}
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+              <CardFooter className="flex justify-end gap-2 mt-auto">
+                {onDeleteShift && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => onDeleteShift(shift.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+                {onUpdateShift && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditingShift(shift)}
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        // Lazy-load a simple table view for shifts
+        <div>
+          {/* Import local component to avoid circular deps */}
+          <ShiftListTable
+            shifts={shifts}
+            onEdit={(s) => setEditingShift(s)}
+            onDelete={onDeleteShift}
+          />
+        </div>
+      )}
 
       {shifts.length === 0 && (
         <Card>
@@ -119,11 +146,20 @@ export const ShiftEditor: React.FC<ShiftEditorProps> = ({
                 settings={settings}
                 shift={editingShift}
                 onSave={(data) => {
-                  onUpdateShift &&
+                  if (onUpdateShift) {
+                    // Convert active_days object back to number[] if needed
+                    const activeDays = Array.isArray(data.active_days)
+                      ? data.active_days
+                      : Object.entries(data.active_days || {})
+                        .filter(([, v]) => v)
+                        .map(([k]) => parseInt(k, 10));
+
                     onUpdateShift({
                       ...editingShift,
                       ...data,
+                      active_days: activeDays,
                     });
+                  }
                   setEditingShift(null);
                 }}
               />
@@ -140,16 +176,4 @@ export const ShiftEditor: React.FC<ShiftEditorProps> = ({
   );
 };
 
-// Helper function to calculate duration in hours
-const calculateDuration = (start_time: string, end_time: string): number => {
-  const timeToMinutes = (time: string): number => {
-    const [hours, minutes] = time.split(":").map(Number);
-    return hours * 60 + minutes;
-  };
-
-  const startMinutes = timeToMinutes(start_time);
-  const endMinutes = timeToMinutes(end_time);
-  let duration = endMinutes - startMinutes;
-  if (duration < 0) duration += 24 * 60; // Handle overnight shifts
-  return duration / 60;
-};
+// (no local helpers needed)
