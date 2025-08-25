@@ -7,20 +7,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { aiService } from "@/services/aiService";
 import {
-    Bot,
-    CheckCircle2,
-    Clock,
-    Copy,
-    Download,
-    Loader2,
-    MessageSquare,
-    RotateCcw,
-    Send,
-    Settings,
-    Sparkles,
-    ThumbsDown,
-    ThumbsUp,
-    User
+  Bot,
+  CheckCircle2,
+  Clock,
+  Copy,
+  Download,
+  Loader2,
+  MessageSquare,
+  RotateCcw,
+  Send,
+  Settings,
+  Sparkles,
+  ThumbsDown,
+  ThumbsUp,
+  User
 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -30,14 +30,17 @@ interface ConversationMessage {
   type: "user" | "ai" | "system";
   content: string;
   timestamp: Date;
+  feedback?: "positive" | "negative";
   metadata?: {
     agent?: string;
     workflow?: string;
     tools_used?: string[];
     confidence?: number;
     processing_time?: number;
+    generationResult?: Record<string, unknown>;
   };
-  feedback?: "positive" | "negative" | null;
+  files?: string[]; // File IDs attached to this message
+  voice_command?: boolean; // Whether this message came from voice input
 }
 
 interface ConversationSession {
@@ -46,7 +49,16 @@ interface ConversationSession {
   created_at: Date;
   last_message_at: Date;
   message_count: number;
-  status: "active" | "archived";
+  ai_provider: "openai" | "anthropic" | "gemini";
+  files?: string[]; // File IDs in this session
+}
+
+interface ChatFeatures {
+  voice_enabled: boolean;
+  file_upload_enabled: boolean;
+  typing_indicators: boolean;
+  live_updates: boolean;
+  advanced_tools: boolean;
 }
 
 export const ConversationalAIChat: React.FC = () => {
@@ -55,9 +67,21 @@ export const ConversationalAIChat: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [currentSession, setCurrentSession] = useState<ConversationSession | null>(null);
   const [sessions, setSessions] = useState<ConversationSession[]>([]);
-  const [aiProvider] = useState<"openai" | "anthropic" | "gemini">("openai");
+  const [aiProvider] = useState<"openai" | "anthropic" | "gemini">("gemini");
+  const [features, setFeatures] = useState<ChatFeatures>({
+    voice_enabled: true,
+    file_upload_enabled: true,
+    typing_indicators: true,
+    live_updates: true,
+    advanced_tools: true
+  });
+  const [showVoiceInput, setShowVoiceInput] = useState(false);
+  const [showFileUpload, setShowFileUpload] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const currentUserId = "user-123"; // In real app, get from auth
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -114,7 +138,7 @@ export const ConversationalAIChat: React.FC = () => {
         message: userMessage.content,
         conversation_id: currentSession?.id
       });
-      
+
       const aiMessage: ConversationMessage = {
         id: `msg-${Date.now()}-ai`,
         type: "ai",
@@ -130,7 +154,7 @@ export const ConversationalAIChat: React.FC = () => {
       };
 
       setMessages(prev => [...prev, aiMessage]);
-      
+
       // Update session
       if (currentSession) {
         setCurrentSession(prev => prev ? {
@@ -146,7 +170,7 @@ export const ConversationalAIChat: React.FC = () => {
       console.warn("AI API failed, falling back to simulation:", error);
       try {
         const response = await simulateAIResponse(userMessage.content);
-        
+
         const aiMessage: ConversationMessage = {
           id: `msg-${Date.now()}-ai`,
           type: "ai",
@@ -162,7 +186,7 @@ export const ConversationalAIChat: React.FC = () => {
         };
 
         setMessages(prev => [...prev, aiMessage]);
-        
+
         // Update session
         if (currentSession) {
           setCurrentSession(prev => prev ? {
@@ -194,7 +218,7 @@ export const ConversationalAIChat: React.FC = () => {
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
     const lowerInput = userInput.toLowerCase();
-    
+
     if (lowerInput.includes("schedule") || lowerInput.includes("optimize")) {
       return {
         content: "I'll help you optimize the schedule. Let me analyze the current situation and identify potential improvements. I've detected several areas where we can enhance efficiency:\n\n1. **Workload Balance**: There are some employees with uneven shift distributions\n2. **Coverage Gaps**: I found 3 time periods that need better coverage\n3. **Conflict Resolution**: 2 scheduling conflicts need attention\n\nWould you like me to:\n- Run a comprehensive optimization workflow?\n- Focus on a specific time period?\n- Address particular employee assignments?",
@@ -240,7 +264,7 @@ export const ConversationalAIChat: React.FC = () => {
   };
 
   const handleFeedback = (messageId: string, feedback: "positive" | "negative") => {
-    setMessages(prev => prev.map(msg => 
+    setMessages(prev => prev.map(msg =>
       msg.id === messageId ? { ...msg, feedback } : msg
     ));
     toast.success(`Feedback recorded: ${feedback}`);
@@ -266,7 +290,7 @@ export const ConversationalAIChat: React.FC = () => {
       message_count: 0,
       status: "active"
     };
-    
+
     setCurrentSession(newSession);
     setSessions(prev => [newSession, ...prev]);
     setMessages([]);
@@ -316,8 +340,8 @@ export const ConversationalAIChat: React.FC = () => {
                   key={session.id}
                   className={cn(
                     "p-3 rounded-lg cursor-pointer transition-colors",
-                    currentSession?.id === session.id 
-                      ? "bg-primary/10 border-primary border" 
+                    currentSession?.id === session.id
+                      ? "bg-primary/10 border-primary border"
                       : "bg-muted/50 hover:bg-muted"
                   )}
                   onClick={() => setCurrentSession(session)}
@@ -381,7 +405,7 @@ export const ConversationalAIChat: React.FC = () => {
                       </AvatarFallback>
                     </Avatar>
                   )}
-                  
+
                   <div className={cn(
                     "flex-1 space-y-2",
                     message.type === "user" ? "text-right" : ""
@@ -392,12 +416,12 @@ export const ConversationalAIChat: React.FC = () => {
                         message.type === "user"
                           ? "bg-primary text-primary-foreground ml-auto"
                           : message.type === "system"
-                          ? "bg-muted border border-border"
-                          : "bg-muted/50 border border-border"
+                            ? "bg-muted border border-border"
+                            : "bg-muted/50 border border-border"
                       )}
                     >
                       <div className="whitespace-pre-wrap">{message.content}</div>
-                      
+
                       {/* Message Metadata */}
                       {message.metadata && message.type === "ai" && (
                         <div className="mt-3 pt-2 border-t border-border/50 space-y-1">
@@ -410,14 +434,14 @@ export const ConversationalAIChat: React.FC = () => {
                               </Badge>
                             )}
                           </div>
-                          
+
                           {message.metadata.tools_used && message.metadata.tools_used.length > 0 && (
                             <div className="flex items-center gap-1 text-xs text-muted-foreground">
                               <Settings className="h-3 w-3" />
                               <span>Tools: {message.metadata.tools_used.join(", ")}</span>
                             </div>
                           )}
-                          
+
                           {message.metadata.processing_time && (
                             <div className="flex items-center gap-1 text-xs text-muted-foreground">
                               <Clock className="h-3 w-3" />
@@ -436,7 +460,7 @@ export const ConversationalAIChat: React.FC = () => {
                       <span className="text-xs text-muted-foreground">
                         {formatTimestamp(message.timestamp)}
                       </span>
-                      
+
                       {message.type === "ai" && (
                         <>
                           <Button
@@ -483,7 +507,7 @@ export const ConversationalAIChat: React.FC = () => {
                   )}
                 </div>
               ))}
-              
+
               {isLoading && (
                 <div className="flex gap-3">
                   <Avatar className="h-8 w-8 mt-1">
@@ -503,7 +527,7 @@ export const ConversationalAIChat: React.FC = () => {
                   </div>
                 </div>
               )}
-              
+
               <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
@@ -532,7 +556,7 @@ export const ConversationalAIChat: React.FC = () => {
                 )}
               </Button>
             </div>
-            
+
             <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
               <span>Press Enter to send, Shift+Enter for new line</span>
               <div className="flex items-center gap-2">

@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/PageHeader";
 import { ShiftTable } from "@/components/tables";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { DEFAULT_SETTINGS } from "@/hooks/useSettings";
 import {
@@ -11,7 +12,6 @@ import {
   updateShift,
 } from "@/services/api";
 import { Settings } from "@/types";
-import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import React, { useEffect, useState } from "react";
 

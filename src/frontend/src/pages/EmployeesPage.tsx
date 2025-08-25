@@ -463,7 +463,7 @@ export const EmployeesPage = () => {
           onClose={() => setSelectedEmployeeForAbsence(null)}
           absenceTypes={
             settings?.employee_groups?.absence_types?.filter(
-              (type): type is { id: string; name: string; color: string; type: "absence_type" } => 
+              (type): type is { id: string; name: string; color: string; type: "absence_type" } =>
                 type.type === "absence_type"
             ) || []
           }

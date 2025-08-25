@@ -5,7 +5,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useToast } from "@/components/ui/use-toast";
 import { useEmployeeGroups } from "@/hooks/useEmployeeGroups";
 import { getEmployees, getSettings } from "@/services/api";
-import { Employee } from "@/types";
+import { AbsenceType, Employee } from "@/types";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Upload } from "lucide-react";
 import { useState } from "react";
@@ -162,7 +162,7 @@ export const EmployeesPageExample = () => {
                     employeeId={selectedEmployeeForAbsence.id}
                     isOpen={!!selectedEmployeeForAbsence}
                     onClose={() => setSelectedEmployeeForAbsence(null)}
-                    absenceTypes={settings?.employee_groups?.absence_types?.filter(type => type.type === "absence_type") || []}
+                    absenceTypes={settings?.employee_groups?.absence_types?.filter(type => type.type === "absence_type") as AbsenceType[] || []}
                 />
             )}
 

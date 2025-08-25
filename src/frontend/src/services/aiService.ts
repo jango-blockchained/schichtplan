@@ -138,17 +138,146 @@ interface AISettings {
     enable_suggestions: boolean;
     enable_feedback: boolean;
   };
+  voice: {
+    enabled: boolean;
+    language: string;
+    voice_commands: boolean;
+  };
+  files: {
+    upload_enabled: boolean;
+    max_file_size: number;
+    allowed_types: string[];
+  };
+  realtime: {
+    typing_indicators: boolean;
+    live_updates: boolean;
+    websocket_enabled: boolean;
+  };
+}
+
+interface FileUpload {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  content: string | ArrayBuffer;
+  processed: boolean;
+  analysis?: Record<string, unknown>;
+}
+
+interface VoiceCommand {
+  id: string;
+  transcript: string;
+  confidence: number;
+  timestamp: Date;
+  action?: string;
+  parameters?: Record<string, unknown>;
+}
+
+interface TypingIndicator {
+  user_id: string;
+  conversation_id: string;
+  is_typing: boolean;
+  timestamp: Date;
+}
+
+interface LiveUpdate {
+  id: string;
+  type: 'workflow_progress' | 'agent_status' | 'system_event' | 'conversation_update';
+  data: Record<string, unknown>;
+  timestamp: Date;
+}
+
+interface WorkflowStep {
+  id: string;
+  name: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  progress: number;
+  result?: unknown;
+  error?: string;
+  start_time?: string;
+  end_time?: string;
 }
 
 class AIService {
   private baseUrl: string;
+  private retryAttempts: number = 3;
+  private retryDelay: number = 1000;
+  private websocket: WebSocket | null = null;
+  private eventHandlers: Map<string, Function[]> = new Map();
 
   constructor() {
     this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    this.initializeWebSocket();
   }
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${this.baseUrl}/api/v2/ai${endpoint}`;
+  private initializeWebSocket() {
+    try {
+      const wsUrl = this.baseUrl.replace('http', 'ws') + '/ws';
+      this.websocket = new WebSocket(wsUrl);
+      
+      this.websocket.onopen = () => {
+        console.log('AI Service WebSocket connected');
+        this.emit('websocket:connected', { timestamp: new Date() });
+      };
+
+      this.websocket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          this.emit(`ws:${data.type}`, data);
+        } catch (e) {
+          console.error('Failed to parse WebSocket message:', e);
+        }
+      };
+
+      this.websocket.onclose = () => {
+        console.log('AI Service WebSocket disconnected');
+        this.emit('websocket:disconnected', { timestamp: new Date() });
+        // Attempt to reconnect after 5 seconds
+        setTimeout(() => this.initializeWebSocket(), 5000);
+      };
+
+      this.websocket.onerror = (error) => {
+        console.error('AI Service WebSocket error:', error);
+        this.emit('websocket:error', { error, timestamp: new Date() });
+      };
+    } catch (e) {
+      console.warn('WebSocket initialization failed:', e);
+    }
+  }
+
+  private emit(event: string, data: any) {
+    const handlers = this.eventHandlers.get(event) || [];
+    handlers.forEach(handler => {
+      try {
+        handler(data);
+      } catch (e) {
+        console.error(`Error in event handler for ${event}:`, e);
+      }
+    });
+  }
+
+  public on(event: string, handler: Function) {
+    if (!this.eventHandlers.has(event)) {
+      this.eventHandlers.set(event, []);
+    }
+    this.eventHandlers.get(event)!.push(handler);
+  }
+
+  public off(event: string, handler: Function) {
+    const handlers = this.eventHandlers.get(event) || [];
+    const index = handlers.indexOf(handler);
+    if (index > -1) {
+      handlers.splice(index, 1);
+    }
+  }
+
+  private async request<T>(
+    endpoint: string, 
+    options: RequestInit = {},
+    retryCount = 0
+  ): Promise<T> {
+    const url = `${this.baseUrl}/api/v2${endpoint}`;
     
     const config: RequestInit = {
       headers: {
@@ -162,11 +291,26 @@ class AIService {
       const response = await fetch(url, config);
       
       if (!response.ok) {
+        if (response.status >= 500 && retryCount < this.retryAttempts) {
+          // Server error, retry with exponential backoff
+          const delay = this.retryDelay * Math.pow(2, retryCount);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return this.request<T>(endpoint, options, retryCount + 1);
+        }
+        
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       return await response.json();
     } catch (error) {
+      if (retryCount < this.retryAttempts && 
+          (error instanceof TypeError || (error as any).code === 'NETWORK_ERROR')) {
+        // Network error, retry
+        const delay = this.retryDelay * Math.pow(2, retryCount);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.request<T>(endpoint, options, retryCount + 1);
+      }
+      
       console.error(`AI Service request failed:`, error);
       throw error;
     }
@@ -266,12 +410,257 @@ class AIService {
   async healthCheck(): Promise<{ status: string; timestamp: string }> {
     return this.request<{ status: string; timestamp: string }>('/health');
   }
+
+  // Voice Input Methods
+  async processVoiceCommand(audioBlob: Blob): Promise<VoiceCommand> {
+    const formData = new FormData();
+    formData.append('audio', audioBlob);
+    
+    const response = await fetch(`${this.baseUrl}/api/v2/voice/command`, {
+      method: 'POST',
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Voice processing failed: ${response.status}`);
+    }
+    
+    return response.json();
+  }
+
+  async enableVoiceRecognition(): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>('/voice/enable', {
+      method: 'POST',
+    });
+  }
+
+  // File Upload Methods
+  async uploadFile(file: File): Promise<FileUpload> {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await fetch(`${this.baseUrl}/api/v2/files/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      throw new Error(`File upload failed: ${response.status}`);
+    }
+    
+    return response.json();
+  }
+
+  async analyzeFile(fileId: string): Promise<{ analysis: Record<string, unknown> }> {
+    return this.request<{ analysis: Record<string, unknown> }>(`/files/${fileId}/analyze`, {
+      method: 'POST',
+    });
+  }
+
+  async getUploadedFiles(): Promise<FileUpload[]> {
+    return this.request<FileUpload[]>('/files');
+  }
+
+  // Real-time Features
+  async sendTypingIndicator(conversationId: string, isTyping: boolean): Promise<void> {
+    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+      this.websocket.send(JSON.stringify({
+        type: 'typing_indicator',
+        conversation_id: conversationId,
+        is_typing: isTyping,
+        timestamp: new Date().toISOString()
+      }));
+    }
+  }
+
+  async subscribeLiveUpdates(conversationId: string): Promise<void> {
+    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+      this.websocket.send(JSON.stringify({
+        type: 'subscribe',
+        conversation_id: conversationId
+      }));
+    }
+  }
+
+  async unsubscribeLiveUpdates(conversationId: string): Promise<void> {
+    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+      this.websocket.send(JSON.stringify({
+        type: 'unsubscribe',
+        conversation_id: conversationId
+      }));
+    }
+  }
+
+  // Enhanced Workflow Methods
+  async createWorkflow(template: Partial<WorkflowTemplate>): Promise<WorkflowTemplate> {
+    return this.request<WorkflowTemplate>('/workflows/templates', {
+      method: 'POST',
+      body: JSON.stringify(template),
+    });
+  }
+
+  async getWorkflowSteps(executionId: string): Promise<WorkflowStep[]> {
+    return this.request<WorkflowStep[]>(`/workflows/executions/${executionId}/steps`);
+  }
+
+  async pauseWorkflow(executionId: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/workflows/executions/${executionId}/pause`, {
+      method: 'POST',
+    });
+  }
+
+  async resumeWorkflow(executionId: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/workflows/executions/${executionId}/resume`, {
+      method: 'POST',
+    });
+  }
+
+  async cancelWorkflow(executionId: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/workflows/executions/${executionId}/cancel`, {
+      method: 'POST',
+    });
+  }
+
+  // Enhanced MCP Tools Methods
+  async getMCPToolCategories(): Promise<string[]> {
+    return this.request<string[]>('/tools/categories');
+  }
+
+  async searchMCPTools(query: string, category?: string): Promise<MCPTool[]> {
+    const params = new URLSearchParams({ query });
+    if (category) params.append('category', category);
+    
+    return this.request<MCPTool[]>(`/tools/search?${params.toString()}`);
+  }
+
+  async getMCPToolUsageHistory(): Promise<Array<{
+    tool_id: string;
+    usage_count: number;
+    last_used: string;
+    success_rate: number;
+  }>> {
+    return this.request<Array<{
+      tool_id: string;
+      usage_count: number;
+      last_used: string;
+      success_rate: number;
+    }>>('/tools/usage-history');
+  }
+
+  async validateMCPToolParameters(toolId: string, parameters: Record<string, unknown>): Promise<{
+    valid: boolean;
+    errors?: string[];
+  }> {
+    return this.request<{
+      valid: boolean;
+      errors?: string[];
+    }>(`/tools/${toolId}/validate`, {
+      method: 'POST',
+      body: JSON.stringify({ parameters }),
+    });
+  }
+
+  // Advanced Analytics
+  async getDetailedAnalytics(timeframe: string): Promise<{
+    performance: {
+      response_times: number[];
+      success_rates: number[];
+      error_rates: number[];
+    };
+    usage: {
+      peak_hours: number[];
+      user_activity: Array<{ user_id: string; sessions: number }>;
+      feature_usage: Record<string, number>;
+    };
+    trends: {
+      daily_metrics: Array<{ date: string; metrics: Record<string, number> }>;
+      predictions: Array<{ metric: string; trend: 'up' | 'down' | 'stable'; confidence: number }>;
+    };
+  }> {
+    return this.request<{
+      performance: {
+        response_times: number[];
+        success_rates: number[];
+        error_rates: number[];
+      };
+      usage: {
+        peak_hours: number[];
+        user_activity: Array<{ user_id: string; sessions: number }>;
+        feature_usage: Record<string, number>;
+      };
+      trends: {
+        daily_metrics: Array<{ date: string; metrics: Record<string, number> }>;
+        predictions: Array<{ metric: string; trend: 'up' | 'down' | 'stable'; confidence: number }>;
+      };
+    }>(`/analytics/detailed?timeframe=${timeframe}`);
+  }
+
+  // Schedule Optimization with AI
+  async optimizeScheduleWithAI(parameters: {
+    week_start: string;
+    optimization_goals: string[];
+    constraints: Record<string, unknown>;
+    preferences: Record<string, unknown>;
+  }): Promise<{
+    success: boolean;
+    optimized_schedule?: unknown;
+    improvements: Array<{
+      metric: string;
+      before: number;
+      after: number;
+      improvement_percent: number;
+    }>;
+    recommendations: string[];
+  }> {
+    return this.request<{
+      success: boolean;
+      optimized_schedule?: unknown;
+      improvements: Array<{
+        metric: string;
+        before: number;
+        after: number;
+        improvement_percent: number;
+      }>;
+      recommendations: string[];
+    }>('/schedule/optimize-ai', {
+      method: 'POST',
+      body: JSON.stringify(parameters),
+    });
+  }
+
+  // Conversation Export
+  async exportConversation(conversationId: string, format: 'json' | 'txt' | 'pdf'): Promise<Blob> {
+    const response = await fetch(`${this.baseUrl}/api/v2/chat/export/${conversationId}?format=${format}`, {
+      method: 'GET',
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.status}`);
+    }
+    
+    return response.blob();
+  }
+
+  // AI Provider Testing
+  async testAIProvider(provider: 'openai' | 'anthropic' | 'gemini'): Promise<{
+    success: boolean;
+    response_time: number;
+    error?: string;
+  }> {
+    return this.request<{
+      success: boolean;
+      response_time: number;
+      error?: string;
+    }>(`/providers/${provider}/test`, {
+      method: 'POST',
+    });
+  }
 }
 
 export const aiService = new AIService();
 export type {
-    AISettings, Agent, AnalyticsData, ChatMessage,
-    ChatRequest,
-    ChatResponse, MCPTool, ToolExecutionResult, WorkflowExecution, WorkflowTemplate
+  Agent, AISettings, AnalyticsData, ChatMessage,
+  ChatRequest,
+  ChatResponse, FileUpload, LiveUpdate, MCPTool, ToolExecutionResult, TypingIndicator, VoiceCommand, WorkflowExecution, WorkflowStep, WorkflowTemplate
 };
 
