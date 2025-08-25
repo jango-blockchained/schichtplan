@@ -6,7 +6,7 @@ import { ExportDialog } from "./ExportDialog";
 
 interface ScheduleControlsProps {
   onRefresh: () => void;
-  onExport: (format: 'standard' | 'mep' | 'mep-html', filiale?: string) => Promise<void>;
+  onExport: (format: 'standard' | 'mep' | 'mep-html', filiale?: string) => void | Promise<void>;
   isExporting?: boolean;
 }
 
@@ -42,9 +42,9 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
           <Settings2 className="h-4 w-4 mr-2" />
           Layout
         </Button>
-        <Button 
-          variant="outline" 
-          size="sm" 
+        <Button
+          variant="outline"
+          size="sm"
           onClick={handleExportClick}
           disabled={isExporting}
         >

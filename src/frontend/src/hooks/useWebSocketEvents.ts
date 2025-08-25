@@ -6,6 +6,7 @@ export type WebSocketEventType =
     | 'availability_updated'
     | 'coverage_updated'
     | 'absence_updated'
+    | 'shift_template_updated'
     | 'connect'
     | 'disconnect'
     | 'reconnecting'

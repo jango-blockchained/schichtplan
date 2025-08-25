@@ -13,7 +13,7 @@ interface MEPData {
     firstName: string;
     lastName: string;
     position: string;
-  dailySchedules: Record<string, DailyScheduleEntry>;
+    dailySchedules: Record<string, DailyScheduleEntry>;
     weeklySum: string;
     monthlySum: string;
   }>;

@@ -31,13 +31,7 @@ export function useScheduleModals() {
 
   const [confirmDeleteMessage, setConfirmDeleteMessage] = useState<ConfirmDeleteMessage | null>(null);
   
-  const [aiPreviewData, setAiPreviewData] = useState<{
-    status: string;
-    data_pack: Record<string, unknown>;
-    metadata?: Record<string, unknown>;
-    optimized_data?: Record<string, unknown>;
-    system_prompt?: string;
-  } | null>(null);
+  const [aiPreviewData, setAiPreviewData] = useState<any | null>(null);
 
   // Helper functions to update specific modal states
   const updateModalState = (key: keyof ScheduleModalsState, value: boolean) => {

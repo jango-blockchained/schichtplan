@@ -254,6 +254,14 @@ class AIService {
     });
   }
 
+  // Schedule generation via AI
+  async generateSchedule(requestData: Record<string, unknown>): Promise<{ success: boolean; error?: string }> {
+    return this.request<{ success: boolean; error?: string }>("/generate_schedule", {
+      method: 'POST',
+      body: JSON.stringify(requestData),
+    });
+  }
+
   // Health check
   async healthCheck(): Promise<{ status: string; timestamp: string }> {
     return this.request<{ status: string; timestamp: string }>('/health');

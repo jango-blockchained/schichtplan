@@ -9,8 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import { GenerationOptions } from "@/hooks/useScheduleGeneration";
-import type { Settings } from "@/types/index";
-import { Play, RefreshCw, Save } from "lucide-react";
+import type { Settings as AppSettings } from "@/types/index";
+import { Play, RefreshCw, Save, Settings } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { Checkbox } from "./ui/checkbox";
 import { Separator } from "./ui/separator";
@@ -106,7 +106,7 @@ const DEFAULT_REQUIREMENTS: Record<RequirementKey, boolean> =
 
 interface ScheduleGenerationSettingsProps {
   /** Current generation requirements settings */
-  settings: Partial<Settings["scheduling"]["generation_requirements"]> | null;
+  settings: Partial<AppSettings["scheduling"]["generation_requirements"]> | null;
   /** Callback for updating generation requirements */
   onUpdate: (updatedRequirements: Record<RequirementKey, boolean>) => void;
   /** Current generation options */
