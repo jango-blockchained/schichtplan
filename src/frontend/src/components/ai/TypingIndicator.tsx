@@ -30,7 +30,7 @@ export const TypingIndicatorComponent: React.FC<TypingIndicatorProps> = ({
 
     useEffect(() => {
         // Subscribe to typing indicators
-    const handleTypingUpdate = (data: TypingIndicatorEvent) => {
+        const handleTypingUpdate = (data: TypingIndicatorEvent) => {
             if (data.conversation_id !== conversationId || data.user_id === currentUserId) {
                 return;
             }

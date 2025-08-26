@@ -371,10 +371,10 @@ export const ConversationalAIChat: React.FC<ConversationalAIChatProps> = ({
                                 >
                                     <div
                                         className={`max-w-[80%] rounded-lg p-3 ${message.type === 'user'
-                                                ? 'bg-blue-500 text-white'
-                                                : message.type === 'ai'
-                                                    ? 'bg-gray-100 text-gray-900'
-                                                    : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
+                                            ? 'bg-blue-500 text-white'
+                                            : message.type === 'ai'
+                                                ? 'bg-gray-100 text-gray-900'
+                                                : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
                                             }`}
                                     >
                                         <div className="flex items-start gap-2">
