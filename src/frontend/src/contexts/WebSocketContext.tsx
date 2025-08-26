@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useToast } from '@/components/ui/use-toast';
 import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { io, Socket as SocketIOClient } from 'socket.io-client';
@@ -28,7 +29,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
 
     useEffect(() => {
         // Initialize Socket.IO connection
-        const socket = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'http://localhost:5000', {
+        const socket = io(import.meta.env.VITE_WEBSOCKET_URL || 'http://localhost:5000', {
             reconnection: true,
             reconnectionAttempts: 5,
             reconnectionDelay: 1000,

@@ -112,7 +112,7 @@ export class MCPClientService {
   // Event handlers
   private eventHandlers: Map<string, MCPEventCallback[]> = new Map();
 
-  constructor(baseUrl: string = 'http://localhost:5000') {
+  constructor(baseUrl: string = (import.meta as unknown as { env: { VITE_API_URL?: string } }).env.VITE_API_URL || 'http://localhost:5000') {
     this.baseUrl = baseUrl;
   }
 

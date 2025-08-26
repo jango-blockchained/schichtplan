@@ -199,54 +199,90 @@ interface WorkflowStep {
   end_time?: string;
 }
 
+import { io, Socket } from 'socket.io-client';
+
+type EventHandler = (data: unknown) => void;
+
 class AIService {
   private baseUrl: string;
   private retryAttempts: number = 3;
   private retryDelay: number = 1000;
-  private websocket: WebSocket | null = null;
-  private eventHandlers: Map<string, Function[]> = new Map();
+  private socket: Socket | null = null;
+  private eventHandlers: Map<string, EventHandler[]> = new Map();
 
   constructor() {
     this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    this.initializeWebSocket();
+    this.connectWebSocket();
   }
 
-  private initializeWebSocket() {
-    try {
-      const wsUrl = this.baseUrl.replace('http', 'ws') + '/ws';
-      this.websocket = new WebSocket(wsUrl);
-      
-      this.websocket.onopen = () => {
-        console.log('AI Service WebSocket connected');
-        this.emit('websocket:connected', { timestamp: new Date() });
-      };
+  public async connectWebSocket(): Promise<void> {
+    if (this.socket && this.socket.connected) return;
+    const url = this.baseUrl; // e.g., http://localhost:5000
+    this.socket = io(url, {
+      transports: ['websocket'],
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+    });
 
-      this.websocket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          this.emit(`ws:${data.type}`, data);
-        } catch (e) {
-          console.error('Failed to parse WebSocket message:', e);
-        }
-      };
+    this.socket.on('connect', () => {
+      this.emit('websocket:connected', { timestamp: new Date() });
+    });
 
-      this.websocket.onclose = () => {
-        console.log('AI Service WebSocket disconnected');
-        this.emit('websocket:disconnected', { timestamp: new Date() });
-        // Attempt to reconnect after 5 seconds
-        setTimeout(() => this.initializeWebSocket(), 5000);
-      };
+    this.socket.on('disconnect', () => {
+      this.emit('websocket:disconnected', { timestamp: new Date() });
+    });
 
-      this.websocket.onerror = (error) => {
-        console.error('AI Service WebSocket error:', error);
-        this.emit('websocket:error', { error, timestamp: new Date() });
-      };
-    } catch (e) {
-      console.warn('WebSocket initialization failed:', e);
+    // Wire backend events to local event bus with the names the app expects
+    this.socket.on('typing_indicator', (data) => this.emit('typing_indicator', data));
+    this.socket.on('ai_thinking', (data) => this.emit('ai_thinking', data));
+    this.socket.on('new_message', (data) => this.emit('new_message', data));
+    this.socket.on('workflow_update', (data) => this.emit('workflow_update', data));
+    this.socket.on('file_analysis_complete', (data) => this.emit('file_analysis_complete', data));
+    this.socket.on('system_status', (data) => this.emit('system_status', data));
+  }
+
+  public disconnect(): void {
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
     }
   }
 
-  private emit(event: string, data: any) {
+  public joinConversation(conversationId: string, userId: string): void {
+    this.socket?.emit('join_conversation', {
+      conversation_id: conversationId,
+      user_id: userId || 'anonymous',
+    });
+  }
+
+  public leaveConversation(conversationId: string): void {
+    this.socket?.emit('leave_conversation', { conversation_id: conversationId });
+  }
+
+  public startTyping(conversationId: string, userId: string): void {
+    this.socket?.emit('typing_start', {
+      conversation_id: conversationId,
+      user_id: userId || 'anonymous',
+    });
+  }
+
+  public stopTyping(conversationId: string, userId: string): void {
+    this.socket?.emit('typing_stop', {
+      conversation_id: conversationId,
+      user_id: userId || 'anonymous',
+    });
+  }
+
+  public setAiThinking(conversationId: string, isThinking: boolean): void {
+    this.socket?.emit('ai_thinking', {
+      conversation_id: conversationId,
+      is_thinking: isThinking,
+    });
+  }
+
+  private emit(event: string, data: unknown) {
     const handlers = this.eventHandlers.get(event) || [];
     handlers.forEach(handler => {
       try {
@@ -257,14 +293,14 @@ class AIService {
     });
   }
 
-  public on(event: string, handler: Function) {
+  public on(event: string, handler: EventHandler) {
     if (!this.eventHandlers.has(event)) {
       this.eventHandlers.set(event, []);
     }
     this.eventHandlers.get(event)!.push(handler);
   }
 
-  public off(event: string, handler: Function) {
+  public off(event: string, handler: EventHandler) {
     const handlers = this.eventHandlers.get(event) || [];
     const index = handlers.indexOf(handler);
     if (index > -1) {
@@ -303,8 +339,9 @@ class AIService {
       
       return await response.json();
     } catch (error) {
-      if (retryCount < this.retryAttempts && 
-          (error instanceof TypeError || (error as any).code === 'NETWORK_ERROR')) {
+    const err = error as unknown as { code?: string };
+    if (retryCount < this.retryAttempts && 
+      (error instanceof TypeError || err.code === 'NETWORK_ERROR')) {
         // Network error, retry
         const delay = this.retryDelay * Math.pow(2, retryCount);
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -463,32 +500,19 @@ class AIService {
 
   // Real-time Features
   async sendTypingIndicator(conversationId: string, isTyping: boolean): Promise<void> {
-    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-      this.websocket.send(JSON.stringify({
-        type: 'typing_indicator',
-        conversation_id: conversationId,
-        is_typing: isTyping,
-        timestamp: new Date().toISOString()
-      }));
+    if (isTyping) {
+      this.startTyping(conversationId, 'user');
+    } else {
+      this.stopTyping(conversationId, 'user');
     }
   }
 
   async subscribeLiveUpdates(conversationId: string): Promise<void> {
-    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-      this.websocket.send(JSON.stringify({
-        type: 'subscribe',
-        conversation_id: conversationId
-      }));
-    }
+    this.joinConversation(conversationId, 'user');
   }
 
   async unsubscribeLiveUpdates(conversationId: string): Promise<void> {
-    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-      this.websocket.send(JSON.stringify({
-        type: 'unsubscribe',
-        conversation_id: conversationId
-      }));
-    }
+    this.leaveConversation(conversationId);
   }
 
   // Enhanced Workflow Methods
@@ -659,8 +683,8 @@ class AIService {
 
 export const aiService = new AIService();
 export type {
-  Agent, AISettings, AnalyticsData, ChatMessage,
-  ChatRequest,
-  ChatResponse, FileUpload, LiveUpdate, MCPTool, ToolExecutionResult, TypingIndicator, VoiceCommand, WorkflowExecution, WorkflowStep, WorkflowTemplate
+    Agent, AISettings, AnalyticsData, ChatMessage,
+    ChatRequest,
+    ChatResponse, FileUpload, LiveUpdate, MCPTool, ToolExecutionResult, TypingIndicator, VoiceCommand, WorkflowExecution, WorkflowStep, WorkflowTemplate
 };
 
