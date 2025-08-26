@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect } from 'react';
 import { ConversationMessage } from '@/components/ai/ConversationPanel';
+import { aiService } from '@/services/aiService';
+import { useCallback, useEffect, useState } from 'react';
 
 interface AIConversationHook {
   messages: ConversationMessage[];
@@ -9,14 +10,14 @@ interface AIConversationHook {
   setCurrentInput: (input: string) => void;
   sendMessage: () => Promise<void>;
   clearConversation: () => void;
-  addSystemMessage: (content: string, metadata?: any) => void;
+  addSystemMessage: (content: string, metadata?: Record<string, unknown>) => void;
 }
 
 const STORAGE_KEY = 'ai-conversation-messages';
 const SESSION_KEY = 'ai-conversation-session';
 
 export function useAIConversation(
-  onSendPrompt?: (prompt: string) => Promise<any>
+  onSendPrompt?: (prompt: string) => Promise<{ message?: string } | Record<string, unknown>>
 ): AIConversationHook {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [currentInput, setCurrentInput] = useState('');
@@ -37,13 +38,20 @@ export function useAIConversation(
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        const parsedMessages = JSON.parse(stored);
-        // Convert timestamp strings back to Date objects
-        const messagesWithDates = parsedMessages.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp),
-        }));
-        setMessages(messagesWithDates);
+        const parsed = JSON.parse(stored) as unknown;
+        if (Array.isArray(parsed)) {
+          const messagesWithDates = parsed.map((m) => {
+            const msg = m as Partial<ConversationMessage> & { timestamp?: string | number | Date };
+            return {
+              id: typeof msg.id === 'string' ? msg.id : `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              type: (msg.type as ConversationMessage['type']) ?? 'system',
+              content: typeof msg.content === 'string' ? msg.content : '',
+              timestamp: new Date(msg.timestamp ?? Date.now()),
+              metadata: msg.metadata,
+            } as ConversationMessage;
+          });
+          setMessages(messagesWithDates);
+        }
       }
     } catch (error) {
       console.error('Failed to load conversation history:', error);
@@ -69,7 +77,7 @@ export function useAIConversation(
     return newMessage;
   }, []);
 
-  const addSystemMessage = useCallback((content: string, metadata?: any) => {
+  const addSystemMessage = useCallback((content: string, metadata?: Record<string, unknown>) => {
     addMessage({
       type: 'system',
       content,
@@ -98,17 +106,25 @@ export function useAIConversation(
         // Add AI response
         addMessage({
           type: 'ai',
-          content: result?.message || 'Anweisung wurde verarbeitet und ausgeführt.',
+          content: (result as { message?: string })?.message ?? 'Anweisung wurde verarbeitet und ausgeführt.',
           metadata: {
             prompt: userMessage,
             generationResult: result,
           },
         });
       } else {
-        // Fallback response if no handler provided
-        addMessage({
+        // Default: send to backend AI chat API
+        const resp = await aiService.sendChatMessage({
+          message: userMessage,
+          conversation_id: sessionId,
+        });
+    addMessage({
           type: 'ai',
-          content: 'Ich habe Ihre Nachricht erhalten, aber noch keine Verarbeitungslogik implementiert. Diese Funktion ist in Entwicklung.',
+          content: resp.response,
+          metadata: {
+            prompt: userMessage,
+      ...resp.metadata,
+          },
         });
       }
     } catch (error) {
@@ -124,7 +140,7 @@ export function useAIConversation(
     } finally {
       setIsLoading(false);
     }
-  }, [currentInput, isLoading, onSendPrompt, addMessage]);
+  }, [currentInput, isLoading, onSendPrompt, addMessage, sessionId]);
 
   const clearConversation = useCallback(() => {
     setMessages([]);

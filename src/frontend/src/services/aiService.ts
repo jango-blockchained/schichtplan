@@ -361,6 +361,22 @@ class AIService {
     });
   }
 
+  // Compatibility wrapper used by some components (maps to sendChatMessage)
+  async sendMessage(
+    content: string,
+    options?: { conversation_id?: string; include_metadata?: boolean } & Record<string, unknown>
+  ): Promise<{ message: string; metadata?: Record<string, unknown>; conversation_id?: string }> {
+    const resp = await this.sendChatMessage({
+      message: content,
+      conversation_id: options?.conversation_id,
+    });
+    return {
+      message: resp.response,
+      metadata: resp.metadata,
+      conversation_id: resp.conversation_id,
+    };
+  }
+
   async getChatHistory(conversationId: string): Promise<ChatMessage[]> {
     return this.request<ChatMessage[]>(`/chat/history/${conversationId}`);
   }

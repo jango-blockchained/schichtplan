@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { aiService, type TypingIndicator } from "@/services/aiService";
+import { aiService, type TypingIndicator as TypingIndicatorEvent } from "@/services/aiService";
 import { Bot, Loader2, User } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 
@@ -11,7 +11,7 @@ interface TypingIndicatorProps {
 }
 
 interface TypingState {
-    users: TypingIndicator[];
+    users: TypingIndicatorEvent[];
     isTyping: boolean;
 }
 
@@ -30,7 +30,7 @@ export const TypingIndicatorComponent: React.FC<TypingIndicatorProps> = ({
 
     useEffect(() => {
         // Subscribe to typing indicators
-        const handleTypingUpdate = (data: TypingIndicator) => {
+    const handleTypingUpdate = (data: TypingIndicatorEvent) => {
             if (data.conversation_id !== conversationId || data.user_id === currentUserId) {
                 return;
             }
@@ -171,7 +171,7 @@ export const TypingIndicatorComponent: React.FC<TypingIndicatorProps> = ({
 };
 
 // Hook to use typing indicator functionality
-export const useTypingIndicator = (conversationId: string, currentUserId: string) => {
+export const useTypingIndicator = (conversationId: string) => {
     const [isTyping, setIsTyping] = useState(false);
     const typingTimeoutRef = useRef<NodeJS.Timeout>();
 
@@ -192,7 +192,7 @@ export const useTypingIndicator = (conversationId: string, currentUserId: string
         }, 2000);
     };
 
-    const stopTyping = () => {
+    const stopTyping = React.useCallback(() => {
         if (isTyping) {
             setIsTyping(false);
             aiService.sendTypingIndicator(conversationId, false);
@@ -201,15 +201,35 @@ export const useTypingIndicator = (conversationId: string, currentUserId: string
         if (typingTimeoutRef.current) {
             clearTimeout(typingTimeoutRef.current);
         }
-    };
+    }, [conversationId, isTyping]);
 
     useEffect(() => {
         return () => {
             stopTyping();
         };
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [stopTyping]);
 
     return { startTyping, stopTyping, isTyping };
 };
 
 export default TypingIndicatorComponent;
+
+// Lightweight proxy component used by ConversationalAIChatEnhanced
+export const TypingIndicatorInline: React.FC<{
+    users: string[];
+    aiThinking?: boolean;
+}> = ({ users, aiThinking }) => {
+    // Render a compact indicator combining users and AI thinking
+    if ((users?.length ?? 0) === 0 && !aiThinking) return null;
+    return (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            <span>
+                {aiThinking ? 'AI denkt' : null}
+                {aiThinking && users?.length ? ' • ' : ''}
+                {users?.length ? `${users.length} tippt${users.length > 1 ? 'en' : ''}` : null}
+            </span>
+        </div>
+    );
+};

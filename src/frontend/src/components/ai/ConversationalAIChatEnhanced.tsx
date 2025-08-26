@@ -10,7 +10,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 // Enhanced imports for new features
 import { FileUploadComponent } from '@/components/ai/FileUploadComponent';
-import { TypingIndicator } from '@/components/ai/TypingIndicator';
+import { TypingIndicatorInline } from '@/components/ai/TypingIndicator';
 import { VoiceInput } from '@/components/ai/VoiceInput';
 
 interface Message {
@@ -34,7 +34,8 @@ interface ConversationalAIChatProps {
 
 export const ConversationalAIChat: React.FC<ConversationalAIChatProps> = ({
     conversationId,
-    onNewConversation,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    onNewConversation: _onNewConversation,
     className
 }) => {
     const [messages, setMessages] = useState<Message[]>([]);
@@ -42,7 +43,7 @@ export const ConversationalAIChat: React.FC<ConversationalAIChatProps> = ({
     const [isLoading, setIsLoading] = useState(false);
     const [isTyping, setIsTyping] = useState(false);
     const [isConnected, setIsConnected] = useState(false);
-    const [currentConversationId, setCurrentConversationId] = useState(
+    const [currentConversationId] = useState(
         conversationId || `conv_${Date.now()}`
     );
 
@@ -138,7 +139,7 @@ export const ConversationalAIChat: React.FC<ConversationalAIChatProps> = ({
     };
 
     // Send message
-    const sendMessage = async (content: string, metadata?: any) => {
+    const sendMessage = async (content: string, metadata?: Record<string, unknown>) => {
         if (!content.trim() || isLoading) return;
 
         const userMessage: Message = {
@@ -416,10 +417,9 @@ export const ConversationalAIChat: React.FC<ConversationalAIChatProps> = ({
                         {/* Typing indicators */}
                         {(typingUsers.length > 0 || aiThinking) && (
                             <div className="flex justify-start">
-                                <TypingIndicator
+                                <TypingIndicatorInline
                                     users={typingUsers}
                                     aiThinking={aiThinking}
-                                    conversationId={currentConversationId}
                                 />
                             </div>
                         )}
