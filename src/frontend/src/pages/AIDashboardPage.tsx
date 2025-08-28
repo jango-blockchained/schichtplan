@@ -3,20 +3,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-    Activity,
-    AlertCircle,
-    BarChart3,
-    Bot,
-    Calendar,
-    CheckCircle,
-    Clock,
-    MessageSquare,
-    Settings,
-    Sparkles,
-    TrendingUp,
-    Users,
-    Workflow,
-    Zap
+  Activity,
+  AlertCircle,
+  BarChart3,
+  Bot,
+  Calendar,
+  CheckCircle,
+  Clock,
+  MessageSquare,
+  Settings,
+  Sparkles,
+  TrendingUp,
+  Users,
+  Workflow,
+  Zap
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
@@ -243,8 +243,8 @@ const AIDashboardPage: React.FC = () => {
                     <span>{capability.stats.avg_response_time}s</span>
                   </div>
                 </div>
-                <Badge 
-                  variant={getStatusBadgeVariant(capability.status)} 
+                <Badge
+                  variant={getStatusBadgeVariant(capability.status)}
                   className="mt-2 w-full justify-center"
                 >
                   {capability.status.charAt(0).toUpperCase() + capability.status.slice(1)}
