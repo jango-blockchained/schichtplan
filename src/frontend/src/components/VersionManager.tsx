@@ -26,7 +26,7 @@ import { VersionDetailsPanel } from "@/components/VersionDetailsPanel";
 import { VersionTable } from "@/components/VersionTableRefactored";
 import { useVersionManager } from "@/hooks/useVersionManager";
 import { cn } from "@/lib/utils";
-import { getSettings } from "@/services/api";
+import { getSchedules, getSettings, getVersionDetails } from "@/services/api";
 import type { Settings } from "@/types";
 
 // Helper function to get status badge (matching Action Dock style)
@@ -314,16 +314,57 @@ export function VersionManager({
   // Handle version selection
   const handleVersionSelection = (version: number) => {
     actions.selectVersion(version);
-    // TODO: Fetch version statistics
-    // For now, we'll use mock data
-    setSelectedVersionStats({
-      total_schedules: 100,
-      filled_schedules: 80,
-      empty_schedules: 20,
-      coverage_percentage: 80,
-      unique_employees: 12,
-      unique_dates: 7,
-    });
+    // Load real statistics for the selected version
+    setSelectedVersionStats(null);
+    const meta = state.versions.find(v => v.version === version);
+    const start = meta?.date_range.start;
+    const end = meta?.date_range.end;
+    (async () => {
+      try {
+        const details = await getVersionDetails(version);
+        // Derive filled/empty/coverage from schedules
+        let total = 0;
+        let filled = 0;
+        if (start && end) {
+          const resp = await getSchedules(start, end, version, true);
+          // Prefer API-provided aggregates if available
+          if (typeof resp.total_schedules === 'number' && typeof resp.filled_shifts_count === 'number') {
+            total = resp.total_schedules;
+            filled = resp.filled_shifts_count;
+          } else {
+            const schedules = resp.schedules || [];
+            total = schedules.length;
+            filled = schedules.filter(s => (s.shift_id != null) && s.is_empty !== true).length;
+          }
+        }
+        const empty = Math.max(0, total - filled);
+        const coverage = total > 0 ? (filled / total) * 100 : 0;
+        setSelectedVersionStats({
+          total_schedules: total || details.schedule_count,
+          filled_schedules: filled,
+          empty_schedules: empty,
+          coverage_percentage: coverage,
+          unique_employees: details.employees_count,
+          unique_dates: details.days_count,
+        });
+      } catch (e) {
+        console.error("Failed to load version statistics", e);
+        // Fallback to minimal counts if details are available
+        try {
+          const details = await getVersionDetails(version);
+          setSelectedVersionStats({
+            total_schedules: details.schedule_count,
+            filled_schedules: 0,
+            empty_schedules: details.schedule_count,
+            coverage_percentage: 0,
+            unique_employees: details.employees_count,
+            unique_dates: details.days_count,
+          });
+        } catch {
+          setSelectedVersionStats(null);
+        }
+      }
+    })();
   };
 
   // Handle creating new version
@@ -341,6 +382,7 @@ export function VersionManager({
   const handleDuplicateConfirm = (options: {
     startDate: string;
     endDate: string;
+    weekVersion?: string;
     notes?: string;
   }) => {
     if (versionToDuplicate) {
@@ -423,6 +465,7 @@ export function VersionManager({
             open={duplicateModalOpen}
             onOpenChange={setDuplicateModalOpen}
             sourceVersion={versionToDuplicate}
+            sourceVersionMeta={state.versions.find(v => v.version === versionToDuplicate)}
             onDuplicate={handleDuplicateConfirm}
             isLoading={state.isLoading}
           />

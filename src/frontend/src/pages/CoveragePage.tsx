@@ -1,3 +1,4 @@
+import { AISearchInput, type SearchSuggestion } from "@/components/ai/AISearchInput";
 import { CoverageEditor } from "@/components/coverage-editor";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,17 +9,17 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar, Clock, Loader2, TrendingUp, Users } from "lucide-react";
 import { useMemo } from "react";
 import {
-    Line,
-    LineChart,
-    ResponsiveContainer,
-    Tooltip,
-    TooltipProps,
-    XAxis,
-    YAxis,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  TooltipProps,
+  XAxis,
+  YAxis,
 } from "recharts";
 import {
-    NameType,
-    ValueType,
+  NameType,
+  ValueType,
 } from "recharts/types/component/DefaultTooltipContent";
 
 const CustomTooltip = ({
@@ -78,12 +79,6 @@ export default function CoveragePage() {
       );
       return existingDay || defaultDay;
     });
-
-    const totalTimeSlots = fullCoverage.reduce(
-      (acc, day) =>
-        acc + (Array.isArray(day.timeSlots) ? day.timeSlots.length : 0),
-      0,
-    );
 
     const totalRequiredEmployees = fullCoverage.reduce((acc, day) => {
       if (!Array.isArray(day.timeSlots)) return acc;
@@ -185,12 +180,35 @@ export default function CoveragePage() {
       timeSlots: [] as CoverageTimeSlot[],
     }));
 
+  // AI Search handlers
+  const handleAISearch = (query: string, suggestions?: SearchSuggestion[]) => {
+    console.log('AI Search query:', query, 'Suggestions:', suggestions);
+    // TODO: Implement AI-powered search logic for coverage
+    // This could search across coverage data, identify gaps, etc.
+  };
+
+  const handleAISuggestionSelect = (suggestion: SearchSuggestion) => {
+    console.log('AI Suggestion selected:', suggestion);
+    // TODO: Handle suggestion selection (e.g., filter coverage data, navigate to specific time slots, etc.)
+  };
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <PageHeader
         title="Coverage Overview"
         description="Monitor employee coverage and scheduling statistics"
       />
+
+      {/* AI-Powered Search */}
+      <div className="mb-4">
+        <AISearchInput
+          placeholder="Search coverage data with AI assistance..."
+          onSearch={handleAISearch}
+          onSuggestionSelect={handleAISuggestionSelect}
+          showSuggestions={true}
+          maxSuggestions={5}
+        />
+      </div>
 
       <div className="grid gap-4 grid-cols-1 md:grid-cols-4">
         {/* Total Employees Card */}

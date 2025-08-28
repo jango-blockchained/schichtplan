@@ -96,6 +96,7 @@ import { ScheduleGenerationSettings } from "@/components/ScheduleGenerationSetti
 // import { type Schedule as APISchedule } from '@/services/api'; // Original, might be unused
 // import { type UseScheduleDataResult } from '@/hooks/useScheduleData'; // Original, might be unused
 // import { DateRangeSelector } from '@/components/DateRangeSelector'; // Original, might be unused
+import { AISearchInput, type SearchSuggestion } from "@/components/ai/AISearchInput";
 import { LiveScheduleOptimizer } from "@/components/ai/LiveScheduleOptimizer";
 import { RealTimeConflictDetector } from "@/components/ai/RealTimeConflictDetector";
 import GenerationLogs from "@/components/Schedule/GenerationLogs";
@@ -2061,6 +2062,18 @@ export function SchedulePage() {
     setGenerationOptions(options);
   }, []);
 
+  // AI Search handlers
+  const handleAISearch = (query: string, suggestions?: SearchSuggestion[]) => {
+    console.log('AI Search query:', query, 'Suggestions:', suggestions);
+    // TODO: Implement AI-powered search logic for schedules
+    // This could search across schedules, employees, shifts, etc.
+  };
+
+  const handleAISuggestionSelect = (suggestion: SearchSuggestion) => {
+    console.log('AI Suggestion selected:', suggestion);
+    // TODO: Handle suggestion selection (e.g., filter schedules, navigate to specific date, etc.)
+  };
+
   return (
     <div className="container mx-auto py-4 space-y-4">
       <PageHeader title="Dienstplan" className="mb-4">
@@ -2070,6 +2083,17 @@ export function SchedulePage() {
           isExporting={exportMutation.isPending}
         />
       </PageHeader>
+
+      {/* AI-Powered Search */}
+      <div className="mb-4">
+        <AISearchInput
+          placeholder="Search schedules with AI assistance..."
+          onSearch={handleAISearch}
+          onSuggestionSelect={handleAISuggestionSelect}
+          showSuggestions={true}
+          maxSuggestions={5}
+        />
+      </div>
 
       {/* Week Navigation - Settings-aware components */}
       <div className="mb-4 space-y-4">
