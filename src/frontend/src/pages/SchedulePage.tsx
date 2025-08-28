@@ -98,6 +98,8 @@ import { ScheduleGenerationSettings } from "@/components/ScheduleGenerationSetti
 // import { DateRangeSelector } from '@/components/DateRangeSelector'; // Original, might be unused
 import { LiveScheduleOptimizer } from "@/components/ai/LiveScheduleOptimizer";
 import { RealTimeConflictDetector } from "@/components/ai/RealTimeConflictDetector";
+import GenerationLogs from "@/components/Schedule/GenerationLogs";
+import { GenerationOverlay } from "@/components/Schedule/GenerationOverlay";
 import { ScheduleActions } from "@/components/Schedule/ScheduleActions";
 import ScheduleControls from "@/components/Schedule/ScheduleControls";
 import ScheduleErrors from "@/components/Schedule/ScheduleErrors";
