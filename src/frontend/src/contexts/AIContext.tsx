@@ -168,5 +168,4 @@ export const AIContextProvider: React.FC<AIContextProviderProps> = ({ children }
             {children}
         </AIContext.Provider>
     );
-};</content >
-    <parameter name="filePath">/home/jango/Git/maike2/schichtplan/src/frontend/src/contexts/AIContext.tsx
+};

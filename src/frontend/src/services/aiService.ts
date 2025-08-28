@@ -695,12 +695,105 @@ class AIService {
       method: 'POST',
     });
   }
+
+  // Smart Suggestions
+  async generateSuggestions(parameters: {
+    context: string;
+    page: string;
+    maxSuggestions: number;
+  }): Promise<{
+    success: boolean;
+    suggestions: Array<{
+      id: string;
+      type: 'action' | 'insight' | 'optimization' | 'alert' | 'question';
+      title: string;
+      description: string;
+      priority: 'low' | 'medium' | 'high' | 'urgent';
+      category: 'schedule' | 'employee' | 'coverage' | 'efficiency' | 'general';
+      actionable: boolean;
+      actionLabel?: string;
+      metadata?: {
+        confidence?: number;
+        impact?: string;
+        timeframe?: string;
+        related_items?: string[];
+      };
+    }>;
+  }> {
+    return this.request<{
+      success: boolean;
+      suggestions: Array<{
+        id: string;
+        type: 'action' | 'insight' | 'optimization' | 'alert' | 'question';
+        title: string;
+        description: string;
+        priority: 'low' | 'medium' | 'high' | 'urgent';
+        category: 'schedule' | 'employee' | 'coverage' | 'efficiency' | 'general';
+        actionable: boolean;
+        actionLabel?: string;
+        metadata?: {
+          confidence?: number;
+          impact?: string;
+          timeframe?: string;
+          related_items?: string[];
+        };
+      }>;
+    }>('/suggestions/generate', {
+      method: 'POST',
+      body: JSON.stringify(parameters),
+    });
+  }
+
+  // AI Search Suggestions
+  async generateSearchSuggestions(parameters: {
+    query: string;
+    context: string;
+    page: string;
+    max_suggestions: number;
+  }): Promise<{
+    success: boolean;
+    suggestions: Array<{
+      id: string;
+      type: 'query' | 'entity' | 'action' | 'filter';
+      text: string;
+      description?: string;
+      category: 'schedule' | 'employee' | 'coverage' | 'general';
+      confidence: number;
+      metadata?: {
+        entity_type?: string;
+        entity_id?: string;
+        action_type?: string;
+        filter_type?: string;
+      };
+    }>;
+  }> {
+    return this.request<{
+      success: boolean;
+      suggestions: Array<{
+        id: string;
+        type: 'query' | 'entity' | 'action' | 'filter';
+        text: string;
+        description?: string;
+        category: 'schedule' | 'employee' | 'coverage' | 'general';
+        confidence: number;
+        metadata?: {
+          entity_type?: string;
+          entity_id?: string;
+          action_type?: string;
+          filter_type?: string;
+        };
+      }>;
+    }>('/search/suggestions', {
+      method: 'POST',
+      body: JSON.stringify(parameters),
+    });
+  }
 }
 
 export const aiService = new AIService();
 export type {
-  Agent, AISettings, AnalyticsData, ChatMessage,
-  ChatRequest,
-  ChatResponse, FileUpload, LiveUpdate, MCPTool, ToolExecutionResult, TypingIndicator, VoiceCommand, WorkflowExecution, WorkflowStep, WorkflowTemplate
+    Agent, AISettings, AnalyticsData, ChatMessage,
+    ChatRequest,
+    ChatResponse, FileUpload, LiveUpdate, MCPTool, ToolExecutionResult, TypingIndicator, VoiceCommand, WorkflowExecution, WorkflowStep, WorkflowTemplate
 };
 
