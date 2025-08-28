@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import React from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { AIContextProvider } from "./contexts/AIContext";
 import { MainLayout } from "./layouts/MainLayout";
 import AIDashboardPage from "./pages/AIDashboardPage";
 import CalendarPage from "./pages/CalendarPage";
@@ -46,22 +47,24 @@ const App: React.FC = () => {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<MainLayout />}>
-                <Route index element={<SchedulePage />} />
-                <Route path="shifts" element={<ShiftsPage />} />
-                <Route path="coverage" element={<CoveragePage />} />
-                <Route path="employees" element={<EmployeesPage />} />
-                <Route path="settings" element={<UnifiedSettingsPage />} />
-                <Route path="formulars" element={<FormularsPage />} />
-                <Route path="logs" element={<LogsPage />} />
-                <Route path="pdf-layout" element={<PDFLayoutCustomizerPage />} />
-                <Route path="calendar" element={<CalendarPage />} />
-                <Route path="ai" element={<AIDashboardPage />} />
-                <Route path="design-system" element={<DesignSystemDemo />} />
-              </Route>
-            </Routes>
-            <Toaster />
+            <AIContextProvider>
+              <Routes>
+                <Route path="/" element={<MainLayout />}>
+                  <Route index element={<SchedulePage />} />
+                  <Route path="shifts" element={<ShiftsPage />} />
+                  <Route path="coverage" element={<CoveragePage />} />
+                  <Route path="employees" element={<EmployeesPage />} />
+                  <Route path="settings" element={<UnifiedSettingsPage />} />
+                  <Route path="formulars" element={<FormularsPage />} />
+                  <Route path="logs" element={<LogsPage />} />
+                  <Route path="pdf-layout" element={<PDFLayoutCustomizerPage />} />
+                  <Route path="calendar" element={<CalendarPage />} />
+                  <Route path="ai" element={<AIDashboardPage />} />
+                  <Route path="design-system" element={<DesignSystemDemo />} />
+                </Route>
+              </Routes>
+              <Toaster />
+            </AIContextProvider>
           </BrowserRouter>
         </ThemeProvider>
       </QueryClientProvider>

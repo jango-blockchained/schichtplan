@@ -1,177 +1,365 @@
-# Monthly Border Feature Implementation Plan
+# AI Integration and In-App Integration Taskplan
 
 ## Overview
 
-The monthly border feature allows the system to handle weeks that span across two different months. This feature impacts navigation, schedule display, data management, and version control.
+This taskplan outlines the comprehensive review and implementation of AI integration within the Schichtplan application, with a focus on in-app integration, user experience, and seamless AI functionality across all pages.
 
-## Current Status
+## Current Status Assessment
 
-- Backend: Basic MonthBoundaryMode enum and utility functions exist in `src/backend/utils/week_utils.py`
-- Frontend: MonthBoundaryMode settings exist but implementation is incomplete
-- Settings: UI elements exist in WeekSettings, WeekNavigationSettingsOverlay, and UnifiedSettingsSections
-- Navigation: WeekNavigator shows indicators but doesn't handle split weeks properly
+### ✅ Completed Components
 
-## Implementation Tasks
+#### Backend Infrastructure
 
-### Phase 1: Backend Core Implementation ✅
+- [x] MCP (Model Context Protocol) service implementation
+- [x] Multiple AI tool categories (schedule analysis, employee management, coverage optimization, CRUD operations, AI schedule generation, ML optimization)
+- [x] Conversational AI with multi-turn conversation support
+- [x] AI agent system architecture (base agents, schedule optimizer, employee manager)
+- [x] Workflow coordination system
+- [x] AI routes and endpoints (`/api/v2/ai/*`)
+- [x] Redis-based conversation state persistence
+- [x] Multi-provider AI support (OpenAI, Anthropic, Gemini)
 
-1. **Enhance Week Utilities** ✅
+#### Frontend Components
 
-   - [x] Verify `handle_month_boundary()` function in `week_utils.py`
-   - [x] Add helper functions for week splitting logic
-   - [x] Add `WeekSegmentInfo` dataclass for segment information
-   - [x] Implement `get_week_segments()` function
+- [x] AI Dashboard page with comprehensive tabs
+- [x] Conversational AI chat component
+- [x] MCP tools panel (UI structure)
+- [x] Agent dashboard component
+- [x] Workflow orchestrator component
+- [x] AI analytics component
+- [x] AI settings panel
+- [x] AI service integrations
+- [x] Conversation management hooks
 
-2. **Update Week API Endpoints** ✅
+### ⚠️ Partially Implemented
 
-   - [x] Modify `/api/weeks/info` to return split week segments when mode is SPLIT_ON_MONTH
-   - [x] Add new endpoint `/api/weeks/segments/<week_identifier>` to get week segments
-   - [x] Update `/api/weeks/next` and `/api/weeks/previous` to handle split weeks navigation
+- [ ] MCP tools panel connected to live backend (uses mock data)
+- [ ] Global AI chat widget across all pages
+- [ ] Page context injection into AI interactions
+- [ ] Provider health and configuration status visibility
+- [ ] Consolidated AI entry points
 
-3. **Version Management Updates** ✅
-   - [x] Update `ScheduleVersionMeta` to support split week versions
-   - [x] Modify version creation to handle split weeks (create separate versions per segment)
-   - [x] Update version queries to aggregate split week versions
+### ❌ Missing Components
 
-### Phase 2: Frontend Navigation Implementation ✅
+- [ ] Global AI accessibility from any page
+- [ ] Real-time AI suggestions and proactive assistance
+- [ ] AI-powered search and navigation
+- [ ] Personalized AI recommendations
+- [ ] AI performance monitoring and optimization
+- [ ] User feedback integration for AI improvements
 
-4. **Week Navigation Component Updates** ✅
+## Implementation Plan
 
-   - [x] Update `WeekNavigator` to display split week segments
-   - [x] Add visual indicators for each segment (e.g., "KW 52/2024 (Teil 1)")
-   - [x] Update navigation buttons to move between segments when in split mode
-   - [x] Add segment selector buttons for quick navigation
+### Phase 1: Core In-App Integration (Week 1-2)
 
-5. **Week-based Version Control Updates** ✅
+#### 1.1 Global AI Chat Widget
 
-   - [x] Update `useWeekBasedVersionControl` hook to handle split weeks
-   - [x] Add segment state management
-   - [x] Update date range calculation for split weeks
-   - [x] Implement segment change handler
+- [x] **Create GlobalAIChat component**
 
-6. **Version Manager Updates** ✅
-   - [x] Updated backend version service to create separate versions for each segment
-   - [x] Handle version creation for split weeks with segment-specific metadata
-   - [x] Updated version aggregation to find all segments for a week
+  - Implement floating chat widget similar to chatbot interfaces
+  - Add collapsible/expandable design with minimal footprint
+  - Include quick action buttons (voice input, file upload, context capture)
+  - Ensure responsive design for mobile and desktop
 
-### Phase 3: Schedule Display and Management ✅
+- [x] **Integrate with MainLayout**
 
-7. **Schedule Table Updates** ✅
+  - Mount GlobalAIChat in `MainLayout.tsx` or root App component
+  - Add portal mounting to avoid z-index conflicts
+  - Implement lazy loading for performance
+  - Add keyboard shortcuts for quick access (Ctrl+Shift+A)
 
-   - [x] Updated `ScheduleTable` to handle split week display
-   - [x] Added visual separation between month segments (amber borders and backgrounds)
-   - [x] Updated column headers for split weeks with month indicators
+- [x] **Context Awareness System**
+  - Capture current page context (route, selected items, filters)
+  - Inject context into AI conversations automatically
+  - Add context preview and editing capabilities
+  - Implement context persistence across sessions
 
-8. **Schedule Data Hook Updates** ✅
-   - [x] Data loading works automatically with segment-based date ranges
-   - [x] `useWeekBasedVersionControl` hook provides correct segment date ranges
-   - [x] Schedule mutations work correctly with split week data
+#### 1.2 Live MCP Tools Integration
 
-### Phase 4: Settings Integration ✅
+- [x] **Connect MCPToolsPanel to Backend**
 
-9. **Settings Persistence** ✅
+  - Replace mock data with real API calls to `/api/v2/mcp/tools`
+  - Implement tool execution via `/api/v2/mcp/test-tool` or dedicated execute endpoint
+  - Add real-time tool status and health indicators
+  - Implement tool search and filtering capabilities
 
-   - [x] Month boundary mode setting is properly saved and loaded
-   - [x] Backend respects settings from database
-   - [x] Settings API handles month boundary mode changes
+- [x] **Enhanced Tool Execution UX**
+  - Add parameter input forms for complex tools
+  - Implement execution progress indicators
+  - Add result preview and formatting
+  - Create tool favorites and recent tools sections
 
-10. **Settings UI Polish** ✅
-    - [x] Settings UI exists in WeekNavigationSettingsOverlay and WeekSettings
-    - [x] Clear descriptions and help text for both modes
-    - [x] Real-time preview through visual indicators in navigation
+#### 1.3 Provider Configuration and Health
 
-### Phase 5: Testing and Edge Cases ✅
+- [x] **Provider Status Dashboard**
 
-11. **Edge Case Handling** ✅
+  - Display current AI provider status (OpenAI/Anthropic/Gemini)
+  - Show API key configuration status
+  - Add provider switching capabilities
+  - Implement health monitoring and alerts
 
-    - [x] Handle year boundaries (December/January transitions tested)
-    - [x] Handle February edge cases (leap year vs regular year tested)
-    - [x] Handle mode switching with existing data
-    - [x] Version management works correctly for split weeks
+- [ ] **Graceful Degradation**
+  - Implement fallback modes when API keys are missing
+  - Add clear messaging for configuration requirements
+  - Create heuristic-based alternatives for AI features
+  - Implement offline/local AI capabilities
 
-12. **Testing** ✅
-    - [x] Unit tests for week splitting logic (test_month_boundary.py with 6 comprehensive tests)
-    - [x] Backend API endpoints handle split weeks correctly
-    - [x] Frontend components display split weeks properly with visual separation
-    - [x] Edge case testing for year boundaries and February (leap/regular years)
+### Phase 2: Enhanced User Experience (Week 3-4)
 
-## Technical Details
+#### 2.1 Smart AI Suggestions
 
-### Week Splitting Logic
+- [ ] **Proactive AI Assistance**
 
-When `MonthBoundaryMode.SPLIT_ON_MONTH` is active:
+  - Implement context-aware suggestions based on user actions
+  - Add AI-powered next action recommendations
+  - Create smart defaults for common workflows
+  - Implement user behavior learning
 
-1. Weeks spanning multiple months are split at month boundaries
-2. Each segment gets its own version and schedule data
-3. Navigation moves between segments, not full weeks
-4. Display shows partial week indicators
+- [ ] **AI-Powered Search**
+  - Enhance search with AI understanding
+  - Add natural language query processing
+  - Implement semantic search across schedules and employees
+  - Create AI-generated search suggestions
 
-### Data Structure Changes
+#### 2.2 Personalized AI Experience
 
-```typescript
-// Extended WeekInfo for split weeks
-interface WeekSegmentInfo extends WeekInfo {
-  isSegment: boolean;
-  segmentNumber: number;
-  totalSegments: number;
-  segmentStartDate: Date;
-  segmentEndDate: Date;
-  originalWeekIdentifier: string;
-}
-```
+- [ ] **User Preferences and Learning**
 
-### API Response Changes
+  - Implement user preference learning
+  - Add customizable AI personality settings
+  - Create user-specific AI behavior profiles
+  - Implement feedback collection and learning
 
-```json
-// GET /api/weeks/info response for split week
-{
-  "week_identifier": "2024-W52",
-  "is_split": true,
-  "segments": [
-    {
-      "segment_id": "2024-W52-S1",
-      "start_date": "2024-12-23",
-      "end_date": "2024-12-31",
-      "month": "December 2024"
-    },
-    {
-      "segment_id": "2025-W01-S1",
-      "start_date": "2025-01-01",
-      "end_date": "2025-01-05",
-      "month": "January 2025"
-    }
-  ]
-}
-```
+- [ ] **Workflow Personalization**
+  - Learn from user workflow patterns
+  - Create personalized automation suggestions
+  - Implement smart defaults based on user history
+  - Add user-specific optimization preferences
 
-## Implementation Order
+#### 2.3 Real-time AI Features
 
-1. Start with backend week utilities and API endpoints
-2. Update frontend navigation components
-3. Modify schedule display and data handling
-4. Polish settings integration
-5. Comprehensive testing
+- [ ] **Live Schedule Optimization**
+
+  - Implement real-time conflict detection
+  - Add proactive optimization suggestions
+  - Create live coverage monitoring
+  - Implement instant validation feedback
+
+- [ ] **Collaborative AI**
+  - Add multi-user conversation support
+  - Implement shared AI context
+  - Create team workflow coordination
+  - Add AI-facilitated collaboration features
+
+### Phase 3: Advanced Integration (Week 5-6)
+
+#### 3.1 AI-Powered Navigation
+
+- [ ] **Intelligent Navigation**
+
+  - Implement AI-powered page recommendations
+  - Add context-aware navigation suggestions
+  - Create smart shortcuts and quick actions
+  - Implement predictive navigation
+
+- [ ] **Voice and Gesture Integration**
+  - Add voice command support for AI interactions
+  - Implement gesture-based AI activation
+  - Create hands-free operation capabilities
+  - Add accessibility enhancements
+
+#### 3.2 Performance and Monitoring
+
+- [ ] **AI Performance Optimization**
+
+  - Implement response time optimization
+  - Add caching for frequent AI queries
+  - Create performance monitoring dashboards
+  - Implement load balancing for AI requests
+
+- [ ] **Usage Analytics and Insights**
+  - Track AI feature usage patterns
+  - Implement user satisfaction metrics
+  - Create AI performance analytics
+  - Add continuous improvement recommendations
+
+#### 3.3 Enterprise Features
+
+- [ ] **Advanced Security**
+
+  - Implement AI data privacy controls
+  - Add audit logging for AI interactions
+  - Create compliance reporting
+  - Implement enterprise-grade security
+
+- [ ] **Scalability Enhancements**
+  - Add multi-instance AI service support
+  - Implement horizontal scaling
+  - Create load distribution mechanisms
+  - Add high-availability configurations
+
+### Phase 4: Testing and Polish (Week 7-8)
+
+#### 4.1 Comprehensive Testing
+
+- [ ] **Integration Testing**
+
+  - Test all AI features across different pages
+  - Validate context injection accuracy
+  - Test provider failover scenarios
+  - Verify performance under load
+
+- [ ] **User Experience Testing**
+  - Conduct user acceptance testing
+  - Gather feedback on AI interactions
+  - Test accessibility compliance
+  - Validate mobile responsiveness
+
+#### 4.2 Documentation and Training
+
+- [ ] **User Documentation**
+
+  - Create comprehensive AI feature documentation
+  - Add interactive tutorials and guides
+  - Implement contextual help system
+  - Create video tutorials and demos
+
+- [ ] **Administrator Guide**
+  - Document AI configuration procedures
+  - Create troubleshooting guides
+  - Add performance tuning recommendations
+  - Implement monitoring and maintenance guides
+
+## Technical Implementation Details
+
+### Frontend Architecture
+
+- **Global State Management**: Implement AI context in global state
+- **Component Structure**: Create reusable AI components
+- **Performance**: Implement lazy loading and code splitting
+- **Accessibility**: Ensure WCAG compliance for all AI features
+
+### Backend Architecture
+
+- **Service Layer**: Enhance AI service orchestration
+- **Caching Strategy**: Implement intelligent caching for AI responses
+- **Monitoring**: Add comprehensive logging and monitoring
+- **Security**: Implement proper authentication and authorization
+
+### Database Considerations
+
+- **AI Data Storage**: Design schema for AI preferences and history
+- **Performance**: Optimize queries for AI-driven features
+- **Backup**: Ensure AI data is properly backed up
+- **Privacy**: Implement data retention policies
 
 ## Success Criteria
 
-- [ ] Users can toggle between KEEP_INTACT and SPLIT_ON_MONTH modes
-- [ ] Split weeks display correctly with visual indicators
-- [ ] Navigation works seamlessly between week segments
-- [ ] Schedule data is properly managed for split weeks
-- [ ] Version control handles split weeks appropriately
-- [ ] No data loss when switching modes
-- [ ] Clear visual feedback for users about split weeks
+### Functional Requirements
 
-## Risks and Mitigation
+- [ ] AI chat accessible from every page
+- [ ] MCP tools fully functional with live data
+- [ ] Context-aware AI interactions
+- [ ] Seamless provider configuration
+- [ ] Real-time AI assistance capabilities
 
-- **Data Consistency**: Ensure proper transaction handling when creating split versions
-- **Performance**: Optimize queries to handle aggregated data for split weeks
-- **UX Confusion**: Provide clear visual indicators and help text
-- **Migration**: Handle existing data when feature is enabled
+### Performance Requirements
 
-## Notes
+- [ ] AI response time < 2 seconds for simple queries
+- [ ] AI response time < 5 seconds for complex operations
+- [ ] No performance impact on non-AI features
+- [ ] Efficient resource usage
 
-- Priority should be given to maintaining backwards compatibility
-- Consider feature flag for gradual rollout
-- Document behavior changes for users
-- Update API documentation for new endpoints
+### User Experience Requirements
+
+- [ ] Intuitive AI interaction patterns
+- [ ] Clear feedback for all AI operations
+- [ ] Graceful handling of errors and limitations
+- [ ] Consistent AI experience across all pages
+
+## Risk Mitigation
+
+### Technical Risks
+
+- **API Rate Limiting**: Implement queuing and backoff strategies
+- **Provider Downtime**: Add automatic failover between providers
+- **Performance Impact**: Use lazy loading and background processing
+- **Data Privacy**: Implement proper data handling and compliance
+
+### Business Risks
+
+- **User Adoption**: Provide clear value demonstration
+- **Cost Management**: Implement usage monitoring and limits
+- **Support Load**: Create self-service resources and automation
+- **Integration Complexity**: Use phased approach with clear milestones
+
+## Dependencies
+
+### External Dependencies
+
+- AI provider API keys (OpenAI, Anthropic, or Gemini)
+- Redis for conversation state persistence
+- Sufficient server resources for AI processing
+
+### Internal Dependencies
+
+- Stable backend API endpoints
+- Consistent frontend architecture
+- Proper error handling framework
+- Performance monitoring infrastructure
+
+## Timeline and Milestones
+
+### Week 1-2: Core Integration
+
+- Global AI chat widget implemented and accessible
+- MCP tools connected to live backend
+- Provider status clearly visible
+
+### Week 3-4: Enhanced UX
+
+- Smart suggestions and proactive assistance
+- Personalized AI experience
+- Real-time features functional
+
+### Week 5-6: Advanced Features
+
+- AI-powered navigation
+- Performance optimization complete
+- Enterprise features implemented
+
+### Week 7-8: Testing and Launch
+
+- Comprehensive testing completed
+- Documentation finalized
+- Production deployment ready
+
+## Resources Required
+
+### Development Team
+
+- 2-3 Frontend Developers (React/TypeScript)
+- 2 Backend Developers (Python/Flask)
+- 1 AI/ML Engineer
+- 1 UX/UI Designer
+- 1 DevOps Engineer
+
+### Infrastructure
+
+- Additional server resources for AI processing
+- Redis cluster for state management
+- Monitoring and logging infrastructure
+- CDN for static AI assets
+
+### Testing
+
+- User testing group (10-20 users)
+- Performance testing environment
+- Accessibility testing tools
+- Cross-browser testing suite
+
+---
+
+**Last Updated:** August 28, 2025
+**Version:** 1.0
+**Status:** Ready for Implementation

@@ -8,17 +8,17 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-    AlertTriangle,
-    Brain,
-    CheckCircle,
-    Clock,
-    Database,
-    Info,
-    RefreshCw,
-    Save,
-    Settings,
-    Shield,
-    Zap
+  AlertTriangle,
+  Brain,
+  CheckCircle,
+  Clock,
+  Database,
+  Info,
+  RefreshCw,
+  Save,
+  Settings,
+  Shield,
+  Zap
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -39,25 +39,26 @@ interface AISettings {
   max_conversation_history: number;
 }
 
-interface AgentSettings {
-  schedule_optimizer: {
-    enabled: boolean;
-    max_concurrent_requests: number;
-    optimization_algorithms: string[];
-    constraint_weights: Record<string, number>;
+interface ProviderStatus {
+  provider: string;
+  status: 'available' | 'unavailable' | 'error';
+  has_api_key: boolean;
+  last_checked: string;
+  response_time?: number;
+  error?: string;
+}
+
+interface SystemHealth {
+  status: 'healthy' | 'degraded' | 'unhealthy' | 'critical' | 'error';
+  timestamp: string;
+  services: {
+    [serviceName: string]: {
+      status: string;
+      initialized: boolean;
+      [key: string]: unknown;
+    };
   };
-  employee_manager: {
-    enabled: boolean;
-    max_concurrent_requests: number;
-    preference_weight: number;
-    availability_check_strict: boolean;
-  };
-  workflow_coordinator: {
-    enabled: boolean;
-    max_parallel_workflows: number;
-    workflow_timeout: number;
-    auto_recovery: boolean;
-  };
+  providers: ProviderStatus[];
 }
 
 interface SystemSettings {
@@ -123,18 +124,52 @@ export const AISettingsPanel: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [providerStatus, setProviderStatus] = useState<ProviderStatus[]>([]);
+  const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(false);
 
   useEffect(() => {
     // Mark as having changes when settings are modified
     setHasChanges(true);
   }, [aiSettings, agentSettings, systemSettings]);
 
+  // Fetch provider status and system health
+  useEffect(() => {
+    const fetchStatus = async () => {
+      setIsLoadingStatus(true);
+      try {
+        // Fetch provider status
+        const providerResponse = await fetch('/api/v2/ai/services/status');
+        if (providerResponse.ok) {
+          const providerData = await providerResponse.json();
+          setProviderStatus(providerData.providers || []);
+        }
+
+        // Fetch system health
+        const healthResponse = await fetch('/api/v2/ai/health');
+        if (healthResponse.ok) {
+          const healthData = await healthResponse.json();
+          setSystemHealth(healthData);
+        }
+      } catch (error) {
+        console.error('Failed to fetch AI status:', error);
+      } finally {
+        setIsLoadingStatus(false);
+      }
+    };
+
+    fetchStatus();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleSaveSettings = async () => {
     setIsLoading(true);
     try {
       // Simulate API call to save settings
       await new Promise(resolve => setTimeout(resolve, 2000));
-      
+
       setHasChanges(false);
       toast.success("Settings saved successfully");
     } catch {
@@ -240,13 +275,13 @@ export const AISettingsPanel: React.FC = () => {
                   <Brain className="h-4 w-4" />
                   AI Provider Configuration
                 </h4>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Provider</Label>
-                    <Select 
-                      value={aiSettings.provider} 
-                      onValueChange={(value: "openai" | "anthropic" | "gemini") => 
+                    <Select
+                      value={aiSettings.provider}
+                      onValueChange={(value: "openai" | "anthropic" | "gemini") =>
                         setAISettings(prev => ({ ...prev, provider: value }))
                       }
                     >
@@ -260,12 +295,12 @@ export const AISettingsPanel: React.FC = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label>Model</Label>
-                    <Select 
-                      value={aiSettings.model} 
-                      onValueChange={(value) => 
+                    <Select
+                      value={aiSettings.model}
+                      onValueChange={(value) =>
                         setAISettings(prev => ({ ...prev, model: value }))
                       }
                     >
@@ -287,7 +322,7 @@ export const AISettingsPanel: React.FC = () => {
                   <Label>Temperature: {aiSettings.temperature}</Label>
                   <Slider
                     value={[aiSettings.temperature]}
-                    onValueChange={([value]) => 
+                    onValueChange={([value]) =>
                       setAISettings(prev => ({ ...prev, temperature: value }))
                     }
                     min={0}
@@ -306,20 +341,20 @@ export const AISettingsPanel: React.FC = () => {
                     <Input
                       type="number"
                       value={aiSettings.max_tokens}
-                      onChange={(e) => 
+                      onChange={(e) =>
                         setAISettings(prev => ({ ...prev, max_tokens: Number(e.target.value) }))
                       }
                       min={100}
                       max={4096}
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label>Timeout (seconds)</Label>
                     <Input
                       type="number"
                       value={aiSettings.timeout}
-                      onChange={(e) => 
+                      onChange={(e) =>
                         setAISettings(prev => ({ ...prev, timeout: Number(e.target.value) }))
                       }
                       min={5}
@@ -335,7 +370,7 @@ export const AISettingsPanel: React.FC = () => {
                   <Shield className="h-4 w-4" />
                   Fallback & Reliability
                 </h4>
-                
+
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Enable Fallback Providers</Label>
@@ -345,7 +380,7 @@ export const AISettingsPanel: React.FC = () => {
                   </div>
                   <Switch
                     checked={aiSettings.fallback_enabled}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       setAISettings(prev => ({ ...prev, fallback_enabled: checked }))
                     }
                   />
@@ -357,19 +392,19 @@ export const AISettingsPanel: React.FC = () => {
                     <Input
                       type="number"
                       value={aiSettings.rate_limit}
-                      onChange={(e) => 
+                      onChange={(e) =>
                         setAISettings(prev => ({ ...prev, rate_limit: Number(e.target.value) }))
                       }
                       min={1}
                       max={1000}
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label>Logging Level</Label>
-                    <Select 
-                      value={aiSettings.logging_level} 
-                      onValueChange={(value: "debug" | "info" | "warning" | "error") => 
+                    <Select
+                      value={aiSettings.logging_level}
+                      onValueChange={(value: "debug" | "info" | "warning" | "error") =>
                         setAISettings(prev => ({ ...prev, logging_level: value }))
                       }
                     >
@@ -393,7 +428,7 @@ export const AISettingsPanel: React.FC = () => {
                   <Clock className="h-4 w-4" />
                   Conversation Management
                 </h4>
-                
+
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Conversation Persistence</Label>
@@ -403,7 +438,7 @@ export const AISettingsPanel: React.FC = () => {
                   </div>
                   <Switch
                     checked={aiSettings.conversation_persistence}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       setAISettings(prev => ({ ...prev, conversation_persistence: checked }))
                     }
                   />
@@ -414,7 +449,7 @@ export const AISettingsPanel: React.FC = () => {
                   <Input
                     type="number"
                     value={aiSettings.max_conversation_history}
-                    onChange={(e) => 
+                    onChange={(e) =>
                       setAISettings(prev => ({ ...prev, max_conversation_history: Number(e.target.value) }))
                     }
                     min={10}
@@ -434,7 +469,7 @@ export const AISettingsPanel: React.FC = () => {
                   <h4 className="text-sm font-medium">Schedule Optimizer Agent</h4>
                   <Switch
                     checked={agentSettings.schedule_optimizer.enabled}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       setAgentSettings(prev => ({
                         ...prev,
                         schedule_optimizer: { ...prev.schedule_optimizer, enabled: checked }
@@ -449,12 +484,12 @@ export const AISettingsPanel: React.FC = () => {
                     <Input
                       type="number"
                       value={agentSettings.schedule_optimizer.max_concurrent_requests}
-                      onChange={(e) => 
+                      onChange={(e) =>
                         setAgentSettings(prev => ({
                           ...prev,
-                          schedule_optimizer: { 
-                            ...prev.schedule_optimizer, 
-                            max_concurrent_requests: Number(e.target.value) 
+                          schedule_optimizer: {
+                            ...prev.schedule_optimizer,
+                            max_concurrent_requests: Number(e.target.value)
                           }
                         }))
                       }
@@ -475,7 +510,7 @@ export const AISettingsPanel: React.FC = () => {
                       </div>
                       <Slider
                         value={[value]}
-                        onValueChange={([newValue]) => 
+                        onValueChange={([newValue]) =>
                           setAgentSettings(prev => ({
                             ...prev,
                             schedule_optimizer: {
@@ -503,7 +538,7 @@ export const AISettingsPanel: React.FC = () => {
                   <h4 className="text-sm font-medium">Employee Manager Agent</h4>
                   <Switch
                     checked={agentSettings.employee_manager.enabled}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       setAgentSettings(prev => ({
                         ...prev,
                         employee_manager: { ...prev.employee_manager, enabled: checked }
@@ -518,12 +553,12 @@ export const AISettingsPanel: React.FC = () => {
                     <Input
                       type="number"
                       value={agentSettings.employee_manager.max_concurrent_requests}
-                      onChange={(e) => 
+                      onChange={(e) =>
                         setAgentSettings(prev => ({
                           ...prev,
-                          employee_manager: { 
-                            ...prev.employee_manager, 
-                            max_concurrent_requests: Number(e.target.value) 
+                          employee_manager: {
+                            ...prev.employee_manager,
+                            max_concurrent_requests: Number(e.target.value)
                           }
                         }))
                       }
@@ -538,7 +573,7 @@ export const AISettingsPanel: React.FC = () => {
                   <Label>Preference Weight: {agentSettings.employee_manager.preference_weight}</Label>
                   <Slider
                     value={[agentSettings.employee_manager.preference_weight]}
-                    onValueChange={([value]) => 
+                    onValueChange={([value]) =>
                       setAgentSettings(prev => ({
                         ...prev,
                         employee_manager: { ...prev.employee_manager, preference_weight: value }
@@ -560,7 +595,7 @@ export const AISettingsPanel: React.FC = () => {
                   </div>
                   <Switch
                     checked={agentSettings.employee_manager.availability_check_strict}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       setAgentSettings(prev => ({
                         ...prev,
                         employee_manager: { ...prev.employee_manager, availability_check_strict: checked }
@@ -577,7 +612,7 @@ export const AISettingsPanel: React.FC = () => {
                   <h4 className="text-sm font-medium">Workflow Coordinator</h4>
                   <Switch
                     checked={agentSettings.workflow_coordinator.enabled}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       setAgentSettings(prev => ({
                         ...prev,
                         workflow_coordinator: { ...prev.workflow_coordinator, enabled: checked }
@@ -592,12 +627,12 @@ export const AISettingsPanel: React.FC = () => {
                     <Input
                       type="number"
                       value={agentSettings.workflow_coordinator.max_parallel_workflows}
-                      onChange={(e) => 
+                      onChange={(e) =>
                         setAgentSettings(prev => ({
                           ...prev,
-                          workflow_coordinator: { 
-                            ...prev.workflow_coordinator, 
-                            max_parallel_workflows: Number(e.target.value) 
+                          workflow_coordinator: {
+                            ...prev.workflow_coordinator,
+                            max_parallel_workflows: Number(e.target.value)
                           }
                         }))
                       }
@@ -606,18 +641,18 @@ export const AISettingsPanel: React.FC = () => {
                       disabled={!agentSettings.workflow_coordinator.enabled}
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label>Workflow Timeout (seconds)</Label>
                     <Input
                       type="number"
                       value={agentSettings.workflow_coordinator.workflow_timeout}
-                      onChange={(e) => 
+                      onChange={(e) =>
                         setAgentSettings(prev => ({
                           ...prev,
-                          workflow_coordinator: { 
-                            ...prev.workflow_coordinator, 
-                            workflow_timeout: Number(e.target.value) 
+                          workflow_coordinator: {
+                            ...prev.workflow_coordinator,
+                            workflow_timeout: Number(e.target.value)
                           }
                         }))
                       }
@@ -637,7 +672,7 @@ export const AISettingsPanel: React.FC = () => {
                   </div>
                   <Switch
                     checked={agentSettings.workflow_coordinator.auto_recovery}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       setAgentSettings(prev => ({
                         ...prev,
                         workflow_coordinator: { ...prev.workflow_coordinator, auto_recovery: checked }
@@ -656,25 +691,25 @@ export const AISettingsPanel: React.FC = () => {
                   <Database className="h-4 w-4" />
                   MCP Server Configuration
                 </h4>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Server URL</Label>
                     <Input
                       value={systemSettings.mcp_server_url}
-                      onChange={(e) => 
+                      onChange={(e) =>
                         setSystemSettings(prev => ({ ...prev, mcp_server_url: e.target.value }))
                       }
                       placeholder="http://localhost:8001"
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label>Server Timeout (seconds)</Label>
                     <Input
                       type="number"
                       value={systemSettings.mcp_server_timeout}
-                      onChange={(e) => 
+                      onChange={(e) =>
                         setSystemSettings(prev => ({ ...prev, mcp_server_timeout: Number(e.target.value) }))
                       }
                       min={5}
@@ -688,7 +723,7 @@ export const AISettingsPanel: React.FC = () => {
                   <Input
                     type="number"
                     value={systemSettings.health_check_interval}
-                    onChange={(e) => 
+                    onChange={(e) =>
                       setSystemSettings(prev => ({ ...prev, health_check_interval: Number(e.target.value) }))
                     }
                     min={10}
@@ -703,7 +738,7 @@ export const AISettingsPanel: React.FC = () => {
                   <Zap className="h-4 w-4" />
                   Performance & Scaling
                 </h4>
-                
+
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Auto Scaling</Label>
@@ -713,7 +748,7 @@ export const AISettingsPanel: React.FC = () => {
                   </div>
                   <Switch
                     checked={systemSettings.auto_scaling_enabled}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       setSystemSettings(prev => ({ ...prev, auto_scaling_enabled: checked }))
                     }
                   />
@@ -723,7 +758,7 @@ export const AISettingsPanel: React.FC = () => {
                   <Label>Max System Load (%): {systemSettings.max_system_load}</Label>
                   <Slider
                     value={[systemSettings.max_system_load]}
-                    onValueChange={([value]) => 
+                    onValueChange={([value]) =>
                       setSystemSettings(prev => ({ ...prev, max_system_load: value }))
                     }
                     min={50}
@@ -739,7 +774,7 @@ export const AISettingsPanel: React.FC = () => {
                   <Settings className="h-4 w-4" />
                   Maintenance
                 </h4>
-                
+
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Maintenance Mode</Label>
@@ -749,7 +784,7 @@ export const AISettingsPanel: React.FC = () => {
                   </div>
                   <Switch
                     checked={systemSettings.maintenance_mode}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       setSystemSettings(prev => ({ ...prev, maintenance_mode: checked }))
                     }
                   />
@@ -775,24 +810,77 @@ export const AISettingsPanel: React.FC = () => {
                 <h4 className="text-sm font-medium flex items-center gap-2">
                   <Info className="h-4 w-4" />
                   System Status
+                  {isLoadingStatus && <RefreshCw className="h-3 w-3 animate-spin" />}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setIsLoadingStatus(true);
+                      // Trigger status refresh by updating the useEffect dependency
+                      setTimeout(() => setIsLoadingStatus(false), 1000);
+                    }}
+                    className="h-6 w-6 p-0"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                  </Button>
                 </h4>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      <span className="text-sm font-medium text-green-800">MCP Server</span>
+
+                {/* System Health Status */}
+                {systemHealth && (
+                  <div className="p-3 border rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      {systemHealth.status === 'healthy' ? (
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      ) : systemHealth.status === 'degraded' ? (
+                        <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                      ) : (
+                        <AlertTriangle className="h-4 w-4 text-red-600" />
+                      )}
+                      <span className="text-sm font-medium">
+                        System Health: {systemHealth.status.toUpperCase()}
+                      </span>
                     </div>
-                    <p className="text-xs text-green-700">Connected</p>
+                    <p className="text-xs text-muted-foreground">
+                      Last checked: {new Date(systemHealth.timestamp).toLocaleTimeString()}
+                    </p>
                   </div>
-                  
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      <span className="text-sm font-medium text-green-800">AI Providers</span>
+                )}
+
+                {/* Provider Status */}
+                <div className="space-y-2">
+                  <h5 className="text-xs font-medium text-muted-foreground">AI Providers</h5>
+                  {providerStatus.length > 0 ? (
+                    providerStatus.map((provider) => (
+                      <div key={provider.provider} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                        <div className="flex items-center gap-2">
+                          {provider.status === 'available' ? (
+                            <CheckCircle className="h-3 w-3 text-green-600" />
+                          ) : provider.status === 'unavailable' ? (
+                            <Clock className="h-3 w-3 text-yellow-600" />
+                          ) : (
+                            <AlertTriangle className="h-3 w-3 text-red-600" />
+                          )}
+                          <span className="text-xs font-medium capitalize">{provider.provider}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {provider.has_api_key ? (
+                            <Badge variant="secondary" className="text-xs">API Key</Badge>
+                          ) : (
+                            <Badge variant="destructive" className="text-xs">No Key</Badge>
+                          )}
+                          {provider.response_time && (
+                            <span className="text-xs text-muted-foreground">
+                              {provider.response_time}ms
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                      No provider status available
                     </div>
-                    <p className="text-xs text-green-700">Available</p>
-                  </div>
+                  )}
                 </div>
               </div>
             </TabsContent>

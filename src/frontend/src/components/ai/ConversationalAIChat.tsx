@@ -2,16 +2,21 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { useAIContext } from "@/contexts/AIContext";
 import { cn } from "@/lib/utils";
 import { aiService } from "@/services/aiService";
 import {
   Bot,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Clock,
   Copy,
   Download,
+  Eye,
   Loader2,
   MessageSquare,
   RotateCcw,
@@ -53,35 +58,18 @@ interface ConversationSession {
   files?: string[]; // File IDs in this session
 }
 
-interface ChatFeatures {
-  voice_enabled: boolean;
-  file_upload_enabled: boolean;
-  typing_indicators: boolean;
-  live_updates: boolean;
-  advanced_tools: boolean;
-}
-
 export const ConversationalAIChat: React.FC = () => {
+  const { pageContext, getContextSummary } = useAIContext();
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [currentInput, setCurrentInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [currentSession, setCurrentSession] = useState<ConversationSession | null>(null);
   const [sessions, setSessions] = useState<ConversationSession[]>([]);
   const [aiProvider] = useState<"openai" | "anthropic" | "gemini">("gemini");
-  const [features, setFeatures] = useState<ChatFeatures>({
-    voice_enabled: true,
-    file_upload_enabled: true,
-    typing_indicators: true,
-    live_updates: true,
-    advanced_tools: true
-  });
-  const [showVoiceInput, setShowVoiceInput] = useState(false);
-  const [showFileUpload, setShowFileUpload] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+  const [showContext, setShowContext] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const currentUserId = "user-123"; // In real app, get from auth
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -133,10 +121,17 @@ export const ConversationalAIChat: React.FC = () => {
     setIsLoading(true);
 
     try {
+      // Prepare message with context
+      const contextSummary = getContextSummary();
+      const messageWithContext = contextSummary
+        ? `Context:\n${contextSummary}\n\nUser: ${userMessage.content}`
+        : userMessage.content;
+
       // Call the real AI service
       const response = await aiService.sendChatMessage({
-        message: userMessage.content,
-        conversation_id: currentSession?.id
+        message: messageWithContext,
+        conversation_id: currentSession?.id,
+        context: pageContext
       });
 
       const aiMessage: ConversationMessage = {
@@ -531,6 +526,62 @@ export const ConversationalAIChat: React.FC = () => {
               <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
+
+          {/* Context Preview */}
+          <Collapsible open={showContext} onOpenChange={setShowContext}>
+            <div className="border-t border-border px-4 py-2">
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="w-full justify-between text-xs">
+                  <span className="flex items-center gap-2">
+                    <Eye className="h-3 w-3" />
+                    Context ({Object.keys(pageContext.selectedItems).length + Object.keys(pageContext.filters).length} items)
+                  </span>
+                  {showContext ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-2">
+                <Card className="bg-muted/30">
+                  <CardContent className="p-3">
+                    <div className="space-y-2 text-xs">
+                      <div>
+                        <span className="font-medium">Page:</span> {pageContext.pageTitle}
+                      </div>
+                      <div>
+                        <span className="font-medium">Route:</span> {pageContext.route}
+                      </div>
+                      {Object.keys(pageContext.selectedItems).length > 0 && (
+                        <div>
+                          <span className="font-medium">Selected:</span>{' '}
+                          {Object.entries(pageContext.selectedItems)
+                            .map(([key, value]) => `${key}=${String(value)}`)
+                            .join(', ')}
+                        </div>
+                      )}
+                      {Object.keys(pageContext.filters).length > 0 && (
+                        <div>
+                          <span className="font-medium">Filters:</span>{' '}
+                          {Object.entries(pageContext.filters)
+                            .map(([key, value]) => `${key}=${String(value)}`)
+                            .join(', ')}
+                        </div>
+                      )}
+                      {pageContext.dateRange && (
+                        <div>
+                          <span className="font-medium">Date Range:</span>{' '}
+                          {pageContext.dateRange.start.toLocaleDateString()} - {pageContext.dateRange.end.toLocaleDateString()}
+                        </div>
+                      )}
+                      {pageContext.searchQuery && (
+                        <div>
+                          <span className="font-medium">Search:</span> "{pageContext.searchQuery}"
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
 
           {/* Input Area */}
           <div className="border-t border-border p-4">

@@ -17,6 +17,7 @@ import {
   Database,
   Download,
   Filter,
+  Heart,
   Play,
   RefreshCw,
   Search,
@@ -30,6 +31,7 @@ import { GlobalMCPService } from "../../../services/mcpClient";
 
 interface LocalMCPTool extends MCPTool {
   average_response_time: number;
+  is_favorite?: boolean;
 }
 
 
@@ -52,6 +54,13 @@ export const MCPToolsPanel: React.FC = () => {
   const [searchFilter, setSearchFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [isExecuting, setIsExecuting] = useState(false);
+  const [favorites, setFavorites] = useState<Set<string>>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("mcp-tool-favorites");
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    }
+    return new Set();
+  });
 
   useEffect(() => {
     // Load tools from MCP backend
@@ -106,12 +115,31 @@ export const MCPToolsPanel: React.FC = () => {
     })();
   }, []);
 
-  const filteredTools = tools.filter(tool => {
-    const matchesSearch = tool.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
-      tool.description.toLowerCase().includes(searchFilter.toLowerCase());
-    const matchesCategory = categoryFilter === "all" || tool.category === categoryFilter;
-    return matchesSearch && matchesCategory;
-  });
+  const toggleFavorite = (toolId: string) => {
+    const newFavorites = new Set(favorites);
+    if (newFavorites.has(toolId)) {
+      newFavorites.delete(toolId);
+    } else {
+      newFavorites.add(toolId);
+    }
+    setFavorites(newFavorites);
+    localStorage.setItem("mcp-tool-favorites", JSON.stringify([...newFavorites]));
+  };
+
+  const filteredTools = tools
+    .map(tool => ({ ...tool, is_favorite: favorites.has(tool.id) }))
+    .filter(tool => {
+      const matchesSearch = tool.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
+        tool.description.toLowerCase().includes(searchFilter.toLowerCase());
+      const matchesCategory = categoryFilter === "all" || tool.category === categoryFilter;
+      return matchesSearch && matchesCategory;
+    })
+    .sort((a, b) => {
+      // Sort favorites first
+      if (a.is_favorite && !b.is_favorite) return -1;
+      if (!a.is_favorite && b.is_favorite) return 1;
+      return 0;
+    });
 
   const handleExecuteTool = async () => {
     if (!selectedTool) return;
@@ -377,6 +405,22 @@ export const MCPToolsPanel: React.FC = () => {
                           <span className="font-medium">{tool.name}</span>
                         </div>
                         <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleFavorite(tool.id);
+                            }}
+                          >
+                            <Heart
+                              className={cn(
+                                "h-3 w-3",
+                                tool.is_favorite ? "fill-red-500 text-red-500" : "text-muted-foreground"
+                              )}
+                            />
+                          </Button>
                           {getStatusIcon(tool.status)}
                           <Badge variant="outline" className="text-xs">
                             {tool.usage_count} uses
@@ -476,6 +520,21 @@ export const MCPToolsPanel: React.FC = () => {
                               <span className="font-medium">{tool?.name}</span>
                             </div>
                             <div className="flex items-center gap-2">
+                              {execution.status === "completed" && tool && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => {
+                                    setSelectedTool(tool);
+                                    // Pre-fill parameters from this execution
+                                    setParameters(execution.parameters);
+                                  }}
+                                  title="Re-execute with same parameters"
+                                >
+                                  <Play className="h-3 w-3" />
+                                </Button>
+                              )}
                               {execution.status === "completed" && (
                                 <CheckCircle className="h-4 w-4 text-green-500" />
                               )}
@@ -507,9 +566,26 @@ export const MCPToolsPanel: React.FC = () => {
                           </div>
 
                           {execution.result && (
-                            <div className="mt-2 p-2 bg-muted/50 rounded text-xs">
-                              <code>{JSON.stringify(execution.result, null, 2)}</code>
-                            </div>
+                            <Collapsible>
+                              <div className="mt-2">
+                                <CollapsibleTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="w-full justify-between text-xs p-2 h-auto">
+                                    <span>View Result</span>
+                                    <ChevronDown className="h-3 w-3" />
+                                  </Button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="mt-1">
+                                  <div className="p-2 bg-muted/50 rounded text-xs max-h-40 overflow-auto">
+                                    <pre className="whitespace-pre-wrap">
+                                      {typeof execution.result === 'object'
+                                        ? JSON.stringify(execution.result, null, 2)
+                                        : String(execution.result)
+                                      }
+                                    </pre>
+                                  </div>
+                                </CollapsibleContent>
+                              </div>
+                            </Collapsible>
                           )}
 
                           {execution.error && (
