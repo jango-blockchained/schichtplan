@@ -9,6 +9,9 @@ import { AIContextProvider } from "./contexts/AIContext";
 import { MainLayout } from "./layouts/MainLayout";
 import AIDashboardPage from "./pages/AIDashboardPage";
 import CalendarPage from "./pages/CalendarPage";
+import OverviewPage from "./pages/OverviewPage";
+import VersionsPage from "./pages/VersionsPage";
+import AbsencesPage from "./pages/AbsencesPage";
 import CoveragePage from "./pages/CoveragePage";
 import { DesignSystemDemo } from "./pages/DesignSystemDemo";
 import { EmployeesPage } from "./pages/EmployeesPage";
@@ -52,6 +55,9 @@ const App: React.FC = () => {
               <Routes>
                 <Route path="/" element={<MainLayout />}>
                   <Route index element={<SchedulePage />} />
+                  <Route path="overview" element={<OverviewPage />} />
+                  <Route path="versions" element={<VersionsPage />} />
+                  <Route path="absences" element={<AbsencesPage />} />
                   <Route path="shifts" element={<ShiftsPage />} />
                   <Route path="coverage" element={<CoveragePage />} />
                   <Route path="employees" element={<EmployeesPage />} />

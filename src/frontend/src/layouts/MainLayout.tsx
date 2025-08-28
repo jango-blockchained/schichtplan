@@ -27,7 +27,9 @@ import {
   LayoutDashboard,
   List,
   Settings as SettingsIcon,
-  Users
+  Users,
+  Home,
+  History
 } from "lucide-react";
 import React from "react";
 import { Outlet, Link as RouterLink, useLocation } from "react-router-dom";
@@ -51,11 +53,20 @@ export const MainLayout = () => {
   React.useEffect(() => {
     try {
       localStorage.setItem("pageWidth", pageWidth);
-    } catch { }
+    } catch (e) {
+      // Ignore storage errors (e.g., private mode or disabled storage)
+      console.warn("Could not persist pageWidth:", e);
+    }
   }, [pageWidth]);
 
   const mainNavItems = React.useMemo(
     () => [
+      {
+        label: "Übersicht",
+        path: "/overview",
+        icon: Home,
+        description: "Home/Overview mit KPIs"
+      },
       {
         label: "Schichtplan",
         path: "/",
@@ -73,6 +84,18 @@ export const MainLayout = () => {
         path: "/ai",
         icon: Bot,
         description: "KI-gestütztes System für intelligente Schichtplanung"
+      },
+      {
+        label: "Versionen",
+        path: "/versions",
+        icon: History,
+        description: "Versionen in Tabelle/Kalender"
+      },
+      {
+        label: "Abwesenheiten",
+        path: "/absences",
+        icon: CalendarDays,
+        description: "Urlaub/Krankheit verwalten"
       },
       {
         label: "Mitarbeiter",
