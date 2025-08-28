@@ -72,6 +72,10 @@ import {
 import React, { useEffect, useMemo, useState } from 'react';
 import { DragDropContext, Draggable, Droppable, DropResult } from 'react-beautiful-dnd';
 
+// Import AI components
+import { LiveScheduleOptimizer } from "@/components/ai/LiveScheduleOptimizer";
+import { RealTimeConflictDetector } from "@/components/ai/RealTimeConflictDetector";
+
 type ViewMode = 'month' | 'week' | 'day';
 
 interface ShiftTypeColor {
@@ -1109,6 +1113,12 @@ const CalendarPage: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* AI Components */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <LiveScheduleOptimizer />
+        <RealTimeConflictDetector />
+      </div>
 
       {/* Filters */}
       {showFilters && (

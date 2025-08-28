@@ -96,8 +96,8 @@ import { ScheduleGenerationSettings } from "@/components/ScheduleGenerationSetti
 // import { type Schedule as APISchedule } from '@/services/api'; // Original, might be unused
 // import { type UseScheduleDataResult } from '@/hooks/useScheduleData'; // Original, might be unused
 // import { DateRangeSelector } from '@/components/DateRangeSelector'; // Original, might be unused
-import GenerationLogs from "@/components/Schedule/GenerationLogs";
-import GenerationOverlay from "@/components/Schedule/GenerationOverlay";
+import { LiveScheduleOptimizer } from "@/components/ai/LiveScheduleOptimizer";
+import { RealTimeConflictDetector } from "@/components/ai/RealTimeConflictDetector";
 import { ScheduleActions } from "@/components/Schedule/ScheduleActions";
 import ScheduleControls from "@/components/Schedule/ScheduleControls";
 import ScheduleErrors from "@/components/Schedule/ScheduleErrors";
@@ -2307,6 +2307,29 @@ export function SchedulePage() {
               </AvailabilityProvider>
             </div>
           </>
+        )}
+
+        {/* Real-time AI Components */}
+        {effectiveSelectedVersionNumber && scheduleData && scheduleData.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
+            <LiveScheduleOptimizer
+              onOptimizationComplete={(result) => {
+                console.log('Optimization completed:', result);
+                // Optionally refresh schedule data or show notification
+                queryClient.invalidateQueries({ queryKey: ["schedules"] });
+              }}
+            />
+            <RealTimeConflictDetector
+              onConflictDetected={(conflicts) => {
+                console.log('New conflicts detected:', conflicts);
+                // Optionally show notification or update UI
+              }}
+              onConflictResolved={(conflictId) => {
+                console.log('Conflict resolved:', conflictId);
+                // Optionally update conflict count or refresh data
+              }}
+            />
+          </div>
         )}
 
         {/* Schedule Dock - Sticky bottom dock for drag and drop */}

@@ -25,7 +25,9 @@ import { AgentDashboard } from "@/components/ai/AgentDashboard";
 import { AIAnalytics } from "@/components/ai/AIAnalytics";
 import { AISettingsPanel } from "@/components/ai/AISettingsPanel";
 import { ConversationalAIChat } from "@/components/ai/ConversationalAIChat";
+import { LiveScheduleOptimizer } from "@/components/ai/LiveScheduleOptimizer";
 import { MCPToolsPanel } from "@/components/ai/MCPToolsPanel";
+import { RealTimeConflictDetector } from "@/components/ai/RealTimeConflictDetector";
 import { WorkflowOrchestrator } from "@/components/ai/WorkflowOrchestrator";
 
 interface AICapability {
@@ -340,6 +342,12 @@ const AIDashboardPage: React.FC = () => {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Live Schedule Optimizer */}
+            <LiveScheduleOptimizer />
+
+            {/* Real-time Conflict Detector */}
+            <RealTimeConflictDetector />
           </TabsContent>
 
           <TabsContent value="chat">

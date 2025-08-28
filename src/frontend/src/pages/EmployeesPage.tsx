@@ -1,4 +1,4 @@
-import AbsenceModal from "@/components/AbsenceModal";
+import { RealTimeConflictDetector } from "@/components/ai/RealTimeConflictDetector";
 import CSVImportDialog from "@/components/CSVImportDialog";
 import { EmployeeAvailabilityModal } from "@/components/EmployeeAvailabilityModal";
 import { PageHeader } from "@/components/PageHeader";
@@ -294,6 +294,16 @@ export const EmployeesPage = () => {
         bulkActions={{
           onExport: handleBulkExport,
           onBulkDelete: handleBulkDelete,
+        }}
+      />
+
+      {/* Real-time Conflict Detection */}
+      <RealTimeConflictDetector
+        onConflictDetected={(conflicts) => {
+          console.log('Employee conflicts detected:', conflicts);
+        }}
+        onConflictResolved={(conflictId) => {
+          console.log('Employee conflict resolved:', conflictId);
         }}
       />
 
