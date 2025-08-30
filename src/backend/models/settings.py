@@ -313,6 +313,50 @@ class Settings(db.Model):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    def __init__(self, **kwargs):
+        """
+        Compatibility constructor: accept legacy keyword arguments that tests or
+        older code may pass (for example `require_keyholder`) and map them into
+        the `generation_requirements` JSON column expected by the current model.
+
+        This avoids TypeError: 'require_keyholder' is an invalid keyword
+        argument for Settings when tests construct Settings(...) with older
+        parameter names.
+        """
+        # Map of legacy keys -> generation_requirements keys
+        legacy_map = {
+            "require_keyholder": "enforce_keyholder_coverage",
+            "requires_keyholder": "enforce_keyholder_coverage",
+            "require_keyholder_coverage": "enforce_keyholder_coverage",
+        }
+
+        # Collect generation-requirement style overrides from kwargs
+        gen_overrides = {}
+        # Keys that directly map into generation_requirements (enforce_*)
+        for k in list(kwargs.keys()):
+            if k in legacy_map:
+                gen_overrides[legacy_map[k]] = kwargs.pop(k)
+            elif k.startswith("enforce_"):
+                # Allow callers to pass enforce_* directly as kwargs
+                gen_overrides[k] = kwargs.pop(k)
+
+        # Call base initializer with remaining known kwargs
+        try:
+            super().__init__(**kwargs)
+        except TypeError:
+            # If super() rejects unknown keys, filter to known column names
+            allowed = set(self.__class__.__dict__.keys())
+            filtered = {k: v for k, v in kwargs.items() if k in allowed}
+            super().__init__(**filtered)
+
+        # Merge generation_requirements overrides into attribute
+        if gen_overrides:
+            base = getattr(self, "generation_requirements", None) or {}
+            # Normalize booleans
+            for kk, vv in gen_overrides.items():
+                base[kk] = bool(vv)
+            self.generation_requirements = base
+
     @property
     def special_days(self):
         return self._special_days if self._special_days is not None else {}

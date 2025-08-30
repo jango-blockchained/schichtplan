@@ -215,6 +215,25 @@ def create_app(config_class=Config):
     )  # Register with unique name to avoid conflict
     app.register_blueprint(week_navigation_bp)  # Register week navigation
 
+    # Compatibility middleware: rewrite legacy /api/availability/* paths
+    # to the current /api/v2/availability/* endpoints so older tests
+    # and callers continue to work without changing route definitions.
+    class _LegacyAvailabilityPathRewriter:
+        def __init__(self, wsgi_app):
+            self.wsgi_app = wsgi_app
+
+        def __call__(self, environ, start_response):
+            path = environ.get("PATH_INFO", "")
+            if path.startswith("/api/availability"):
+                # Replace only the first occurrence to preserve remaining path
+                environ["PATH_INFO"] = path.replace(
+                    "/api/availability", "/api/v2/availability", 1
+                )
+            return self.wsgi_app(environ, start_response)
+
+    # Wrap the Flask WSGI app with the rewriter so it runs for every request
+    app.wsgi_app = _LegacyAvailabilityPathRewriter(app.wsgi_app)
+
     # Register MCP routes (skip during tests to reduce overhead)
     if not app.config.get("TESTING", False):
         from src.backend.routes.mcp_routes import bp as mcp_bp

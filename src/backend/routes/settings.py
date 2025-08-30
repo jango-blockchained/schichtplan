@@ -6,11 +6,9 @@ import os
 from http import HTTPStatus
 
 from flask import Blueprint, jsonify, request, send_file
-from flask_cors import cross_origin
 from pydantic import ValidationError
 from sqlalchemy import inspect, text
 
-from src.backend.api.demo_data import generate_demo_data
 from src.backend.models import Settings, db
 from src.backend.schemas.settings import (
     ActionsSettingsSchema,  # Added
@@ -636,12 +634,3 @@ def update_generation_settings():
     except Exception as e:
         logging.error(f"Error updating generation settings: {str(e)}")
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
-
-
-@settings.route("/demo-data/optimized", methods=["POST", "OPTIONS"])
-@cross_origin(
-    origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    supports_credentials=True,
-)
-def generate_optimized_demo_data():
-    return generate_demo_data()

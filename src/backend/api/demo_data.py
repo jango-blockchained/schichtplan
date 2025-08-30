@@ -891,6 +891,33 @@ def generate_demo_data():
                     logging.error(f"Error managing coverage data: {str(e)}")
                     raise
 
+                # Also generate absences when generating all modules
+                try:
+                    logging.info(
+                        "Clearing existing absence data for 'all' generation..."
+                    )
+                    Absence.query.delete()
+                    db.session.commit()
+
+                    # Get existing employees refreshed from DB
+                    employees_for_absences = Employee.query.all()
+                    if not employees_for_absences:
+                        logging.warning(
+                            "No employees found. Skipping absence generation for 'all' module."
+                        )
+                    else:
+                        logging.info("Generating absences as part of 'all' module...")
+                        absences = generate_improved_absences(employees_for_absences)
+                        db.session.add_all(absences)
+                        db.session.commit()
+                        logging.info(f"Successfully created {len(absences)} absences")
+                except Exception as e:
+                    db.session.rollback()
+                    logging.error(
+                        f"Error managing absence data during 'all' generation: {str(e)}"
+                    )
+                    raise
+
         elif module == "availability":
             # Generate new availabilities for existing employees
             logging.info("Generating availabilities for existing employees...")
