@@ -14,7 +14,7 @@ import { CoverageAnalysis } from "./Statistics/CoverageAnalysis";
 import { ScheduleRecommendations } from "./Statistics/ScheduleRecommendations";
 import { ShiftDistributionStats } from "./Statistics/ShiftDistributionStats";
 import { StatisticsOverview } from "./Statistics/StatisticsOverview";
-import { WeeklyBreakdown } from "./Statistics/WeeklyBreakdown";
+import { WeeklyBreakdown } from "./Statistics/WeeklyBreakdownEnhanced";
 import { WorkloadAnalysis } from "./Statistics/WorkloadAnalysis";
 
 interface ScheduleStatisticsProps {

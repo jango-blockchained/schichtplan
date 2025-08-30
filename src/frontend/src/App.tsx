@@ -70,7 +70,7 @@ const App: React.FC = () => {
                   <Route path="design-system" element={<DesignSystemDemo />} />
                 </Route>
               </Routes>
-              <FloatingSuggestionsPanel />
+              <FloatingSuggestionsPanel autoShow={false} />
               <Toaster />
             </AIContextProvider>
           </BrowserRouter>

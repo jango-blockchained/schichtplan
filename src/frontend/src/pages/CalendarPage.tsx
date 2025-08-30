@@ -1,3 +1,5 @@
+import AISchedulerPanel from '@/components/AISchedulerPanel';
+import { AIConversationGenerationDialog } from '@/components/Schedule/AIConversationGenerationDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -14,13 +16,12 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import QuickActionsMenu from '@/components/ui/QuickActionsMenu';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
@@ -58,14 +59,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  Copy,
-  Download,
-  Filter,
   Info,
   Loader2,
   MoreVertical,
   Plus,
-  Shuffle,
   Trash2,
   Users
 } from 'lucide-react';
@@ -124,6 +121,8 @@ const CalendarPage: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<APISchedule | null>(null);
+  const [isAIConversationOpen, setIsAIConversationOpen] = useState(false);
+  const [isAISuggestionsOpen, setIsAISuggestionsOpen] = useState(false);
   // const [isDragging, setIsDragging] = useState(false); // (drag state currently unused)
 
   // Settings for dynamic week start
@@ -1050,35 +1049,17 @@ const CalendarPage: React.FC = () => {
             </Select>
           )}
 
-          {/* Actions */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="icon" variant="outline">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleExport}>
-                <Download className="h-4 w-4 mr-2" />
-                Export PDF
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleCopyWeek}>
-                <Copy className="h-4 w-4 mr-2" />
-                Copy Week
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setShowFilters(!showFilters)}>
-                <Filter className="h-4 w-4 mr-2" />
-                {showFilters ? 'Hide' : 'Show'} Filters
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleGenerateDemoData}>
-                <Shuffle className="h-4 w-4 mr-2" />
-                Generate Demo Data
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Unified quick actions menu (navigation + AI + utilities) */}
+          <QuickActionsMenu
+            onPageUp={navigatePrevious}
+            onPageDown={navigateNext}
+            onOpenAIConversation={() => setIsAIConversationOpen(true)}
+            onOpenAISuggestions={() => setIsAISuggestionsOpen(true)}
+            onExport={handleExport}
+            onCopyWeek={handleCopyWeek}
+            onGenerateDemoData={handleGenerateDemoData}
+            onToggleFilters={() => setShowFilters(!showFilters)}
+          />
         </div>
       </div>
 
@@ -1353,6 +1334,33 @@ const CalendarPage: React.FC = () => {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Conversation Dialog (unified menu opens this) */}
+      <Dialog open={isAIConversationOpen} onOpenChange={(open) => setIsAIConversationOpen(open)}>
+        <DialogContent>
+          <AIConversationGenerationDialog
+            isOpen={isAIConversationOpen}
+            onClose={() => setIsAIConversationOpen(false)}
+            startDate={format(dateRange.start, 'yyyy-MM-dd')}
+            endDate={format(dateRange.end, 'yyyy-MM-dd')}
+            versionId={selectedVersion}
+            onComplete={() => {
+              queryClient.invalidateQueries({ queryKey: ['schedules'] });
+              setIsAIConversationOpen(false);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Suggestions Dialog */}
+      <Dialog open={isAISuggestionsOpen} onOpenChange={(open) => setIsAISuggestionsOpen(open)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>AI Suggestions</DialogTitle>
+          </DialogHeader>
+          <AISchedulerPanel />
         </DialogContent>
       </Dialog>
     </div>

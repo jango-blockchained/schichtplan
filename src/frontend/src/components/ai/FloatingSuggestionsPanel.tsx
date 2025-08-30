@@ -69,6 +69,18 @@ export const FloatingSuggestionsPanel: React.FC<FloatingSuggestionsPanelProps> =
         }
     }, [pageContext.route]);
 
+    // Global events to control visibility from UnifiedFloatingMenu
+    useEffect(() => {
+        const open = () => { setIsVisible(true); setHasNewSuggestions(true); };
+        const toggle = () => setIsVisible((v) => !v);
+        window.addEventListener('open-suggestions-panel', open as EventListener);
+        window.addEventListener('toggle-suggestions-panel', toggle as EventListener);
+        return () => {
+            window.removeEventListener('open-suggestions-panel', open as EventListener);
+            window.removeEventListener('toggle-suggestions-panel', toggle as EventListener);
+        };
+    }, []);
+
     const handleClose = () => {
         setIsVisible(false);
         setHasNewSuggestions(false);
@@ -78,21 +90,8 @@ export const FloatingSuggestionsPanel: React.FC<FloatingSuggestionsPanelProps> =
         setIsMinimized(!isMinimized);
     };
 
-    if (!isVisible) {
-        return (
-            <Button
-                onClick={() => setIsVisible(true)}
-                className={cn(
-                    "fixed z-50 rounded-full w-12 h-12 shadow-lg transition-all duration-200",
-                    getPositionStyles(),
-                    hasNewSuggestions && "animate-pulse bg-blue-500 hover:bg-blue-600"
-                )}
-                size="sm"
-            >
-                <Sparkles className="h-5 w-5" />
-            </Button>
-        );
-    }
+    // When hidden, render nothing (UnifiedFloatingMenu will control opening)
+    if (!isVisible) return null;
 
     return (
         <Card className={cn(
