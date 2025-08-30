@@ -1365,8 +1365,8 @@ export const generateDemoData = async (
   num_employees: number,
 ): Promise<void> => {
   try {
-    // Assuming a POST endpoint like /api/v2/tools/generate-demo-data
-    await api.post("/api/v2/tools/generate-demo-data", { module, num_employees });
+    // Use the correct demo-data endpoint
+    await api.post("/api/v2/demo-data", { module, num_employees });
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(

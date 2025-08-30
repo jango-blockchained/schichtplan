@@ -459,8 +459,11 @@ const CalendarPage: React.FC = () => {
 
   const handleGenerateDemoData = async () => {
     try {
-      await generateDemoData('scheduling', 10);
+      await generateDemoData('all', 10);
       queryClient.invalidateQueries({ queryKey: ['schedules'] });
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      queryClient.invalidateQueries({ queryKey: ['absences'] });
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
       toast({ title: "Demo data generated successfully" });
     } catch (error) {
       toast({

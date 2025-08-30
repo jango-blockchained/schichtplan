@@ -24,12 +24,12 @@ import {
   CalendarDays,
   Cog,
   FileText,
+  History,
+  Home,
   LayoutDashboard,
   List,
   Settings as SettingsIcon,
-  Users,
-  Home,
-  History
+  Users
 } from "lucide-react";
 import React from "react";
 import { Outlet, Link as RouterLink, useLocation } from "react-router-dom";

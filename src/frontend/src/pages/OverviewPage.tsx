@@ -1,15 +1,13 @@
 import { PageHeader } from "@/components/PageHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useQuery } from "@tanstack/react-query";
-import { format, startOfWeek, endOfWeek } from "date-fns";
-import { Link } from "react-router-dom";
-import { getEmployees, getSchedules, getAbsencesByRange, type ScheduleResponse } from "@/services/api";
-import { Users, CalendarDays, CalendarX2, ArrowRight } from "lucide-react";
-import { useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getAbsencesByRange, getEmployees, getSchedules, getSettings, type ScheduleResponse } from "@/services/api";
 import { getWeekStartsOn } from "@/utils/weekStart";
-import { useQuery as useSettingsQuery } from "@tanstack/react-query";
-import { getSettings } from "@/services/api";
+import { useQuery, useQuery as useSettingsQuery } from "@tanstack/react-query";
+import { endOfWeek, format, startOfWeek } from "date-fns";
+import { ArrowRight, CalendarDays, CalendarX2, Users } from "lucide-react";
+import { useMemo } from "react";
+import { Link } from "react-router-dom";
 
 export default function OverviewPage() {
   // Settings for dynamic week start

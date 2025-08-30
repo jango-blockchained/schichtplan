@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
-import { generateDemoData } from '@/services/api';
-import { Loader2 } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { RefreshCcw } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { generateDemoData } from '@/services/api';
+import { Loader2, RefreshCcw } from 'lucide-react';
+import { useState } from 'react';
 
 interface DemoDataGenerationProgressProps {
     onComplete?: () => void;
@@ -18,7 +17,7 @@ export function DemoDataGenerationProgress({ onComplete, onError }: DemoDataGene
         try {
             setError(null);
             setIsGenerating(true);
-            const response = await generateDemoData();
+            await generateDemoData('all', 30);
             setIsGenerating(false);
             onComplete?.();
         } catch (error) {

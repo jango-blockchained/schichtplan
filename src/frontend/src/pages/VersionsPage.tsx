@@ -1,14 +1,14 @@
 import { PageHeader } from "@/components/PageHeader";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import { VersionManager } from "@/components/VersionManager";
-import { useState } from "react";
-import { DateRange } from "react-day-picker";
-import { addDays, endOfWeek, startOfWeek } from "date-fns";
+import { getSettings } from "@/services/api";
 import { getWeekStartsOn } from "@/utils/weekStart";
 import { useQuery } from "@tanstack/react-query";
-import { getSettings } from "@/services/api";
+import { addDays, endOfWeek, startOfWeek } from "date-fns";
+import { useState } from "react";
+import { DateRange } from "react-day-picker";
 import { Link } from "react-router-dom";
 
 export default function VersionsPage() {

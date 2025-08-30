@@ -36,11 +36,13 @@ import {
   restoreDatabase,
   wipeTables,
 } from "@/services/api"; // Using actual API imports
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 
 const DataManagementSection: React.FC = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedDemoModule, setSelectedDemoModule] = useState<string>("all");
   const [numEmployees, setNumEmployees] = useState<number | string>(30); // Added state for numEmployees
   const [selectedTablesToWipe, setSelectedTablesToWipe] = useState<string[]>(
@@ -81,6 +83,11 @@ const DataManagementSection: React.FC = () => {
     setIsProcessing(true);
     try {
       await action();
+      // Invalidate relevant queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["absences"] });
+      queryClient.invalidateQueries({ queryKey: ["schedules"] });
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
       toast({ title: "Success", description: successMessage });
     } catch (err) {
       toast({
@@ -230,6 +237,7 @@ const DataManagementSection: React.FC = () => {
                 <SelectItem value="shifts">Shifts</SelectItem>
                 <SelectItem value="coverage">Coverage</SelectItem>
                 <SelectItem value="availability">Availability</SelectItem>
+                <SelectItem value="absences">Absences</SelectItem>
                 <SelectItem value="all">All Modules</SelectItem>
               </SelectContent>
             </Select>

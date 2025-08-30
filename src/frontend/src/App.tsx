@@ -7,20 +7,20 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { FloatingSuggestionsPanel } from "./components/ai/FloatingSuggestionsPanel";
 import { AIContextProvider } from "./contexts/AIContext";
 import { MainLayout } from "./layouts/MainLayout";
+import AbsencesPage from "./pages/AbsencesPage";
 import AIDashboardPage from "./pages/AIDashboardPage";
 import CalendarPage from "./pages/CalendarPage";
-import OverviewPage from "./pages/OverviewPage";
-import VersionsPage from "./pages/VersionsPage";
-import AbsencesPage from "./pages/AbsencesPage";
 import CoveragePage from "./pages/CoveragePage";
 import { DesignSystemDemo } from "./pages/DesignSystemDemo";
 import { EmployeesPage } from "./pages/EmployeesPage";
 import FormularsPage from "./pages/FormularsPage";
 import LogsPage from "./pages/LogsPage";
+import OverviewPage from "./pages/OverviewPage";
 import PDFLayoutCustomizerPage from "./pages/PDFLayoutCustomizerPage";
 import { SchedulePage } from "./pages/SchedulePage";
 import { ShiftsPage } from "./pages/ShiftsPage";
 import UnifiedSettingsPage from "./pages/UnifiedSettingsPage";
+import VersionsPage from "./pages/VersionsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -48,6 +48,7 @@ from src.backend.routes.ai_schedule_routes import ai_schedule_bp
 from src.backend.routes.auth import bp as auth_bp
 from src.backend.routes.availability import availability
 from src.backend.routes.employees import employees
+from src.backend.routes.holiday_api import holiday_bp
 from src.backend.routes.holiday_import import holiday_import as holiday_import_bp
 from src.backend.routes.holiday_routes import holidays as holidays_bp
 from src.backend.routes.schedules import schedules

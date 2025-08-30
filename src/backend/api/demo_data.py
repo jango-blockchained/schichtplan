@@ -931,6 +931,34 @@ def generate_demo_data():
                 logging.error(f"Error managing coverage data: {str(e)}")
                 raise
 
+        elif module == "absences":
+            try:
+                # Clear existing absence data
+                logging.info("Clearing existing absence data...")
+                Absence.query.delete()
+                db.session.commit()
+
+                # Get existing employees
+                employees = Employee.query.all()
+                if not employees:
+                    return jsonify(
+                        {
+                            "error": "No employees found. Please generate employees first.",
+                            "status": "error",
+                        }
+                    ), HTTPStatus.BAD_REQUEST
+
+                # Generate and save new absence data
+                logging.info("Generating absences...")
+                absences = generate_improved_absences(employees)
+                db.session.add_all(absences)
+                db.session.commit()
+                logging.info(f"Successfully created {len(absences)} absences")
+            except Exception as e:
+                db.session.rollback()
+                logging.error(f"Error managing absence data: {str(e)}")
+                raise
+
         # Update settings to record the execution
         settings = Settings.query.first()
         if settings:
