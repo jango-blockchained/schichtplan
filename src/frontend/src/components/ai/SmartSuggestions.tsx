@@ -60,31 +60,6 @@ export const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
     const [isLoading, setIsLoading] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
 
-    // Generate suggestions based on current context
-    const generateSuggestions = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const contextSummary = getContextSummary();
-
-            // Call AI service to generate suggestions
-            const response = await aiService.generateSuggestions({
-                context: contextSummary,
-                page: pageContext.route,
-                maxSuggestions
-            });
-
-            if (response.success && response.suggestions) {
-                setSuggestions(response.suggestions);
-            }
-        } catch (error) {
-            console.error('Failed to generate AI suggestions:', error);
-            // Fallback to mock suggestions if AI service fails
-            setSuggestions(generateMockSuggestions());
-        } finally {
-            setIsLoading(false);
-        }
-    }, [pageContext, maxSuggestions, getContextSummary, generateMockSuggestions]);
-
     // Generate mock suggestions for fallback
     const generateMockSuggestions = useCallback((): AISuggestion[] => {
         const mockSuggestions: AISuggestion[] = [
@@ -138,6 +113,31 @@ export const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
 
         return mockSuggestions.slice(0, maxSuggestions);
     }, [maxSuggestions]);
+
+    // Generate suggestions based on current context
+    const generateSuggestions = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const contextSummary = getContextSummary();
+
+            // Call AI service to generate suggestions
+            const response = await aiService.generateSuggestions({
+                context: contextSummary,
+                page: pageContext.route,
+                maxSuggestions
+            });
+
+            if (response.success && response.suggestions) {
+                setSuggestions(response.suggestions);
+            }
+        } catch (error) {
+            console.error('Failed to generate AI suggestions:', error);
+            // Fallback to mock suggestions if AI service fails
+            setSuggestions(generateMockSuggestions());
+        } finally {
+            setIsLoading(false);
+        }
+    }, [pageContext, maxSuggestions, getContextSummary, generateMockSuggestions]);
 
     // Handle suggestion action
     const handleSuggestionAction = async (suggestion: AISuggestion) => {
