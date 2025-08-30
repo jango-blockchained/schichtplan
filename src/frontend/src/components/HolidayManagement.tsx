@@ -136,13 +136,19 @@ const HolidayManagement: React.FC = () => {
 
                         <div>
                             <label className="text-sm font-medium mb-2 block">Federal State (Optional)</label>
-                            <Select value={selectedState} onValueChange={setSelectedState}>
+                            <Select
+                                value={selectedState}
+                                onValueChange={(value) =>
+                                    setSelectedState(value === "national" ? "" : value)
+                                }
+                            >
                                 <SelectTrigger>
                                     <SelectValue placeholder="National holidays only" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">National holidays only</SelectItem>
-                                    {states.map(state => (
+                                    {/* Use a sentinel value instead of empty string; map it to "" in onValueChange */}
+                                    <SelectItem value="national">National holidays only</SelectItem>
+                                    {states.map((state) => (
                                         <SelectItem key={state.code} value={state.code}>
                                             {state.code} - {state.name}
                                         </SelectItem>
