@@ -1,13 +1,15 @@
 import logging
-from datetime import datetime, date
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
-from src.backend.models import db, Settings
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional
+
+from src.backend.models import Settings, db
 
 
 @dataclass
 class HolidayInfo:
     """Data class for holiday information"""
+
     date: str
     name: str
     type: str
@@ -21,26 +23,28 @@ class HolidayService:
 
     # German federal states for regional holidays
     FEDERAL_STATES = {
-        'BW': 'Baden-Württemberg',
-        'BY': 'Bayern',
-        'BE': 'Berlin',
-        'BB': 'Brandenburg',
-        'HB': 'Bremen',
-        'HH': 'Hamburg',
-        'HE': 'Hessen',
-        'MV': 'Mecklenburg-Vorpommern',
-        'NI': 'Niedersachsen',
-        'NW': 'Nordrhein-Westfalen',
-        'RP': 'Rheinland-Pfalz',
-        'SL': 'Saarland',
-        'SN': 'Sachsen',
-        'ST': 'Sachsen-Anhalt',
-        'SH': 'Schleswig-Holstein',
-        'TH': 'Thüringen'
+        "BW": "Baden-Württemberg",
+        "BY": "Bayern",
+        "BE": "Berlin",
+        "BB": "Brandenburg",
+        "HB": "Bremen",
+        "HH": "Hamburg",
+        "HE": "Hessen",
+        "MV": "Mecklenburg-Vorpommern",
+        "NI": "Niedersachsen",
+        "NW": "Nordrhein-Westfalen",
+        "RP": "Rheinland-Pfalz",
+        "SL": "Saarland",
+        "SN": "Sachsen",
+        "ST": "Sachsen-Anhalt",
+        "SH": "Schleswig-Holstein",
+        "TH": "Thüringen",
     }
 
     @staticmethod
-    def get_german_holidays(year: int, state: Optional[str] = None) -> List[HolidayInfo]:
+    def get_german_holidays(
+        year: int, state: Optional[str] = None
+    ) -> List[HolidayInfo]:
         """
         Get comprehensive list of German holidays for a given year
 
@@ -57,65 +61,99 @@ class HolidayService:
         national_holidays = {
             f"{year}-01-01": HolidayInfo(f"{year}-01-01", "Neujahr", "National"),
             f"{year}-05-01": HolidayInfo(f"{year}-05-01", "Tag der Arbeit", "National"),
-            f"{year}-10-03": HolidayInfo(f"{year}-10-03", "Tag der Deutschen Einheit", "National"),
+            f"{year}-10-03": HolidayInfo(
+                f"{year}-10-03", "Tag der Deutschen Einheit", "National"
+            ),
             f"{year}-11-01": HolidayInfo(f"{year}-11-01", "Allerheiligen", "Religious"),
-            f"{year}-12-25": HolidayInfo(f"{year}-12-25", "1. Weihnachtsfeiertag", "Religious"),
-            f"{year}-12-26": HolidayInfo(f"{year}-12-26", "2. Weihnachtsfeiertag", "Religious"),
+            f"{year}-12-25": HolidayInfo(
+                f"{year}-12-25", "1. Weihnachtsfeiertag", "Religious"
+            ),
+            f"{year}-12-26": HolidayInfo(
+                f"{year}-12-26", "2. Weihnachtsfeiertag", "Religious"
+            ),
         }
 
         # State-specific holidays
         state_holidays = {
-            'BW': {  # Baden-Württemberg
-                f"{year}-01-06": HolidayInfo(f"{year}-01-06", "Heilige Drei Könige", "Religious"),
-                f"{year}-08-15": HolidayInfo(f"{year}-08-15", "Mariä Himmelfahrt", "Religious"),
+            "BW": {  # Baden-Württemberg
+                f"{year}-01-06": HolidayInfo(
+                    f"{year}-01-06", "Heilige Drei Könige", "Religious"
+                ),
+                f"{year}-08-15": HolidayInfo(
+                    f"{year}-08-15", "Mariä Himmelfahrt", "Religious"
+                ),
             },
-            'BY': {  # Bayern
-                f"{year}-01-06": HolidayInfo(f"{year}-01-06", "Heilige Drei Könige", "Religious"),
-                f"{year}-08-15": HolidayInfo(f"{year}-08-15", "Mariä Himmelfahrt", "Religious"),
+            "BY": {  # Bayern
+                f"{year}-01-06": HolidayInfo(
+                    f"{year}-01-06", "Heilige Drei Könige", "Religious"
+                ),
+                f"{year}-08-15": HolidayInfo(
+                    f"{year}-08-15", "Mariä Himmelfahrt", "Religious"
+                ),
             },
-            'BE': {  # Berlin
+            "BE": {  # Berlin
                 # Berlin has no additional state holidays
             },
-            'BB': {  # Brandenburg
-                f"{year}-10-31": HolidayInfo(f"{year}-10-31", "Reformationstag", "Religious"),
+            "BB": {  # Brandenburg
+                f"{year}-10-31": HolidayInfo(
+                    f"{year}-10-31", "Reformationstag", "Religious"
+                ),
             },
-            'HB': {  # Bremen
+            "HB": {  # Bremen
                 # Bremen has no additional state holidays
             },
-            'HH': {  # Hamburg
+            "HH": {  # Hamburg
                 # Hamburg has no additional state holidays
             },
-            'HE': {  # Hessen
-                f"{year}-08-15": HolidayInfo(f"{year}-08-15", "Mariä Himmelfahrt", "Religious"),
+            "HE": {  # Hessen
+                f"{year}-08-15": HolidayInfo(
+                    f"{year}-08-15", "Mariä Himmelfahrt", "Religious"
+                ),
             },
-            'MV': {  # Mecklenburg-Vorpommern
-                f"{year}-10-31": HolidayInfo(f"{year}-10-31", "Reformationstag", "Religious"),
+            "MV": {  # Mecklenburg-Vorpommern
+                f"{year}-10-31": HolidayInfo(
+                    f"{year}-10-31", "Reformationstag", "Religious"
+                ),
             },
-            'NI': {  # Niedersachsen
+            "NI": {  # Niedersachsen
                 # Niedersachsen has no additional state holidays
             },
-            'NW': {  # Nordrhein-Westfalen
-                f"{year}-08-15": HolidayInfo(f"{year}-08-15", "Mariä Himmelfahrt", "Religious"),
+            "NW": {  # Nordrhein-Westfalen
+                f"{year}-08-15": HolidayInfo(
+                    f"{year}-08-15", "Mariä Himmelfahrt", "Religious"
+                ),
             },
-            'RP': {  # Rheinland-Pfalz
-                f"{year}-08-15": HolidayInfo(f"{year}-08-15", "Mariä Himmelfahrt", "Religious"),
+            "RP": {  # Rheinland-Pfalz
+                f"{year}-08-15": HolidayInfo(
+                    f"{year}-08-15", "Mariä Himmelfahrt", "Religious"
+                ),
             },
-            'SL': {  # Saarland
-                f"{year}-08-15": HolidayInfo(f"{year}-08-15", "Mariä Himmelfahrt", "Religious"),
+            "SL": {  # Saarland
+                f"{year}-08-15": HolidayInfo(
+                    f"{year}-08-15", "Mariä Himmelfahrt", "Religious"
+                ),
             },
-            'SN': {  # Sachsen
-                f"{year}-10-31": HolidayInfo(f"{year}-10-31", "Reformationstag", "Religious"),
+            "SN": {  # Sachsen
+                f"{year}-10-31": HolidayInfo(
+                    f"{year}-10-31", "Reformationstag", "Religious"
+                ),
             },
-            'ST': {  # Sachsen-Anhalt
-                f"{year}-01-06": HolidayInfo(f"{year}-01-06", "Heilige Drei Könige", "Religious"),
-                f"{year}-10-31": HolidayInfo(f"{year}-10-31", "Reformationstag", "Religious"),
+            "ST": {  # Sachsen-Anhalt
+                f"{year}-01-06": HolidayInfo(
+                    f"{year}-01-06", "Heilige Drei Könige", "Religious"
+                ),
+                f"{year}-10-31": HolidayInfo(
+                    f"{year}-10-31", "Reformationstag", "Religious"
+                ),
             },
-            'SH': {  # Schleswig-Holstein
+            "SH": {  # Schleswig-Holstein
                 # Schleswig-Holstein has no additional state holidays
             },
-            'TH': {  # Thüringen
-                f"{year}-10-31": HolidayInfo(f"{year}-10-31", "Reformationstag", "Religious"),
-            }
+            "TH": {  # Thüringen
+                f"{year}-10-31": HolidayInfo(
+                    f"{year}-10-31", "Reformationstag", "Religious"
+                ),
+            },
         }
 
         # Add national holidays
@@ -165,22 +203,34 @@ class HolidayService:
         corpus_christi = easter_date.replace(day=easter_date.day + 60)
 
         return {
-            good_friday.isoformat(): HolidayInfo(good_friday.isoformat(), "Karfreitag", "Religious"),
-            easter_monday.isoformat(): HolidayInfo(easter_monday.isoformat(), "Ostermontag", "Religious"),
-            ascension.isoformat(): HolidayInfo(ascension.isoformat(), "Christi Himmelfahrt", "Religious"),
-            pentecost_monday.isoformat(): HolidayInfo(pentecost_monday.isoformat(), "Pfingstmontag", "Religious"),
-            corpus_christi.isoformat(): HolidayInfo(corpus_christi.isoformat(), "Fronleichnam", "Religious"),
+            good_friday.isoformat(): HolidayInfo(
+                good_friday.isoformat(), "Karfreitag", "Religious"
+            ),
+            easter_monday.isoformat(): HolidayInfo(
+                easter_monday.isoformat(), "Ostermontag", "Religious"
+            ),
+            ascension.isoformat(): HolidayInfo(
+                ascension.isoformat(), "Christi Himmelfahrt", "Religious"
+            ),
+            pentecost_monday.isoformat(): HolidayInfo(
+                pentecost_monday.isoformat(), "Pfingstmontag", "Religious"
+            ),
+            corpus_christi.isoformat(): HolidayInfo(
+                corpus_christi.isoformat(), "Fronleichnam", "Religious"
+            ),
             pentecost_sunday.isoformat(): HolidayInfo(
                 pentecost_sunday.isoformat(),
                 "Pfingstsonntag",
                 "Religious",
                 is_closed=False,
-                custom_hours={"opening": "10:00", "closing": "16:00"}
+                custom_hours={"opening": "10:00", "closing": "16:00"},
             ),
         }
 
     @staticmethod
-    def get_all_german_holidays(year: int, state: Optional[str] = None) -> List[HolidayInfo]:
+    def get_all_german_holidays(
+        year: int, state: Optional[str] = None
+    ) -> List[HolidayInfo]:
         """
         Get all German holidays including Easter-related ones
 
@@ -220,7 +270,7 @@ class HolidayService:
                 settings = Settings.get_default_settings()
                 db.session.add(settings)
 
-            if not hasattr(settings, 'special_days') or settings.special_days is None:
+            if not hasattr(settings, "special_days") or settings.special_days is None:
                 settings.special_days = {}
 
             imported_count = 0
@@ -234,7 +284,11 @@ class HolidayService:
                 settings.special_days[holiday.date] = {
                     "description": holiday.name,
                     "is_closed": holiday.is_closed,
-                    **({"custom_hours": holiday.custom_hours} if holiday.custom_hours else {}),
+                    **(
+                        {"custom_hours": holiday.custom_hours}
+                        if holiday.custom_hours
+                        else {}
+                    ),
                 }
                 imported_count += 1
 
@@ -245,7 +299,7 @@ class HolidayService:
                 "imported": imported_count,
                 "skipped": skipped_count,
                 "total": len(holidays),
-                "message": f"Successfully imported {imported_count} holidays, skipped {skipped_count} existing ones"
+                "message": f"Successfully imported {imported_count} holidays, skipped {skipped_count} existing ones",
             }
 
         except Exception as e:
@@ -254,7 +308,7 @@ class HolidayService:
             return {
                 "success": False,
                 "error": str(e),
-                "message": "Failed to import holidays"
+                "message": "Failed to import holidays",
             }
 
     @staticmethod
@@ -270,7 +324,7 @@ class HolidayService:
         """
         try:
             settings = db.session.query(Settings).first()
-            if not settings or not hasattr(settings, 'special_days'):
+            if not settings or not hasattr(settings, "special_days"):
                 return {"total_holidays": 0, "closed_days": 0, "custom_hours_days": 0}
 
             special_days = settings.special_days or {}
@@ -285,17 +339,22 @@ class HolidayService:
                 }
 
             total = len(special_days)
-            closed = sum(1 for details in special_days.values() if details.get('is_closed', False))
+            closed = sum(
+                1
+                for details in special_days.values()
+                if details.get("is_closed", False)
+            )
             custom_hours = sum(
-                1 for details in special_days.values()
-                if not details.get('is_closed', False) and details.get('custom_hours')
+                1
+                for details in special_days.values()
+                if not details.get("is_closed", False) and details.get("custom_hours")
             )
 
             return {
                 "total_holidays": total,
                 "closed_days": closed,
                 "custom_hours_days": custom_hours,
-                "regular_days": total - closed - custom_hours
+                "regular_days": total - closed - custom_hours,
             }
 
         except Exception as e:

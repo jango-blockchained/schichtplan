@@ -196,6 +196,7 @@ def create_app(config_class=Config):
     app.register_blueprint(absences_bp, url_prefix="/api/v2")
     app.register_blueprint(ai_schedule_bp, url_prefix="/api/v2")
     app.register_blueprint(holidays_bp, url_prefix="/api/v2")
+    app.register_blueprint(holiday_bp, url_prefix="/api/v2")
     app.register_blueprint(holiday_import_bp, url_prefix="/api/v2")
     app.register_blueprint(special_days_bp, url_prefix="/api/v2")
     app.register_blueprint(auth_bp)  # Register auth blueprint

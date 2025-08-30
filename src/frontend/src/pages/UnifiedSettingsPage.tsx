@@ -1,3 +1,4 @@
+import HolidayManagement from "@/components/HolidayManagement";
 import { PageHeader } from "@/components/PageHeader";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,8 @@ type SectionId =
   | "appearance_display"
   | "integrations_ai"
   | "data_management"
-;
+  | "holiday_management"
+  ;
 
 interface Section {
   id: SectionId;
@@ -69,6 +71,10 @@ const sections: Section[] = [
     id: "data_management",
     title: "Data Management" /*, component: PlaceholderContent*/,
   },
+  {
+    id: "holiday_management",
+    title: "Holiday Management" /*, component: HolidayManagement*/,
+  },
 
 ];
 
@@ -91,118 +97,118 @@ export default function UnifiedSettingsPage() {
     queryKey: ["settings"],
     queryFn: getSettings,
     select: (fetchedData: Settings): Settings => {
-        const mergedSettings = {
-            ...DEFAULT_SETTINGS,
-            ...fetchedData,
-            general: {
-                ...DEFAULT_SETTINGS.general,
-                ...(fetchedData.general || {}),
-                opening_days: {
-                    ...DEFAULT_SETTINGS.general.opening_days,
-                    ...(fetchedData.general?.opening_days || {})
-                }
-            },
-            scheduling: { 
-                ...DEFAULT_SETTINGS.scheduling, 
-                ...(fetchedData.scheduling || {}),
-                generation_requirements: {
-                    ...(DEFAULT_SETTINGS.scheduling?.generation_requirements || {}),
-                    ...(fetchedData.scheduling?.generation_requirements || {})
-                }
-            },
-            display: { 
-                ...DEFAULT_SETTINGS.display, 
-                ...(fetchedData.display || {}),
-                dark_theme: {
-                    ...(DEFAULT_SETTINGS.display?.dark_theme || {}),
-                    ...(fetchedData.display?.dark_theme || {})
-                }
-            },
-            pdf_layout: { 
-                ...DEFAULT_SETTINGS.pdf_layout, 
-                ...(fetchedData.pdf_layout || {}),
-                margins: { ...(DEFAULT_SETTINGS.pdf_layout?.margins || {}), ...(fetchedData.pdf_layout?.margins || {}) },
-                table_style: { ...(DEFAULT_SETTINGS.pdf_layout?.table_style || {}), ...(fetchedData.pdf_layout?.table_style || {}) },
-                fonts: { ...(DEFAULT_SETTINGS.pdf_layout?.fonts || {}), ...(fetchedData.pdf_layout?.fonts || {}) },
-                content: { ...(DEFAULT_SETTINGS.pdf_layout?.content || {}), ...(fetchedData.pdf_layout?.content || {}) },
-            },
-            employee_groups: {
-                ...DEFAULT_SETTINGS.employee_groups, // Start with all defaults for employee_groups
-                ...(fetchedData.employee_groups || {}), // Spread fetched top-level employee_group props if any
+      const mergedSettings = {
+        ...DEFAULT_SETTINGS,
+        ...fetchedData,
+        general: {
+          ...DEFAULT_SETTINGS.general,
+          ...(fetchedData.general || {}),
+          opening_days: {
+            ...DEFAULT_SETTINGS.general.opening_days,
+            ...(fetchedData.general?.opening_days || {})
+          }
+        },
+        scheduling: {
+          ...DEFAULT_SETTINGS.scheduling,
+          ...(fetchedData.scheduling || {}),
+          generation_requirements: {
+            ...(DEFAULT_SETTINGS.scheduling?.generation_requirements || {}),
+            ...(fetchedData.scheduling?.generation_requirements || {})
+          }
+        },
+        display: {
+          ...DEFAULT_SETTINGS.display,
+          ...(fetchedData.display || {}),
+          dark_theme: {
+            ...(DEFAULT_SETTINGS.display?.dark_theme || {}),
+            ...(fetchedData.display?.dark_theme || {})
+          }
+        },
+        pdf_layout: {
+          ...DEFAULT_SETTINGS.pdf_layout,
+          ...(fetchedData.pdf_layout || {}),
+          margins: { ...(DEFAULT_SETTINGS.pdf_layout?.margins || {}), ...(fetchedData.pdf_layout?.margins || {}) },
+          table_style: { ...(DEFAULT_SETTINGS.pdf_layout?.table_style || {}), ...(fetchedData.pdf_layout?.table_style || {}) },
+          fonts: { ...(DEFAULT_SETTINGS.pdf_layout?.fonts || {}), ...(fetchedData.pdf_layout?.fonts || {}) },
+          content: { ...(DEFAULT_SETTINGS.pdf_layout?.content || {}), ...(fetchedData.pdf_layout?.content || {}) },
+        },
+        employee_groups: {
+          ...DEFAULT_SETTINGS.employee_groups, // Start with all defaults for employee_groups
+          ...(fetchedData.employee_groups || {}), // Spread fetched top-level employee_group props if any
 
-                // For each type array, decide whether to use fetched or default
-                employee_types: (
-                    (fetchedData.employee_groups?.employee_types && fetchedData.employee_groups.employee_types.length > 0)
-                        ? fetchedData.employee_groups.employee_types
-                        : DEFAULT_SETTINGS.employee_groups?.employee_types || []
-                ).map(et => ({ ...et, type: "employee_type" as const })),
+          // For each type array, decide whether to use fetched or default
+          employee_types: (
+            (fetchedData.employee_groups?.employee_types && fetchedData.employee_groups.employee_types.length > 0)
+              ? fetchedData.employee_groups.employee_types
+              : DEFAULT_SETTINGS.employee_groups?.employee_types || []
+          ).map(et => ({ ...et, type: "employee_type" as const })),
 
-                shift_types: (
-                    (fetchedData.employee_groups?.shift_types && fetchedData.employee_groups.shift_types.length > 0)
-                        ? fetchedData.employee_groups.shift_types
-                        : DEFAULT_SETTINGS.employee_groups?.shift_types || []
-                ).map(st => ({
-                    ...st,
-                    type: "shift_type" as const,
-                    autoAssignOnly: st.autoAssignOnly !== undefined ? st.autoAssignOnly : false // Ensure boolean
-                })),
+          shift_types: (
+            (fetchedData.employee_groups?.shift_types && fetchedData.employee_groups.shift_types.length > 0)
+              ? fetchedData.employee_groups.shift_types
+              : DEFAULT_SETTINGS.employee_groups?.shift_types || []
+          ).map(st => ({
+            ...st,
+            type: "shift_type" as const,
+            autoAssignOnly: st.autoAssignOnly !== undefined ? st.autoAssignOnly : false // Ensure boolean
+          })),
 
-                absence_types: (
-                    (fetchedData.employee_groups?.absence_types && fetchedData.employee_groups.absence_types.length > 0)
-                        ? fetchedData.employee_groups.absence_types
-                        : DEFAULT_SETTINGS.employee_groups?.absence_types || []
-                ).map(at => ({ ...at, type: "absence_type" as const })),
-            },
-            availability_types: {
-                ...DEFAULT_SETTINGS.availability_types, // Base defaults for availability_types structure
-                ...(fetchedData.availability_types || {}), // Overwrite with fetched availability_types structure if it exists
-                types: (
-                    fetchedData.availability_types?.types && fetchedData.availability_types.types.length > 0
-                        ? fetchedData.availability_types.types // Use fetched if present and not empty
-                        : DEFAULT_SETTINGS.availability_types?.types || [] // Otherwise, use default types or an empty array
-                ).map(avail => {
-                    const defaultAvail = DEFAULT_SETTINGS.availability_types?.types?.find(dt => dt.id === avail.id);
-                    return {
-                        ...(defaultAvail || {}), // Spread default for this specific ID first
-                        ...avail, // Then spread fetched, overwriting defaults if fields exist in fetched
-                        type: avail.type || defaultAvail?.type || 'availability_type' as const, // Ensure type
-                        // Ensure color has a fallback if missing from both fetched and default for this ID
-                        color: avail.color || defaultAvail?.color || '#808080', // Fallback to gray
-                        // Ensure is_available has a fallback
-                        is_available: avail.is_available !== undefined 
-                                        ? avail.is_available 
-                                        : (defaultAvail?.is_available !== undefined 
-                                            ? defaultAvail.is_available 
-                                            : true // Default to true if completely missing
-                                          ),
-                        // Ensure priority has a fallback
-                        priority: avail.priority !== undefined
-                                    ? avail.priority
-                                    : (defaultAvail?.priority !== undefined
-                                        ? defaultAvail.priority
-                                        : 0 // Default to 0 if completely missing
-                                      )
-                    };
-                })
-            },
-            actions: { 
-                ...(DEFAULT_SETTINGS.actions || {}), 
-                ...(fetchedData.actions || {}),
-                demo_data: { 
-                    ...(DEFAULT_SETTINGS.actions?.demo_data || {}), 
-                    ...(fetchedData.actions?.demo_data || {}) 
-                }
-            },
-            ai_scheduling: { 
-                ...(DEFAULT_SETTINGS.ai_scheduling || {}), 
-                ...(fetchedData.ai_scheduling || {}) 
-            }
-        };
-        return mergedSettings as Settings;
-      },
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      refetchOnWindowFocus: false,
-    });
+          absence_types: (
+            (fetchedData.employee_groups?.absence_types && fetchedData.employee_groups.absence_types.length > 0)
+              ? fetchedData.employee_groups.absence_types
+              : DEFAULT_SETTINGS.employee_groups?.absence_types || []
+          ).map(at => ({ ...at, type: "absence_type" as const })),
+        },
+        availability_types: {
+          ...DEFAULT_SETTINGS.availability_types, // Base defaults for availability_types structure
+          ...(fetchedData.availability_types || {}), // Overwrite with fetched availability_types structure if it exists
+          types: (
+            fetchedData.availability_types?.types && fetchedData.availability_types.types.length > 0
+              ? fetchedData.availability_types.types // Use fetched if present and not empty
+              : DEFAULT_SETTINGS.availability_types?.types || [] // Otherwise, use default types or an empty array
+          ).map(avail => {
+            const defaultAvail = DEFAULT_SETTINGS.availability_types?.types?.find(dt => dt.id === avail.id);
+            return {
+              ...(defaultAvail || {}), // Spread default for this specific ID first
+              ...avail, // Then spread fetched, overwriting defaults if fields exist in fetched
+              type: avail.type || defaultAvail?.type || 'availability_type' as const, // Ensure type
+              // Ensure color has a fallback if missing from both fetched and default for this ID
+              color: avail.color || defaultAvail?.color || '#808080', // Fallback to gray
+              // Ensure is_available has a fallback
+              is_available: avail.is_available !== undefined
+                ? avail.is_available
+                : (defaultAvail?.is_available !== undefined
+                  ? defaultAvail.is_available
+                  : true // Default to true if completely missing
+                ),
+              // Ensure priority has a fallback
+              priority: avail.priority !== undefined
+                ? avail.priority
+                : (defaultAvail?.priority !== undefined
+                  ? defaultAvail.priority
+                  : 0 // Default to 0 if completely missing
+                )
+            };
+          })
+        },
+        actions: {
+          ...(DEFAULT_SETTINGS.actions || {}),
+          ...(fetchedData.actions || {}),
+          demo_data: {
+            ...(DEFAULT_SETTINGS.actions?.demo_data || {}),
+            ...(fetchedData.actions?.demo_data || {})
+          }
+        },
+        ai_scheduling: {
+          ...(DEFAULT_SETTINGS.ai_scheduling || {}),
+          ...(fetchedData.ai_scheduling || {})
+        }
+      };
+      return mergedSettings as Settings;
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnWindowFocus: false,
+  });
 
   // State to manage local edits before debounced save
   const [editableSettings, setEditableSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -276,7 +282,7 @@ export default function UnifiedSettingsPage() {
     isNumeric: boolean = false,
   ) => {
     const parsedValue = isNumeric ? parseFloat(value) : value;
-    
+
     setEditableSettings(prevSettings => {
       const currentCategoryState = prevSettings[category] || {};
       const newCategoryState = {
@@ -346,7 +352,7 @@ export default function UnifiedSettingsPage() {
       display: updatedDisplaySettings,
     };
     setEditableSettings(updatedSettings);
-    
+
     // Cancel any pending debounced updates and immediately save
     debouncedUpdateSettings.cancel();
     mutation.mutate(updatedSettings, {
@@ -374,7 +380,7 @@ export default function UnifiedSettingsPage() {
       ai_scheduling: updatedAiSettings,
     };
     setEditableSettings(updatedSettings);
-    
+
     // Cancel any pending debounced updates and immediately save
     debouncedUpdateSettings.cancel();
     mutation.mutate(updatedSettings, {
@@ -402,7 +408,7 @@ export default function UnifiedSettingsPage() {
       week_navigation: updatedWeekNavSettings,
     };
     setEditableSettings(updatedSettings);
-    
+
     // Cancel any pending debounced updates and immediately save
     debouncedUpdateSettings.cancel();
     mutation.mutate(updatedSettings, {
@@ -511,7 +517,7 @@ export default function UnifiedSettingsPage() {
       case "employee_shift_definitions":
         return (
           <EmployeeShiftDefinitionsSection
-            settings={editableSettings.employee_groups} 
+            settings={editableSettings.employee_groups}
             onUpdate={handleSave}
             onImmediateUpdate={handleImmediateUpdate}
             isLoading={mutation.isPending} // Corrected: use isPending for mutation
@@ -559,11 +565,13 @@ export default function UnifiedSettingsPage() {
         );
       case "data_management":
         return (
-          <DataManagementSection 
-            onImmediateUpdate={handleImmediateUpdate} 
+          <DataManagementSection
+            onImmediateUpdate={handleImmediateUpdate}
             isLoading={mutation.isPending} // Corrected to isPending
           />
         );
+      case "holiday_management":
+        return <HolidayManagement />;
 
       default:
         return <PlaceholderContent title={currentSectionMeta.title} />;
