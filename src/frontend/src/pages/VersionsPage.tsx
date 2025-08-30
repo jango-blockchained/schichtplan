@@ -3,22 +3,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VersionManager } from "@/components/VersionManager";
-import { getSettings } from "@/services/api";
-import { getWeekStartsOn } from "@/utils/weekStart";
+import { getAllVersions } from "@/services/api";
 import { useQuery } from "@tanstack/react-query";
-import { addDays, endOfWeek, startOfWeek } from "date-fns";
-import { useState } from "react";
-import { DateRange } from "react-day-picker";
 import { Link } from "react-router-dom";
 
 export default function VersionsPage() {
-  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: getSettings });
-  const weekStartsOn = getWeekStartsOn(settings);
-  const [dateRange, setDateRange] = useState<DateRange>(() => {
-    const now = new Date();
-    const from = startOfWeek(now, { weekStartsOn });
-    const to = endOfWeek(now, { weekStartsOn });
-    return { from, to };
+  // Fetch all versions for the versions page (no date range filter)
+  const { data: allVersionsData } = useQuery({
+    queryKey: ["all-versions"],
+    queryFn: () => getAllVersions(), // No date parameters = get all versions
   });
 
   return (
@@ -45,7 +38,7 @@ export default function VersionsPage() {
           <Card>
             <CardContent className="pt-6">
               <VersionManager
-                dateRange={dateRange}
+                versions={allVersionsData?.versions}
                 layout="vertical"
                 isCollapsible={false}
                 initiallyCollapsed={false}
@@ -64,14 +57,6 @@ export default function VersionsPage() {
                   <Button asChild>
                     <Link to="/calendar">Zur Kalenderansicht wechseln</Link>
                   </Button>
-                  <Button variant="secondary" onClick={() => setDateRange((dr) => ({
-                    from: dr?.from ? addDays(dr.from, -7) : undefined,
-                    to: dr?.to ? addDays(dr.to, -7) : undefined,
-                  }))}>Vorherige Woche</Button>
-                  <Button variant="secondary" onClick={() => setDateRange((dr) => ({
-                    from: dr?.from ? addDays(dr.from, 7) : undefined,
-                    to: dr?.to ? addDays(dr.to, 7) : undefined,
-                  }))}>Nächste Woche</Button>
                 </div>
               </div>
             </CardContent>

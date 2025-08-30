@@ -48,7 +48,7 @@ def runserver(port: int | None, host: str | None, debug: bool) -> None:
     socketio = SocketIO(
         app,
         cors_allowed_origins="*",
-        async_mode="threading",
+        async_mode="eventlet",  # Use eventlet for better performance
         ping_timeout=60,
         ping_interval=25,
     )
@@ -57,7 +57,7 @@ def runserver(port: int | None, host: str | None, debug: bool) -> None:
     init_websocket_service(socketio)
     app.config["socketio"] = socketio
 
-    # Serve via Socket.IO (endpoint is /socket.io/)
+    # Use socketio.run() with eventlet
     socketio.run(
         app,
         debug=debug,

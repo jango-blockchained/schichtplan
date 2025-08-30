@@ -107,6 +107,30 @@ export const GeneralStoreSetupSection: React.FC<GeneralStoreSetupSectionProps> =
 
           <Separator className="my-6" />
 
+          {/* Opening and Closing Times */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="storeOpening">Store Opening Time</Label>
+              <Input
+                id="storeOpening"
+                type="time"
+                value={settings.store_opening || ""}
+                onChange={(e) => onInputChange("store_opening", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="storeClosing">Store Closing Time</Label>
+              <Input
+                id="storeClosing"
+                type="time"
+                value={settings.store_closing || ""}
+                onChange={(e) => onInputChange("store_closing", e.target.value)}
+              />
+            </div>
+          </div>
+
+          <Separator className="my-6" />
+
           {/* Keyholder settings */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">

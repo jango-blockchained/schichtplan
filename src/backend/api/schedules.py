@@ -801,29 +801,20 @@ def get_all_versions():
         week_identifier = request.args.get("week_identifier")
         include_legacy = request.args.get("include_legacy", "true").lower() == "true"
 
-        # Use current week if no date range provided
-        if not start_date or not end_date:
-            if week_identifier:
-                from ..utils.week_utils import get_week_from_identifier
+        # Debug logging
+        logger.info(
+            f"get_all_versions called with start_date='{start_date}', end_date='{end_date}'"
+        )
 
-                try:
-                    week_info = get_week_from_identifier(week_identifier)
-                    start_of_week = week_info.start_date
-                    end_of_week = week_info.end_date
-                except ValueError:
-                    return jsonify(
-                        {"error": f"Invalid week identifier: {week_identifier}"}
-                    ), HTTPStatus.BAD_REQUEST
-            else:
-                from ..utils.week_utils import (
-                    get_current_week_identifier,
-                    get_week_from_identifier,
-                )
-
-                current_week = get_current_week_identifier()
-                week_info = get_week_from_identifier(current_week)
-                start_of_week = week_info.start_date
-                end_of_week = week_info.end_date
+        # Handle date range filtering
+        if not start_date or not end_date or start_date == "" or end_date == "":
+            logger.info("No date range provided - returning all versions")
+            # No date range provided - return all versions
+            version_service = VersionManagerService()
+            version_metas = version_service.get_all_versions(
+                include_legacy=include_legacy
+            )
+            date_range_info = None
         else:
             try:
                 start_of_week = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -833,15 +824,19 @@ def get_all_versions():
                     {"error": "Invalid date format, expected YYYY-MM-DD"}
                 ), HTTPStatus.BAD_REQUEST
 
-        # Use the unified version manager service with exact date range matching
-        # This ensures we only return versions that exactly match the requested week
-        version_service = VersionManagerService()
-        version_metas = version_service.get_versions_for_exact_date_range(
-            start_of_week,
-            end_of_week,
-            include_legacy=include_legacy,
-            week_identifier=week_identifier,
-        )
+            # Use the unified version manager service with exact date range matching
+            # This ensures we only return versions that exactly match the requested week
+            version_service = VersionManagerService()
+            version_metas = version_service.get_versions_for_exact_date_range(
+                start_of_week,
+                end_of_week,
+                include_legacy=include_legacy,
+                week_identifier=week_identifier,
+            )
+            date_range_info = {
+                "start": start_of_week.isoformat(),
+                "end": end_of_week.isoformat(),
+            }
 
         if not version_metas:
             return jsonify(
