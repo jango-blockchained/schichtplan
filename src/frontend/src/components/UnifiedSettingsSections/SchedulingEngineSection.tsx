@@ -27,10 +27,9 @@ import React from "react";
 
 interface SchedulingEngineSectionProps {
   settings: Partial<Settings["scheduling"]>;
-  onInputChange: (key: string, value: any, isNumeric?: boolean) => void;
+  onInputChange: (key: string, value: string | number | boolean, isNumeric?: boolean) => void;
   onDiagnosticsChange: (checked: boolean) => void;
-  onGenerationSettingsUpdate: (updates: Partial<Settings["scheduling"]["generation_requirements"]>) => void;
-  onImmediateUpdate?: () => void;
+  onGenerationSettingsUpdate: (updates: Partial<NonNullable<Settings["scheduling"]>["generation_requirements"]>) => void;
 }
 
 export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = ({
@@ -38,9 +37,24 @@ export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = (
   onInputChange,
   onDiagnosticsChange,
   onGenerationSettingsUpdate,
-  onImmediateUpdate,
 }) => {
-  const generationRequirements = settings.generation_requirements || {};
+  const generationRequirements: NonNullable<Settings["scheduling"]>["generation_requirements"] =
+    settings.generation_requirements || {
+      enforce_minimum_coverage: true,
+      enforce_contracted_hours: true,
+      enforce_keyholder_coverage: true,
+      enforce_rest_periods: true,
+      enforce_early_late_rules: true,
+      enforce_employee_group_rules: true,
+      enforce_break_rules: true,
+      enforce_max_hours: true,
+      enforce_consecutive_days: true,
+      enforce_weekend_distribution: true,
+      enforce_shift_distribution: true,
+      enforce_availability: true,
+      enforce_qualifications: true,
+      enforce_opening_hours: true,
+    };
 
   return (
     <div className="space-y-6">
@@ -242,7 +256,6 @@ export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = (
           <ScheduleGenerationSettings
             settings={generationRequirements}
             onUpdate={onGenerationSettingsUpdate}
-            onImmediateUpdate={onImmediateUpdate}
           />
         </CardContent>
       </Card>

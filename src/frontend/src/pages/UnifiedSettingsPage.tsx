@@ -15,7 +15,7 @@ import { DEFAULT_SETTINGS } from "@/hooks/useSettings"; // Assuming default sett
 import { getSettings, updateSettings } from "@/services/api"; // Assuming API functions are here
 import type { Settings } from "@/types/index";
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
-import { format } from "date-fns";
+// import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useDebouncedCallback } from "use-debounce";
@@ -221,7 +221,7 @@ export default function UnifiedSettingsPage() {
 
   const mutation: UseMutationResult<Settings, Error, Settings, unknown> = useMutation<Settings, Error, Settings>({
     mutationFn: updateSettings,
-    onSuccess: (data) => {
+    onSuccess: () => {
       // Don't invalidate queries here to avoid conflicts with manual updates
       // queryClient.invalidateQueries({ queryKey: ["settings"] });
       toast({
@@ -278,10 +278,10 @@ export default function UnifiedSettingsPage() {
   const handleSettingChange = (
     category: keyof Settings,
     key: string,
-    value: any,
+    value: string | number | boolean | Record<string, unknown> | null,
     isNumeric: boolean = false,
   ) => {
-    const parsedValue = isNumeric ? parseFloat(value) : value;
+    const parsedValue = isNumeric ? parseFloat(String(value)) : value;
 
     setEditableSettings(prevSettings => {
       const currentCategoryState = prevSettings[category] || {};
@@ -313,35 +313,11 @@ export default function UnifiedSettingsPage() {
     });
   };
 
-  const timeStringToDate = (timeStr: string | null | undefined): Date => {
-    if (!timeStr) timeStr = "00:00";
-    const [hours, minutes] = timeStr.split(":").map(Number);
-    const date = new Date();
-    date.setHours(hours);
-    date.setMinutes(minutes);
-    date.setSeconds(0);
-    date.setMilliseconds(0);
-    return date;
-  };
-
-  const dateToTimeString = (date: Date | null | undefined): string => {
-    if (!date) return "00:00";
-    return format(date, "HH:mm");
-  };
-
-  const handleDiagnosticsChange = (checked: boolean) => {
-    const scheduling = editableSettings.scheduling || {};
-
-    const updatedSchedSettings = {
-      ...scheduling,
-      enable_diagnostics: checked,
-    };
-    handleSave("scheduling", updatedSchedSettings);
-  };
+  // Removed unused time and diagnostics helpers after UI refactor
 
   const handleDisplaySettingChange = (
     key: keyof Settings["display"],
-    value: any,
+    value: string | number | boolean | Record<string, unknown> | null,
   ) => {
     const updatedDisplaySettings = {
       ...(editableSettings.display || DEFAULT_SETTINGS.display),
@@ -369,7 +345,7 @@ export default function UnifiedSettingsPage() {
 
   const handleAiSchedulingChange = (
     key: keyof NonNullable<Settings["ai_scheduling"]>,
-    value: any,
+    value: string | number | boolean | Record<string, unknown> | null,
   ) => {
     const updatedAiSettings = {
       ...(editableSettings.ai_scheduling || DEFAULT_SETTINGS.ai_scheduling),
@@ -474,13 +450,6 @@ export default function UnifiedSettingsPage() {
                 [dayName]: checked,
               });
             }}
-            onSpecialDaysChange={(specialDays) =>
-              handleSettingChange("general", "special_days", specialDays)
-            }
-            timeStringToDate={timeStringToDate}
-            dateToTimeString={dateToTimeString}
-            onImmediateUpdate={handleImmediateUpdate}
-            isLoading={mutation.isPending} // Corrected to isPending
           />
         );
       case "scheduling_engine":
@@ -500,18 +469,17 @@ export default function UnifiedSettingsPage() {
             }}
             onGenerationSettingsUpdate={(genUpdates) => {
               const scheduling = editableSettings.scheduling || DEFAULT_SETTINGS.scheduling;
-              const currentGenReqs =
-                scheduling.generation_requirements ||
-                DEFAULT_SETTINGS.scheduling.generation_requirements;
-              // Ensure currentGenReqs is not undefined before spreading
-              const updatedGenReqs = { ...(currentGenReqs || {}), ...genUpdates };
+              const currentGenReqsFull: NonNullable<typeof DEFAULT_SETTINGS.scheduling>["generation_requirements"] =
+                (scheduling.generation_requirements || DEFAULT_SETTINGS.scheduling.generation_requirements)!;
+              const updatedGenReqs: NonNullable<typeof DEFAULT_SETTINGS.scheduling>["generation_requirements"] = {
+                ...currentGenReqsFull,
+                ...genUpdates,
+              } as NonNullable<typeof DEFAULT_SETTINGS.scheduling>["generation_requirements"];
               handleSave("scheduling", {
                 ...scheduling,
                 generation_requirements: updatedGenReqs,
               });
             }}
-            onImmediateUpdate={handleImmediateUpdate}
-            isLoading={mutation.isPending} // Corrected: use isPending for mutation
           />
         );
       case "employee_shift_definitions":
@@ -551,7 +519,7 @@ export default function UnifiedSettingsPage() {
             settings={editableSettings.display}
             onDisplaySettingChange={handleDisplaySettingChange}
             onImmediateUpdate={handleImmediateUpdate}
-            isLoading={mutation.isPending} // Corrected to isPending
+            isLoading={mutation.isPending}
           />
         );
       case "integrations_ai":
@@ -560,15 +528,11 @@ export default function UnifiedSettingsPage() {
             settings={editableSettings.ai_scheduling}
             onAiSchedulingChange={handleAiSchedulingChange}
             onImmediateUpdate={handleImmediateUpdate}
-            isLoading={mutation.isPending} // Corrected to isPending
           />
         );
       case "data_management":
         return (
-          <DataManagementSection
-            onImmediateUpdate={handleImmediateUpdate}
-            isLoading={mutation.isPending} // Corrected to isPending
-          />
+          <DataManagementSection />
         );
       case "holiday_management":
         return <HolidayManagement />;

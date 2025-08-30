@@ -3,7 +3,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { api } from '@/services/api';
+import { SpecialDaysManagement, type SpecialDaysMap } from '@/components/UnifiedSettingsSections/SpecialDaysManagement';
+import { api, updateSettings } from '@/services/api';
+import type { Settings } from '@/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Calendar, CheckCircle, Info, Upload } from 'lucide-react';
 import React, { useState } from 'react';
@@ -40,6 +42,17 @@ const HolidayManagement: React.FC = () => {
     const [selectedState, setSelectedState] = useState<string>('');
     const [previewData, setPreviewData] = useState<PreviewData | null>(null);
     const queryClient = useQueryClient();
+
+    // Get current settings for Special Days management
+    const settings = queryClient.getQueryData(['settings']) as Settings | undefined;
+    const specialDays: SpecialDaysMap = settings?.general?.special_days || {};
+
+    const saveSettingsMutation = useMutation({
+        mutationFn: (updated: Settings) => updateSettings(updated),
+        onSuccess: (data) => {
+            queryClient.setQueryData(['settings'], data);
+        }
+    });
 
     // Fetch federal states
     const { data: statesData } = useQuery({
@@ -110,6 +123,38 @@ const HolidayManagement: React.FC = () => {
 
     return (
         <div className="space-y-6">
+            {/* Special Days moved here from General Store Setup */}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Calendar className="h-5 w-5" />
+                        Special Days & Holidays
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <SpecialDaysManagement
+                        specialDays={specialDays}
+                        onUpdate={(updatedSpecialDays) => {
+                            const current = (queryClient.getQueryData(['settings']) as Settings | undefined) || { general: {} } as Settings;
+                            const next: Settings = {
+                                ...current,
+                                general: {
+                                    ...(current.general || {}),
+                                    special_days: updatedSpecialDays
+                                }
+                            } as Settings;
+                            // Optimistic update to cache
+                            queryClient.setQueryData(['settings'], next);
+                        }}
+                        onImmediateUpdate={() => {
+                            const current = (queryClient.getQueryData(['settings']) as Settings | undefined);
+                            if (!current) return;
+                            saveSettingsMutation.mutate(current);
+                        }}
+                    />
+                </CardContent>
+            </Card>
+
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">

@@ -1,22 +1,22 @@
-import React from "react";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { Settings } from "@/types"; // Assuming Settings type is in @/types
+import React from "react";
 
 interface IntegrationsAISectionProps {
   // Use a more specific type if ai_scheduling structure is well-defined
   settings: Settings["ai_scheduling"] | undefined;
   onAiSchedulingChange: (
     key: keyof NonNullable<Settings["ai_scheduling"]>,
-    value: any,
+    value: string | number | boolean,
   ) => void; // Renamed prop
   onImmediateUpdate?: () => void; // Optional: if specific fields need immediate persistence on blur
 }

@@ -27,17 +27,6 @@ export interface WeekNavigationSectionProps {
   onChange: (key: keyof WeekNavigationSectionProps['settings'], value: boolean | string) => void;
   onImmediateUpdate: () => void;
 }
-export interface WeekNavigationSectionProps {
-  settings: Partial<{
-    week_weekend_start: "MONDAY" | "SUNDAY";
-    week_month_boundary_mode: "keep_intact" | "split_by_month";
-  }>;
-  onUpdate: (updates: Partial<{
-    week_weekend_start: "MONDAY" | "SUNDAY";
-    week_month_boundary_mode: "keep_intact" | "split_by_month";
-  }>) => void;
-  onImmediateUpdate: () => void;
-}
 
 export default function WeekNavigationSection({
   settings,
