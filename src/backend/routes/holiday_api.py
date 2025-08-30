@@ -5,10 +5,10 @@ from flask import Blueprint, jsonify, request
 from src.backend.models import Settings, db
 from src.backend.services.holiday_service import HolidayService
 
-holiday_bp = Blueprint("holiday", __name__, url_prefix="/api/holiday")
+holiday_bp = Blueprint("holiday", __name__)
 
 
-@holiday_bp.route("/german/<int:year>", methods=["GET"])
+@holiday_bp.route("/holiday/german/<int:year>", methods=["GET"])
 def get_german_holidays(year):
     """
     Get German holidays for a specific year
@@ -45,7 +45,7 @@ def get_german_holidays(year):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@holiday_bp.route("/import/german/<int:year>", methods=["POST"])
+@holiday_bp.route("/holiday/import/german/<int:year>", methods=["POST"])
 def import_german_holidays(year):
     """
     Import German holidays for a specific year
@@ -86,7 +86,7 @@ def import_german_holidays(year):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@holiday_bp.route("/statistics", methods=["GET"])
+@holiday_bp.route("/holiday/statistics", methods=["GET"])
 def get_holiday_statistics():
     """
     Get holiday statistics
@@ -105,7 +105,7 @@ def get_holiday_statistics():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@holiday_bp.route("/federal-states", methods=["GET"])
+@holiday_bp.route("/holiday/federal-states", methods=["GET"])
 def get_federal_states():
     """
     Get list of German federal states
@@ -118,7 +118,7 @@ def get_federal_states():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@holiday_bp.route("/validate-date/<date_str>", methods=["GET"])
+@holiday_bp.route("/holiday/validate-date/<date_str>", methods=["GET"])
 def validate_holiday_date(date_str):
     """
     Validate if a date string is a valid holiday date format
@@ -133,7 +133,7 @@ def validate_holiday_date(date_str):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@holiday_bp.route("/preview/<int:year>", methods=["GET"])
+@holiday_bp.route("/holiday/preview/<int:year>", methods=["GET"])
 def preview_holidays(year):
     """
     Preview holidays for a year without importing them

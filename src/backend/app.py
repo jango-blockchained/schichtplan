@@ -48,6 +48,7 @@ from src.backend.routes.ai_schedule_routes import ai_schedule_bp
 from src.backend.routes.auth import bp as auth_bp
 from src.backend.routes.availability import availability
 from src.backend.routes.employees import employees
+from src.backend.routes.enhanced_ai_routes import enhanced_ai_bp
 from src.backend.routes.holiday_api import holiday_bp
 from src.backend.routes.holiday_import import holiday_import as holiday_import_bp
 from src.backend.routes.holiday_routes import holidays as holidays_bp
@@ -195,6 +196,7 @@ def create_app(config_class=Config):
     app.register_blueprint(availability)
     app.register_blueprint(absences_bp, url_prefix="/api/v2")
     app.register_blueprint(ai_schedule_bp, url_prefix="/api/v2")
+    app.register_blueprint(enhanced_ai_bp)
     app.register_blueprint(holidays_bp, url_prefix="/api/v2")
     app.register_blueprint(holiday_bp, url_prefix="/api/v2")
     app.register_blueprint(holiday_import_bp, url_prefix="/api/v2")

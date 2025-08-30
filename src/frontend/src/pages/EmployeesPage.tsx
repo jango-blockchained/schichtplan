@@ -1,6 +1,4 @@
 import AbsenceModal from "@/components/AbsenceModal";
-import { AISearchInput, type SearchSuggestion } from "@/components/ai/AISearchInput";
-import { RealTimeConflictDetector } from "@/components/ai/RealTimeConflictDetector";
 import CSVImportDialog from "@/components/CSVImportDialog";
 import { EmployeeAvailabilityModal } from "@/components/EmployeeAvailabilityModal";
 import { PageHeader } from "@/components/PageHeader";
@@ -237,17 +235,6 @@ export const EmployeesPage = () => {
     }
   };
 
-  const handleAISearch = (query: string, suggestions?: SearchSuggestion[]) => {
-    console.log('AI Search query:', query, 'Suggestions:', suggestions);
-    // TODO: Implement AI-powered search logic
-    // This could integrate with the employee table search or provide AI-driven insights
-  };
-
-  const handleAISuggestionSelect = (suggestion: SearchSuggestion) => {
-    console.log('AI Suggestion selected:', suggestion);
-    // TODO: Handle suggestion selection (e.g., filter employees, navigate to specific employee, etc.)
-  };
-
   if (errorEmployees) {
     return (
       <div className="rounded-md bg-destructive/15 p-4 text-destructive">
@@ -295,17 +282,6 @@ export const EmployeesPage = () => {
         }
       />
 
-      {/* AI-Powered Search */}
-      <div className="mb-6">
-        <AISearchInput
-          placeholder="Search employees with AI assistance..."
-          onSearch={handleAISearch}
-          onSuggestionSelect={handleAISuggestionSelect}
-          showSuggestions={true}
-          maxSuggestions={5}
-        />
-      </div>
-
       <EmployeeTable
         employees={employees}
         employeeGroups={employeeGroups}
@@ -318,16 +294,6 @@ export const EmployeesPage = () => {
         bulkActions={{
           onExport: handleBulkExport,
           onBulkDelete: handleBulkDelete,
-        }}
-      />
-
-      {/* Real-time Conflict Detection */}
-      <RealTimeConflictDetector
-        onConflictDetected={(conflicts) => {
-          console.log('Employee conflicts detected:', conflicts);
-        }}
-        onConflictResolved={(conflictId) => {
-          console.log('Employee conflict resolved:', conflictId);
         }}
       />
 

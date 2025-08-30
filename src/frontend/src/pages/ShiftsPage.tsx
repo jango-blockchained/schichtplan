@@ -1,4 +1,4 @@
-import { RealTimeConflictDetector } from "@/components/ai/RealTimeConflictDetector";
+import { PageHeader } from "@/components/PageHeader";
 import { ShiftTable } from "@/components/tables";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -180,16 +180,6 @@ export const ShiftsPage: React.FC = () => {
         onEdit={handleUpdateShift}
         onDelete={handleDeleteShift}
         onDuplicate={handleDuplicateShift}
-      />
-
-      {/* Real-time Conflict Detection */}
-      <RealTimeConflictDetector
-        onConflictDetected={(conflicts) => {
-          console.log('Shift conflicts detected:', conflicts);
-        }}
-        onConflictResolved={(conflictId) => {
-          console.log('Shift conflict resolved:', conflictId);
-        }}
       />
     </div>
   );
