@@ -67,9 +67,9 @@ export function ScheduleStatistics({
     );
   }
 
-  const hasRecommendations = 
-    basicStats.breakCoverage < 50 || 
-    workloadStats.overWorked.length > 0 || 
+  const hasRecommendations =
+    basicStats.breakCoverage < 50 ||
+    workloadStats.overWorked.length > 0 ||
     dailyCoverageStats.minCoverage === 0;
 
   return (
@@ -77,8 +77,8 @@ export function ScheduleStatistics({
       <Card>
         <Collapsible open={isOpen} onOpenChange={setIsOpen}>
           <CollapsibleTrigger asChild>
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               className="flex items-center justify-between w-full p-4 hover:bg-muted/50"
             >
               <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
@@ -92,14 +92,14 @@ export function ScheduleStatistics({
               )}
             </Button>
           </CollapsibleTrigger>
-          
+
           <CollapsibleContent>
             <CardContent className="space-y-6">
               {/* Overview Section */}
               <Collapsible open={overviewOpen} onOpenChange={setOverviewOpen}>
                 <CollapsibleTrigger asChild>
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     className="flex items-center justify-between w-full p-2 hover:bg-muted/50"
                   >
                     <h4 className="text-sm font-medium text-foreground">Übersicht</h4>
@@ -120,8 +120,8 @@ export function ScheduleStatistics({
               {/* Shift Distribution Section */}
               <Collapsible open={shiftDistributionOpen} onOpenChange={setShiftDistributionOpen}>
                 <CollapsibleTrigger asChild>
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     className="flex items-center justify-between w-full p-2 hover:bg-muted/50 border-t"
                   >
                     <h4 className="text-sm font-medium text-foreground">Schichtverteilung</h4>
@@ -134,8 +134,8 @@ export function ScheduleStatistics({
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <div className="mt-3">
-                    <ShiftDistributionStats 
-                      shiftTypeStats={shiftTypeStats} 
+                    <ShiftDistributionStats
+                      shiftTypeStats={shiftTypeStats}
                       totalSchedules={basicStats.totalSchedules}
                     />
                   </div>
@@ -145,8 +145,8 @@ export function ScheduleStatistics({
               {/* Coverage Analysis Section */}
               <Collapsible open={coverageOpen} onOpenChange={setCoverageOpen}>
                 <CollapsibleTrigger asChild>
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     className="flex items-center justify-between w-full p-2 hover:bg-muted/50 border-t"
                   >
                     <h4 className="text-sm font-medium text-foreground">Abdeckungsanalyse</h4>
@@ -167,8 +167,8 @@ export function ScheduleStatistics({
               {/* Workload Analysis Section */}
               <Collapsible open={workloadOpen} onOpenChange={setWorkloadOpen}>
                 <CollapsibleTrigger asChild>
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     className="flex items-center justify-between w-full p-2 hover:bg-muted/50 border-t"
                   >
                     <h4 className="text-sm font-medium text-foreground">Arbeitsbelastung</h4>
@@ -189,8 +189,8 @@ export function ScheduleStatistics({
               {/* Weekly Breakdown Section */}
               <Collapsible open={weeklyOpen} onOpenChange={setWeeklyOpen}>
                 <CollapsibleTrigger asChild>
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     className="flex items-center justify-between w-full p-2 hover:bg-muted/50 border-t"
                   >
                     <h4 className="text-sm font-medium text-foreground">Wöchentliche Aufschlüsselung</h4>
@@ -212,8 +212,8 @@ export function ScheduleStatistics({
               {hasRecommendations && (
                 <Collapsible open={recommendationsOpen} onOpenChange={setRecommendationsOpen}>
                   <CollapsibleTrigger asChild>
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       className="flex items-center justify-between w-full p-2 hover:bg-muted/50 border-t"
                     >
                       <h4 className="text-sm font-medium text-foreground">Empfehlungen</h4>
@@ -226,7 +226,7 @@ export function ScheduleStatistics({
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <div className="mt-3">
-                      <ScheduleRecommendations 
+                      <ScheduleRecommendations
                         basicStats={basicStats}
                         workloadStats={workloadStats}
                         dailyCoverageStats={dailyCoverageStats}

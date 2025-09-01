@@ -3,26 +3,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import {
-    AlertTriangle,
-    Calendar,
-    Target,
-    TrendingUp,
-    BarChart3,
-    Activity
+  Activity,
+  AlertTriangle,
+  BarChart3,
+  Calendar,
+  Target,
+  TrendingUp
 } from "lucide-react";
 import {
-    LineChart,
-    Line,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    BarChart,
-    Bar,
-    ReferenceLine,
-    ComposedChart,
-    Cell
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ComposedChart,
+  Line,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
 } from 'recharts';
 
 interface CoverageAnalysisProps {
@@ -57,8 +56,8 @@ export function CoverageAnalysis({ dailyCoverageStats }: CoverageAnalysisProps) 
     dayName: day.dayName,
     status: getCoverageStatus(day.coverage).label,
     statusColor: day.coverage === 0 ? '#ef4444' :
-                 day.coverage < avgCoverage * 0.5 ? '#ef4444' :
-                 day.coverage < avgCoverage * 0.8 ? '#f59e0b' : '#10b981'
+      day.coverage < avgCoverage * 0.5 ? '#ef4444' :
+        day.coverage < avgCoverage * 0.8 ? '#f59e0b' : '#10b981'
   }));
 
   // Coverage distribution data
@@ -267,9 +266,9 @@ export function CoverageAnalysis({ dailyCoverageStats }: CoverageAnalysisProps) 
                   className="flex items-center justify-between p-3 rounded-lg border hover:shadow-sm transition-shadow"
                   style={{
                     borderColor: status.variant === 'destructive' ? '#ef4444' :
-                               status.variant === 'secondary' ? '#f59e0b' : '#10b981',
+                      status.variant === 'secondary' ? '#f59e0b' : '#10b981',
                     backgroundColor: status.variant === 'destructive' ? '#fef2f2' :
-                                   status.variant === 'secondary' ? '#fffbeb' : '#f0fdf4'
+                      status.variant === 'secondary' ? '#fffbeb' : '#f0fdf4'
                   }}
                 >
                   <div>

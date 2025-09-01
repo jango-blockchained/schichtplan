@@ -120,6 +120,7 @@ import { ActionDock } from "@/components/dock/ActionDock";
 import { AIConversationGenerationDialog } from "@/components/Schedule/AIConversationGenerationDialog";
 import { ClassicAIGenerationDialog } from "@/components/Schedule/ClassicAIGenerationDialog";
 import { ScheduleManager } from "@/components/ScheduleManager";
+import ScheduleMetricsCards from "@/components/Schedule/ScheduleMetricsCards";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -2142,6 +2143,16 @@ export function SchedulePage() {
             weekendStart: weekBasedVersionControl.settings.weekendStart,
             monthBoundaryMode: weekBasedVersionControl.settings.monthBoundaryMode,
           }}
+        />
+
+        {/* Weekly KPI Cards */}
+        <ScheduleMetricsCards
+          schedules={effectiveSelectedVersionNumber ? (scheduleData || []) : []}
+          dateRange={effectiveDateRange}
+          employees={employees}
+          openingDays={openingDays}
+          version={effectiveSelectedVersionNumber}
+          className="mt-2"
         />
       </div>
 

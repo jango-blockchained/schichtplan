@@ -2,28 +2,27 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
-    AlertCircle,
-    Key,
-    TrendingUp,
-    UserCheck,
-    Users,
-    BarChart3,
-    PieChart as PieChartIcon,
-    Activity
+  Activity,
+  AlertCircle,
+  BarChart3,
+  Key,
+  PieChart as PieChartIcon,
+  TrendingUp,
+  UserCheck,
+  Users
 } from "lucide-react";
 import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    PieChart,
-    Pie,
-    Cell,
-    ComposedChart,
-    Line
+  Bar,
+  CartesianGrid,
+  Cell,
+  ComposedChart,
+  Line,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
 } from 'recharts';
 
 interface WorkloadAnalysisProps {

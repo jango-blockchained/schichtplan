@@ -12,8 +12,8 @@ import os
 import sys
 import uuid
 from collections import defaultdict
-from datetime import date, timedelta
-from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
+from datetime import date, datetime, timedelta
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -77,17 +77,17 @@ except ImportError:
 
 
 # Import the extracted modules
+from .availability import AvailabilityChecker
 from .config import SchedulerConfig  # Generator's own runtime config
 from .constraints import ConstraintChecker
-from .availability import AvailabilityChecker
 from .distribution import DistributionManager
-from .serialization import ScheduleSerializer
 from .logging_utils import ProcessTracker  # Renamed from LoggingManager
 from .resources import ScheduleResources as RuntimeScheduleResources  # Runtime alias
-from .validator import ScheduleValidator
+from .serialization import ScheduleSerializer
 from .validator import (
     ScheduleConfig as ValidatorRuntimeScheduleConfig,
 )  # Runtime alias for validator's config
+from .validator import ScheduleValidator
 
 # --- Model Imports ---
 try:
@@ -108,10 +108,10 @@ except ImportError as e:
 
 # --- Explicit Imports for Type Checking ---
 if TYPE_CHECKING:
-    from .resources import ScheduleResources as ActualScheduleResources
     from .config import (
         SchedulerConfig as ActualSchedulerConfig,
     )  # Generator's own config class for type hints
+    from .resources import ScheduleResources as ActualScheduleResources
     from .validator import (
         ScheduleConfig as ActualValidatorScheduleConfig,
     )  # Validator's config class for type hints
@@ -682,38 +682,60 @@ class ScheduleGenerator:
                             f"Generated {len(assignments)} assignments for {loop_date_str}"
                         )
                         date_count += 1
-                        
+
                         # Add assignments to the schedule container
+                        assigned_employee_ids = set()
                         for assignment_dict in assignments:
                             # Get shift template for creating ScheduleAssignment
                             shift_template = None
-                            if 'shift_id' in assignment_dict and assignment_dict['shift_id']:
-                                shift_template = self.resources.get_shift(assignment_dict['shift_id'])
-                            
+                            if (
+                                "shift_id" in assignment_dict
+                                and assignment_dict["shift_id"]
+                            ):
+                                shift_template = self.resources.get_shift(
+                                    assignment_dict["shift_id"]
+                                )
+
                             # Create ScheduleAssignment object
                             schedule_assignment = ScheduleAssignment(
-                                employee_id=assignment_dict.get('employee_id'),
-                                shift_id=assignment_dict.get('shift_id'),
-                                date_val=assignment_dict.get('date', current_date),
+                                employee_id=assignment_dict.get("employee_id"),
+                                shift_id=assignment_dict.get("shift_id"),
+                                date_val=assignment_dict.get("date", current_date),
                                 shift_template=shift_template,
-                                availability_type=assignment_dict.get('availability_type'),
-                                status=assignment_dict.get('status', 'PENDING'),
+                                availability_type=assignment_dict.get(
+                                    "availability_type"
+                                ),
+                                status=assignment_dict.get("status", "PENDING"),
                                 version=self.schedule.version,
-                                break_start=assignment_dict.get('break_start'),
-                                break_end=assignment_dict.get('break_end'),
-                                notes=assignment_dict.get('notes'),
+                                break_start=assignment_dict.get("break_start"),
+                                break_end=assignment_dict.get("break_end"),
+                                notes=assignment_dict.get("notes"),
                                 logger_instance=self.diagnostic_logger,
                             )
-                            
+
                             # Add to schedule container
                             self.schedule.add_assignment(schedule_assignment)
-                            self.logger.debug(f"Added assignment to schedule: Employee {schedule_assignment.employee_id}, Shift {schedule_assignment.shift_id}, Date {schedule_assignment.date}")
+                            assigned_employee_ids.add(schedule_assignment.employee_id)
+                            self.logger.debug(
+                                f"Added assignment to schedule: Employee "
+                                f"{schedule_assignment.employee_id}, Shift "
+                                f"{schedule_assignment.shift_id}, Date "
+                                f"{schedule_assignment.date}"
+                            )
+
+                        # If create_empty_schedules is True, create empty entries
+                        # for employees who weren't assigned
+                        if create_empty_schedules:
+                            self._create_empty_schedule_entries_for_unassigned(
+                                current_date, assigned_employee_ids
+                            )
                     elif create_empty_schedules:
                         self.logger.warning(
-                            f"No coverage or shifts applicable for {loop_date_str}. Creating empty entry."
+                            f"No coverage or shifts applicable for {loop_date_str}. "
+                            f"Creating empty entries for all employees."
                         )
                         self.process_tracker.log_warning(
-                            f"Creating empty schedule entry for {loop_date_str}",
+                            f"Creating empty schedule entries for {loop_date_str}",
                             log_to_diag=True,
                         )
                         self._create_empty_schedule_entries(current_date)
@@ -921,8 +943,8 @@ class ScheduleGenerator:
                     self.logger.info(
                         "Calling _save_to_database within app context."
                     )  # ADDED logging
-                    saved_count = (
-                        self._save_to_database(self.schedule.get_assignments())
+                    saved_count = self._save_to_database(
+                        self.schedule.get_assignments()
                     )  # This method needs to handle bulk saving
                     self.logger.info(
                         "Finished calling _save_to_database within app context."
@@ -1062,24 +1084,26 @@ class ScheduleGenerator:
         Returns a dictionary mapping time intervals to required staffing.
         """
         self.diagnostic_logger.debug(f"Processing coverage for date {process_date}")
-        
+
         # Get coverage requirements for this day
         weekday = process_date.weekday()
         day_coverage = []
-        
+
         for coverage in self.resources.coverage:
-            if hasattr(coverage, 'day_index') and coverage.day_index == weekday:
+            if hasattr(coverage, "day_index") and coverage.day_index == weekday:
                 day_coverage.append(coverage)
-        
-        self.logger.info(f"Found {len(day_coverage)} coverage blocks for {process_date} (weekday {weekday})")
-        
+
+        self.logger.info(
+            f"Found {len(day_coverage)} coverage blocks for {process_date} (weekday {weekday})"
+        )
+
         # Group coverage by time intervals
         coverage_by_interval = {}
         for coverage in day_coverage:
             interval_key = f"{coverage.start_time}-{coverage.end_time}"
             if interval_key not in coverage_by_interval:
                 coverage_by_interval[interval_key] = []
-            
+
             coverage_dict = {
                 "start_time": coverage.start_time,
                 "end_time": coverage.end_time,
@@ -1089,7 +1113,7 @@ class ScheduleGenerator:
                 "employee_types": getattr(coverage, "employee_types", []),
             }
             coverage_by_interval[interval_key].append(coverage_dict)
-        
+
         return coverage_by_interval
 
     def _create_date_shifts(self, date_to_create: date) -> List[Dict]:
@@ -1100,17 +1124,19 @@ class ScheduleGenerator:
         self.logger.info(
             f"Creating shifts for date {date_to_create} (weekday {weekday})"
         )
-        
+
         # First, get coverage requirements for this date
         coverage_by_interval = self._process_coverage(date_to_create)
         if not coverage_by_interval:
             self.logger.warning(f"No coverage requirements found for {date_to_create}")
             return []
-        
+
         # Log coverage requirements
         for interval, requirements in coverage_by_interval.items():
             for req in requirements:
-                self.logger.info(f"Coverage needed {interval}: {req['min_employees']} employees")
+                self.logger.info(
+                    f"Coverage needed {interval}: {req['min_employees']} employees"
+                )
 
         # Find all shift templates active on this day
         active_shift_templates = []
@@ -1192,57 +1218,66 @@ class ScheduleGenerator:
                     f"Shift template has no ID, skipping: {shift_template}"
                 )
                 continue
-                
+
             # Add to active templates
             active_shift_templates.append(shift_template)
-        
-        self.logger.info(f"Found {len(active_shift_templates)} active shift templates for weekday {weekday}")
-        
+
+        self.logger.info(
+            f"Found {len(active_shift_templates)} active shift templates for weekday {weekday}"
+        )
+
         # Now match active shifts to coverage intervals
         shifts_created = set()  # Track which shifts we've already created
-        
+
         for interval_key, coverage_requirements in coverage_by_interval.items():
             # Parse interval times
-            interval_parts = interval_key.split('-')
+            interval_parts = interval_key.split("-")
             if len(interval_parts) != 2:
                 self.logger.warning(f"Invalid interval format: {interval_key}")
                 continue
-                
+
             coverage_start = interval_parts[0]
             coverage_end = interval_parts[1]
-            
+
             # Find shifts that match this coverage interval
             matching_shifts = []
             for shift_template in active_shift_templates:
                 shift_start = getattr(shift_template, "start_time", "")
                 shift_end = getattr(shift_template, "end_time", "")
-                
+
                 # Check if shift times match the coverage interval
                 if shift_start == coverage_start and shift_end == coverage_end:
                     matching_shifts.append(shift_template)
-                    self.logger.debug(f"Shift {shift_template.id} matches coverage interval {interval_key}")
-            
+                    self.logger.debug(
+                        f"Shift {shift_template.id} matches coverage interval {interval_key}"
+                    )
+
             if not matching_shifts:
-                self.logger.warning(f"No shifts found matching coverage interval {interval_key}")
+                self.logger.warning(
+                    f"No shifts found matching coverage interval {interval_key}"
+                )
                 continue
-            
+
             # Create shift instances for each matching shift template
             for coverage_req in coverage_requirements:
-                min_employees = coverage_req.get('min_employees', 1)
-                
+                min_employees = coverage_req.get("min_employees", 1)
+
                 # For each matching shift, create instances based on required staffing
                 for shift_template in matching_shifts:
                     shift_id = shift_template.id
-                    
+
                     # Skip if we've already created this shift
                     if shift_id in shifts_created:
                         continue
-                    
+
                     shifts_created.add(shift_id)
-                    
+
                     # Get the active days for this shift template
                     shift_active_days = []
-                    if hasattr(shift_template, "active_days") and shift_template.active_days:
+                    if (
+                        hasattr(shift_template, "active_days")
+                        and shift_template.active_days
+                    ):
                         if isinstance(shift_template.active_days, list):
                             shift_active_days = shift_template.active_days
                         elif isinstance(shift_template.active_days, dict):
@@ -1254,6 +1289,7 @@ class ScheduleGenerator:
                         elif isinstance(shift_template.active_days, str):
                             try:
                                 import json
+
                                 loaded_days = json.loads(shift_template.active_days)
                                 if isinstance(loaded_days, list):
                                     shift_active_days = loaded_days
@@ -1309,10 +1345,14 @@ class ScheduleGenerator:
                         "date": date_to_create,
                         "start_time": getattr(shift_template, "start_time", "09:00"),
                         "end_time": getattr(shift_template, "end_time", "17:00"),
-                        "duration_hours": getattr(shift_template, "duration_hours", 8.0),
+                        "duration_hours": getattr(
+                            shift_template, "duration_hours", 8.0
+                        ),
                         "shift_type": shift_type,
                         "shift_type_id": shift_type,  # Always use the resolved string, not MagicMock
-                        "requires_keyholder": coverage_req.get("requires_keyholder", False),
+                        "requires_keyholder": coverage_req.get(
+                            "requires_keyholder", False
+                        ),
                         "active_days": shift_active_days,
                         "min_employees": min_employees,  # Add coverage requirement
                         "coverage_interval": interval_key,  # Track which coverage this is for
@@ -1444,8 +1484,10 @@ class ScheduleGenerator:
             self.diagnostic_logger.info(f"  resources: {self.resources is not None}")
 
             # Call to DistributionManager - this will be the new core logic
-            assignments_for_date = self.distribution_manager.generate_assignments_for_day(
-                current_date, potential_daily_shifts, self.resources.employees
+            assignments_for_date = (
+                self.distribution_manager.generate_assignments_for_day(
+                    current_date, potential_daily_shifts, self.resources.employees
+                )
             )
 
             if assignments_for_date:
@@ -1483,30 +1525,119 @@ class ScheduleGenerator:
 
     def _create_empty_schedule_entries(self, current_date: date):
         """
-        Creates empty schedule entries for a given date if no coverage or shifts are applicable.
-        This ensures that every day in the range has some form of record.
+        Creates empty schedule entries for ALL active employees
+        for a given date. This ensures that every active employee
+        has a schedule entry for each day, even if they don't
+        have an assigned shift.
         """
         self.logger.info(
-            f"Creating empty schedule entry for {current_date} (Session: {self.session_id})"
+            f"Creating empty schedule entries for all active "
+            f"employees on {current_date} (Session: {self.session_id})"
         )
-        # Create a placeholder assignment indicating no work
-        # Ensure employee_id and shift_id are placeholders that make sense, e.g., 0 or -1
-        # Or use a specific 'NO_SHIFT' or 'NO_EMPLOYEE' marker if defined.
-        no_work_assignment = ScheduleAssignment(
-            employee_id=-1,  # Use -1 as placeholder for 'empty day assignment'
-            shift_id=0,  # Placeholder for 'no shift'
-            date_val=current_date,
-            status="EMPTY",  # Custom status to indicate this is a placeholder
-            version=self.schedule.version if self.schedule else 1,
-            logger_instance=self.diagnostic_logger,  # Pass the generator's diagnostic logger
+
+        if not self.resources or not self.resources.employees:
+            self.logger.warning(
+                "No employees available to create empty schedule entries"
+            )
+            return
+
+        # Get all active employees
+        active_employees = [
+            emp for emp in self.resources.employees if getattr(emp, "is_active", True)
+        ]
+
+        if not active_employees:
+            self.logger.warning(
+                "No active employees found to create empty schedule entries"
+            )
+            return
+
+        self.logger.info(
+            f"Creating empty entries for {len(active_employees)} active employees"
         )
-        if self.schedule:
-            self.schedule.add_assignment(
-                no_work_assignment
-            )  # Use the add_assignment method
+
+        # Create empty schedule entries for each active employee
+        for employee in active_employees:
+            empty_assignment = ScheduleAssignment(
+                employee_id=employee.id,
+                shift_id=None,  # No shift assigned
+                date_val=current_date,
+                status="EMPTY",  # Custom status for empty entry
+                version=self.schedule.version if self.schedule else 1,
+                availability_type=None,
+                break_start=None,
+                break_end=None,
+                notes="No shift assigned",
+                logger_instance=self.diagnostic_logger,
+            )
+
+            if self.schedule:
+                self.schedule.add_assignment(empty_assignment)
+                self.logger.debug(
+                    f"Added empty entry for employee {employee.id} "
+                    f"({employee.first_name} {employee.last_name}) "
+                    f"on {current_date}"
+                )
 
         self.process_tracker.log_info(
-            f"Empty schedule entry created for {current_date}"
+            f"Created empty schedule entries for {len(active_employees)} "
+            f"employees on {current_date}"
+        )
+
+    def _create_empty_schedule_entries_for_unassigned(
+        self, current_date: date, assigned_employee_ids: set
+    ):
+        """
+        Creates empty schedule entries for active employees who were not
+        assigned shifts on the given date.
+        """
+        if not self.resources or not self.resources.employees:
+            return
+
+        # Get all active employees who weren't assigned
+        active_employees = [
+            emp
+            for emp in self.resources.employees
+            if getattr(emp, "is_active", True) and emp.id not in assigned_employee_ids
+        ]
+
+        if not active_employees:
+            self.logger.debug(
+                f"All active employees have assignments for {current_date}"
+            )
+            return
+
+        self.logger.info(
+            f"Creating empty entries for {len(active_employees)} "
+            f"unassigned employees on {current_date}"
+        )
+
+        # Create empty schedule entries for each unassigned active employee
+        for employee in active_employees:
+            empty_assignment = ScheduleAssignment(
+                employee_id=employee.id,
+                shift_id=None,  # No shift assigned
+                date_val=current_date,
+                status="EMPTY",  # Custom status for empty entry
+                version=self.schedule.version if self.schedule else 1,
+                availability_type=None,
+                break_start=None,
+                break_end=None,
+                notes="No shift assigned",
+                logger_instance=self.diagnostic_logger,
+            )
+
+            if self.schedule:
+                self.schedule.add_assignment(empty_assignment)
+                self.logger.debug(
+                    f"Added empty entry for unassigned employee {employee.id} "
+                    f"({employee.first_name} {employee.last_name}) "
+                    f"on {current_date}"
+                )
+
+        self.process_tracker.log_info(
+            f"Created empty schedule entries for {len(active_employees)} "
+            f"unassigned employees on {current_date}"
         )
 
     def _save_to_database(self, assignments: List[Dict]):
@@ -1514,21 +1645,25 @@ class ScheduleGenerator:
         if not assignments:
             self.logger.info("No assignments to save to database")
             return 0
-            
+
         try:
-            from src.backend.models.schedule import Schedule
             from flask import current_app
             from flask_sqlalchemy import SQLAlchemy
-            
+
+            from src.backend.models.schedule import Schedule
+
             # Get database instance
-            if hasattr(current_app, 'extensions') and 'sqlalchemy' in current_app.extensions:
-                db = current_app.extensions['sqlalchemy']
+            if (
+                hasattr(current_app, "extensions")
+                and "sqlalchemy" in current_app.extensions
+            ):
+                db = current_app.extensions["sqlalchemy"]
             else:
                 # Fallback: create new instance
                 db = SQLAlchemy(current_app)
-            
+
             saved_count = 0
-            
+
             for assignment in assignments:
                 try:
                     # Handle both ScheduleAssignment objects and dictionaries
@@ -1560,26 +1695,32 @@ class ScheduleGenerator:
                             break_end=assignment.get("break_end"),
                             notes=assignment.get("notes"),
                         )
-                    
+
                     db.session.add(schedule_obj)
                     saved_count += 1
-                    
+
                 except Exception as e:
                     self.logger.error(f"Error creating schedule object: {e}")
                     self.logger.error(f"Assignment data: {assignment}")
                     continue
-            
+
             if saved_count > 0:
                 # Commit all at once
                 db.session.commit()
-                self.logger.info(f"Successfully saved {saved_count} assignments to database")
+                self.logger.info(
+                    f"Successfully saved {saved_count} assignments to database"
+                )
             else:
-                self.logger.warning("No valid assignment objects created for database save")
-            
+                self.logger.warning(
+                    "No valid assignment objects created for database save"
+                )
+
             return saved_count
-                
+
         except Exception as e:
-            self.logger.error(f"Error saving assignments to database: {str(e)}", exc_info=True)
+            self.logger.error(
+                f"Error saving assignments to database: {str(e)}", exc_info=True
+            )
             db.session.rollback()
             raise
 

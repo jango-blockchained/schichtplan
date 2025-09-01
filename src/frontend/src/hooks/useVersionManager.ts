@@ -83,19 +83,28 @@ export function useVersionManager({
   // Track processed query to prevent duplicate processing
   const processedQueryRef = useRef<string | null>(null);
 
+  // Use ref to store onVersionSelected to avoid dependency issues
+  const onVersionSelectedRef = useRef(onVersionSelected);
+  onVersionSelectedRef.current = onVersionSelected;
+
   // Clear selected version immediately when date range changes
   useEffect(() => {
+    // Skip if dateRange is undefined (external versions mode)
+    if (!dateRange?.from || !dateRange?.to) {
+      return;
+    }
+
     if (prevDateRangeRef.current !== null && prevDateRangeRef.current !== currentDateRangeKey) {
       console.log("📅 Date range changed, clearing version selection immediately");
       console.log("📅 Previous date range:", prevDateRangeRef.current);
       console.log("📅 Current date range:", currentDateRangeKey);
       setSelectedVersion(undefined);
-      onVersionSelected?.(undefined);
+      onVersionSelectedRef.current?.(undefined);
       // Clear processed query ref to allow processing of new date range
       processedQueryRef.current = null;
     }
     prevDateRangeRef.current = currentDateRangeKey;
-  }, [currentDateRangeKey, onVersionSelected]);
+  }, [currentDateRangeKey, dateRange?.from, dateRange?.to]);
 
   // Query for versions
   const versionsQuery = useQuery<VersionResponse, Error>({
@@ -119,6 +128,11 @@ export function useVersionManager({
 
     // Auto-select latest version when versions are available and query is complete
   useEffect(() => {
+    // Skip if dateRange is undefined (external versions mode)
+    if (!dateRange?.from || !dateRange?.to) {
+      return;
+    }
+
     const versions = versionsQuery.data?.versions || [];
 
     // Only proceed if query is complete (not loading) and we have a valid result
@@ -143,7 +157,7 @@ export function useVersionManager({
       if (selectedVersion !== undefined) {
         console.log("📅 No versions available for current date range, clearing selection");
         setSelectedVersion(undefined);
-        onVersionSelected?.(undefined);
+        onVersionSelectedRef.current?.(undefined);
       }
       processedQueryRef.current = queryKey;
       return;
@@ -159,11 +173,11 @@ export function useVersionManager({
         const latestVersion = Math.max(...versions.map(v => v.version));
         console.log("📅 Auto-selecting latest version for current date range:", latestVersion);
         setSelectedVersion(latestVersion);
-        onVersionSelected?.(latestVersion);
+        onVersionSelectedRef.current?.(latestVersion);
       } else {
         console.log("📅 Clearing invalid version selection");
         setSelectedVersion(undefined);
-        onVersionSelected?.(undefined);
+        onVersionSelectedRef.current?.(undefined);
       }
     } else {
       console.log("📅 Current version selection is valid, keeping it");
@@ -171,7 +185,7 @@ export function useVersionManager({
     
     // Mark this query as processed
     processedQueryRef.current = queryKey;
-  }, [versionsQuery.data, versionsQuery.isLoading, versionsQuery.isError, onVersionSelected, autoSelectLatest, currentDateRangeKey]);
+  }, [versionsQuery.data, versionsQuery.isLoading, versionsQuery.isError, autoSelectLatest, currentDateRangeKey, selectedVersion, dateRange?.from, dateRange?.to]);
 
   // Create version mutation
   const createVersionMutation = useMutation({
@@ -200,7 +214,7 @@ export function useVersionManager({
 
       // Auto-select the new version
       setSelectedVersion(data.version);
-      onVersionSelected?.(data.version);
+      onVersionSelectedRef.current?.(data.version);
 
       // Refresh versions
       versionsQuery.refetch();
@@ -270,7 +284,7 @@ export function useVersionManager({
       // If we deleted the selected version, clear selection
       if (selectedVersion === version) {
         setSelectedVersion(undefined);
-        onVersionSelected?.(undefined);
+        onVersionSelectedRef.current?.(undefined);
       }
 
       versionsQuery.refetch();
@@ -318,7 +332,7 @@ export function useVersionManager({
 
       // Auto-select the new version
       setSelectedVersion(data.version);
-      onVersionSelected?.(data.version);
+      onVersionSelectedRef.current?.(data.version);
 
       versionsQuery.refetch();
     },
@@ -334,13 +348,13 @@ export function useVersionManager({
   // Action handlers
   const selectVersion = useCallback((version: number | undefined) => {
     setSelectedVersion(version);
-    onVersionSelected?.(version);
-  }, [onVersionSelected]);
+    onVersionSelectedRef.current?.(version);
+  }, []);
 
   const resetVersionSelection = useCallback(() => {
     setSelectedVersion(undefined);
-    onVersionSelected?.(undefined);
-  }, [onVersionSelected]);
+    onVersionSelectedRef.current?.(undefined);
+  }, []);
 
   const createVersion = useCallback((options: CreateVersionOptions = {}) => {
     createVersionMutation.mutate(options);

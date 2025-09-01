@@ -1,24 +1,24 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
-    Moon,
-    PieChart,
-    Sun,
-    Sunrise,
-    BarChart3
+  BarChart3,
+  Moon,
+  PieChart,
+  Sun,
+  Sunrise
 } from "lucide-react";
 import {
-    PieChart as RechartsPieChart,
-    Pie,
-    Cell,
-    ResponsiveContainer,
-    Tooltip,
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Legend
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart as RechartsPieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
 } from 'recharts';
 
 interface ShiftDistributionStatsProps {

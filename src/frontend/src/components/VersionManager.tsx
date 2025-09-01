@@ -8,7 +8,7 @@
 import { format, getWeek } from "date-fns";
 import { de } from "date-fns/locale";
 import { ChevronDown, ChevronUp, Plus } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -90,18 +90,21 @@ export function VersionManager({
   selectedVersion: externalSelectedVersion,
 }: VersionManagerProps) {
   // Only use the version manager hook if external versions are not provided
-  const versionManagerResult = externalVersions ? null : useVersionManager({
-    dateRange,
+  const versionManagerResult = useVersionManager({
+    dateRange: externalVersions ? undefined : dateRange,
     onVersionSelected,
     autoSelectLatest,
   });
 
   // Use external versions and selectedVersion if provided, otherwise use internal state
-  const effectiveVersions = externalVersions || versionManagerResult?.state.versions || [];
+  const effectiveVersions = useMemo(() =>
+    externalVersions || versionManagerResult?.state.versions || [],
+    [externalVersions, versionManagerResult?.state.versions]
+  );
   const effectiveSelectedVersion = externalSelectedVersion !== undefined ? externalSelectedVersion : versionManagerResult?.state.selectedVersion;
 
   // Provide fallback actions when using external versions
-  const effectiveActions = versionManagerResult?.actions || {
+  const effectiveActions = useMemo(() => externalVersions ? {
     selectVersion: () => { },
     resetVersionSelection: () => { },
     createVersion: () => Promise.resolve(),
@@ -110,16 +113,31 @@ export function VersionManager({
     deleteVersion: () => Promise.resolve(),
     duplicateVersion: () => Promise.resolve(),
     refetch: () => { },
-  };
+  } : versionManagerResult?.actions || {
+    selectVersion: () => { },
+    resetVersionSelection: () => { },
+    createVersion: () => Promise.resolve(),
+    updateVersionStatus: () => Promise.resolve(),
+    updateVersionNotes: () => Promise.resolve(),
+    deleteVersion: () => Promise.resolve(),
+    duplicateVersion: () => Promise.resolve(),
+    refetch: () => { },
+  }, [externalVersions, versionManagerResult?.actions]);
 
   // Provide fallback state when using external versions
-  const effectiveState = versionManagerResult?.state || {
+  const effectiveState = useMemo(() => externalVersions ? {
     versions: effectiveVersions,
     selectedVersion: effectiveSelectedVersion,
     isLoading: false,
     isError: false,
     error: null,
-  };
+  } : versionManagerResult?.state || {
+    versions: effectiveVersions,
+    selectedVersion: effectiveSelectedVersion,
+    isLoading: false,
+    isError: false,
+    error: null,
+  }, [externalVersions, effectiveVersions, effectiveSelectedVersion, versionManagerResult?.state]);
 
   // Fetch settings if not provided
   const { data: settings } = useQuery<Settings>({
@@ -344,7 +362,7 @@ export function VersionManager({
   };
 
   // Handle version selection
-  const handleVersionSelection = (version: number) => {
+  const handleVersionSelection = useCallback((version: number) => {
     effectiveActions.selectVersion(version);
     onVersionSelected?.(version); // Also call external callback if provided
     // Load real statistics for the selected version
@@ -398,7 +416,7 @@ export function VersionManager({
         }
       }
     })();
-  };
+  }, [effectiveActions, effectiveVersions, onVersionSelected]);
 
   // Handle creating new version
   const handleCreateNewVersion = () => {
