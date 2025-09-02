@@ -33,6 +33,9 @@ interface DragItem {
   date: string;
   shift_type_id?: string;
   isDockItem?: boolean; // Flag to indicate this is from the dock
+  // Optional times for validation in drop targets
+  start_time?: string | null;
+  end_time?: string | null;
 }
 
 interface DraggableEmployeeProps {
@@ -49,8 +52,7 @@ interface DraggableShiftProps {
 
 const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({ 
   employee, 
-  selectedDate,
-  currentVersion 
+  selectedDate
 }) => {
   const [{ isDragging }, drag] = useDrag({
     type: "SCHEDULE",
@@ -111,8 +113,7 @@ const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({
 
 const DraggableShift: React.FC<DraggableShiftProps> = ({ 
   shift, 
-  selectedDate,
-  currentVersion 
+  selectedDate
 }) => {
   const [{ isDragging }, drag] = useDrag({
     type: "SCHEDULE",
@@ -123,6 +124,8 @@ const DraggableShift: React.FC<DraggableShiftProps> = ({
       date: selectedDate ? format(selectedDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
       shift_type_id: shift.shift_type_id,
       isDockItem: true, // Flag to indicate this is from the dock
+  start_time: shift.start_time ?? null,
+  end_time: shift.end_time ?? null,
     }),
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
@@ -185,10 +188,8 @@ const DraggableShift: React.FC<DraggableShiftProps> = ({
 };
 
 export const ScheduleDock: React.FC<ScheduleDockProps> = ({ 
-  currentVersion, 
   selectedDate,
-  onClose,
-  onDrop 
+  onClose
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState("employees");
@@ -310,7 +311,7 @@ export const ScheduleDock: React.FC<ScheduleDockProps> = ({
                           key={employee.id}
                           employee={employee}
                           selectedDate={selectedDate}
-                          currentVersion={currentVersion}
+                          
                         />
                       ))}
                     </div>
@@ -336,7 +337,7 @@ export const ScheduleDock: React.FC<ScheduleDockProps> = ({
                           key={shift.id}
                           shift={shift}
                           selectedDate={selectedDate}
-                          currentVersion={currentVersion}
+                          
                         />
                       ))}
                     </div>

@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button"; // For empty state
 import { Card, CardContent } from "@/components/ui/card";
-import { Schedule, ScheduleUpdate } from "@/types";
+import { Schedule, ScheduleUpdate, SpecialDay } from "@/types";
 import { WeekInfo } from "@/types/weekVersion";
 import { Calendar, Loader2, Plus } from "lucide-react"; // For empty state
 import { useEffect } from "react";
@@ -38,6 +38,7 @@ interface ScheduleManagerProps {
   onEmptyStateCreateVersion: () => void;
   onEmptyStateGenerateSchedule: () => void;
   openingDays: number[]; // Add openingDays prop
+  specialDays?: Record<string, SpecialDay>;
 
   // Week navigation props for fullscreen mode
   weekInfo?: WeekInfo;
@@ -68,6 +69,7 @@ export function ScheduleManager({
   onEmptyStateCreateVersion,
   onEmptyStateGenerateSchedule,
   openingDays, // Destructure openingDays prop
+  specialDays,
   // Week navigation props
   weekInfo,
   onNavigatePrevious,
@@ -196,6 +198,7 @@ export function ScheduleManager({
           currentVersion={currentVersion}
           versionStatus={versionStatus}
           openingDays={openingDays} // Pass openingDays to ScheduleTable
+          specialDays={specialDays}
           // Week navigation props
           weekInfo={weekInfo}
           onNavigatePrevious={onNavigatePrevious}

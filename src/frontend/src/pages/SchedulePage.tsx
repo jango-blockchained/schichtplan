@@ -81,7 +81,8 @@ import type { CreateWeekVersionResponse } from "@/services/api";
 import {
   AiImportResponse,
   ScheduleUpdate,
-  Settings as SettingsType
+  Settings as SettingsType,
+  SpecialDay
 } from "@/types"; // Renamed Settings to avoid conflict
 import type { WeekVersionMeta } from "@/types/weekVersion";
 // import { Checkbox } from '@/components/ui/checkbox'; // Original, might be unused
@@ -257,6 +258,12 @@ export function SchedulePage() {
       })
       .filter(dayIndex => dayIndex !== -1) // Remove any invalid entries
       .sort((a, b) => a - b);
+  }, [effectiveSettingsData]);
+
+  // Extract special days map from settings
+  const specialDaysMap = React.useMemo(() => {
+    const map = effectiveSettingsData?.general?.special_days || {};
+    return map as Record<string, SpecialDay>;
   }, [effectiveSettingsData]);
 
   // Week-based navigation is now the default and only navigation mode
@@ -2323,6 +2330,7 @@ export function SchedulePage() {
                   currentVersion={effectiveSelectedVersionNumber || 1}
                   versionStatus={versionState.versions[0]?.status as "DRAFT" | "PUBLISHED" | "ARCHIVED" | undefined}
                   openingDays={openingDays}
+                  specialDays={specialDaysMap}
                   isEmptyState={
                     !effectiveSelectedVersionNumber || // Show empty state when no version selected
                     !scheduleData ||

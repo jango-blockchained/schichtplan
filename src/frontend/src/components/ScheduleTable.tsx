@@ -35,7 +35,7 @@ import {
   getEmployees,
   getSettings,
 } from "@/services/api";
-import { Employee, Schedule, ScheduleUpdate } from "@/types";
+import { Employee, Schedule, ScheduleUpdate, SpecialDay } from "@/types";
 import { categorizeShift } from "@/utils/shiftType";
 import { WeekInfo } from "@/utils/weekUtils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -273,6 +273,7 @@ interface ScheduleTableProps {
   // Version status information for badges
   versionStatus?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   openingDays: number[];
+  specialDays?: Record<string, SpecialDay>;
   // Week navigation props for fullscreen mode
   weekInfo?: WeekInfo;
   onNavigatePrevious?: () => void;
@@ -291,6 +292,9 @@ interface DragItem {
   date: string;
   shift_type_id?: string; // EARLY, MIDDLE, LATE
   isDockItem?: boolean; // Flag to indicate this is from the dock
+  // Optional times for validation
+  start_time?: string | null;
+  end_time?: string | null;
 }
 
 // Helper function to determine if a schedule is empty (no shift assigned)
@@ -400,7 +404,9 @@ const TimeSlotDisplay = ({
     }
 
     // Use global categorization based on opening/closing
-    const cat = categorizeShift(startTime, endTime, settings as { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } } | undefined);
+    // Build a minimal Settings object for categorizeShift if available
+    // Categorize without passing full settings; function has defaults for opening/closing
+    const cat = categorizeShift(startTime, endTime);
     return cat;
 
   };
@@ -540,6 +546,8 @@ const ScheduleCell = ({
   employeeId,
   date,
   currentVersion,
+  isClosedDay,
+  daySpecial,
 }: {
   schedule: Schedule | undefined;
   onDrop: (
@@ -554,6 +562,8 @@ const ScheduleCell = ({
   employeeId: number;
   date: Date;
   currentVersion?: number;
+  isClosedDay?: boolean;
+  daySpecial?: SpecialDay;
 }) => {
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL LOGIC OR EARLY RETURNS
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -591,6 +601,8 @@ const ScheduleCell = ({
         date: schedule.date,
         shift_type_id: schedule.shift_type_id,
         isDockItem: false,
+  start_time: schedule.shift_start,
+  end_time: schedule.shift_end,
       };
     },
     collect: (monitor) => ({
@@ -605,15 +617,43 @@ const ScheduleCell = ({
   // Add drop zone functionality for dock items - ALWAYS call this hook second
   const [{ isOver, canDrop }, drop] = useDrop({
     accept: "SCHEDULE",
-    canDrop: () => {
+    canDrop: (item: DragItem) => {
       // Don't allow dropping if employee is unavailable
-      return employeeAvailable !== false;
+      if (employeeAvailable === false) return false;
+      // Don't allow dropping on closed days
+      if (isClosedDay) return false;
+      // Enforce special day custom hours (partial closures)
+      if (daySpecial && daySpecial.custom_hours) {
+        const opening = daySpecial.custom_hours.opening;
+        const closing = daySpecial.custom_hours.closing;
+        // Determine candidate times: prefer drag item times, fallback to existing schedule times
+        const candStart = item?.start_time || schedule?.shift_start || undefined;
+        const candEnd = item?.end_time || schedule?.shift_end || undefined;
+        if (candStart && candEnd) {
+          if (candStart < opening || candEnd > closing) {
+            return false;
+          }
+        }
+      }
+      return true;
     },
     drop: (item: DragItem) => {
       // Check availability before allowing drop
-      if (employeeAvailable === false) {
+      if (employeeAvailable === false || isClosedDay) {
         // Employee is unavailable on this date
         return;
+      }
+      // Defensive check for custom hours
+      if (daySpecial && daySpecial.custom_hours) {
+        const opening = daySpecial.custom_hours.opening;
+        const closing = daySpecial.custom_hours.closing;
+        const candStart = item?.start_time || schedule?.shift_start || undefined;
+        const candEnd = item?.end_time || schedule?.shift_end || undefined;
+        if (candStart && candEnd) {
+          if (candStart < opening || candEnd > closing) {
+            return; // outside allowed window
+          }
+        }
       }
 
       // Handle dock items differently than existing schedule items
@@ -786,6 +826,22 @@ const ScheduleCell = ({
           onClose={() => setIsAddModalOpen(false)}
           onAddSchedule={async (scheduleData) => {
             try {
+              // Enforce special day rules before creating/updating
+              if (daySpecial?.is_closed) {
+                throw new Error("Dieser Tag ist als geschlossen markiert.");
+              }
+              if (daySpecial?.custom_hours) {
+                const { getShifts } = await import("@/services/api");
+                const shifts = await getShifts();
+                const sel = shifts.find((s) => s.id === scheduleData.shift_id);
+                if (sel) {
+                  const open = daySpecial.custom_hours.opening;
+                  const close = daySpecial.custom_hours.closing;
+                  if (sel.start_time < open || sel.end_time > close) {
+                    throw new Error(`Schicht liegt außerhalb der erlaubten Öffnungszeiten (${open}–${close}).`);
+                  }
+                }
+              }
               // If we have an existing schedule, update it
               if (schedule?.id) {
                 await onUpdate(schedule.id, {
@@ -869,7 +925,7 @@ const ScheduleCell = ({
         </div>
       )}
 
-      <div className="flex flex-col items-center justify-center h-full">
+  <div className="flex flex-col items-center justify-center h-full">
         <TimeSlotDisplay
           startTime={schedule?.shift_start}
           endTime={schedule?.shift_end}
@@ -1236,6 +1292,7 @@ export function ScheduleTable({
   currentVersion,
   versionStatus,
   openingDays,
+  specialDays,
   // Week navigation props
   weekInfo,
   onNavigatePrevious,
@@ -1563,6 +1620,7 @@ export function ScheduleTable({
                 absenceTypes={absenceTypes}
                 currentVersion={currentVersion}
                 openingDays={openingDays}
+                specialDays={specialDays}
                 daysToDisplay={visibleDaysToDisplay}
                 showNavigation={showNavigation}
                 onPrevDays={handlePrevDays}
@@ -1608,6 +1666,7 @@ function ScheduleTableNormal({
   employeeSortBy,
   employeeSortOrder,
   weekNavigationSettings,
+  specialDays,
 }: Omit<ScheduleTableProps, 'isLoading'> & {
   daysToDisplay: Date[];
   showNavigation: boolean;
@@ -1622,6 +1681,7 @@ function ScheduleTableNormal({
     weekendStart?: number;
     monthBoundaryMode?: string;
   };
+  specialDays?: Record<string, SpecialDay>;
 }) {
   // Get employees data
   const { data: employees } = useQuery({
@@ -1800,7 +1860,17 @@ function ScheduleTableNormal({
     });
 
     return sortedIds;
-  }, [schedules, employees, employeeSortBy, employeeSortOrder, dateRange, settings]);
+  }, [
+    schedules,
+    employees,
+    employeeSortBy,
+    employeeSortOrder,
+    dateRange,
+    settings,
+    monthlyPublishedSchedules,
+    employeeAbsences,
+    absenceTypes,
+  ]);
 
   // Get unique employees from schedules (keeping original for compatibility)
   const uniqueEmployeeIds = useMemo(() => {
@@ -1864,13 +1934,18 @@ function ScheduleTableNormal({
             const dailyHours = calculateDailyHours(schedules, date, employees, settings, employeeAbsences, absenceTypes);
             const prevDate = index > 0 ? daysToDisplay[index - 1] : null;
             const isAtMonthBoundary = isSplitMonthMode && isMonthBoundary(date, prevDate);
+            const dateKey = format(date, "yyyy-MM-dd");
+            const special = specialDays?.[dateKey];
+            const isClosed = special?.is_closed;
+            const customHours = special?.custom_hours;
 
             return (
               <th
                 key={date.toISOString()}
                 className={cn(
                   "w-[160px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
-                  isAtMonthBoundary && "border-l-4 border-l-amber-500 bg-amber-50/50"
+                  isAtMonthBoundary && "border-l-4 border-l-amber-500 bg-amber-50/50",
+                  isClosed && "bg-red-50"
                 )}
               >
                 {isAtMonthBoundary && (
@@ -1884,8 +1959,20 @@ function ScheduleTableNormal({
                 <div className="text-sm text-muted-foreground font-medium">
                   {format(date, "dd.MM.")}
                 </div>
-                <div className="text-xs text-blue-600 font-medium mt-1 cursor-pointer">
-                  {formatTimeHourMin(dailyHours)}
+                <div className="flex flex-col items-center gap-1 mt-1">
+                  <div className="text-xs text-blue-600 font-medium cursor-pointer">
+                    {formatTimeHourMin(dailyHours)}
+                  </div>
+                  {special && (
+                    <div className={cn(
+                      "text-[11px] px-1.5 py-0.5 rounded border",
+                      isClosed ? "bg-red-100 text-red-700 border-red-200" : "bg-amber-100 text-amber-700 border-amber-200"
+                    )}
+                    title={special.description}
+                    >
+                      {isClosed ? "Geschlossen" : `Öffn. ${customHours?.opening}–${customHours?.closing}`}
+                    </div>
+                  )}
                 </div>
               </th>
             );
@@ -2009,6 +2096,8 @@ function ScheduleTableNormal({
                 const schedule = employeeSchedules[dateString];
                 const prevDate = dateIndex > 0 ? daysToDisplay[dateIndex - 1] : null;
                 const isAtMonthBoundary = isSplitMonthMode && isMonthBoundary(date, prevDate);
+                const special = specialDays?.[dateString];
+                const isClosed = !!special?.is_closed;
 
                 const hasAbsence = checkForAbsence(
                   employeeId,
@@ -2024,13 +2113,19 @@ function ScheduleTableNormal({
                       "text-center p-0 w-[160px] h-[130px] border-r border-border last:border-r-0 transition-colors",
                       hasAbsence ? "relative" : "",
                       isAtMonthBoundary && "border-l-4 border-l-amber-500 bg-amber-50/20",
+                      isClosed && "bg-red-50/60 opacity-70"
                     )}
                     title={
-                      hasAbsence
-                        ? `${hasAbsence.type.name}`
-                        : undefined
+                      hasAbsence ? `${hasAbsence.type.name}` : (special ? special.description : undefined)
                     }
                   >
+                    {isClosed && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span className="text-[11px] text-red-700 font-medium px-2 py-1 rounded bg-red-100 border border-red-200">
+                          Geschlossen
+                        </span>
+                      </div>
+                    )}
                     {hasAbsence && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
                         <span className="text-xs text-orange-700 font-medium px-2 py-1 rounded">
@@ -2054,6 +2149,8 @@ function ScheduleTableNormal({
                       employeeId={employeeId}
                       date={date}
                       currentVersion={currentVersion}
+                      isClosedDay={isClosed}
+                      daySpecial={special}
                     />
                   </td>
                 );

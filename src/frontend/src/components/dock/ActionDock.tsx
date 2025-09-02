@@ -56,19 +56,20 @@ interface DragItem {
   date: string;
   shift_type_id?: string;
   isDockItem?: boolean;
+  // Optional times to support custom-hours validation on drop targets
+  start_time?: string | null;
+  end_time?: string | null;
 }
 
 interface DraggableEmployeeProps {
   employee: Employee;
   selectedDate?: Date;
-  currentVersion?: number;
 }
 
 type ShiftLike = ApiShift | AppShift;
 interface DraggableShiftProps {
   shift: ShiftLike;
   selectedDate?: Date;
-  currentVersion?: number;
 }
 
 const QUICK_PROMPT_TEMPLATES = [
@@ -100,8 +101,7 @@ const QUICK_PROMPT_TEMPLATES = [
 
 const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({
   employee,
-  selectedDate,
-  currentVersion
+  selectedDate
 }) => {
   const [{ isDragging }, drag] = useDrag({
     type: "SCHEDULE",
@@ -162,8 +162,7 @@ const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({
 
 const DraggableShift: React.FC<DraggableShiftProps> = ({
   shift,
-  selectedDate,
-  currentVersion
+  selectedDate
 }) => {
   const [{ isDragging }, drag] = useDrag({
     type: "SCHEDULE",
@@ -174,6 +173,8 @@ const DraggableShift: React.FC<DraggableShiftProps> = ({
       date: selectedDate ? format(selectedDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
       shift_type_id: shift.shift_type_id,
       isDockItem: true,
+      start_time: (shift as ApiShift).start_time ?? (shift as AppShift).start_time ?? null,
+      end_time: (shift as ApiShift).end_time ?? (shift as AppShift).end_time ?? null,
     }),
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
@@ -365,14 +366,14 @@ const calculateWorkingTimeForDock = (
 // === END CENTRALIZED TIME CALCULATION FUNCTIONS ===
 
 export const ActionDock: React.FC<ActionDockProps> = ({
-  currentVersion,
+  currentVersion: _currentVersion,
   selectedDate,
   dateRange,
   versionMeta,
   versionStatus,
   schedules = [],
   onClose,
-  onDrop,
+  // onDrop is currently unused; drag directly communicates via events
   onAIPrompt,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -443,7 +444,9 @@ export const ActionDock: React.FC<ActionDockProps> = ({
         const d = typeof s.date === 'string' ? new Date(s.date) : (s.date as unknown as Date);
         const dayName = d.toLocaleDateString('en', { weekday: 'long' });
         schedulesByDay[dayName] = (schedulesByDay[dayName] || 0) + 1;
-      } catch { }
+      } catch {
+        // ignore bad date parsing for debug log
+      }
     });
     console.log('DEBUG: Input schedules by day:', schedulesByDay);
 
@@ -584,7 +587,7 @@ export const ActionDock: React.FC<ActionDockProps> = ({
 
         <div className="flex items-center gap-2">
           {/* Enhanced Date Badge with Version, Date Range, and Status */}
-          {(selectedDate || dateRange || currentVersion || versionStatus || totalWeeklyHours > 0) && (
+          {(selectedDate || dateRange || _currentVersion || versionStatus || totalWeeklyHours > 0) && (
             <div className="flex items-center gap-1">
               {/* Weekly Hours Counter Badge */}
               {totalWeeklyHours > 0 && (
@@ -595,9 +598,9 @@ export const ActionDock: React.FC<ActionDockProps> = ({
               )}
 
               {/* Version Badge */}
-              {currentVersion && (
+        {_currentVersion && (
                 <Badge variant="secondary" className="text-xs font-mono">
-                  v{currentVersion}
+          v{_currentVersion}
                 </Badge>
               )}
 
@@ -694,7 +697,6 @@ export const ActionDock: React.FC<ActionDockProps> = ({
                               key={employee.id}
                               employee={employee}
                               selectedDate={selectedDate}
-                              currentVersion={currentVersion}
                             />
                           ))}
                         </div>
@@ -720,7 +722,6 @@ export const ActionDock: React.FC<ActionDockProps> = ({
                               key={shift.id}
                               shift={shift}
                               selectedDate={selectedDate}
-                              currentVersion={currentVersion}
                             />
                           ))}
                         </div>
