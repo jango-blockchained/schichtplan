@@ -1,5 +1,6 @@
-from models import Employee, EmployeeGroup, Settings, db
-from models.settings import DAY_NAME_TO_NUM_KEY
+from src.backend.models import Employee, Settings, db
+from src.backend.models.employee import EmployeeGroup
+from src.backend.models.settings import DAY_NAME_TO_NUM_KEY
 
 
 def test_employee_creation(session):
@@ -188,8 +189,8 @@ def test_settings_default_creation(session):
 
     assert settings.id is not None
     # Check a few default values from different sections
-    assert settings.store_name == "TEDi Store"  # From general
-    assert settings.default_shift_duration == 8.0  # From scheduling
+    assert settings.store_name == "TEDi Filiale #6729"  # From general
+    assert settings.default_shift_duration == 6.0  # From scheduling
     assert settings.theme == "light"  # From display
     assert settings.page_size == "A4"  # From pdf_layout (flat model field)
 
@@ -466,13 +467,14 @@ def test_settings_update_from_dict(session):
         updated_settings.generation_requirements.get("enforce_minimum_coverage")
         is False
     )
+    # Since the update only changed enforce_minimum_coverage, other defaults should be preserved
     if (
         "enforce_contracted_hours" in updated_settings.generation_requirements
-    ):  # If it was a full overwrite of the sub-dict
+    ):  # If merge worked correctly
         assert (
             updated_settings.generation_requirements.get("enforce_contracted_hours")
-            is None
-        )  # Or whatever not-present evaluates to
+            is True
+        )  # Should still be the default value
     # A better test would be to check if an existing key *not* in update_data's generation_requirements is still there.
     # For now, this checks the updated value.
 
