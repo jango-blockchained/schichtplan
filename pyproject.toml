@@ -62,3 +62,47 @@ Issues = "https://github.com/your-username/schichtplan/issues"
 line-length = 88
 target-version = ['py312']
 include = '\.pyi?$'
+
+[tool.ruff]
+# Keep style consistent with Black while using Ruff for lint+format.
+line-length = 88
+target-version = "py312"
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".ruff_cache",
+    "**/__pycache__",
+    "node_modules",
+    "src/frontend/node_modules",
+    "dist",
+    "build",
+    "src/backend/.venv",
+    "electron/resources",
+    "instance",
+]
+
+[tool.ruff.lint]
+# Common, fast, and broadly useful rule sets (pycodestyle/pyflakes/isort/bugbear/pyupgrade/etc.).
+select = [
+    "E",  # pycodestyle errors
+    "F",  # pyflakes
+    "W",  # pycodestyle warnings
+    "I",  # isort (imports)
+    "B",  # bugbear
+    "UP", # pyupgrade
+    "SIM",# flake8-simplify
+    "PL", # pylint-inspired
+]
+# Defer long-line handling to the formatter (88 chars above).
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src", "src.backend"]
+combine-as-imports = true
+
+[tool.ruff.format]
+# Match Black-like formatting where possible.
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+skip-magic-trailing-comma = false
