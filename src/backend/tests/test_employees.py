@@ -59,7 +59,7 @@ class TestEmployeeAPI:
 
         try:
             # Make request to endpoint
-            response = client.get("/api/employees")
+            response = client.get("/api/v2/employees")
 
             # Print response details for debugging
             print(f"Response Status: {response.status_code}")
@@ -97,7 +97,7 @@ class TestEmployeeAPI:
 
             # Make request
             response = client.post(
-                "/api/employees",
+                "/api/v2/employees",
                 data=json.dumps(employee_data),
                 content_type="application/json",
             )
@@ -132,7 +132,7 @@ class TestEmployeeAPI:
 
             # Make request
             response = client.post(
-                "/api/employees",
+                "/api/v2/employees",
                 data=json.dumps(invalid_employee_data),
                 content_type="application/json",
             )
@@ -184,7 +184,7 @@ class TestEmployeeAPI:
 
             # Make request
             response = client.put(
-                f"/api/employees/{employee_id}",
+                f"/api/v2/employees/{employee_id}",
                 data=json.dumps(invalid_update_data),
                 content_type="application/json",
             )
@@ -247,7 +247,7 @@ class TestAbsenceAPI:
 
             # Make request
             response = client.post(
-                "/api/absences",
+                "/api/v2/absences",
                 data=json.dumps(absence_data),
                 content_type="application/json",
             )
@@ -303,7 +303,7 @@ class TestAbsenceAPI:
 
             # Make request
             response = client.post(
-                "/api/absences",
+                "/api/v2/absences",
                 data=json.dumps(invalid_absence_data),
                 content_type="application/json",
             )
@@ -368,7 +368,7 @@ class TestAbsenceAPI:
 
             # Make request
             response = client.put(
-                f"/api/absences/{absence_id}",
+                f"/api/v2/absences/{absence_id}",
                 data=json.dumps(update_data),
                 content_type="application/json",
             )
@@ -429,7 +429,7 @@ class TestAbsenceAPI:
 
             # Make request
             response = client.put(
-                f"/api/absences/{absence_id}",
+                f"/api/v2/absences/{absence_id}",
                 data=json.dumps(invalid_update_data),
                 content_type="application/json",
             )
