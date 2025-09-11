@@ -27,6 +27,7 @@ except ImportError:
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_migrate import Migrate
+from werkzeug.exceptions import HTTPException
 
 from src.backend.api.coverage import bp as coverage_bp
 from src.backend.api.csv_import import csv_import_bp
@@ -215,24 +216,22 @@ def create_app(config_class=Config):
     )  # Register with unique name to avoid conflict
     app.register_blueprint(week_navigation_bp)  # Register week navigation
 
-    # Compatibility middleware: rewrite legacy /api/availability/* paths
-    # to the current /api/v2/availability/* endpoints so older tests
-    # and callers continue to work without changing route definitions.
-    class _LegacyAvailabilityPathRewriter:
+    # Compatibility middleware: rewrite legacy /api/* paths (without /v2)
+    # to the current /api/v2/* endpoints so older tests keep working.
+    class _LegacyApiPathRewriter:
         def __init__(self, wsgi_app):
             self.wsgi_app = wsgi_app
 
         def __call__(self, environ, start_response):
             path = environ.get("PATH_INFO", "")
-            if path.startswith("/api/availability"):
-                # Replace only the first occurrence to preserve remaining path
-                environ["PATH_INFO"] = path.replace(
-                    "/api/availability", "/api/v2/availability", 1
-                )
+            # If path starts with /api/ but not already /api/v2/
+            if path.startswith("/api/") and not path.startswith("/api/v2/"):
+                # Replace '/api/' prefix with '/api/v2/' once
+                environ["PATH_INFO"] = path.replace("/api/", "/api/v2/", 1)
             return self.wsgi_app(environ, start_response)
 
     # Wrap the Flask WSGI app with the rewriter so it runs for every request
-    app.wsgi_app = _LegacyAvailabilityPathRewriter(app.wsgi_app)
+    app.wsgi_app = _LegacyApiPathRewriter(app.wsgi_app)
 
     # Register MCP routes (skip during tests to reduce overhead)
     if not app.config.get("TESTING", False):
@@ -286,6 +285,10 @@ def create_app(config_class=Config):
 
     @app.errorhandler(Exception)
     def handle_error(error):
+        # Respect HTTPExceptions (like 404/400) and let Flask render them
+        if isinstance(error, HTTPException):
+            return error
+
         app.config["logger"].error_logger.error(
             f"Unhandled exception: {str(error)}\n{traceback.format_exc()}"
         )

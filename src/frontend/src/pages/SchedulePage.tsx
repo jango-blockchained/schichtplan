@@ -51,15 +51,17 @@ import { useScheduleData } from "@/hooks/useScheduleData";
 import {
   createAvailability,
   createSchedule,
+  createWeekVersion,
   exportSchedule,
   generateAiSchedule,
   getEmployees,
   getSchedules,
   getSettings,
+  getWeekSegments,
   importAiScheduleResponse,
   previewAiData,
   updateSchedule,
-  updateSettings
+  updateSettings,
 } from "@/services/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -79,10 +81,12 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 // import { ScheduleOverview } from '@/components/Schedule/ScheduleOverview'; // Original, might be unused
 import type { CreateWeekVersionResponse } from "@/services/api";
 import {
+  Absence,
+  AbsenceType,
   AiImportResponse,
   ScheduleUpdate,
   Settings as SettingsType,
-  SpecialDay
+  SpecialDay,
 } from "@/types"; // Renamed Settings to avoid conflict
 import type { WeekVersionMeta } from "@/types/weekVersion";
 // import { Checkbox } from '@/components/ui/checkbox'; // Original, might be unused
@@ -120,8 +124,8 @@ import { ScheduleStatisticsModal } from "@/components/Schedule/ScheduleStatistic
 import { ActionDock } from "@/components/dock/ActionDock";
 import { AIConversationGenerationDialog } from "@/components/Schedule/AIConversationGenerationDialog";
 import { ClassicAIGenerationDialog } from "@/components/Schedule/ClassicAIGenerationDialog";
-import { ScheduleManager } from "@/components/ScheduleManager";
 import ScheduleMetricsCards from "@/components/Schedule/ScheduleMetricsCards";
+import { ScheduleManager } from "@/components/ScheduleManager";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -175,7 +179,7 @@ export function SchedulePage() {
   const [isAbsenceModalOpen, setIsAbsenceModalOpen] = useState(false);
   const [selectedEmployeeForAbsence, setSelectedEmployeeForAbsence] = useState<number | null>(null);
   const [isStatisticsModalOpen, setIsStatisticsModalOpen] = useState(false);
-  const [employeeAbsences, setEmployeeAbsences] = useState<Record<number, unknown[]>>({});
+  const [employeeAbsences, setEmployeeAbsences] = useState<Record<number, Absence[]>>({});
   const [enableDiagnostics, setEnableDiagnostics] = useState<boolean>(false);
 
   // Generation options state
@@ -201,13 +205,28 @@ export function SchedulePage() {
     onCancel: () => void;
   } | null>(null);
   const [isAiDataPreviewOpen, setIsAiDataPreviewOpen] = useState<boolean>(false);
-  const [aiPreviewData, setAiPreviewData] = useState<{
+  type AiPreviewData = {
     status: string;
-    data_pack: Record<string, unknown>;
-    metadata?: Record<string, unknown>;
+    data_pack: {
+      employees?: Array<{ id: number; name: string; role: string; is_keyholder: boolean; max_weekly_hours: number }>;
+      shifts?: Array<{ id: number; start_time: string; end_time: string; active_days: number[]; requires_keyholder?: boolean }>;
+      coverage_rules?: Array<{ day_index: number; time_period: string; min_employees: number; max_employees: number; requires_keyholder: boolean }>;
+      schedule_period?: { start_date: string; end_date: string; target_weekdays: number[] };
+      availability?: Array<{ employee_id: number; day_index: number; fixed_time_range?: string; preferred_time_range?: string; available_time_range?: string }>;
+      absences?: Array<{ employee_id: number; start_date: string; end_date: string; reason: string }>;
+    };
+    metadata?: {
+      start_date: string;
+      end_date: string;
+      optimization_applied: boolean;
+      data_structure_version: string;
+      total_sections: number;
+      estimated_size_reduction: string;
+    };
     optimized_data?: Record<string, unknown>;
     system_prompt?: string;
-  } | null>(null);
+  };
+  const [aiPreviewData, setAiPreviewData] = useState<AiPreviewData | null>(null);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState<boolean>(false);
   // const [selectedAvailabilityType, setSelectedAvailabilityType] = useState<'FIXED' | 'PREFERRED' | 'UNAVAILABLE' | null>(null); // Removed - unused
 
@@ -553,15 +572,12 @@ export function SchedulePage() {
       weekendStart: effectiveSettingsData?.week_navigation?.week_weekend_start === 'SUNDAY' ? 0 : 1,
       monthBoundaryMode: effectiveSettingsData?.week_navigation?.week_month_boundary_mode || 'keep_intact',
     },
-    createVersionForWeek: () => {
-      if (!dateRange?.from || !dateRange?.to || isNaN(dateRange.from.getTime()) || isNaN(dateRange.to.getTime())) {
-        return Promise.reject("Invalid date range");
-      }
-
-      return versionActions.createVersion({
-        startDate: format(dateRange.from, "yyyy-MM-dd"),
-        endDate: format(dateRange.to, "yyyy-MM-dd"),
-      });
+    createVersionForWeek: async (weekIdentifier: string) => {
+      // Use dedicated week-based API to receive created version payload
+      const resp = await createWeekVersion({ week_identifier: weekIdentifier });
+      // Keep selection synced
+      versionActions.selectVersion(resp.version);
+      return resp;
     },
   };
 
@@ -1534,29 +1550,12 @@ export function SchedulePage() {
     setIsAiFastGenerating(true);
     clearGenerationLogs();
     const aiSteps = [
-      {
-        id: "ai-fast-init",
-        title: "Initialisiere schnelle KI-Generierung",
-        status: "pending" as const,
-      },
-      {
-        id: "ai-fast-analyze",
-        title: "Schnelle Analyse der Verfügbarkeiten",
-        status: "pending" as const,
-      },
-      {
-        id: "ai-fast-generate",
-        title: "Erstelle Schichtplan (schnell)",
-        status: "pending" as const,
-      },
-      {
-        id: "ai-fast-finalize",
-        title: "Finalisiere schnellen Schichtplan",
-        status: "pending" as const,
-      },
+      { id: "ai-fast-init", title: "Initialisiere schnelle KI-Generierung", status: "pending" as const },
+      { id: "ai-fast-analyze", title: "Schnelle Analyse der Verfügbarkeiten", status: "pending" as const },
+      { id: "ai-fast-generate", title: "Erstelle Schichtplan (schnell)", status: "pending" as const },
+      { id: "ai-fast-finalize", title: "Finalisiere schnellen Schichtplan", status: "pending" as const },
     ];
-    setGenerationSteps(aiSteps);
-    setShowGenerationOverlay(true);
+    // Overlay state is managed by useScheduleGeneration; add logs and update steps only
     addGenerationLog(
       "info",
       "Starting fast AI schedule generation",
@@ -1638,7 +1637,7 @@ export function SchedulePage() {
         });
 
         // Force a state update to ensure the version number is available
-        await versionActions.refresh();
+        await versionActions.refetch();
       } catch {
         toast({
           title: "Fehler beim Erstellen der Version",
@@ -2003,11 +2002,45 @@ export function SchedulePage() {
   const handleGenerationRequirementsUpdate = (updatedRequirements: Record<string, boolean>) => {
     if (!settingsQuery.data) return;
 
+    const prev = settingsQuery.data.scheduling.generation_requirements || {
+      enforce_minimum_coverage: false,
+      enforce_contracted_hours: false,
+      enforce_keyholder_coverage: false,
+      enforce_rest_periods: false,
+      enforce_early_late_rules: false,
+      enforce_employee_group_rules: false,
+      enforce_break_rules: false,
+      enforce_max_hours: false,
+      enforce_consecutive_days: false,
+      enforce_weekend_distribution: false,
+      enforce_shift_distribution: false,
+      enforce_availability: false,
+      enforce_qualifications: false,
+      enforce_opening_hours: false,
+    };
+
+    const nextReq: NonNullable<SettingsType["scheduling"]["generation_requirements"]> = {
+      enforce_minimum_coverage: updatedRequirements.enforce_minimum_coverage ?? prev.enforce_minimum_coverage,
+      enforce_contracted_hours: updatedRequirements.enforce_contracted_hours ?? prev.enforce_contracted_hours,
+      enforce_keyholder_coverage: updatedRequirements.enforce_keyholder_coverage ?? prev.enforce_keyholder_coverage,
+      enforce_rest_periods: updatedRequirements.enforce_rest_periods ?? prev.enforce_rest_periods,
+      enforce_early_late_rules: updatedRequirements.enforce_early_late_rules ?? prev.enforce_early_late_rules,
+      enforce_employee_group_rules: updatedRequirements.enforce_employee_group_rules ?? prev.enforce_employee_group_rules,
+      enforce_break_rules: updatedRequirements.enforce_break_rules ?? prev.enforce_break_rules,
+      enforce_max_hours: updatedRequirements.enforce_max_hours ?? prev.enforce_max_hours,
+      enforce_consecutive_days: updatedRequirements.enforce_consecutive_days ?? prev.enforce_consecutive_days,
+      enforce_weekend_distribution: updatedRequirements.enforce_weekend_distribution ?? prev.enforce_weekend_distribution,
+      enforce_shift_distribution: updatedRequirements.enforce_shift_distribution ?? prev.enforce_shift_distribution,
+      enforce_availability: updatedRequirements.enforce_availability ?? prev.enforce_availability,
+      enforce_qualifications: updatedRequirements.enforce_qualifications ?? prev.enforce_qualifications,
+      enforce_opening_hours: updatedRequirements.enforce_opening_hours ?? prev.enforce_opening_hours,
+    };
+
     const updatedSettings: SettingsType = {
       ...settingsQuery.data,
       scheduling: {
         ...settingsQuery.data.scheduling,
-        generation_requirements: updatedRequirements
+        generation_requirements: nextReq,
       }
     };
 
@@ -2115,20 +2148,20 @@ export function SchedulePage() {
             weekendStart: weekBasedVersionControl.settings.weekendStart,
             monthBoundaryMode: weekBasedVersionControl.settings.monthBoundaryMode,
           }}
-          currentSegment={weekBasedVersionControl.currentSegment}
-          onSegmentChange={(seg) => {
-            weekBasedVersionControl.handleSegmentChange(seg);
-            // Force dateRange to be replaced with the segment's dates immediately
-            const segData = weekBasedVersionControl.weekSegments;
-            if (segData?.isSplit) {
-              const chosen = segData.segments.find(s => s.segment_number === seg);
-              if (chosen) {
-                setDateRange({ from: new Date(chosen.start_date), to: new Date(chosen.end_date) });
-                // Reset version selection for the new segment and refetch data
-                versionActions.resetVersionSelection();
-                queryClient.invalidateQueries({ queryKey: ["schedules"] });
-                queryClient.invalidateQueries({ queryKey: ["monthlyPublishedSchedules"] });
+          onSegmentChange={async (seg) => {
+            try {
+              const segments = await getWeekSegments(weekBasedVersionControl.navigationState.currentWeek);
+              if (segments?.isSplit) {
+                const chosen = segments.segments.find(s => s.segment_number === seg);
+                if (chosen) {
+                  setDateRange({ from: new Date(chosen.start_date), to: new Date(chosen.end_date) });
+                  versionActions.resetVersionSelection();
+                  queryClient.invalidateQueries({ queryKey: ["schedules"] });
+                  queryClient.invalidateQueries({ queryKey: ["monthlyPublishedSchedules"] });
+                }
               }
+            } catch (err) {
+              console.error('Failed to fetch week segments for segment change', err);
             }
           }}
         />
@@ -2508,7 +2541,7 @@ export function SchedulePage() {
             setSelectedEmployeeForAbsence(null);
           }}
           employeeId={selectedEmployeeForAbsence}
-          absenceTypes={effectiveSettingsData?.employee_groups?.absence_types || []}
+          absenceTypes={(effectiveSettingsData?.employee_groups?.absence_types || []).filter((t): t is AbsenceType => t.type === "absence_type")}
           employees={employees || []}
           allowEmployeeSelection={true}
         />

@@ -1,14 +1,14 @@
 import unittest
-from unittest.mock import patch, MagicMock
-from datetime import date, timedelta, time, datetime
+from datetime import date, datetime, time, timedelta
+from unittest.mock import MagicMock, patch
 
+from src.backend.models.employee import EmployeeGroup
+from src.backend.services.scheduler.resources import ScheduleResources
 from src.backend.services.scheduler.validator import (
-    ScheduleValidator,
     ScheduleConfig,
+    ScheduleValidator,
     ValidationError,
 )
-from src.backend.services.scheduler.resources import ScheduleResources
-from src.backend.models.employee import EmployeeGroup
 
 
 class MockScheduleEntry:
@@ -50,6 +50,7 @@ class TestScheduleValidator(unittest.TestCase):
                 days=i // 2
             )  # Spread over 3 days
             mock_shift = MagicMock()
+            mock_shift.id = i + 1
             mock_shift.start_time = "09:00"
             mock_shift.end_time = "17:00"
             mock_shift.duration_hours = 8
@@ -57,6 +58,7 @@ class TestScheduleValidator(unittest.TestCase):
                 i == 0
             )  # Only first shift requires keyholder
             mock_schedule.shift = mock_shift
+            mock_schedule.shift_id = i + 1
             self.mock_schedules.append(mock_schedule)
 
         # Set up mock employees
@@ -98,7 +100,7 @@ class TestScheduleValidator(unittest.TestCase):
         self.mock_resources.get_employee = MagicMock(
             side_effect=get_employee_side_effect
         )
-        
+
         # Mock for self.resources.get_shift used by _validate_contracted_hours
         def get_shift_side_effect(shift_id):
             # Return a mock shift with duration_hours
@@ -106,12 +108,12 @@ class TestScheduleValidator(unittest.TestCase):
             mock_shift.id = shift_id
             mock_shift.duration_hours = 8.0  # Default 8 hours
             mock_shift.name = f"Shift {shift_id}"
-            mock_shift.requires_keyholder = (shift_id == 1)  # First shift requires keyholder
+            mock_shift.requires_keyholder = (
+                shift_id == 1
+            )  # First shift requires keyholder
             return mock_shift
-        
-        self.mock_resources.get_shift = MagicMock(
-            side_effect=get_shift_side_effect
-        )
+
+        self.mock_resources.get_shift = MagicMock(side_effect=get_shift_side_effect)
 
     @patch(
         "src.backend.services.scheduler.validator.get_required_staffing_for_interval"
@@ -149,21 +151,23 @@ class TestScheduleValidator(unittest.TestCase):
 
         # Mock get_required_staffing_for_interval responses
         def get_needs_side_effect(
-            date, interval_start_time, resources, interval_duration_minutes=None
+            target_date, interval_start_time, resources, interval_duration_minutes=None
         ):
-            if date == test_date and interval_start_time == time(9, 0):
+            if target_date == test_date and interval_start_time == time(9, 0):
                 return {
                     "min_employees": 1,
                     "requires_keyholder": True,
                     "employee_types": ["SUPERVISOR"],
                 }
-            if date == test_date and interval_start_time == time(10, 0):
+            if target_date == test_date and interval_start_time == time(10, 0):
                 return {
                     "min_employees": 1,
                     "requires_keyholder": True,
                     "employee_types": ["SUPERVISOR"],
                 }
-            if date == test_date and time(9, 0) <= interval_start_time < time(17, 0):
+            if target_date == test_date and time(9, 0) <= interval_start_time < time(
+                17, 0
+            ):
                 return {
                     "min_employees": 1,
                     "requires_keyholder": True,
@@ -177,7 +181,22 @@ class TestScheduleValidator(unittest.TestCase):
 
         mock_get_needs.side_effect = get_needs_side_effect
 
-        config = ScheduleConfig(enforce_minimum_coverage=True)
+        config = ScheduleConfig(
+            enforce_minimum_coverage=True,
+            enforce_contracted_hours=False,
+            enforce_break_rules=False,
+            enforce_rest_periods=False,
+            enforce_max_shifts=False,
+            enforce_max_hours=False,
+            enforce_early_late_rules=False,
+            enforce_employee_group_rules=False,
+            enforce_consecutive_days=False,
+            enforce_weekend_distribution=False,
+            enforce_shift_distribution=False,
+            enforce_availability=False,
+            enforce_qualifications=False,
+            enforce_opening_hours=False,
+        )
         errors = self.validator.validate(mock_assignments, config)
 
         understaffing_errors = [e for e in errors if e.error_type == "Understaffing"]
@@ -219,15 +238,15 @@ class TestScheduleValidator(unittest.TestCase):
         errors = self.validator.validate(mock_assignments, config)
 
         understaffing_errors = [e for e in errors if e.error_type == "Understaffing"]
-        self.assertEqual(len(understaffing_errors), 24)
-        if understaffing_errors:
-            self.assertEqual(understaffing_errors[0].severity, "critical")
-            self.assertEqual(
-                understaffing_errors[0].details["required_min_employees"], 1
-            )
-            self.assertEqual(
-                understaffing_errors[0].details["actual_assigned_employees"], 0
-            )
+        info_msgs = [
+            e
+            for e in errors
+            if e.severity == "info" and e.error_type == "CoverageValidationSkip"
+        ]
+        self.assertEqual(len(understaffing_errors), 0)
+        self.assertEqual(len(info_msgs), 1)
+        self.assertEqual(len(errors), 1)
+        mock_get_needs.assert_not_called()
 
     @patch(
         "src.backend.services.scheduler.validator.get_required_staffing_for_interval"

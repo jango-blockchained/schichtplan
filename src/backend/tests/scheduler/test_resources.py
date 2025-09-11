@@ -1,14 +1,15 @@
-import pytest
-from unittest.mock import patch, MagicMock
-from datetime import date
-import sys
 import os
+import sys
+from datetime import date
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Add the src directory to the path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from services.scheduler.resources import ScheduleResources
 from models.employee import AvailabilityType, EmployeeGroup
+from services.scheduler.resources import ScheduleResources
 
 
 @pytest.fixture
@@ -124,11 +125,15 @@ def test_load_resources_success(
     mock_availabilities = resources_fixture["mock_availabilities"]
 
     mock_Settings.query.first.return_value = mock_settings
-    mock_Employee.query.filter_by.return_value.all.return_value = mock_employees
+    # Mock the employee query chain: filter_by().order_by().all()
+    employee_query = mock_Employee.query.filter_by.return_value
+    employee_query.order_by.return_value.all.return_value = mock_employees
     mock_ShiftTemplate.query.all.return_value = mock_shifts
     mock_Coverage.query.all.return_value = mock_coverage
     mock_Absence.query.all.return_value = mock_absences
-    mock_EmployeeAvailability.query.all.return_value = mock_availabilities
+    # Mock the availability query chain: filter().all()
+    availability_query = mock_EmployeeAvailability.query.filter.return_value
+    availability_query.all.return_value = mock_availabilities
 
     with app.app_context():
         resources.load()

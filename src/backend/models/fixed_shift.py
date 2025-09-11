@@ -65,6 +65,7 @@ class ShiftTemplate(db.Model):
         self,
         start_time,
         end_time,
+        duration_hours=None,
         requires_break=True,
         active_days=None,
         shift_type=None,
@@ -139,7 +140,14 @@ class ShiftTemplate(db.Model):
                     self.shift_type_id = "UNAVAILABLE"
 
         # Calculate duration and validate
-        self._calculate_duration()
+        if duration_hours is not None:
+            # If provided by caller/tests, respect it
+            try:
+                self.duration_hours = float(duration_hours)
+            except (TypeError, ValueError):
+                self._calculate_duration()
+        else:
+            self._calculate_duration()
         self.validate()
 
     def validate(self):
