@@ -1,0 +1,153 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug MCP Server (STDIO)",
+      "type": "python",
+      "request": "launch",
+      "program": "src/backend/mcp_server.py",
+      "args": ["--transport", "stdio", "--log-level", "DEBUG"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "FLASK_ENV": "development",
+        "FLASK_APP": "src.backend.app:create_app"
+      },
+      "python": "${workspaceFolder}/src/backend/.venv/bin/python"
+    },
+    {
+      "name": "Debug Conversational MCP (STDIO)",
+      "type": "python",
+      "request": "launch",
+      "program": "start_conversational_ai.py",
+      "args": ["--transport", "stdio", "--environment", "development"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "FLASK_ENV": "development"
+      },
+      "python": "${workspaceFolder}/src/backend/.venv/bin/python"
+    },
+    {
+      "name": "Debug Conversational MCP (SSE)",
+      "type": "python",
+      "request": "launch",
+      "program": "start_conversational_ai.py",
+      "args": [
+        "--transport",
+        "sse",
+        "--port",
+        "8001",
+        "--environment",
+        "development"
+      ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "FLASK_ENV": "development"
+      },
+      "python": "${workspaceFolder}/src/backend/.venv/bin/python"
+    },
+    {
+      "name": "Debug Conversational MCP (HTTP)",
+      "type": "python",
+      "request": "launch",
+      "program": "start_conversational_ai.py",
+      "args": [
+        "--transport",
+        "http",
+        "--port",
+        "8002",
+        "--environment",
+        "development"
+      ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "FLASK_ENV": "development"
+      },
+      "python": "${workspaceFolder}/src/backend/.venv/bin/python"
+    },
+    {
+      "name": "Debug MCP Server (SSE)",
+      "type": "python",
+      "request": "launch",
+      "program": "src/backend/mcp_server.py",
+      "args": ["--transport", "sse", "--port", "8001", "--log-level", "DEBUG"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "FLASK_ENV": "development",
+        "FLASK_APP": "src.backend.app:create_app"
+      },
+      "python": "${workspaceFolder}/src/backend/.venv/bin/python"
+    },
+    {
+      "name": "Debug MCP Server (HTTP)",
+      "type": "python",
+      "request": "launch",
+      "program": "src/backend/mcp_server.py",
+      "args": ["--transport", "http", "--port", "8002", "--log-level", "DEBUG"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "FLASK_ENV": "development",
+        "FLASK_APP": "src.backend.app:create_app"
+      },
+      "python": "${workspaceFolder}/src/backend/.venv/bin/python"
+    },
+    {
+      "name": "Debug Flask App",
+      "type": "python",
+      "request": "launch",
+      "program": "src/backend/run.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "FLASK_ENV": "development",
+        "FLASK_APP": "src.backend.app:create_app",
+        "FLASK_DEBUG": "1"
+      },
+      "python": "${workspaceFolder}/src/backend/.venv/bin/python"
+    },
+    {
+      "name": "Test MCP Tools",
+      "type": "python",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["-v", "tests/test_mcp_tools.py"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "FLASK_ENV": "testing",
+        "FLASK_APP": "src.backend.app:create_app"
+      },
+      "python": "${workspaceFolder}/src/backend/.venv/bin/python"
+    },
+    {
+      "name": "Launch Frontend in Firefox",
+      "type": "firefox",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/src/frontend/src",
+      "preLaunchTask": "Start Frontend Dev Server",
+      "skipFiles": ["**/node_modules/**"]
+    },
+    {
+      "name": "Launch Frontend in Firefox (Server Running)",
+      "type": "firefox",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/src/frontend/src",
+      "skipFiles": ["**/node_modules/**"]
+    }
+  ]
+}

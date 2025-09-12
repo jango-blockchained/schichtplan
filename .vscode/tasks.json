@@ -1,0 +1,347 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start MCP Server (STDIO)",
+			"type": "shell",
+			"command": "./src/backend/.venv/bin/python",
+			"args": [
+				"src/backend/mcp_server.py",
+				"--transport",
+				"stdio"
+			],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"PYTHONPATH": "${workspaceFolder}",
+					"FLASK_ENV": "development",
+					"FLASK_APP": "src.backend.app:create_app"
+				}
+			},
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Start Conversational MCP (STDIO)",
+			"type": "shell",
+			"command": "./src/backend/.venv/bin/python",
+			"args": [
+				"start_conversational_ai.py",
+				"--transport",
+				"stdio"
+			],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"PYTHONPATH": "${workspaceFolder}",
+					"FLASK_ENV": "development"
+				}
+			},
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Start Conversational MCP (SSE)",
+			"type": "shell",
+			"command": "./src/backend/.venv/bin/python",
+			"args": [
+				"start_conversational_ai.py",
+				"--transport",
+				"sse",
+				"--port",
+				"8001"
+			],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"PYTHONPATH": "${workspaceFolder}",
+					"FLASK_ENV": "development"
+				}
+			},
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Start Conversational MCP (HTTP)",
+			"type": "shell",
+			"command": "./src/backend/.venv/bin/python",
+			"args": [
+				"start_conversational_ai.py",
+				"--transport",
+				"http",
+				"--port",
+				"8002"
+			],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"PYTHONPATH": "${workspaceFolder}",
+					"FLASK_ENV": "development"
+				}
+			},
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Start MCP Server (SSE)",
+			"type": "shell",
+			"command": "./src/backend/.venv/bin/python",
+			"args": [
+				"src/backend/mcp_server.py",
+				"--transport",
+				"sse",
+				"--port",
+				"8001"
+			],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"PYTHONPATH": "${workspaceFolder}",
+					"FLASK_ENV": "development",
+					"FLASK_APP": "src.backend.app:create_app"
+				}
+			},
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Start MCP Server (HTTP)",
+			"type": "shell",
+			"command": "./src/backend/.venv/bin/python",
+			"args": [
+				"src/backend/mcp_server.py",
+				"--transport",
+				"http",
+				"--port",
+				"8002"
+			],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"PYTHONPATH": "${workspaceFolder}",
+					"FLASK_ENV": "development",
+					"FLASK_APP": "src.backend.app:create_app"
+				}
+			},
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Test MCP Health",
+			"type": "shell",
+			"command": "./src/backend/.venv/bin/python",
+			"args": [
+				"-c",
+				"import asyncio; from src.backend.mcp_server import main; asyncio.run(main())"
+			],
+			"group": "test",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": true,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"PYTHONPATH": "${workspaceFolder}",
+					"FLASK_ENV": "development",
+					"FLASK_APP": "src.backend.app:create_app"
+				}
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Run Flask Backend",
+			"type": "shell",
+			"command": "./src/backend/.venv/bin/python",
+			"args": [
+				"-m",
+				"src.backend.run",
+				"runserver"
+			],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"PYTHONPATH": "${workspaceFolder}",
+					"FLASK_ENV": "development",
+					"FLASK_APP": "src.backend.app:create_app",
+					"FLASK_DEBUG": "1"
+				}
+			},
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run Tests",
+			"type": "shell",
+			"command": "./src/backend/.venv/bin/python",
+			"args": [
+				"-m",
+				"pytest",
+				"-v"
+			],
+			"group": "test",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": true,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"PYTHONPATH": "${workspaceFolder}",
+					"FLASK_ENV": "testing",
+					"FLASK_APP": "src.backend.app:create_app"
+				}
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Install Dependencies",
+			"type": "shell",
+			"command": "./src/backend/.venv/bin/pip",
+			"args": [
+				"install",
+				"-r",
+				"src/backend/requirements.txt"
+			],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": true,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Generate Demo Data",
+			"type": "shell",
+			"command": "./src/backend/.venv/bin/python",
+			"args": [
+				"src/backend/tools/data_generators/update_demo_data.py"
+			],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": true,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"PYTHONPATH": "${workspaceFolder}",
+					"FLASK_ENV": "development",
+					"FLASK_APP": "src.backend.app:create_app"
+				}
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Start Frontend Dev Server",
+			"type": "shell",
+			"command": "bun dev",
+			"options": {
+				"cwd": "${workspaceFolder}/src/frontend"
+			},
+			"isBackground": true,
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Ruff: Lint",
+			"type": "shell",
+			"command": "./src/backend/.venv/bin/python",
+			"args": ["-m", "ruff", "check", "."],
+			"group": "test",
+			"presentation": { "echo": true, "reveal": "always", "focus": true, "panel": "shared" },
+			"options": { "cwd": "${workspaceFolder}" },
+			"problemMatcher": []
+		},
+		{
+			"label": "Ruff: Format",
+			"type": "shell",
+			"command": "./src/backend/.venv/bin/python",
+			"args": ["-m", "ruff", "format", "."],
+			"group": "build",
+			"presentation": { "echo": true, "reveal": "always", "focus": true, "panel": "shared" },
+			"options": { "cwd": "${workspaceFolder}" },
+			"problemMatcher": []
+		},
+		{
+			"label": "Run Flask Backend (8002)",
+			"type": "shell",
+			"command": "./src/backend/.venv/bin/python",
+			"args": [
+				"-m",
+				"src.backend.run",
+				"runserver",
+				"--port",
+				"8002"
+			],
+			"isBackground": true,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}

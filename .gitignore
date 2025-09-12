@@ -73,7 +73,11 @@ src/backend/instance/*.db-shm
 .env
 
 # IDE and Editor files
-.vscode/
+# Track selected VS Code workspace config files; ignore everything else in .vscode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
 .idea/
 *.swp
 *.swo

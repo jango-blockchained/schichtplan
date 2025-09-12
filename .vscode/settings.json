@@ -1,0 +1,224 @@
+{
+  "python.analysis.typeCheckingMode": "basic",
+  "python.defaultInterpreterPath": "/home/jango/Git/maike2/schichtplan/src/backend/.venv/bin/python",
+  "python.pythonPath": "/home/jango/Git/maike2/schichtplan/src/backend/.venv/bin/python",
+  "python.analysis.extraPaths": [".", "src"],
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.autoSearchPaths": true,
+  "python.analysis.diagnosticMode": "workspace",
+  "python.linting.enabled": true,
+  "python.linting.pylintEnabled": false,
+  "python.linting.flake8Enabled": false,
+  "python.linting.mypyEnabled": true,
+  "python.formatting.provider": "none",
+  "editor.defaultFormatter": "charliermarsh.ruff",
+  "ruff.enable": true,
+  "ruff.lint.enable": true,
+  "ruff.format.enable": true,
+  "ruff.organizeImports": true,
+  "python.testing.pytestArgs": ["src"],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "cursorpyright.analysis.typeCheckingMode": "basic",
+  "sqltools.connections": [
+    {
+      "previewLimit": 50,
+      "driver": "SQLite",
+      "database": "src/instance/app.db",
+      "name": "app"
+    }
+  ],
+  "chat.mcp.discovery.enabled": true,
+  "sqltools.useNodeRuntime": true,
+  "mcp.Servers": {
+    "schichtplan": {
+      "command": "/home/jango/Git/maike2/schichtplan/src/backend/.venv/bin/python",
+      "args": ["src/backend/mcp_server.py", "--transport", "stdio"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": ".",
+        "FLASK_ENV": "development",
+        "FLASK_APP": "src.backend.app:create_app"
+      },
+      "description": "Schichtplan MCP Server for shift scheduling and workforce management",
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "prompts": true,
+        "logging": true
+      },
+      "settings": {
+        "autoStart": true,
+        "restartOnFailure": true,
+        "maxRestarts": 3,
+        "logLevel": "INFO",
+        "timeout": 30000
+      }
+    },
+    "schichtplan-dev": {
+      "command": "/home/jango/Git/maike2/schichtplan/src/backend/.venv/bin/python",
+      "args": [
+        "src/backend/mcp_server.py",
+        "--transport",
+        "stdio",
+        "--log-level",
+        "DEBUG"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": ".",
+        "FLASK_ENV": "development",
+        "FLASK_APP": "src.backend.app:create_app"
+      },
+      "description": "Schichtplan MCP Server (Development Mode with Debug Logging)",
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "prompts": true,
+        "logging": true
+      },
+      "settings": {
+        "autoStart": false,
+        "restartOnFailure": true,
+        "maxRestarts": 5,
+        "logLevel": "DEBUG",
+        "timeout": 30000
+      }
+    },
+    "schichtplan-conversational": {
+      "command": "/home/jango/Git/maike2/schichtplan/src/backend/.venv/bin/python",
+      "args": ["start_conversational_ai.py", "--transport", "stdio"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": ".",
+        "FLASK_ENV": "development"
+      },
+      "description": "Conversational MCP Server (AI Orchestrator)",
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "prompts": true,
+        "logging": true
+      },
+      "settings": {
+        "autoStart": false,
+        "restartOnFailure": true,
+        "maxRestarts": 3,
+        "logLevel": "INFO",
+        "timeout": 30000
+      }
+    }
+  },
+  "mcp.endpoints": {
+    "schichtplan-sse": {
+      "url": "http://localhost:8001/sse",
+      "transport": "sse",
+      "description": "Server-Sent Events endpoint for web-based AI tools"
+    },
+    "schichtplan-http": {
+      "url": "http://localhost:8002/mcp",
+      "transport": "http",
+      "description": "HTTP endpoint for HTTP-based AI integrations"
+    },
+    "schichtplan-conversational-sse": {
+      "url": "http://localhost:8001/sse",
+      "transport": "sse",
+      "description": "Conversational MCP SSE endpoint"
+    },
+    "schichtplan-conversational-http": {
+      "url": "http://localhost:8002/mcp",
+      "transport": "http",
+      "description": "Conversational MCP HTTP endpoint"
+    }
+  },
+  "mcp.tools": {
+    "enabled": [
+      "get_server_info",
+      "get_capabilities",
+      "mcp_health_check",
+      "get_employees",
+      "get_shift_templates",
+      "generate_schedule",
+      "get_schedule",
+      "generate_demo_data",
+      "get_system_status",
+      "get_employee_availability",
+      "get_absences",
+      "get_coverage_requirements",
+      "analyze_schedule_conflicts",
+      "get_schedule_statistics",
+      "optimize_schedule_ai"
+    ],
+    "settings": {
+      "timeout": 30000,
+      "retries": 3,
+      "caching": true
+    }
+  },
+  "mcp.resources": {
+    "enabled": [
+      "config://system",
+      "employees://{employee_id}",
+      "schedules://{start_date}/{end_date}",
+      "shift-templates://all",
+      "coverage://{day_of_week}",
+      "availability://{employee_id}/{date}",
+      "conflicts://{start_date}/{end_date}"
+    ],
+    "settings": {
+      "caching": true,
+      "cacheTTL": 300,
+      "autoRefresh": true
+    }
+  },
+  "mcp.prompts": {
+    "enabled": [
+      "schedule_analysis_prompt",
+      "employee_scheduling_prompt",
+      "schedule_optimization_prompt",
+      "conflict_resolution_prompt",
+      "workforce_planning_prompt",
+      "compliance_audit_prompt"
+    ],
+    "settings": {
+      "templates": true,
+      "customization": true
+    }
+  },
+  "files.associations": {
+    "*.py": "python",
+    "*.pyi": "python",
+    "mcp_config.json": "json",
+    "*.mcp": "json",
+    "*.mcp.json": "json"
+  },
+  "json.schemas": [
+    {
+      "fileMatch": ["mcp_config.json", "*.mcp.json"],
+      "url": "https://schema.modelcontextprotocol.org/mcp-config.schema.json"
+    }
+  ],
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+  "source.organizeImports": "explicit",
+  "source.fixAll": "explicit"
+  },
+  "terminal.integrated.env.linux": {
+    "PYTHONPATH": ".",
+    "FLASK_ENV": "development",
+    "FLASK_APP": "src.backend.app:create_app"
+  },
+  "extensions.recommendations": [
+    "ms-python.python",
+  "charliermarsh.ruff",
+    "ms-python.mypy-type-checker",
+  "ms-python.black-formatter",
+    "ms-vscode.vscode-json",
+    "github.copilot",
+    "github.copilot-chat",
+    "mtxr.sqltools",
+    "mtxr.sqltools-driver-sqlite"
+  ],
+  "workspace.name": "Schichtplan MCP Integration",
+  "workspace.description": "Shift scheduling application with Model Context Protocol integration"
+}
