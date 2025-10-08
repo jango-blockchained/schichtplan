@@ -13,11 +13,11 @@ from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import redis
 from sqlalchemy import JSON, Column, DateTime, String
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 
 # Database models for conversation persistence
 Base = declarative_base()
@@ -53,8 +53,8 @@ class ContextItem:
     content: Any
     timestamp: datetime
     relevance_score: float = 1.0
-    metadata: Dict[str, Any] = None
-    expires_at: Optional[datetime] = None
+    metadata: dict[str, Any] = None
+    expires_at: datetime | None = None
 
     def __post_init__(self):
         if self.metadata is None:
@@ -70,8 +70,8 @@ class ConversationGoal:
     type: str  # 'optimization', 'analysis', 'problem_solving', 'information_gathering'
     priority: ConversationPriority
     status: str  # 'pending', 'in_progress', 'completed', 'failed'
-    sub_goals: List["ConversationGoal"] = None
-    success_criteria: Dict[str, Any] = None
+    sub_goals: list["ConversationGoal"] = None
+    success_criteria: dict[str, Any] = None
 
     def __post_init__(self):
         if self.sub_goals is None:
@@ -85,32 +85,32 @@ class ConversationContext:
     """Comprehensive conversation context."""
 
     conversation_id: str
-    user_id: Optional[str]
+    user_id: str | None
     session_id: str
 
     # State management
     state: ConversationState
     created_at: datetime
     updated_at: datetime
-    expires_at: Optional[datetime]
+    expires_at: datetime | None
 
     # Goals and objectives
-    goals: List[ConversationGoal]
-    current_goal: Optional[str]  # Goal ID
+    goals: list[ConversationGoal]
+    current_goal: str | None  # Goal ID
 
     # Context items
-    context_items: List[ContextItem]
+    context_items: list[ContextItem]
 
     # Tool usage tracking
-    tools_used: List[str]
-    tool_results: Dict[str, Any]
-    pending_tool_calls: List[Dict[str, Any]]
+    tools_used: list[str]
+    tool_results: dict[str, Any]
+    pending_tool_calls: list[dict[str, Any]]
 
     # User preferences
-    user_preferences: Dict[str, Any]
+    user_preferences: dict[str, Any]
 
     # Performance tracking
-    metrics: Dict[str, Any]
+    metrics: dict[str, Any]
 
     # Fields with default values must come last
     max_context_items: int = 100
@@ -158,7 +158,7 @@ class StateStore(ABC):
     @abstractmethod
     async def load_conversation(
         self, conversation_id: str
-    ) -> Optional[ConversationContext]:
+    ) -> ConversationContext | None:
         """Load conversation context."""
         pass
 
@@ -169,8 +169,8 @@ class StateStore(ABC):
 
     @abstractmethod
     async def list_conversations(
-        self, user_id: Optional[str] = None, limit: int = 50
-    ) -> List[ConversationContext]:
+        self, user_id: str | None = None, limit: int = 50
+    ) -> list[ConversationContext]:
         """List conversations."""
         pass
 
@@ -200,7 +200,7 @@ class RedisStateStore(StateStore):
 
     async def load_conversation(
         self, conversation_id: str
-    ) -> Optional[ConversationContext]:
+    ) -> ConversationContext | None:
         """Load conversation context from Redis."""
         try:
             key = f"{self.key_prefix}{conversation_id}"
@@ -225,8 +225,8 @@ class RedisStateStore(StateStore):
             return False
 
     async def list_conversations(
-        self, user_id: Optional[str] = None, limit: int = 50
-    ) -> List[ConversationContext]:
+        self, user_id: str | None = None, limit: int = 50
+    ) -> list[ConversationContext]:
         """List conversations from Redis."""
         try:
             pattern = f"{self.key_prefix}*"
@@ -245,7 +245,7 @@ class RedisStateStore(StateStore):
             logging.error(f"Failed to list conversations: {e}")
             return []
 
-    def _serialize_context(self, context: ConversationContext) -> Dict[str, Any]:
+    def _serialize_context(self, context: ConversationContext) -> dict[str, Any]:
         """Serialize conversation context to dictionary."""
         data = asdict(context)
 
@@ -270,7 +270,7 @@ class RedisStateStore(StateStore):
 
         return data
 
-    def _deserialize_context(self, data: Dict[str, Any]) -> ConversationContext:
+    def _deserialize_context(self, data: dict[str, Any]) -> ConversationContext:
         """Deserialize conversation context from dictionary."""
         # Convert ISO strings back to datetime objects
         data["created_at"] = datetime.fromisoformat(data["created_at"])
@@ -316,7 +316,7 @@ class ConversationManager:
         self.logger = logging.getLogger(__name__)
 
         # Active conversations cache
-        self._active_conversations: Dict[str, ConversationContext] = {}
+        self._active_conversations: dict[str, ConversationContext] = {}
 
         # Conversation lifecycle hooks
         self._lifecycle_hooks = {
@@ -329,11 +329,11 @@ class ConversationManager:
 
     async def create_conversation(
         self,
-        user_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        goals: Optional[List[ConversationGoal]] = None,
+        user_id: str | None = None,
+        session_id: str | None = None,
+        goals: list[ConversationGoal] | None = None,
         ai_personality: str = "helpful_scheduler",
-        expires_in: Optional[int] = None,
+        expires_in: int | None = None,
     ) -> ConversationContext:
         """Create a new conversation."""
         conversation_id = str(uuid.uuid4())
@@ -375,7 +375,7 @@ class ConversationManager:
 
     async def get_conversation(
         self, conversation_id: str
-    ) -> Optional[ConversationContext]:
+    ) -> ConversationContext | None:
         """Get conversation by ID."""
         # Check active cache first
         if conversation_id in self._active_conversations:
@@ -523,7 +523,7 @@ class ConversationManager:
         if hook_name in self._lifecycle_hooks:
             self._lifecycle_hooks[hook_name].append(callback)
 
-    async def get_conversation_metrics(self, conversation_id: str) -> Dict[str, Any]:
+    async def get_conversation_metrics(self, conversation_id: str) -> dict[str, Any]:
         """Get conversation performance metrics."""
         context = await self.get_conversation(conversation_id)
         if not context:

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, RootModel, validator
 
@@ -27,7 +27,7 @@ class SpecialDay(BaseModel):
 
     description: str = Field(..., description="Description of the special day.")
     is_closed: bool = Field(..., description="Whether the store is closed on this day.")
-    custom_hours: Optional[SpecialDayCustomHours] = Field(
+    custom_hours: SpecialDayCustomHours | None = Field(
         None, description="Custom opening hours if not closed."
     )
     # Removed 'date' field from here, as it's expected to be the key in a Dict in GeneralSettings
@@ -36,46 +36,46 @@ class SpecialDay(BaseModel):
 class GenerationRequirements(BaseModel):
     """Schema for schedule generation requirements."""
 
-    enforce_minimum_coverage: Optional[bool] = Field(
+    enforce_minimum_coverage: bool | None = Field(
         True, description="Enforce minimum coverage requirements."
     )
-    enforce_contracted_hours: Optional[bool] = Field(
+    enforce_contracted_hours: bool | None = Field(
         True, description="Enforce contracted hours for employees."
     )
-    enforce_keyholder_coverage: Optional[bool] = Field(
+    enforce_keyholder_coverage: bool | None = Field(
         True, description="Ensure keyholder coverage for shifts requiring keyholders."
     )
-    enforce_rest_periods: Optional[bool] = Field(
+    enforce_rest_periods: bool | None = Field(
         True, description="Enforce minimum rest periods between shifts."
     )
-    enforce_early_late_rules: Optional[bool] = Field(
+    enforce_early_late_rules: bool | None = Field(
         True, description="Enforce rules for early/late shifts."
     )
-    enforce_employee_group_rules: Optional[bool] = Field(
+    enforce_employee_group_rules: bool | None = Field(
         True, description="Enforce rules specific to employee groups."
     )
-    enforce_break_rules: Optional[bool] = Field(
+    enforce_break_rules: bool | None = Field(
         True, description="Enforce break rules based on shift duration."
     )
-    enforce_max_hours: Optional[bool] = Field(
+    enforce_max_hours: bool | None = Field(
         True, description="Enforce maximum working hours per day/week."
     )
-    enforce_consecutive_days: Optional[bool] = Field(
+    enforce_consecutive_days: bool | None = Field(
         True, description="Enforce maximum consecutive working days."
     )
-    enforce_weekend_distribution: Optional[bool] = Field(
+    enforce_weekend_distribution: bool | None = Field(
         True, description="Enforce fair distribution of weekend shifts."
     )
-    enforce_shift_distribution: Optional[bool] = Field(
+    enforce_shift_distribution: bool | None = Field(
         True, description="Enforce fair distribution of different shift types."
     )
-    enforce_availability: Optional[bool] = Field(
+    enforce_availability: bool | None = Field(
         True, description="Respect employee availability preferences."
     )
-    enforce_qualifications: Optional[bool] = Field(
+    enforce_qualifications: bool | None = Field(
         True, description="Respect employee qualifications for specific tasks."
     )
-    enforce_opening_hours: Optional[bool] = Field(
+    enforce_opening_hours: bool | None = Field(
         True, description="Respect store opening hours for scheduling."
     )
     # Add any other fields if present in frontend type Settings.scheduling.generation_requirements or model
@@ -87,41 +87,39 @@ class GenerationRequirements(BaseModel):
 class GeneralSettings(BaseModel):  # Modified as per plan
     """Schema for general settings."""
 
-    store_name: Optional[str] = Field(None, description="Name of the store.")
-    store_address: Optional[str] = Field(None, description="Address of the store.")
-    store_phone: Optional[str] = Field(
+    store_name: str | None = Field(None, description="Name of the store.")
+    store_address: str | None = Field(None, description="Address of the store.")
+    store_phone: str | None = Field(
         None, description="Phone number of the store."
     )  # Added from plan
-    store_email: Optional[str] = Field(
+    store_email: str | None = Field(
         None, description="Email address of the store."
     )  # Added from plan
-    timezone: Optional[str] = Field(
-        None, description="Timezone for the store operations."
-    )
-    language: Optional[str] = Field(
+    timezone: str | None = Field(None, description="Timezone for the store operations.")
+    language: str | None = Field(
         None, description="Default language for the application."
     )
-    date_format: Optional[str] = Field(None, description="Preferred date format.")
-    time_format: Optional[str] = Field(
+    date_format: str | None = Field(None, description="Preferred date format.")
+    time_format: str | None = Field(
         None, description="Preferred time format (e.g., 12h or 24h)."
     )
-    weekend_start: Optional[int] = Field(
+    weekend_start: int | None = Field(
         None, description="Weekend start preference (0=Sunday, 1=Monday)."
     )
-    store_opening: Optional[str] = Field(
+    store_opening: str | None = Field(
         None, description="Default store opening time (HH:MM)."
     )  # For general reference
-    store_closing: Optional[str] = Field(
+    store_closing: str | None = Field(
         None, description="Default store closing time (HH:MM)."
     )  # For general reference
-    keyholder_before_minutes: Optional[int] = Field(
+    keyholder_before_minutes: int | None = Field(
         None, description="Minutes keyholder must be present before opening."
     )
-    keyholder_after_minutes: Optional[int] = Field(
+    keyholder_after_minutes: int | None = Field(
         None, description="Minutes keyholder must be present after closing."
     )
-    opening_days: Optional[
-        Dict[
+    opening_days: (
+        dict[
             Literal[
                 "monday",
                 "tuesday",
@@ -133,8 +131,9 @@ class GeneralSettings(BaseModel):  # Modified as per plan
             ],
             bool,
         ]
-    ] = Field(None, description="Which days the store is open.")
-    special_days: Optional[Dict[str, SpecialDay]] = Field(
+        | None
+    ) = Field(None, description="Which days the store is open.")
+    special_days: dict[str, SpecialDay] | None = Field(
         None, description="Special days and holidays configuration (key: YYYY-MM-DD)."
     )
     # Removed break_duration_minutes from here, will be in SchedulingSettingsSchema
@@ -164,43 +163,43 @@ class GeneralSettings(BaseModel):  # Modified as per plan
 class SchedulingSettingsSchema(BaseModel):
     """Schema for scheduling-specific settings."""
 
-    scheduling_resource_type: Optional[Literal["shifts", "coverage"]] = Field(
+    scheduling_resource_type: Literal["shifts", "coverage"] | None = Field(
         None, description="Primary resource type for scheduling."
     )
-    default_shift_duration: Optional[float] = Field(
+    default_shift_duration: float | None = Field(
         None, description="Default duration for shifts in hours."
     )
-    min_break_duration: Optional[int] = Field(
+    min_break_duration: int | None = Field(
         None, description="Minimum break duration in minutes."
     )
-    max_daily_hours: Optional[float] = Field(
+    max_daily_hours: float | None = Field(
         None, description="Maximum daily working hours for an employee."
     )
-    max_weekly_hours: Optional[float] = Field(
+    max_weekly_hours: float | None = Field(
         None, description="Maximum weekly working hours for an employee."
     )
-    total_weekly_working_hours: Optional[float] = Field(
+    total_weekly_working_hours: float | None = Field(
         None, description="Total weekly working hours constraint for all employees."
     )
-    min_rest_between_shifts: Optional[float] = Field(
+    min_rest_between_shifts: float | None = Field(
         None, description="Minimum rest period between shifts in hours."
     )
-    scheduling_period_weeks: Optional[int] = Field(
+    scheduling_period_weeks: int | None = Field(
         None, description="Number of weeks for a standard scheduling period."
     )
-    auto_schedule_preferences: Optional[bool] = Field(
+    auto_schedule_preferences: bool | None = Field(
         None, description="Whether to automatically consider employee preferences."
     )
-    enable_diagnostics: Optional[bool] = Field(
+    enable_diagnostics: bool | None = Field(
         None, description="Enable diagnostic logging for the scheduler."
     )
-    generation_requirements: Optional[GenerationRequirements] = Field(
+    generation_requirements: GenerationRequirements | None = Field(
         None, description="Detailed constraints for schedule generation."
     )
-    scheduling_algorithm: Optional[Literal["standard", "optimized"]] = Field(
+    scheduling_algorithm: Literal["standard", "optimized"] | None = Field(
         None, description="Algorithm to use for scheduling."
     )
-    max_generation_attempts: Optional[int] = Field(
+    max_generation_attempts: int | None = Field(
         None, description="Maximum number of attempts for schedule generation."
     )
 
@@ -208,74 +207,64 @@ class SchedulingSettingsSchema(BaseModel):
 class DisplaySettingsDarkThemeSchema(BaseModel):
     """Schema for dark theme specific display settings."""
 
-    primary_color: Optional[str] = Field(
-        None, description="Primary color for dark theme."
-    )
-    secondary_color: Optional[str] = Field(
+    primary_color: str | None = Field(None, description="Primary color for dark theme.")
+    secondary_color: str | None = Field(
         None, description="Secondary color for dark theme."
     )
-    accent_color: Optional[str] = Field(
-        None, description="Accent color for dark theme."
-    )
-    background_color: Optional[str] = Field(
+    accent_color: str | None = Field(None, description="Accent color for dark theme.")
+    background_color: str | None = Field(
         None, description="Background color for dark theme."
     )
-    surface_color: Optional[str] = Field(
-        None, description="Surface color for dark theme."
-    )
-    text_color: Optional[str] = Field(None, description="Text color for dark theme.")
+    surface_color: str | None = Field(None, description="Surface color for dark theme.")
+    text_color: str | None = Field(None, description="Text color for dark theme.")
 
 
 class DisplaySettingsSchema(BaseModel):
     """Schema for general display and notification settings."""
 
-    theme: Optional[Literal["light", "dark", "system"]] = Field(
+    theme: Literal["light", "dark", "system"] | None = Field(
         None, description="Application theme."
     )
-    primary_color: Optional[str] = Field(
+    primary_color: str | None = Field(
         None, description="Primary color for light theme."
     )
-    secondary_color: Optional[str] = Field(
+    secondary_color: str | None = Field(
         None, description="Secondary color for light theme."
     )
-    accent_color: Optional[str] = Field(
-        None, description="Accent color for light theme."
-    )
-    background_color: Optional[str] = Field(
+    accent_color: str | None = Field(None, description="Accent color for light theme.")
+    background_color: str | None = Field(
         None, description="Background color for light theme."
     )
-    surface_color: Optional[str] = Field(
+    surface_color: str | None = Field(
         None, description="Surface color for light theme."
     )
-    text_color: Optional[str] = Field(None, description="Text color for light theme.")
-    dark_theme: Optional[DisplaySettingsDarkThemeSchema] = Field(
+    text_color: str | None = Field(None, description="Text color for light theme.")
+    dark_theme: DisplaySettingsDarkThemeSchema | None = Field(
         None, description="Specific settings for dark theme."
     )
-    show_sunday: Optional[bool] = Field(
-        None, description="Show Sunday in calendar views."
-    )
-    show_weekdays: Optional[bool] = Field(
+    show_sunday: bool | None = Field(None, description="Show Sunday in calendar views.")
+    show_weekdays: bool | None = Field(
         None, description="Show weekdays in calendar views."
     )  # This seems redundant if show_sunday implies others
-    start_of_week: Optional[Literal[0, 1, 2, 3, 4, 5, 6]] = Field(
+    start_of_week: Literal[0, 1, 2, 3, 4, 5, 6] | None = Field(
         None, description="Start day of the week (0=Sunday, 1=Monday, ...)."
     )  # Adjusted to Literal
-    calendar_start_day: Optional[Literal["sunday", "monday"]] = Field(
+    calendar_start_day: Literal["sunday", "monday"] | None = Field(
         None, description="User's preferred start day for calendar views."
     )
-    calendar_default_view: Optional[Literal["month", "week", "day"]] = Field(
+    calendar_default_view: Literal["month", "week", "day"] | None = Field(
         None, description="Default view for the calendar."
     )
-    email_notifications: Optional[bool] = Field(
+    email_notifications: bool | None = Field(
         None, description="Master switch for email notifications."
     )
-    schedule_published_notify: Optional[bool] = Field(
+    schedule_published_notify: bool | None = Field(
         None, description="Notify on schedule publish."
     )  # Aligned name
-    shift_changes_notify: Optional[bool] = Field(
+    shift_changes_notify: bool | None = Field(
         None, description="Notify on shift changes."
     )  # Aligned name
-    time_off_requests_notify: Optional[bool] = Field(
+    time_off_requests_notify: bool | None = Field(
         None, description="Notify on time-off requests."
     )  # Aligned name
 
@@ -283,46 +272,42 @@ class DisplaySettingsSchema(BaseModel):
 class PDFMarginsSchema(BaseModel):
     """Schema for PDF margins."""
 
-    top: Optional[float] = Field(
+    top: float | None = Field(
         None, description="Top margin in units (e.g., mm or inches)."
     )
-    right: Optional[float] = Field(None, description="Right margin.")
-    bottom: Optional[float] = Field(None, description="Bottom margin.")
-    left: Optional[float] = Field(None, description="Left margin.")
+    right: float | None = Field(None, description="Right margin.")
+    bottom: float | None = Field(None, description="Bottom margin.")
+    left: float | None = Field(None, description="Left margin.")
 
 
 class PDFTableStyleSchema(BaseModel):
     """Schema for PDF table styling."""
 
-    header_bg_color: Optional[str] = Field(
+    header_bg_color: str | None = Field(
         None, description="Header background color (hex)."
     )
-    border_color: Optional[str] = Field(None, description="Table border color (hex).")
-    text_color: Optional[str] = Field(None, description="Table text color (hex).")
-    header_text_color: Optional[str] = Field(
-        None, description="Header text color (hex)."
-    )
+    border_color: str | None = Field(None, description="Table border color (hex).")
+    text_color: str | None = Field(None, description="Table text color (hex).")
+    header_text_color: str | None = Field(None, description="Header text color (hex).")
 
 
 class PDFFontsSchema(BaseModel):
     """Schema for PDF font settings."""
 
-    family: Optional[str] = Field(None, description="Font family name.")
-    size: Optional[float] = Field(None, description="Base font size.")
-    header_size: Optional[float] = Field(None, description="Header font size.")
+    family: str | None = Field(None, description="Font family name.")
+    size: float | None = Field(None, description="Base font size.")
+    header_size: float | None = Field(None, description="Header font size.")
 
 
 class PDFContentSchema(BaseModel):
     """Schema for content visibility in PDFs."""
 
-    show_employee_id: Optional[bool] = Field(
-        None, description="Show employee ID in PDF."
-    )
-    show_position: Optional[bool] = Field(
+    show_employee_id: bool | None = Field(None, description="Show employee ID in PDF.")
+    show_position: bool | None = Field(
         None, description="Show employee position in PDF."
     )
-    show_breaks: Optional[bool] = Field(None, description="Show break times in PDF.")
-    show_total_hours: Optional[bool] = Field(
+    show_breaks: bool | None = Field(None, description="Show break times in PDF.")
+    show_total_hours: bool | None = Field(
         None, description="Show total hours for employees in PDF."
     )
 
@@ -333,245 +318,241 @@ class PDFContentSchema(BaseModel):
 class MEPStoreFieldSchema(BaseModel):
     """Schema for MEP store field."""
 
-    label: Optional[str] = None
-    value: Optional[str] = None
+    label: str | None = None
+    value: str | None = None
 
 
 class MEPPeriodFieldSchema(BaseModel):
     """Schema for MEP period field."""
 
-    label: Optional[str] = None
-    value: Optional[str] = None
+    label: str | None = None
+    value: str | None = None
 
 
 class MEPPeriodFieldsSchema(BaseModel):
     """Schema for MEP period fields."""
 
-    month_year: Optional[MEPPeriodFieldSchema] = None
-    week_from: Optional[MEPPeriodFieldSchema] = None
-    week_to: Optional[MEPPeriodFieldSchema] = None
+    month_year: MEPPeriodFieldSchema | None = None
+    week_from: MEPPeriodFieldSchema | None = None
+    week_to: MEPPeriodFieldSchema | None = None
 
 
 class MEPStorageNoteSchema(BaseModel):
     """Schema for MEP storage note."""
 
-    text: Optional[str] = None
-    position: Optional[str] = None
+    text: str | None = None
+    position: str | None = None
 
 
 class MEPHeaderSchema(BaseModel):
     """Schema for MEP header."""
 
-    title: Optional[str] = None
-    store_field: Optional[MEPStoreFieldSchema] = None
-    period_fields: Optional[MEPPeriodFieldsSchema] = None
-    storage_note: Optional[MEPStorageNoteSchema] = None
+    title: str | None = None
+    store_field: MEPStoreFieldSchema | None = None
+    period_fields: MEPPeriodFieldsSchema | None = None
+    storage_note: MEPStorageNoteSchema | None = None
 
 
 class MEPEmployeeColumnSchema(BaseModel):
     """Schema for MEP employee column."""
 
-    label: Optional[str] = None
-    width: Optional[float] = None
+    label: str | None = None
+    width: float | None = None
 
 
 class MEPEmployeeColumnsSchema(BaseModel):
     """Schema for MEP employee columns."""
 
-    name: Optional[MEPEmployeeColumnSchema] = None
-    function: Optional[MEPEmployeeColumnSchema] = None
-    plan_week: Optional[MEPEmployeeColumnSchema] = None
+    name: MEPEmployeeColumnSchema | None = None
+    function: MEPEmployeeColumnSchema | None = None
+    plan_week: MEPEmployeeColumnSchema | None = None
 
 
 class MEPDayColumnsSchema(BaseModel):
     """Schema for MEP day columns."""
 
-    enabled_days: Optional[List[str]] = None
-    day_labels: Optional[Dict[str, str]] = None
-    day_width: Optional[float] = None
+    enabled_days: list[str] | None = None
+    day_labels: dict[str, str] | None = None
+    day_width: float | None = None
 
 
 class MEPSummaryColumnSchema(BaseModel):
     """Schema for MEP summary column."""
 
-    label: Optional[str] = None
-    width: Optional[float] = None
+    label: str | None = None
+    width: float | None = None
 
 
 class MEPSummaryColumnsSchema(BaseModel):
     """Schema for MEP summary columns."""
 
-    week_total: Optional[MEPSummaryColumnSchema] = None
-    month_total: Optional[MEPSummaryColumnSchema] = None
+    week_total: MEPSummaryColumnSchema | None = None
+    month_total: MEPSummaryColumnSchema | None = None
 
 
 class MEPRowSchema(BaseModel):
     """Schema for MEP row."""
 
-    label: Optional[str] = None
-    enabled: Optional[bool] = None
+    label: str | None = None
+    enabled: bool | None = None
 
 
 class MEPRowStructureSchema(BaseModel):
     """Schema for MEP row structure."""
 
-    date_row: Optional[MEPRowSchema] = None
-    active_row: Optional[MEPRowSchema] = None
-    start_row: Optional[MEPRowSchema] = None
-    break_row: Optional[MEPRowSchema] = None
-    end_row: Optional[MEPRowSchema] = None
-    total_row: Optional[MEPRowSchema] = None
+    date_row: MEPRowSchema | None = None
+    active_row: MEPRowSchema | None = None
+    start_row: MEPRowSchema | None = None
+    break_row: MEPRowSchema | None = None
+    end_row: MEPRowSchema | None = None
+    total_row: MEPRowSchema | None = None
 
 
 class MEPTableSchema(BaseModel):
     """Schema for MEP table."""
 
-    employee_columns: Optional[MEPEmployeeColumnsSchema] = None
-    day_columns: Optional[MEPDayColumnsSchema] = None
-    summary_columns: Optional[MEPSummaryColumnsSchema] = None
-    row_structure: Optional[MEPRowStructureSchema] = None
+    employee_columns: MEPEmployeeColumnsSchema | None = None
+    day_columns: MEPDayColumnsSchema | None = None
+    summary_columns: MEPSummaryColumnsSchema | None = None
+    row_structure: MEPRowStructureSchema | None = None
 
 
 class MEPBreakRulesSchema(BaseModel):
     """Schema for MEP break rules."""
 
-    enabled: Optional[bool] = None
-    text: Optional[str] = None
+    enabled: bool | None = None
+    text: str | None = None
 
 
 class MEPAbsenceTypeSchema(BaseModel):
     """Schema for MEP absence type."""
 
-    code: Optional[str] = None
-    label: Optional[str] = None
+    code: str | None = None
+    label: str | None = None
 
 
 class MEPAbsenceTypesSchema(BaseModel):
     """Schema for MEP absence types."""
 
-    enabled: Optional[bool] = None
-    title: Optional[str] = None
-    types: Optional[List[MEPAbsenceTypeSchema]] = None
+    enabled: bool | None = None
+    title: str | None = None
+    types: list[MEPAbsenceTypeSchema] | None = None
 
 
 class MEPInstructionsSchema(BaseModel):
     """Schema for MEP instructions."""
 
-    enabled: Optional[bool] = None
-    text: Optional[str] = None
+    enabled: bool | None = None
+    text: str | None = None
 
 
 class MEPDateStampSchema(BaseModel):
     """Schema for MEP date stamp."""
 
-    enabled: Optional[bool] = None
-    text: Optional[str] = None
+    enabled: bool | None = None
+    text: str | None = None
 
 
 class MEPFooterSchema(BaseModel):
     """Schema for MEP footer."""
 
-    break_rules: Optional[MEPBreakRulesSchema] = None
-    absence_types: Optional[MEPAbsenceTypesSchema] = None
-    instructions: Optional[MEPInstructionsSchema] = None
-    date_stamp: Optional[MEPDateStampSchema] = None
+    break_rules: MEPBreakRulesSchema | None = None
+    absence_types: MEPAbsenceTypesSchema | None = None
+    instructions: MEPInstructionsSchema | None = None
+    date_stamp: MEPDateStampSchema | None = None
 
 
 class MEPFontsSchema(BaseModel):
     """Schema for MEP fonts."""
 
-    header_font: Optional[str] = None
-    header_size: Optional[float] = None
-    table_font: Optional[str] = None
-    table_size: Optional[float] = None
-    footer_font: Optional[str] = None
-    footer_size: Optional[float] = None
+    header_font: str | None = None
+    header_size: float | None = None
+    table_font: str | None = None
+    table_size: float | None = None
+    footer_font: str | None = None
+    footer_size: float | None = None
 
 
 class MEPColorsSchema(BaseModel):
     """Schema for MEP colors."""
 
-    header_bg: Optional[str] = None
-    header_text: Optional[str] = None
-    table_border: Optional[str] = None
-    table_bg: Optional[str] = None
-    table_text: Optional[str] = None
+    header_bg: str | None = None
+    header_text: str | None = None
+    table_border: str | None = None
+    table_bg: str | None = None
+    table_text: str | None = None
 
 
 class MEPSpacingSchema(BaseModel):
     """Schema for MEP spacing."""
 
-    page_margin: Optional[float] = None
-    section_spacing: Optional[float] = None
-    row_height: Optional[float] = None
+    page_margin: float | None = None
+    section_spacing: float | None = None
+    row_height: float | None = None
 
 
 class MEPTableStyleSchema(BaseModel):
     """Schema for MEP table style."""
 
-    border_width: Optional[float] = None
-    grid_style: Optional[str] = None
-    cell_padding: Optional[float] = None
+    border_width: float | None = None
+    grid_style: str | None = None
+    cell_padding: float | None = None
 
 
 class MEPStylingSchema(BaseModel):
     """Schema for MEP styling."""
 
-    fonts: Optional[MEPFontsSchema] = None
-    colors: Optional[MEPColorsSchema] = None
-    spacing: Optional[MEPSpacingSchema] = None
-    table_style: Optional[MEPTableStyleSchema] = None
+    fonts: MEPFontsSchema | None = None
+    colors: MEPColorsSchema | None = None
+    spacing: MEPSpacingSchema | None = None
+    table_style: MEPTableStyleSchema | None = None
 
 
 class SimplifiedPDFConfigSchema(BaseModel):
     """Schema for the complete MEP PDF configuration matching frontend interface."""
 
-    header: Optional[MEPHeaderSchema] = None
-    table: Optional[MEPTableSchema] = None
-    footer: Optional[MEPFooterSchema] = None
-    styling: Optional[MEPStylingSchema] = None
+    header: MEPHeaderSchema | None = None
+    table: MEPTableSchema | None = None
+    footer: MEPFooterSchema | None = None
+    styling: MEPStylingSchema | None = None
 
 
 class PDFLayoutSettingsSchema(BaseModel):
     """Schema for overall PDF layout settings supporting both legacy and MEP formats."""
 
     # Legacy settings for backward compatibility
-    page_size: Optional[str] = Field(None, description="Page size (e.g., A4, Letter).")
-    orientation: Optional[Literal["portrait", "landscape"]] = Field(
+    page_size: str | None = Field(None, description="Page size (e.g., A4, Letter).")
+    orientation: Literal["portrait", "landscape"] | None = Field(
         None, description="Page orientation."
     )
-    margins: Optional[PDFMarginsSchema] = Field(None, description="Page margins.")
-    fonts: Optional[PDFFontsSchema] = Field(None, description="Font settings.")
-    table_style: Optional[PDFTableStyleSchema] = Field(
-        None, description="Table styling."
-    )
-    content: Optional[PDFContentSchema] = Field(
+    margins: PDFMarginsSchema | None = Field(None, description="Page margins.")
+    fonts: PDFFontsSchema | None = Field(None, description="Font settings.")
+    table_style: PDFTableStyleSchema | None = Field(None, description="Table styling.")
+    content: PDFContentSchema | None = Field(
         None, description="Content visibility settings."
     )
 
     # New MEP configuration - this will be the main config when using MEP layouts
-    header: Optional[MEPHeaderSchema] = Field(
+    header: MEPHeaderSchema | None = Field(
         None, description="MEP header configuration."
     )
-    table: Optional[MEPTableSchema] = Field(
-        None, description="MEP table configuration."
-    )
-    footer: Optional[MEPFooterSchema] = Field(
+    table: MEPTableSchema | None = Field(None, description="MEP table configuration.")
+    footer: MEPFooterSchema | None = Field(
         None, description="MEP footer configuration."
     )
-    styling: Optional[MEPStylingSchema] = Field(
+    styling: MEPStylingSchema | None = Field(
         None, description="MEP styling configuration."
     )
-    table_style: Optional[PDFTableStyleSchema] = Field(
+    table_style: PDFTableStyleSchema | None = Field(
         None, description="Styling for tables in PDF."
     )
-    fonts: Optional[PDFFontsSchema] = Field(None, description="Font settings for PDF.")
-    content: Optional[PDFContentSchema] = Field(
+    fonts: PDFFontsSchema | None = Field(None, description="Font settings for PDF.")
+    content: PDFContentSchema | None = Field(
         None, description="Content visibility settings for PDF."
     )
 
     # New MEP-specific configuration
-    mep_config: Optional[SimplifiedPDFConfigSchema] = Field(
+    mep_config: SimplifiedPDFConfigSchema | None = Field(
         None, description="Detailed MEP form configuration"
     )
 
@@ -581,11 +562,11 @@ class EmployeeTypeSchema(BaseModel):
 
     id: str = Field(..., description="Unique identifier for the employee type.")
     name: str = Field(..., description="Display name of the employee type.")
-    abbr: Optional[str] = Field(None, description="Abbreviation for the employee type.")
-    min_hours: Optional[float] = Field(
+    abbr: str | None = Field(None, description="Abbreviation for the employee type.")
+    min_hours: float | None = Field(
         None, description="Minimum contractual hours for this type."
     )  # Made optional based on common use cases
-    max_hours: Optional[float] = Field(
+    max_hours: float | None = Field(
         None, description="Maximum contractual hours for this type."
     )  # Made optional
     type: Literal["employee_type", "employee"] = Field(
@@ -602,7 +583,7 @@ class ShiftTypeSchemaPydantic(BaseModel):  # Renamed to avoid conflicts
     type: Literal["shift_type"] = Field(
         "shift_type", description="Internal type discriminator."
     )
-    auto_assign_only: Optional[bool] = Field(
+    auto_assign_only: bool | None = Field(
         None, description="Whether this shift type is for auto-assignment only."
     )
 
@@ -621,13 +602,13 @@ class AbsenceTypeSchema(BaseModel):
 class EmployeeGroupsSettingsSchema(BaseModel):
     """Schema for managing employee types, shift types, and absence types."""
 
-    employee_types: Optional[List[EmployeeTypeSchema]] = Field(
+    employee_types: list[EmployeeTypeSchema] | None = Field(
         None, description="List of defined employee types."
     )
-    shift_types: Optional[List[ShiftTypeSchemaPydantic]] = Field(
+    shift_types: list[ShiftTypeSchemaPydantic] | None = Field(
         None, description="List of defined shift types."
     )
-    absence_types: Optional[List[AbsenceTypeSchema]] = Field(
+    absence_types: list[AbsenceTypeSchema] | None = Field(
         None, description="List of defined absence types."
     )
 
@@ -637,7 +618,7 @@ class AvailabilityTypeDetailSchema(BaseModel):
 
     id: str = Field(..., description="Unique identifier for the availability type.")
     name: str = Field(..., description="Display name of the availability type.")
-    description: Optional[str] = Field(
+    description: str | None = Field(
         None, description="Description of the availability type."
     )  # Made Optional
     color: str = Field(..., description="Color code (hex) for this availability type.")
@@ -653,7 +634,7 @@ class AvailabilityTypeDetailSchema(BaseModel):
 class AvailabilityTypesSettingsSchema(BaseModel):
     """Schema for managing different types of employee availability."""
 
-    types: Optional[List[AvailabilityTypeDetailSchema]] = Field(
+    types: list[AvailabilityTypeDetailSchema] | None = Field(
         None, description="List of defined availability types."
     )
 
@@ -661,10 +642,10 @@ class AvailabilityTypesSettingsSchema(BaseModel):
 class DemoDataSettingsSchema(BaseModel):
     """Schema for demo data generation settings."""
 
-    selected_module: Optional[str] = Field(
+    selected_module: str | None = Field(
         None, description="Module for which to generate demo data."
     )
-    last_execution: Optional[str] = Field(
+    last_execution: str | None = Field(
         None,
         description="Timestamp of the last demo data generation (ISO format string).",
     )  # Changed back to string for JSON serialization
@@ -673,7 +654,7 @@ class DemoDataSettingsSchema(BaseModel):
 class ActionsSettingsSchema(BaseModel):
     """Schema for settings related to executable actions like demo data generation."""
 
-    demo_data: Optional[DemoDataSettingsSchema] = Field(
+    demo_data: DemoDataSettingsSchema | None = Field(
         None, description="Settings for demo data generation."
     )
 
@@ -681,23 +662,21 @@ class ActionsSettingsSchema(BaseModel):
 class WeekNavigationSettingsSchema(BaseModel):
     """Schema for week navigation settings."""
 
-    week_weekend_start: Optional[Literal["MONDAY", "SUNDAY"]] = Field(
+    week_weekend_start: Literal["MONDAY", "SUNDAY"] | None = Field(
         None, description="Weekend start preference (MONDAY or SUNDAY)."
     )
-    week_month_boundary_mode: Optional[Literal["keep_intact", "split_by_month"]] = (
-        Field(None, description="How to handle weeks that span multiple months.")
+    week_month_boundary_mode: Literal["keep_intact", "split_by_month"] | None = Field(
+        None, description="How to handle weeks that span multiple months."
     )
 
 
 class AISchedulingSettingsSchema(BaseModel):
     """Schema for AI-assisted scheduling features."""
 
-    enabled: Optional[bool] = Field(
+    enabled: bool | None = Field(
         None, description="Enable/disable AI scheduling features."
     )
-    api_key: Optional[str] = Field(
-        None, description="API key for AI scheduling service."
-    )
+    api_key: str | None = Field(None, description="API key for AI scheduling service.")
 
 
 # --- Main Settings Schema ---
@@ -706,36 +685,36 @@ class AISchedulingSettingsSchema(BaseModel):
 class CompleteSettings(BaseModel):
     """Schema for the complete settings object. All fields are optional for partial updates."""
 
-    general: Optional[GeneralSettings] = Field(
+    general: GeneralSettings | None = Field(
         None, description="General store and application settings."
     )
-    scheduling: Optional[SchedulingSettingsSchema] = Field(
+    scheduling: SchedulingSettingsSchema | None = Field(
         None, description="Settings related to the scheduling engine and rules."
     )
     # 'scheduling_advanced' from existing AdvancedSettings is deprecated if its content (like generation_requirements)
     # is now fully part of 'scheduling'. If other distinct advanced fields exist, it could be kept.
     # For now, assuming 'generation_requirements' is moved to 'scheduling'.
     # scheduling_advanced: Optional[AdvancedSettings] = Field(None, description="Advanced scheduling parameters.") # Task plan says review/remove
-    display: Optional[DisplaySettingsSchema] = Field(
+    display: DisplaySettingsSchema | None = Field(
         None, description="Display, theme, and notification settings."
     )
-    pdf_layout: Optional[PDFLayoutSettingsSchema] = Field(
+    pdf_layout: PDFLayoutSettingsSchema | None = Field(
         None, description="Settings for PDF generation layout and content."
     )
-    employee_groups: Optional[EmployeeGroupsSettingsSchema] = Field(
+    employee_groups: EmployeeGroupsSettingsSchema | None = Field(
         None,
         description="Management of employee types, shift types, and absence types.",
     )
-    availability_types: Optional[AvailabilityTypesSettingsSchema] = Field(
+    availability_types: AvailabilityTypesSettingsSchema | None = Field(
         None, description="Configuration for employee availability types."
     )
-    actions: Optional[ActionsSettingsSchema] = Field(
+    actions: ActionsSettingsSchema | None = Field(
         None, description="Settings related to system actions like demo data."
     )
-    ai_scheduling: Optional[AISchedulingSettingsSchema] = Field(
+    ai_scheduling: AISchedulingSettingsSchema | None = Field(
         None, description="Settings for AI-powered scheduling features."
     )
-    week_navigation: Optional[WeekNavigationSettingsSchema] = Field(
+    week_navigation: WeekNavigationSettingsSchema | None = Field(
         None, description="Settings for week-based navigation."
     )
 
@@ -749,7 +728,7 @@ class CompleteSettings(BaseModel):
 class TablesList(BaseModel):
     """Schema for the wipe tables request."""
 
-    tables: List[str] = Field(..., description="List of table names to wipe.")
+    tables: list[str] = Field(..., description="List of table names to wipe.")
 
 
 class SettingValue(
@@ -761,11 +740,11 @@ class SettingValue(
 
 
 # CategorySettings: RootModel if available, else BaseModel fallback
-class CategorySettings(RootModel[Dict[str, Any]]):
+class CategorySettings(RootModel[dict[str, Any]]):
     """Settings for a specific category, represented as a dictionary."""
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "description": "Settings for a specific category, represented as a dictionary.",
             "example": {"some_setting": "some_value", "another_setting": True},
         }

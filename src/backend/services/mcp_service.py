@@ -84,29 +84,298 @@ class SchichtplanMCPService:
         # Register prompts to handle ListPromptsRequest
         self._register_prompts()
 
+        # Register resources
+        self._register_resources()
+
     def _register_prompts(self):
-        """Register prompts with the MCP service to handle ListPromptsRequest."""
+        """Register enhanced prompts with the MCP service."""
         try:
 
             @self.mcp.prompt()
             async def schedule_optimization_prompt(ctx):
-                """Generate prompts for schedule optimization based on current context."""
-                return "Analyze the current schedule and suggest optimizations based on coverage requirements, employee availability, and workload distribution."
+                """🎯 Optimize schedule for better coverage and fairness
+
+                Use this when: You need to improve an existing schedule
+                """
+                return """Analyze the current schedule and suggest optimizations:
+
+**Focus Areas:**
+1. Coverage gaps - identify understaffed periods
+2. Employee workload - ensure fair distribution
+3. Shift preferences - match employee availability
+4. Compliance - check labor regulations
+5. Cost efficiency - minimize overtime
+
+**Provide:**
+- Specific problem areas with dates/times
+- Actionable recommendations
+- Expected improvements
+- Implementation steps"""
 
             @self.mcp.prompt()
             async def employee_availability_prompt(ctx):
-                """Generate prompts for employee availability analysis."""
-                return "Review employee availability patterns and suggest improvements for better schedule coverage."
+                """👥 Analyze employee availability patterns
+
+                Use this when: Planning schedules or reviewing staffing
+                """
+                return """Review employee availability patterns and suggest improvements:
+
+**Analysis Points:**
+1. Availability gaps by day/time
+2. Recurring patterns or conflicts
+3. Keyholder coverage
+4. Part-time vs full-time distribution
+
+**Recommendations:**
+- Best times for each employee
+- Suggested schedule adjustments
+- Staffing improvement ideas"""
 
             @self.mcp.prompt()
             async def schedule_compliance_prompt(ctx):
-                """Generate prompts for schedule compliance checking."""
-                return "Check the current schedule for compliance with labor regulations and coverage requirements."
+                """📋 Check schedule compliance
 
-            self.logger.info("Successfully registered 3 MCP prompts")
+                Use this when: Verifying schedule meets regulations
+                """
+                return """Check schedule compliance with labor regulations:
+
+**Compliance Checks:**
+1. Maximum daily/weekly hours
+2. Minimum rest periods between shifts
+3. Break requirements
+4. Consecutive working days
+5. Keyholder requirements
+
+**Report:**
+- Violations found with details
+- Affected employees and dates
+- Corrective actions needed"""
+
+            @self.mcp.prompt()
+            async def conflict_resolution_prompt(ctx, conflicts: list):
+                """🔧 Resolve schedule conflicts
+
+                Use this when: Multiple issues need systematic resolution
+                """
+                conflict_summary = (
+                    "\n".join(
+                        [
+                            f"- {c.get('type', 'Unknown')}: {c.get('description', 'No details')}"
+                            for c in conflicts
+                        ]
+                    )
+                    if conflicts
+                    else "No conflicts provided"
+                )
+
+                return f"""Analyze these schedule conflicts and provide resolutions:
+
+**Conflicts:**
+{conflict_summary}
+
+**For Each Conflict:**
+1. Root cause analysis
+2. Impact assessment
+3. Resolution options (ranked)
+4. Recommended action
+5. Prevention strategy
+
+**Consider:**
+- Employee preferences and availability
+- Coverage requirements
+- Labor regulations
+- Operational constraints
+- Fair workload distribution"""
+
+            @self.mcp.prompt()
+            async def workforce_planning_prompt(ctx):
+                """📊 Strategic workforce planning
+
+                Use this when: Planning staffing for future periods
+                """
+                return """Analyze workforce needs and create staffing plan:
+
+**Analysis:**
+1. Historical schedule patterns
+2. Coverage requirements by day/time
+3. Current employee capacity
+4. Upcoming absences/leaves
+
+**Planning Recommendations:**
+- Optimal staffing levels
+- Hiring needs (if any)
+- Training requirements
+- Schedule optimization opportunities
+- Cost projections"""
+
+            @self.mcp.prompt()
+            async def schedule_generation_prompt(ctx):
+                """🗓️ Generate new schedule from scratch
+
+                Use this when: Creating a schedule for a new period
+                """
+                return """Generate an optimized schedule for the specified period:
+
+**Requirements:**
+1. Date range (start and end dates)
+2. Coverage requirements (employees per shift)
+3. Employee constraints (availability, max hours)
+4. Preferences (shift types, days off)
+
+**Output:**
+- Complete shift assignments
+- Coverage analysis
+- Constraint satisfaction report
+- Alternative options (if needed)
+
+**Optimization Goals:**
+- Fair workload distribution
+- Employee preference matching
+- Cost efficiency
+- Compliance with all regulations"""
+
+            self.logger.info("Successfully registered 6 enhanced MCP prompts")
         except Exception as e:
             self.logger.error(f"Failed to register prompts: {e}")
             # Continue without prompts - FastMCP should handle empty prompts list
+
+    def _register_resources(self):
+        """Register MCP resources for context enrichment."""
+        try:
+            from src.backend.models import Coverage, Employee, Schedule, ShiftTemplate
+
+            @self.mcp.resource("employee://{employee_id}")
+            async def get_employee_resource(employee_id: str):
+                """Get detailed employee information
+
+                Use this to: Add employee context to your chat
+                """
+                if not self.flask_app:
+                    return {"error": "Flask app not initialized"}
+
+                with self.flask_app.app_context():
+                    # Try both ID and employee_id field
+                    employee = Employee.query.filter(
+                        (Employee.id == employee_id)
+                        | (Employee.employee_id == employee_id)
+                    ).first()
+
+                    if not employee:
+                        return {"error": f"Employee {employee_id} not found"}
+
+                    return {
+                        "uri": f"employee://{employee_id}",
+                        "mimeType": "application/json",
+                        "text": str(employee.to_dict()),
+                    }
+
+            @self.mcp.resource("schedule://{start_date}/{end_date}")
+            async def get_schedule_resource(start_date: str, end_date: str):
+                """Get schedule data for a date range
+
+                Use this to: Add schedule context to your chat
+                Format: YYYY-MM-DD
+                """
+                if not self.flask_app:
+                    return {"error": "Flask app not initialized"}
+
+                with self.flask_app.app_context():
+                    from datetime import datetime
+
+                    try:
+                        start = datetime.fromisoformat(start_date).date()
+                        end = datetime.fromisoformat(end_date).date()
+                    except ValueError:
+                        return {"error": "Invalid date format. Use YYYY-MM-DD"}
+
+                    schedules = Schedule.query.filter(
+                        Schedule.date >= start, Schedule.date <= end
+                    ).all()
+
+                    schedule_data = [s.to_dict() for s in schedules]
+
+                    return {
+                        "uri": f"schedule://{start_date}/{end_date}",
+                        "mimeType": "application/json",
+                        "text": str(
+                            {
+                                "start_date": start_date,
+                                "end_date": end_date,
+                                "total_entries": len(schedule_data),
+                                "schedules": schedule_data,
+                            }
+                        ),
+                    }
+
+            @self.mcp.resource("shift-templates://all")
+            async def get_shift_templates_resource():
+                """Get all available shift templates
+
+                Use this to: View available shift types and times
+                """
+                if not self.flask_app:
+                    return {"error": "Flask app not initialized"}
+
+                with self.flask_app.app_context():
+                    shifts = ShiftTemplate.query.all()
+                    shift_data = [s.to_dict() for s in shifts]
+
+                    return {
+                        "uri": "shift-templates://all",
+                        "mimeType": "application/json",
+                        "text": str(
+                            {
+                                "total_templates": len(shift_data),
+                                "templates": shift_data,
+                            }
+                        ),
+                    }
+
+            @self.mcp.resource("coverage://{day_of_week}")
+            async def get_coverage_resource(day_of_week: str):
+                """Get coverage requirements for a day
+
+                Use this to: View staffing requirements
+                Days: monday, tuesday, wednesday, thursday, friday, saturday, sunday
+                """
+                if not self.flask_app:
+                    return {"error": "Flask app not initialized"}
+
+                with self.flask_app.app_context():
+                    day_map = {
+                        "monday": 0,
+                        "tuesday": 1,
+                        "wednesday": 2,
+                        "thursday": 3,
+                        "friday": 4,
+                        "saturday": 5,
+                        "sunday": 6,
+                    }
+
+                    day_num = day_map.get(day_of_week.lower())
+                    if day_num is None:
+                        return {"error": f"Invalid day: {day_of_week}"}
+
+                    coverage = Coverage.query.filter_by(day_of_week=day_num).all()
+
+                    coverage_data = [c.to_dict() for c in coverage]
+
+                    return {
+                        "uri": f"coverage://{day_of_week}",
+                        "mimeType": "application/json",
+                        "text": str(
+                            {
+                                "day": day_of_week,
+                                "day_number": day_num,
+                                "coverage_rules": coverage_data,
+                            }
+                        ),
+                    }
+
+            self.logger.info("Successfully registered 5 MCP resources")
+        except Exception as e:
+            self.logger.error(f"Failed to register resources: {e}")
+            # Continue without resources
 
     async def init_conversation_manager(self):
         """Initialize the conversation manager asynchronously with error handling."""
@@ -508,7 +777,8 @@ class SchichtplanMCPService:
         """Run the MCP server in stdio mode."""
         try:
             self.logger.info("Starting MCP server in stdio mode...")
-            await self.mcp.run()
+            # Use run_async() since we're already in an async context
+            await self.mcp.run_async()
         except Exception as e:
             self.logger.error(f"Error running stdio server: {e}", exc_info=True)
             raise
@@ -519,7 +789,8 @@ class SchichtplanMCPService:
             from fastmcp.transports.sse import sse_transport
 
             self.logger.info(f"Starting MCP server in SSE mode on {host}:{port}...")
-            await self.mcp.run(transport=sse_transport(port=port))
+            # Use run_async() since we're already in an async context
+            await self.mcp.run_async(transport=sse_transport(port=port))
         except Exception as e:
             self.logger.error(f"Error running SSE server: {e}", exc_info=True)
             raise
@@ -530,7 +801,8 @@ class SchichtplanMCPService:
             from fastmcp.transports.http import http_transport
 
             self.logger.info(f"Starting MCP server in HTTP mode on {host}:{port}...")
-            await self.mcp.run(transport=http_transport(port=port))
+            # Use run_async() since we're already in an async context
+            await self.mcp.run_async(transport=http_transport(port=port))
         except Exception as e:
             self.logger.error(f"Error running HTTP server: {e}", exc_info=True)
             raise

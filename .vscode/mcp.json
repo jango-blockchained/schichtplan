@@ -1,0 +1,17 @@
+{
+  "servers": {
+    "schichtplanAssistent": {
+      "type": "stdio",
+      "command": "./src/backend/.venv/bin/python",
+      "args": [
+        "src/backend/mcp_server.py"
+      ],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "FLASK_ENV": "development",
+        "FLASK_APP": "src.backend.app:create_app"
+      }
+    }
+  },
+  "inputs": []
+}

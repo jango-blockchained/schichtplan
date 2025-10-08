@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, List
 from datetime import date
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 
 class AIScheduleGenerateRequest(BaseModel):
@@ -12,29 +13,29 @@ class AIScheduleGenerateRequest(BaseModel):
     end_date: date = Field(
         ..., description="End date of the schedule in YYYY-MM-DD format."
     )
-    version_id: Optional[int] = Field(
+    version_id: int | None = Field(
         None,
         description="Optional version ID to associate with the generated schedule.",
     )
-    ai_model_params: Optional[Dict[str, Any]] = Field(
+    ai_model_params: dict[str, Any] | None = Field(
         {}, description="Optional dictionary of parameters for the AI model."
     )
-    seniority_weight: Optional[float] = Field(
-        0.5, 
-        ge=0.0, 
+    seniority_weight: float | None = Field(
+        0.5,
+        ge=0.0,
         le=1.0,
-        description="Weight for seniority scoring (0-1). Higher values prioritize senior employees more."
+        description="Weight for seniority scoring (0-1). Higher values prioritize senior employees more.",
     )
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "examples": [
                 {
                     "start_date": "2023-10-26",
                     "end_date": "2023-11-01",
                     "version_id": 5,
                     "ai_model_params": {"temperature": 0.7, "max_tokens": 1500},
-                    "seniority_weight": 0.5
+                    "seniority_weight": 0.5,
                 }
             ]
         }
@@ -46,13 +47,13 @@ class AIScheduleFeedbackRequest(BaseModel):
     version_id: int = Field(
         ..., description="The version ID of the schedule being reviewed."
     )
-    manual_assignments: List[Dict[str, Any]] = Field(
+    manual_assignments: list[dict[str, Any]] = Field(
         ..., description="List of manual assignments or modifications made by the user."
     )
     # Add other relevant feedback fields as needed, e.g., comments, ratings, etc.
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "examples": [
                 {
                     "version_id": 5,

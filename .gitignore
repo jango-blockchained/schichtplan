@@ -35,6 +35,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 flask.log
+mcp_server.log
+backend_start.log
 # Log directories
 logs/
 **/logs/
@@ -79,6 +81,7 @@ src/backend/instance/*.db-shm
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
+!.vscode/mcp.json
 .idea/
 *.swp
 *.swo
