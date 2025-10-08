@@ -6,7 +6,7 @@ enabling AI applications to interact with the shift planning system.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastmcp import FastMCP
 from flask import Flask
@@ -35,8 +35,8 @@ class SchichtplanMCPService:
 
     def __init__(
         self,
-        flask_app: Optional[Flask] = None,
-        logger: Optional[logging.Logger] = None,
+        flask_app: Flask | None = None,
+        logger: logging.Logger | None = None,
     ):
         self.flask_app = flask_app
         self.logger = logger or logging.getLogger(__name__)
@@ -151,7 +151,7 @@ class SchichtplanMCPService:
             self.agent_registry = None
             self.workflow_coordinator = None
 
-    async def handle_request(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def handle_request(self, request_data: dict[str, Any]) -> dict[str, Any]:
         """Handle an incoming MCP request, managing conversation state with AI components."""
         self.logger.info(f"Handling MCP request: {list(request_data.keys())}")
 
@@ -276,8 +276,8 @@ class SchichtplanMCPService:
             }
 
     async def _handle_with_agent_registry(
-        self, user_request: str, conversation, conv_id: Optional[str]
-    ) -> Dict[str, Any]:
+        self, user_request: str, conversation, conv_id: str | None
+    ) -> dict[str, Any]:
         """Handle request with agent registry."""
         conv_id_str = conv_id or "unknown"
 
@@ -311,8 +311,8 @@ class SchichtplanMCPService:
         }
 
     async def _handle_complex_request_with_workflow(
-        self, user_request: str, conversation, complexity_analysis: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, user_request: str, conversation, complexity_analysis: dict[str, Any]
+    ) -> dict[str, Any]:
         """Handle complex requests using workflow coordination."""
         if not self.workflow_coordinator:
             return {
@@ -369,7 +369,7 @@ class SchichtplanMCPService:
             }
 
     def _generate_workflow_summary(
-        self, workflow_plan, execution_result: Dict[str, Any]
+        self, workflow_plan, execution_result: dict[str, Any]
     ) -> str:
         """Generate a human-readable summary of workflow execution."""
         status = execution_result.get("status", "unknown")
@@ -407,7 +407,7 @@ class SchichtplanMCPService:
 
         return summary
 
-    def _format_agent_response(self, agent_result: Dict[str, Any]) -> str:
+    def _format_agent_response(self, agent_result: dict[str, Any]) -> str:
         """Format agent execution result into human-readable response."""
         status = agent_result.get("status", "unknown")
         agent_name = agent_result.get("agent_name", "Unknown Agent")
@@ -449,9 +449,9 @@ class SchichtplanMCPService:
 
         return response
 
-    def get_ai_agent_status(self) -> Dict[str, Any]:
+    def get_ai_agent_status(self) -> dict[str, Any]:
         """Get status of the AI agent system."""
-        status: Dict[str, Any] = {
+        status: dict[str, Any] = {
             "ai_orchestrator_initialized": self.ai_orchestrator is not None,
             "agent_registry_initialized": self.agent_registry is not None,
             "workflow_coordinator_initialized": self.workflow_coordinator is not None,
@@ -489,7 +489,7 @@ class SchichtplanMCPService:
 
         return status
 
-    def get_open_api_spec(self) -> Dict[str, Any]:
+    def get_open_api_spec(self) -> dict[str, Any]:
         """Get the OpenAPI specification for the MCP service."""
         # FastMCP doesn't provide a get_openapi_spec method
         # Return a basic spec structure instead
@@ -508,30 +508,34 @@ class SchichtplanMCPService:
         """Run the MCP server in stdio mode."""
         try:
             self.logger.info("Starting MCP server in stdio mode...")
-            await self.mcp.run_stdio_async()
+            await self.mcp.run()
         except Exception as e:
             self.logger.error(f"Error running stdio server: {e}", exc_info=True)
             raise
 
     async def run_sse(self, host: str = "127.0.0.1", port: int = 8001):
-        """Run the MCP server in SSE mode (deprecated, for compatibility)."""
+        """Run the MCP server in SSE mode."""
         try:
+            from fastmcp.transports.sse import sse_transport
+
             self.logger.info(f"Starting MCP server in SSE mode on {host}:{port}...")
-            await self.mcp.run_sse_async()
+            await self.mcp.run(transport=sse_transport(port=port))
         except Exception as e:
             self.logger.error(f"Error running SSE server: {e}", exc_info=True)
             raise
 
     async def run_streamable_http(self, host: str = "127.0.0.1", port: int = 8002):
-        """Run the MCP server in streamable HTTP mode (deprecated, for compatibility)."""
+        """Run the MCP server in streamable HTTP mode."""
         try:
+            from fastmcp.transports.http import http_transport
+
             self.logger.info(f"Starting MCP server in HTTP mode on {host}:{port}...")
-            await self.mcp.run_streamable_http_async()
+            await self.mcp.run(transport=http_transport(port=port))
         except Exception as e:
             self.logger.error(f"Error running HTTP server: {e}", exc_info=True)
             raise
 
-    async def get_mcp_health_status(self) -> Dict[str, Any]:
+    async def get_mcp_health_status(self) -> dict[str, Any]:
         """Get comprehensive MCP service health status for frontend monitoring."""
         try:
             # Initialize AI systems if not already done
@@ -626,7 +630,7 @@ class SchichtplanMCPService:
                 },
             }
 
-    async def get_mcp_tool_discovery(self) -> Dict[str, Any]:
+    async def get_mcp_tool_discovery(self) -> dict[str, Any]:
         """Get MCP tool discovery information for frontend integration."""
         try:
             tools_info = {
@@ -688,7 +692,7 @@ class SchichtplanMCPService:
                 "error": str(e),
             }
 
-    def _get_fallback_tool_info(self, category: str) -> List[Dict[str, Any]]:
+    def _get_fallback_tool_info(self, category: str) -> list[dict[str, Any]]:
         """Get fallback tool information for a category."""
         fallback_tools = {
             "schedule_analysis": [
@@ -772,7 +776,7 @@ class SchichtplanMCPService:
             [{"name": f"{category}_tool", "description": f"Generic {category} tool"}],
         )
 
-    async def get_mcp_status_dashboard(self) -> Dict[str, Any]:
+    async def get_mcp_status_dashboard(self) -> dict[str, Any]:
         """Get comprehensive MCP status dashboard data for frontend."""
         try:
             health_status = await self.get_mcp_health_status()

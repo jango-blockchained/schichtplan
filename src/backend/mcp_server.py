@@ -17,7 +17,6 @@ import argparse
 import asyncio
 import logging
 import sys
-import threading
 from pathlib import Path
 
 # Add the project root to Python path
@@ -28,16 +27,23 @@ from src.backend.app import create_app
 from src.backend.services.mcp_service import SchichtplanMCPService
 
 
-def setup_logging(level: str = "INFO"):
+def setup_logging(level: str = "INFO", transport: str = "stdio"):
     """Setup logging configuration."""
+    # For stdio mode, use file logging to avoid protocol interference
+    if transport == "stdio":
+        handlers = [
+            logging.FileHandler("mcp_server.log", mode="a"),
+        ]
+    else:
+        # Use stderr for network transports
+        handlers = [
+            logging.StreamHandler(sys.stderr),
+        ]
+
     logging.basicConfig(
         level=getattr(logging, level.upper()),
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[
-            logging.StreamHandler(
-                sys.stderr
-            ),  # Use stderr for stdio mode compatibility
-        ],
+        handlers=handlers,
     )
 
 
@@ -80,8 +86,8 @@ async def main():
 
     args = parser.parse_args()
 
-    # Setup logging
-    setup_logging(args.log_level)
+    # Setup logging with transport-aware configuration
+    setup_logging(args.log_level, args.transport)
     logger = logging.getLogger(__name__)
 
     try:
@@ -129,34 +135,11 @@ async def main():
         sys.exit(1)
 
 
-def main_cli():
-    """CLI entry point for uvx distribution."""
-    # For stdio mode, we need to be more careful about output
-    if len(sys.argv) == 1 or (
-        len(sys.argv) > 1 and "--transport" not in sys.argv and "-t" not in sys.argv
-    ):
-        # Default to stdio mode - minimize stderr output
-        setup_logging("ERROR")  # Even more restrictive for stdio
-
-    def run_main():
-        """Run main in a completely separate process context."""
-        try:
-            # Create a completely new event loop
-            new_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(new_loop)
-            try:
-                new_loop.run_until_complete(main())
-            finally:
-                new_loop.close()
-        except Exception as e:
-            logging.getLogger(__name__).error(f"Server error: {e}", exc_info=True)
-
-    # Always run in a separate thread to avoid any event loop conflicts
-    thread = threading.Thread(target=run_main)
-    thread.daemon = False  # Don't make it a daemon so it keeps the process alive
-    thread.start()
-    thread.join()
-
-
 if __name__ == "__main__":
-    main_cli()
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logging.getLogger(__name__).info("Server shutdown requested")
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Server error: {e}", exc_info=True)
+        sys.exit(1)
