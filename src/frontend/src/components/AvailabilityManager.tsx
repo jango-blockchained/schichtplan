@@ -134,7 +134,7 @@ export function AvailabilityManager({
                                     Employee ID: {availability.employee_id}
                                 </p>
                                 <p className="text-sm text-gray-500">
-                                    {availability.day_of_week} - {availability.start_time} to {availability.end_time}
+                                    {availability.recurrence_day !== undefined ? `Day ${availability.recurrence_day}` : 'Date range'} - {availability.start_time} to {availability.end_time}
                                 </p>
                             </div>
                             <div className="flex gap-2">

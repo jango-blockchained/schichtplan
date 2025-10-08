@@ -14,6 +14,7 @@ import { WeekInfo } from '@/types/weekVersion';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { AlertCircle, Calendar, ChevronLeft, ChevronRight, Split } from 'lucide-react';
+import { useEffect } from 'react';
 import { WeekNavigationSettingsOverlay } from './WeekNavigationSettingsOverlay';
 
 interface WeekNavigatorProps {
@@ -59,6 +60,16 @@ export function WeekNavigator({
   const currentSegmentData = isSplitMode && segmentsData?.segments
     ? segmentsData.segments.find(s => s.segment_number === currentSegment)
     : null;
+
+  // Reset segment to 1 when week changes or if current segment exceeds available segments
+  useEffect(() => {
+    if (segmentsData && onSegmentChange) {
+      const maxSegments = segmentsData.segments.length;
+      if (currentSegment > maxSegments) {
+        onSegmentChange(1);
+      }
+    }
+  }, [currentWeekInfo.weekNumber, currentWeekInfo.year, segmentsData, currentSegment, onSegmentChange]);
 
   // Format week display
   const formatWeekDisplay = () => {

@@ -2,10 +2,13 @@ import { Button } from "@/components/ui/button"; // For empty state
 import { Card, CardContent } from "@/components/ui/card";
 import { Schedule, ScheduleUpdate, SpecialDay } from "@/types";
 import { WeekInfo } from "@/types/weekVersion";
+import { createDebugger } from "@/utils/debug";
 import { Calendar, Loader2, Plus } from "lucide-react"; // For empty state
 import { useEffect } from "react";
 import { DateRange } from "react-day-picker";
 import { ScheduleTable } from "./ScheduleTable";
+
+const debug = createDebugger('ScheduleManager');
 
 interface ScheduleManagerProps {
   schedules: Schedule[];
@@ -85,7 +88,7 @@ export function ScheduleManager({
     );
     const employeeIds = [...new Set(schedules.map((s) => s.employee_id))];
 
-    console.log("🔵 ScheduleManager received:", {
+    debug.log('Received schedules:', {
       totalSchedules: schedules.length,
       withShiftId: schedulesWithShiftId.length,
       withTimes: schedulesWithTimes.length,
@@ -104,15 +107,10 @@ export function ScheduleManager({
 
     // Log the first few schedules with shift IDs for debugging
     if (schedulesWithShiftId.length > 0) {
-      console.log(
-        "🔵 First 3 schedules with shifts:",
-        schedulesWithShiftId.slice(0, 3),
-      );
+      debug.log('First 3 schedules with shifts:', schedulesWithShiftId.slice(0, 3));
     } else if (!isEmptyState) {
       // Only warn if not in empty state, otherwise it's expected
-      console.log(
-        "🔵 WARNING: No schedules with shift IDs found (and not in empty state)",
-      );
+      debug.warn('No schedules with shift IDs found (and not in empty state)');
     }
   }, [
     schedules,
@@ -124,7 +122,7 @@ export function ScheduleManager({
   ]);
 
   // Debug log for ScheduleManager render
-  console.log("🔍 RENDERING ScheduleManager with:", {
+  debug.log('Rendering with:', {
     schedulesCount: schedules.length,
     dateRangeFrom: dateRange?.from ? dateRange.from.toISOString() : "undefined",
     dateRangeTo: dateRange?.to ? dateRange.to.toISOString() : "undefined",

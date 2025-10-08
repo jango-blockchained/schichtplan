@@ -1,16 +1,17 @@
+import { API_TIMEOUT } from "@/constants";
 import type {
-  Absence,
-  AiImportResponse,
-  ApplicableShift,
-  DailyCoverage,
-  Employee,
-  EmployeeAvailabilityStatus,
-  ScheduleUpdate,
-  Settings,
-  Shift,
-  SpecialDay,
-  Schedule as TSchedule,
-  ScheduleResponse as TScheduleResponse
+    Absence,
+    AiImportResponse,
+    ApplicableShift,
+    DailyCoverage,
+    Employee,
+    EmployeeAvailabilityStatus,
+    ScheduleUpdate,
+    Settings,
+    Shift,
+    SpecialDay,
+    Schedule as TSchedule,
+    ScheduleResponse as TScheduleResponse
 } from "@/types/index";
 import type { PDFLayoutConfig } from "@/types/pdf";
 import axios, { AxiosError } from "axios";
@@ -66,7 +67,7 @@ export const api = axios.create({
     Accept: "application/json",
   },
   withCredentials: true,
-  timeout: 30000,
+  timeout: API_TIMEOUT.DEFAULT,
   validateStatus: (status) => status >= 200 && status < 300,
 });
 

@@ -79,32 +79,10 @@ export function useVersionManager({
   // Track previous date range to detect changes
   const prevDateRangeRef = useRef<string | null>(null);
   const currentDateRangeKey = dateRange?.from?.toISOString() + "-" + dateRange?.to?.toISOString();
-  
-  // Track processed query to prevent duplicate processing
-  const processedQueryRef = useRef<string | null>(null);
 
   // Use ref to store onVersionSelected to avoid dependency issues
   const onVersionSelectedRef = useRef(onVersionSelected);
   onVersionSelectedRef.current = onVersionSelected;
-
-  // Clear selected version immediately when date range changes
-  useEffect(() => {
-    // Skip if dateRange is undefined (external versions mode)
-    if (!dateRange?.from || !dateRange?.to) {
-      return;
-    }
-
-    if (prevDateRangeRef.current !== null && prevDateRangeRef.current !== currentDateRangeKey) {
-      console.log("📅 Date range changed, clearing version selection immediately");
-      console.log("📅 Previous date range:", prevDateRangeRef.current);
-      console.log("📅 Current date range:", currentDateRangeKey);
-      setSelectedVersion(undefined);
-      onVersionSelectedRef.current?.(undefined);
-      // Clear processed query ref to allow processing of new date range
-      processedQueryRef.current = null;
-    }
-    prevDateRangeRef.current = currentDateRangeKey;
-  }, [currentDateRangeKey, dateRange?.from, dateRange?.to]);
 
   // Query for versions
   const versionsQuery = useQuery<VersionResponse, Error>({
@@ -126,7 +104,8 @@ export function useVersionManager({
     enabled: !!dateRange?.from && !!dateRange?.to,
   });
 
-    // Auto-select latest version when versions are available and query is complete
+  // Consolidated effect: Handle date range changes and version selection
+  // This replaces the two separate useEffect hooks that were causing race conditions
   useEffect(() => {
     // Skip if dateRange is undefined (external versions mode)
     if (!dateRange?.from || !dateRange?.to) {
@@ -134,32 +113,37 @@ export function useVersionManager({
     }
 
     const versions = versionsQuery.data?.versions || [];
+    const dateRangeChanged = prevDateRangeRef.current !== null && 
+                             prevDateRangeRef.current !== currentDateRangeKey;
 
-    // Only proceed if query is complete (not loading) and we have a valid result
+    // Update the previous date range reference
+    prevDateRangeRef.current = currentDateRangeKey;
+
+    // If date range changed, clear selection immediately
+    if (dateRangeChanged) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log("📅 Date range changed, clearing version selection");
+      }
+      setSelectedVersion(undefined);
+      onVersionSelectedRef.current?.(undefined);
+      // Don't return here - continue to process new versions if available
+    }
+
+    // Only proceed with version selection if query is complete
     if (versionsQuery.isLoading || versionsQuery.isError) {
       return;
     }
 
-    // Create a unique key for this query result to prevent duplicate processing
-    const queryKey = currentDateRangeKey + "-" + JSON.stringify(versions.map(v => v.version).sort());
-    
-    // Skip if we've already processed this exact query result
-    if (processedQueryRef.current === queryKey) {
-      return;
-    }
-    
-    console.log("📅 Processing version query for date range:", currentDateRangeKey);
-    console.log("📅 Available versions:", versions.map(v => v.version));
-    console.log("📅 Current selected version:", selectedVersion);
-
+    // Handle version selection based on available versions
     if (versions.length === 0) {
-      // No versions available for this date range - ensure selection is cleared
+      // No versions available - ensure selection is cleared
       if (selectedVersion !== undefined) {
-        console.log("📅 No versions available for current date range, clearing selection");
+        if (process.env.NODE_ENV === 'development') {
+          console.log("📅 No versions available, clearing selection");
+        }
         setSelectedVersion(undefined);
         onVersionSelectedRef.current?.(undefined);
       }
-      processedQueryRef.current = queryKey;
       return;
     }
 
@@ -168,24 +152,33 @@ export function useVersionManager({
       versions.some(v => v.version === selectedVersion);
 
     if (!isSelectedVersionValid) {
-      // Clear invalid selection or auto-select latest if enabled
+      // Invalid or no selection - auto-select latest if enabled
       if (autoSelectLatest) {
         const latestVersion = Math.max(...versions.map(v => v.version));
-        console.log("📅 Auto-selecting latest version for current date range:", latestVersion);
+        if (process.env.NODE_ENV === 'development') {
+          console.log("📅 Auto-selecting latest version:", latestVersion);
+        }
         setSelectedVersion(latestVersion);
         onVersionSelectedRef.current?.(latestVersion);
-      } else {
-        console.log("📅 Clearing invalid version selection");
+      } else if (selectedVersion !== undefined) {
+        // Clear invalid selection when auto-select is disabled
+        if (process.env.NODE_ENV === 'development') {
+          console.log("📅 Clearing invalid version selection");
+        }
         setSelectedVersion(undefined);
         onVersionSelectedRef.current?.(undefined);
       }
-    } else {
-      console.log("📅 Current version selection is valid, keeping it");
     }
-    
-    // Mark this query as processed
-    processedQueryRef.current = queryKey;
-  }, [versionsQuery.data, versionsQuery.isLoading, versionsQuery.isError, autoSelectLatest, currentDateRangeKey, selectedVersion, dateRange?.from, dateRange?.to]);
+  }, [
+    currentDateRangeKey, 
+    dateRange?.from, 
+    dateRange?.to, 
+    versionsQuery.data, 
+    versionsQuery.isLoading, 
+    versionsQuery.isError, 
+    autoSelectLatest,
+    selectedVersion
+  ]);
 
   // Create version mutation
   const createVersionMutation = useMutation({

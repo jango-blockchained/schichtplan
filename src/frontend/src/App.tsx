@@ -5,6 +5,7 @@ import { AxiosError } from "axios";
 import React from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { FloatingSuggestionsPanel } from "./components/ai/FloatingSuggestionsPanel";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AIContextProvider } from "./contexts/AIContext";
 import { MainLayout } from "./layouts/MainLayout";
 import AbsencesPage from "./pages/AbsencesPage";
@@ -47,7 +48,13 @@ const queryClient = new QueryClient({
 
 const App: React.FC = () => {
   return (
-    <div>
+    <ErrorBoundary
+      onError={(error, errorInfo) => {
+        // Log to console in development
+        console.error('Application Error:', error, errorInfo);
+        // TODO: Send to error reporting service in production
+      }}
+    >
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <BrowserRouter>
@@ -76,7 +83,7 @@ const App: React.FC = () => {
           </BrowserRouter>
         </ThemeProvider>
       </QueryClientProvider>
-    </div>
+    </ErrorBoundary>
   );
 };
 
