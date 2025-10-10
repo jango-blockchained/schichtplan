@@ -5,7 +5,9 @@ Schichtplan is a full-stack employee scheduling system with AI-powered optimizat
 
 **Stack:** Python/Flask backend, React/TypeScript frontend (Vite + Bun runtime), SQLite database, MCP integration for AI tools.
 
-**Important:** This project uses **Bun** (not npm) as the JavaScript runtime. All frontend commands use `bun` instead of `npm`.
+**Important:** This project uses **Bun** (not npm) as the JavaScript runtime. All frontend commands use `bun` instead of `npm`. See `bunfig.toml` for Bun configuration.
+
+**Current Branch:** `feature/week-navigation-only` - This branch focuses on week-based navigation features.
 
 ## Architecture & Key Concepts
 
@@ -160,27 +162,46 @@ import { api } from '@/services/api';
 ```
 
 **API client features:**
-- Automatic request/response logging
-- Timeout handling (configurable via `API_TIMEOUT` constants)
+- Automatic request/response logging (check browser console for detailed request info)
+- Timeout handling (configurable via `API_TIMEOUT` constants in `@/constants`)
 - Error handling with AxiosError type guards
 - Credential support (withCredentials: true)
+- Validate status function for correct HTTP status handling
+
+**Never create duplicate type definitions.** Always import from the canonical source.
 
 ### Frontend: Design System
 Follow `docs/design_concept.md` and `src/frontend/DESIGN_SYSTEM.md`:
 - Use Shadcn UI components from `@/components/ui/`
 - **Layout components:** `PageLayout`, `ContentCard`, `ContentGrid`, `SettingsLayout` from `@/layouts`
-- 4px-based spacing system
-- Semantic colors for states (`border-border`, etc.)
+  - `PageLayout`: Main page wrapper with title, description, breadcrumbs, header actions
+  - `ContentCard`: Consistent card layout for sections
+  - `ContentGrid`: Responsive grid system with automatic column handling
+  - `SettingsLayout`: Specialized layout for settings pages with tab navigation
+- 4px-based spacing system (use multiples of 4 for consistent spacing)
+- Semantic colors for states (`border-border`, `bg-muted`, `text-destructive`, etc.)
 - Clean, professional aesthetic for workforce management
 
 **Schedule page layout order:** Date Selection → Version Table → Statistics → Actions → Schedule Table → Color Legend
 
 **Example pattern:**
 ```typescript
-import { PageLayout, ContentCard } from "@/layouts";
+import { PageLayout, ContentCard, ContentGrid } from "@/layouts";
 
-<PageLayout title="My Page" description="..." breadcrumbs={[...]}>
-  <ContentCard title="Section">...</ContentCard>
+<PageLayout 
+  title="My Page" 
+  description="..." 
+  breadcrumbs={[
+    { href: "/", label: "Home" },
+    { label: "Current Page", isCurrentPage: true }
+  ]}
+  headerActions={<Button>Action</Button>}
+>
+  <ContentGrid cols={2}>
+    <ContentCard title="Section">
+      {/* Content */}
+    </ContentCard>
+  </ContentGrid>
 </PageLayout>
 ```
 
@@ -211,7 +232,34 @@ async def manage_employees(operation: str, employee_data: dict = None, ...):
 
 **MCP prompts** guide AI assistants: Schedule Analysis, Employee Scheduling, Optimization, etc.
 
+**Two MCP server variants:**
+1. **Standard MCP** (`src/backend/mcp_server.py`): 16 tools, 7 resources, 6 prompts for basic AI integration
+2. **Conversational AI** (`start_conversational_ai.py`): Multi-provider orchestration (OpenAI, Anthropic, Gemini) with state persistence
+
 See `docs/MCP_INTEGRATION_GUIDE.md` for complete API reference.
+
+### AI Integration Architecture
+The system features deep AI integration with multiple layers:
+
+**Frontend AI Components:**
+- `GlobalAIAssistant.tsx`: Omnipresent floating assistant (bottom-right button, Cmd+/ shortcut)
+- `ConversationalAIChat.tsx`: Multi-turn conversation interface with streaming support
+- `enhancedAIService.ts`: Service layer for streaming responses, background tasks, context-aware requests
+- `AIContext.tsx`: Tracks page context, route, and user actions for context-aware interactions
+
+**Backend AI Services:**
+- `routes/ai_routes.py`, `routes/enhanced_ai_routes.py`: REST endpoints for chat, agents, workflows
+- `services/conversational_mcp_service.py`: Multi-turn conversation orchestration
+- `services/enhanced_agent_registry.py`: Agent load balancing, performance tracking, capability matching
+- AI Agents: ScheduleOptimizerAgent, EmployeeManagerAgent for specialized tasks
+
+**AI Development Guidelines:**
+- Always read `docs/AI_INTEGRATION_MASTER_INDEX.md` before making AI-related changes
+- Use established patterns from EnhancedAIService for consistency
+- Include page context in all AI requests using `AIContext.getContextSummary()`
+- Prefer streaming responses via SSE for better UX
+- Use background task system for operations >3 seconds
+- AI failures must gracefully degrade, never block workflows
 
 ## Critical Constraints & Gotchas
 
@@ -230,6 +278,10 @@ See `docs/MCP_INTEGRATION_GUIDE.md` for complete API reference.
 7. **Migration safety:** Never directly edit generated migration files. Use `flask db migrate` to generate, then review before applying with `flask db upgrade`.
 
 8. **Bun vs npm:** Frontend uses Bun as the JavaScript runtime. Always use `bun` commands, not `npm`. See `bunfig.toml` for configuration.
+
+9. **Type safety:** Frontend enforces strict TypeScript with canonical type imports from `@/types/index.ts` and `@/services/api.ts`. Never duplicate type definitions.
+
+10. **AI Context Awareness:** All AI features must use `AIContext` for page-aware interactions. Never make AI requests without context summary.
 
 ## Debugging Checklist
 
