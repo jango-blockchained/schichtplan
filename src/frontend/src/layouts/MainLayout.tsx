@@ -1,3 +1,4 @@
+import { GlobalAIAssistant } from "@/components/ai/GlobalAIAssistant";
 import { GlobalAIChat } from "@/components/ai/GlobalAIChat";
 import { UnifiedFloatingMenu } from "@/components/ui/UnifiedFloatingMenu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -293,6 +294,9 @@ export const MainLayout = () => {
         {/* Unified bottom-right menu and AI chat dialog */}
         <UnifiedFloatingMenu />
         <GlobalAIChat />
+
+        {/* Global AI Assistant - Omnipresent AI helper */}
+        <GlobalAIAssistant />
       </div>
     </SidebarProvider>
   );

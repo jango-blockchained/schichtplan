@@ -12,6 +12,7 @@ import IntegrationsAISection from "@/components/UnifiedSettingsSections/Integrat
 import { SchedulingEngineSection } from "@/components/UnifiedSettingsSections/SchedulingEngineSection";
 import WeekNavigationSection from "@/components/UnifiedSettingsSections/WeekNavigationSection";
 import { DEFAULT_SETTINGS } from "@/hooks/useSettings"; // Assuming default settings are here
+import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
 import { getSettings, updateSettings } from "@/services/api"; // Assuming API functions are here
 import type { Settings } from "@/types/index";
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
@@ -92,6 +93,30 @@ export default function UnifiedSettingsPage() {
   const [activeSection, setActiveSection] = useState<SectionId>(
     "general_store_setup",
   );
+
+  // Add WebSocket event handlers for real-time updates
+  useWebSocketEvents([
+    {
+      eventType: 'settings_updated',
+      handler: () => {
+        // Invalidate settings-related queries
+        queryClient.invalidateQueries({ queryKey: ['settings'] });
+
+        // Show notification
+        toast({
+          title: "Settings Updated",
+          description: "Settings have been updated by another user.",
+        });
+      }
+    },
+    {
+      eventType: 'shift_template_updated',
+      handler: () => {
+        // Invalidate shift templates when they are updated
+        queryClient.invalidateQueries({ queryKey: ['shifts'] });
+      }
+    }
+  ]);
 
   const { data: localSettings, isLoading: isLoadingSettings, error: settingsError } = useQuery<Settings, Error, Settings>({
     queryKey: ["settings"],

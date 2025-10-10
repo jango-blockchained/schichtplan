@@ -92,6 +92,9 @@ export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = (
                 <Input
                   id="default_shift_duration"
                   type="number"
+                  min="1"
+                  max="24"
+                  step="0.5"
                   value={settings.default_shift_duration ?? 8}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     onInputChange(
@@ -101,6 +104,9 @@ export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = (
                     )
                   }
                 />
+                <p className="text-xs text-muted-foreground">
+                  Standard duration for shifts (typically 8 hours)
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="min_break_duration">
@@ -109,11 +115,17 @@ export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = (
                 <Input
                   id="min_break_duration"
                   type="number"
+                  min="0"
+                  max="120"
+                  step="5"
                   value={settings.min_break_duration ?? 30}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     onInputChange("min_break_duration", e.target.value, true)
                   }
                 />
+                <p className="text-xs text-muted-foreground">
+                  Minimum break time required between shifts
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="min_rest_between_shifts">
@@ -122,6 +134,9 @@ export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = (
                 <Input
                   id="min_rest_between_shifts"
                   type="number"
+                  min="8"
+                  max="24"
+                  step="1"
                   value={settings.min_rest_between_shifts ?? 11}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     onInputChange(
@@ -131,6 +146,9 @@ export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = (
                     )
                   }
                 />
+                <p className="text-xs text-muted-foreground">
+                  Legal requirement (often 11 hours)
+                </p>
               </div>
             </div>
             <div className="space-y-4">
@@ -139,28 +157,43 @@ export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = (
                 <Input
                   id="max_daily_hours"
                   type="number"
+                  min="1"
+                  max="24"
+                  step="0.5"
                   value={settings.max_daily_hours ?? 10}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     onInputChange("max_daily_hours", e.target.value, true)
                   }
                 />
+                <p className="text-xs text-muted-foreground">
+                  Maximum working hours per day
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="max_weekly_hours">Max Weekly Hours</Label>
                 <Input
                   id="max_weekly_hours"
                   type="number"
+                  min="1"
+                  max="80"
+                  step="1"
                   value={settings.max_weekly_hours ?? 40}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     onInputChange("max_weekly_hours", e.target.value, true)
                   }
                 />
+                <p className="text-xs text-muted-foreground">
+                  Maximum working hours per week per employee
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="total_weekly_working_hours">Total Weekly Working Hours</Label>
                 <Input
                   id="total_weekly_working_hours"
                   type="number"
+                  min="1"
+                  max="1000"
+                  step="1"
                   value={settings.total_weekly_working_hours ?? 165}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     onInputChange("total_weekly_working_hours", e.target.value, true)
@@ -177,6 +210,9 @@ export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = (
                 <Input
                   id="scheduling_period_weeks"
                   type="number"
+                  min="1"
+                  max="12"
+                  step="1"
                   value={settings.scheduling_period_weeks ?? 1}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     onInputChange(
@@ -186,6 +222,9 @@ export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = (
                     )
                   }
                 />
+                <p className="text-xs text-muted-foreground">
+                  Number of weeks to generate schedules for at once
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="scheduling_algorithm">Scheduling Algorithm</Label>

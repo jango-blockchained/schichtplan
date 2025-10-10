@@ -1,6 +1,5 @@
 import { PageHeader } from "@/components/PageHeader";
 import ScheduleControls from "@/components/Schedule/ScheduleControls";
-import { Card, CardContent } from "@/components/ui/card";
 
 interface SchedulePageHeaderProps {
   onRefresh: () => void;
@@ -15,8 +14,8 @@ export function SchedulePageHeader({
 }: SchedulePageHeaderProps) {
   return (
     <div className="space-y-6">
-      <PageHeader 
-        title="Schichtplanung" 
+      <PageHeader
+        title="Schichtplanung"
         description="Verwalte und plane Mitarbeiterschichten"
       >
         <ScheduleControls

@@ -3,7 +3,9 @@
 ## Project Overview
 Schichtplan is a full-stack employee scheduling system with AI-powered optimization via Model Context Protocol (MCP). The system handles complex shift planning for retail environments with multiple employee types, keyholders, coverage requirements, and compliance rules.
 
-**Stack:** Python/Flask backend, React/TypeScript frontend (Vite), SQLite database, MCP integration for AI tools.
+**Stack:** Python/Flask backend, React/TypeScript frontend (Vite + Bun runtime), SQLite database, MCP integration for AI tools.
+
+**Important:** This project uses **Bun** (not npm) as the JavaScript runtime. All frontend commands use `bun` instead of `npm`.
 
 ## Architecture & Key Concepts
 
@@ -34,8 +36,10 @@ MCP Server (AI integration)
 **Key integration points:**
 - Frontend API client: `src/frontend/src/services/api.ts` (1715 lines - comprehensive API surface)
 - Backend routes: `src/backend/routes/` and `src/backend/api/` (dual routing structure for legacy reasons)
+- Backend app initialization: `src/backend/app.py` (main Flask app, blueprint registration)
 - MCP server: `src/backend/mcp_server.py` - Exposes 16 tools, 7 resources, 6 prompts for AI integration
 - MCP service: `src/backend/services/mcp_service.py` - Implements MCP protocol handlers
+- Conversational AI: `src/backend/services/conversational_mcp_service.py` - Multi-provider AI orchestration
 
 ### Database & Migrations
 - **Location:** `instance/app.db` (SQLite)
@@ -53,6 +57,9 @@ MCP Server (AI integration)
 # With MCP server for AI features:
 ./start.sh --with-mcp
 
+# With Conversational AI MCP server (advanced AI orchestration):
+python start_conversational_ai.py --transport sse --port 8001
+
 # Backend only (port 5000):
 ./src/backend/.venv/bin/python -m src.backend.run runserver
 
@@ -64,6 +71,10 @@ python src/backend/mcp_server.py --transport sse --port 8001
 ```
 
 **Use VS Code tasks** (see `.vscode/tasks.json`) for common workflows instead of manual commands.
+
+**Note on MCP servers:** Two MCP server variants exist:
+- `mcp_server.py` - Standard MCP server for AI tool integration (16 tools, 7 resources, 6 prompts)
+- `start_conversational_ai.py` - Advanced conversational AI with multi-provider orchestration (OpenAI, Anthropic, Gemini)
 
 ### Testing
 ```bash
@@ -157,11 +168,21 @@ import { api } from '@/services/api';
 ### Frontend: Design System
 Follow `docs/design_concept.md` and `src/frontend/DESIGN_SYSTEM.md`:
 - Use Shadcn UI components from `@/components/ui/`
+- **Layout components:** `PageLayout`, `ContentCard`, `ContentGrid`, `SettingsLayout` from `@/layouts`
 - 4px-based spacing system
 - Semantic colors for states (`border-border`, etc.)
 - Clean, professional aesthetic for workforce management
 
 **Schedule page layout order:** Date Selection → Version Table → Statistics → Actions → Schedule Table → Color Legend
+
+**Example pattern:**
+```typescript
+import { PageLayout, ContentCard } from "@/layouts";
+
+<PageLayout title="My Page" description="..." breadcrumbs={[...]}>
+  <ContentCard title="Section">...</ContentCard>
+</PageLayout>
+```
 
 ### Scheduler: Modular Package
 Refactored from monolithic file into `src/backend/services/scheduler/`:
@@ -207,6 +228,8 @@ See `docs/MCP_INTEGRATION_GUIDE.md` for complete API reference.
 6. **Database paths:** All paths use `Config.INSTANCE_DIR` from `src/backend/config.py`. Never hardcode paths to `instance/`.
 
 7. **Migration safety:** Never directly edit generated migration files. Use `flask db migrate` to generate, then review before applying with `flask db upgrade`.
+
+8. **Bun vs npm:** Frontend uses Bun as the JavaScript runtime. Always use `bun` commands, not `npm`. See `bunfig.toml` for configuration.
 
 ## Debugging Checklist
 

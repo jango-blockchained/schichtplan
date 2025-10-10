@@ -1,13 +1,26 @@
 import asyncio
+import json
 import traceback
+import uuid
 from datetime import datetime
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import (
+    Blueprint,
+    Response,
+    current_app,
+    jsonify,
+    request,
+    stream_with_context,
+)
 from flask_cors import CORS
 
 from src.backend.models import MessageType
 from src.backend.services.ai_agents import AgentRegistry, WorkflowCoordinator
 from src.backend.services.ai_integration import create_ai_orchestrator
+from src.backend.services.background_task_manager import (
+    TaskType,
+    background_task_manager,
+)
 from src.backend.services.enhanced_agent_registry import (
     AgentCapability,
     AgentStatus,
@@ -485,6 +498,558 @@ def chat():
                 },
             }
         ), 500
+
+
+@ai_bp.route("/chat/stream", methods=["POST"])
+def chat_stream():
+    """
+    Handle conversational AI chat with Server-Sent Events (SSE) streaming.
+
+    This endpoint streams AI responses in real-time using SSE format.
+    Each chunk is sent as: data: {json}\n\n
+
+    Expected request format:
+    {
+        "message": "User message",
+        "conversation_id": "optional_conversation_id",
+        "context": {
+            "page": "current_page",
+            "view": "current_view",
+            ...
+        }
+    }
+
+    Response stream format:
+    data: {"type": "start", "conversation_id": "..."}
+    data: {"type": "content", "content": "chunk of text"}
+    data: {"type": "metadata", "agent": "...", "tools_used": [...]}
+    data: {"type": "done"}
+    data: {"type": "error", "error": "error message"}
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No input data provided"}), 400
+
+        message = data.get("message", "")
+        conversation_id = data.get("conversation_id", "default")
+        context = data.get("context", {})
+
+        if not message:
+            return jsonify({"error": "Message is required"}), 400
+
+        if len(message) > 10000:
+            return jsonify({"error": "Message too long (max 10,000 characters)"}), 400
+
+        logger.app_logger.info("AI streaming chat request: %s...", message[:100])
+
+        # Check service availability
+        if not conversation_manager:
+
+            def error_stream():
+                yield f"data: {json.dumps({'type': 'error', 'error': 'Chat service temporarily unavailable'})}\n\n"
+
+            return Response(
+                stream_with_context(error_stream()),
+                mimetype="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "X-Accel-Buffering": "no",
+                    "Connection": "keep-alive",
+                },
+            ), 503
+
+        def generate_stream():
+            """Generator function for SSE streaming"""
+            try:
+                # Send start event
+                yield f"data: {json.dumps({'type': 'start', 'conversation_id': conversation_id})}\n\n"
+
+                # Get or create conversation (sync for now, can be optimized)
+                conversation = conversation_manager.get_conversation(conversation_id)
+                if not conversation:
+                    conversation = conversation_manager.create_conversation(
+                        user_id="web_user",
+                        session_id=conversation_id,
+                        title=f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                    )
+
+                # Save user message
+                conversation_manager.add_message(
+                    conversation.id, message, MessageType.USER.value
+                )
+
+                # Process with MCP service if available
+                if mcp_service:
+                    # Create async function to get streaming response
+                    async def get_ai_response():
+                        try:
+                            # Format request with context
+                            request_data = {
+                                "conv_id": conversation.id,
+                                "user_id": "web_user",
+                                "session_id": conversation_id,
+                                "request": message,
+                                "request_type": "chat",
+                                "context": context,
+                            }
+
+                            # Get response from MCP service
+                            response = await mcp_service.handle_request(request_data)
+                            return response
+                        except Exception as e:
+                            logger.app_logger.error(f"MCP streaming error: {str(e)}")
+                            return {
+                                "response": "I encountered an error while processing your request.",
+                                "error": str(e),
+                            }
+
+                    # Run async function
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        response = loop.run_until_complete(get_ai_response())
+                    finally:
+                        loop.close()
+
+                    ai_response = response.get("response", "")
+
+                    # Stream the response in chunks
+                    chunk_size = 50  # Characters per chunk
+                    for i in range(0, len(ai_response), chunk_size):
+                        chunk = ai_response[i : i + chunk_size]
+                        yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
+
+                    # Save AI response
+                    conversation_manager.add_message(
+                        conversation.id,
+                        ai_response,
+                        MessageType.AI.value,
+                        {
+                            "agent": response.get("agent", "system"),
+                            "tools_used": response.get("tools_used", []),
+                            "processing_time": response.get("processing_time", 0),
+                        },
+                    )
+
+                    # Send metadata
+                    metadata = {
+                        "type": "metadata",
+                        "agent": response.get("agent", "system"),
+                        "tools_used": response.get("tools_used", []),
+                        "processing_time": response.get("processing_time", 0),
+                    }
+                    yield f"data: {json.dumps(metadata)}\n\n"
+
+                else:
+                    # Fallback response
+                    fallback_response = (
+                        "I'm currently operating in limited mode. How can I help you?"
+                    )
+                    yield f"data: {json.dumps({'type': 'content', 'content': fallback_response})}\n\n"
+
+                    conversation_manager.add_message(
+                        conversation.id,
+                        fallback_response,
+                        MessageType.AI.value,
+                        {"agent": "fallback", "mode": "limited"},
+                    )
+
+                # Send done event
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+            except Exception as e:
+                logger.app_logger.error(f"Stream generation error: {str(e)}")
+                error_data = {
+                    "type": "error",
+                    "error": f"Stream error: {str(e)}",
+                }
+                yield f"data: {json.dumps(error_data)}\n\n"
+
+        return Response(
+            stream_with_context(generate_stream()),
+            mimetype="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Connection": "keep-alive",
+            },
+        )
+
+    except Exception as e:
+        logger.app_logger.error(f"AI streaming chat error: {str(e)}")
+        return jsonify(
+            {
+                "error": f"Failed to initiate streaming chat: {str(e)}",
+                "conversation_id": conversation_id
+                if "conversation_id" in locals()
+                else "unknown",
+            }
+        ), 500
+
+
+@ai_bp.route("/tasks/background", methods=["POST"])
+@track_performance
+def start_background_task():
+    """
+    Start a long-running AI task in the background.
+
+    Expected request format:
+    {
+        "task_type": "schedule_optimization" | "conflict_resolution" | ...,
+        "parameters": {
+            "start_date": "2025-10-10",
+            "end_date": "2025-10-16",
+            ...
+        },
+        "metadata": {
+            "user_id": "...",
+            "session_id": "...",
+            ...
+        }
+    }
+
+    Returns:
+    {
+        "task": {
+            "id": "task_abc123",
+            "type": "schedule_optimization",
+            "status": "pending",
+            "created_at": "2025-10-10T14:30:00",
+            ...
+        }
+    }
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No input data provided"}), 400
+
+        task_type_str = data.get("task_type")
+        parameters = data.get("parameters", {})
+        metadata = data.get("metadata", {})
+
+        if not task_type_str:
+            return jsonify({"error": "task_type is required"}), 400
+
+        # Convert string to TaskType enum
+        try:
+            task_type = TaskType[task_type_str.upper()]
+        except KeyError:
+            valid_types = [t.value for t in TaskType]
+            return jsonify(
+                {"error": f"Invalid task_type. Must be one of: {valid_types}"}
+            ), 400
+
+        logger.app_logger.info(f"Creating background task: {task_type_str}")
+
+        # Create the task
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            task = loop.run_until_complete(
+                background_task_manager.create_task(task_type, parameters, metadata)
+            )
+            return jsonify({"task": task.to_dict()})
+        finally:
+            loop.close()
+
+    except Exception as e:
+        logger.app_logger.error(f"Failed to start background task: {str(e)}")
+        return jsonify({"error": f"Failed to start background task: {str(e)}"}), 500
+
+
+@ai_bp.route("/tasks/<task_id>/progress", methods=["GET"])
+@track_performance
+def get_task_progress(task_id):
+    """
+    Get the progress of a background task.
+
+    Returns:
+    {
+        "task": {
+            "id": "task_abc123",
+            "type": "schedule_optimization",
+            "status": "running",
+            "progress": {
+                "current": 3,
+                "total": 5,
+                "percentage": 60.0,
+                "message": "Optimization step 3/5",
+                "updated_at": "2025-10-10T14:35:00"
+            },
+            ...
+        }
+    }
+    """
+    try:
+        task = background_task_manager.get_task(task_id)
+
+        if not task:
+            return jsonify({"error": "Task not found"}), 404
+
+        return jsonify({"task": task.to_dict()})
+
+    except Exception as e:
+        logger.app_logger.error(f"Failed to get task progress: {str(e)}")
+        return jsonify({"error": f"Failed to get task progress: {str(e)}"}), 500
+
+
+@ai_bp.route("/tasks/<task_id>/cancel", methods=["POST"])
+@track_performance
+def cancel_task(task_id):
+    """
+    Cancel a running background task.
+
+    Returns:
+    {
+        "success": true,
+        "task_id": "task_abc123",
+        "message": "Task cancellation requested"
+    }
+    """
+    try:
+        success = background_task_manager.cancel_task(task_id)
+
+        if not success:
+            task = background_task_manager.get_task(task_id)
+            if not task:
+                return jsonify({"error": "Task not found"}), 404
+            else:
+                return jsonify(
+                    {"error": f"Task cannot be cancelled (status: {task.status})"}
+                ), 400
+
+        return jsonify(
+            {
+                "success": True,
+                "task_id": task_id,
+                "message": "Task cancellation requested",
+            }
+        )
+
+    except Exception as e:
+        logger.app_logger.error(f"Failed to cancel task: {str(e)}")
+        return jsonify({"error": f"Failed to cancel task: {str(e)}"}), 500
+
+
+@ai_bp.route("/tasks", methods=["GET"])
+@track_performance
+def list_tasks():
+    """
+    List background tasks with optional filtering.
+
+    Query parameters:
+    - status: Filter by status (pending, running, completed, failed, cancelled)
+    - task_type: Filter by task type
+    - limit: Maximum number of tasks to return (default: 100)
+
+    Returns:
+    {
+        "tasks": [...],
+        "count": 10,
+        "statistics": {...}
+    }
+    """
+    try:
+        status_str = request.args.get("status")
+        task_type_str = request.args.get("task_type")
+        limit = int(request.args.get("limit", 100))
+
+        # Convert filters to enums if provided
+        status_filter = None
+        if status_str:
+            try:
+                from src.backend.services.background_task_manager import TaskStatus
+
+                status_filter = TaskStatus[status_str.upper()]
+            except KeyError:
+                pass
+
+        task_type_filter = None
+        if task_type_str:
+            try:
+                task_type_filter = TaskType[task_type_str.upper()]
+            except KeyError:
+                pass
+
+        # Get tasks
+        tasks = background_task_manager.list_tasks(
+            status=status_filter, task_type=task_type_filter, limit=limit
+        )
+
+        # Get statistics
+        stats = background_task_manager.get_statistics()
+
+        return jsonify(
+            {
+                "tasks": [t.to_dict() for t in tasks],
+                "count": len(tasks),
+                "statistics": stats,
+            }
+        )
+
+    except Exception as e:
+        logger.app_logger.error(f"Failed to list tasks: {str(e)}")
+        return jsonify({"error": f"Failed to list tasks: {str(e)}"}), 500
+
+
+@ai_bp.route("/suggestions/proactive", methods=["POST"])
+@track_performance
+def get_proactive_suggestions():
+    """
+    Get proactive AI suggestions based on current page context.
+
+    Expected request format:
+    {
+        "context": {
+            "page": "schedule" | "employees" | "settings" | ...,
+            "view": "calendar" | "list" | "table" | ...,
+            "data": {
+                "schedule_id": "...",
+                "date_range": {...},
+                ...
+            }
+        },
+        "limit": 5
+    }
+
+    Returns:
+    {
+        "suggestions": [
+            {
+                "id": "suggestion_abc123",
+                "type": "optimization" | "conflict" | "coverage" | ...,
+                "priority": "high" | "medium" | "low",
+                "title": "Optimize weekend coverage",
+                "description": "Your weekend shifts could be optimized...",
+                "action": {
+                    "type": "optimize_schedule",
+                    "parameters": {...}
+                },
+                "impact": "Could save 5 hours per week",
+                "created_at": "2025-10-10T14:30:00"
+            },
+            ...
+        ],
+        "count": 3
+    }
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No input data provided"}), 400
+
+        context = data.get("context", {})
+        limit = data.get("limit", 5)
+
+        page = context.get("page", "unknown")
+        logger.app_logger.info(f"Getting proactive suggestions for page: {page}")
+
+        # Generate suggestions based on page context
+        suggestions = _generate_proactive_suggestions(context, limit)
+
+        return jsonify({"suggestions": suggestions, "count": len(suggestions)})
+
+    except Exception as e:
+        logger.app_logger.error(f"Failed to get proactive suggestions: {str(e)}")
+        return jsonify({"error": f"Failed to get proactive suggestions: {str(e)}"}), 500
+
+
+def _generate_proactive_suggestions(context: dict, limit: int) -> list:
+    """
+    Generate proactive suggestions based on page context.
+
+    This is a placeholder implementation that will be enhanced with
+    actual AI-powered analysis in future iterations.
+
+    Args:
+        context: Page context information
+        limit: Maximum number of suggestions to return
+
+    Returns:
+        List of suggestion dictionaries
+    """
+    page = context.get("page", "unknown")
+    suggestions = []
+
+    # Schedule page suggestions
+    if page in ["schedule", "calendar"]:
+        suggestions.extend(
+            [
+                {
+                    "id": f"sug_{uuid.uuid4().hex[:12]}",
+                    "type": "optimization",
+                    "priority": "medium",
+                    "title": "Optimize weekend coverage",
+                    "description": (
+                        "AI analysis shows that weekend shifts could be "
+                        "better distributed across your team."
+                    ),
+                    "action": {
+                        "type": "optimize_schedule",
+                        "parameters": context.get("data", {}),
+                    },
+                    "impact": "Could save 5 hours per week",
+                    "created_at": datetime.now().isoformat(),
+                },
+                {
+                    "id": f"sug_{uuid.uuid4().hex[:12]}",
+                    "type": "conflict",
+                    "priority": "high",
+                    "title": "3 scheduling conflicts detected",
+                    "description": (
+                        "There are overlapping shifts that need attention. "
+                        "Click to resolve automatically."
+                    ),
+                    "action": {
+                        "type": "resolve_conflicts",
+                        "parameters": context.get("data", {}),
+                    },
+                    "impact": "Resolve all conflicts in seconds",
+                    "created_at": datetime.now().isoformat(),
+                },
+            ]
+        )
+
+    # Employee page suggestions
+    elif page == "employees":
+        suggestions.extend(
+            [
+                {
+                    "id": f"sug_{uuid.uuid4().hex[:12]}",
+                    "type": "workload",
+                    "priority": "medium",
+                    "title": "Unbalanced workload detected",
+                    "description": (
+                        "Some employees have significantly more hours "
+                        "than others. Consider rebalancing."
+                    ),
+                    "action": {
+                        "type": "balance_workload",
+                        "parameters": context.get("data", {}),
+                    },
+                    "impact": "Improve team fairness and morale",
+                    "created_at": datetime.now().isoformat(),
+                },
+            ]
+        )
+
+    # Generic suggestions for all pages
+    suggestions.append(
+        {
+            "id": f"sug_{uuid.uuid4().hex[:12]}",
+            "type": "help",
+            "priority": "low",
+            "title": "Need help?",
+            "description": "Ask me anything about scheduling!",
+            "action": {"type": "open_chat", "parameters": {}},
+            "impact": "Get instant AI assistance",
+            "created_at": datetime.now().isoformat(),
+        }
+    )
+
+    return suggestions[:limit]
 
 
 @ai_bp.route("/agents", methods=["GET"])
@@ -1082,7 +1647,7 @@ def execute_mcp_tool():
                 asyncio.wait_for(execute_tool(), timeout=30.0)  # 30 second timeout
             )
             return jsonify(result)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.app_logger.error(f"Tool execution timeout for tool: {tool_id}")
             return jsonify(
                 {

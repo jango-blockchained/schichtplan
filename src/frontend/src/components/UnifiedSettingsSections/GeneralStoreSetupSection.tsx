@@ -40,6 +40,7 @@ export const GeneralStoreSetupSection: React.FC<GeneralStoreSetupSectionProps> =
               <Label htmlFor="storeName">Store Name</Label>
               <Input
                 id="storeName"
+                placeholder="Enter store name"
                 value={settings.store_name || ""}
                 onChange={(e) => onInputChange("store_name", e.target.value)}
               />
@@ -48,6 +49,7 @@ export const GeneralStoreSetupSection: React.FC<GeneralStoreSetupSectionProps> =
               <Label htmlFor="storeAddress">Store Address</Label>
               <Input
                 id="storeAddress"
+                placeholder="Enter store address"
                 value={settings.store_address || ""}
                 onChange={(e) => onInputChange("store_address", e.target.value)}
               />
@@ -56,6 +58,8 @@ export const GeneralStoreSetupSection: React.FC<GeneralStoreSetupSectionProps> =
               <Label htmlFor="storePhone">Store Phone</Label>
               <Input
                 id="storePhone"
+                type="tel"
+                placeholder="e.g., +49 123 456789"
                 value={settings.store_phone || ""}
                 onChange={(e) => onInputChange("store_phone", e.target.value)}
               />
@@ -65,6 +69,7 @@ export const GeneralStoreSetupSection: React.FC<GeneralStoreSetupSectionProps> =
               <Input
                 id="storeEmail"
                 type="email"
+                placeholder="store@example.com"
                 value={settings.store_email || ""}
                 onChange={(e) => onInputChange("store_email", e.target.value)}
               />
@@ -134,30 +139,38 @@ export const GeneralStoreSetupSection: React.FC<GeneralStoreSetupSectionProps> =
           {/* Keyholder settings */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="keyholder-before">Keyholder Before (min)</Label>
+              <Label htmlFor="keyholder-before">Keyholder Before Opening (minutes)</Label>
               <Input
                 id="keyholder-before"
                 type="number"
                 min="0"
                 max="120"
+                step="5"
                 value={settings.keyholder_before_minutes ?? 30}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                   onInputChange("keyholder_before_minutes", e.target.value, true)
                 }
               />
+              <p className="text-xs text-muted-foreground">
+                How many minutes before opening should keyholders arrive
+              </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="keyholder-after">Keyholder After (min)</Label>
+              <Label htmlFor="keyholder-after">Keyholder After Closing (minutes)</Label>
               <Input
                 id="keyholder-after"
                 type="number"
                 min="0"
                 max="120"
+                step="5"
                 value={settings.keyholder_after_minutes ?? 30}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                   onInputChange("keyholder_after_minutes", e.target.value, true)
                 }
               />
+              <p className="text-xs text-muted-foreground">
+                How many minutes after closing should keyholders stay
+              </p>
             </div>
           </div>
         </CardContent>

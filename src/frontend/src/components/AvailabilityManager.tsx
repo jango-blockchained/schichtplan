@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { useWebSocketEvents } from '@/hooks/useWebSocketEvents';
-import { useQueryClient } from '@tanstack/react-query';
-import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
+import { useToast } from '@/components/ui/use-toast';
+import { useWebSocketEvents } from '@/hooks/useWebSocketEvents';
 import { Availability } from '@/types';
+import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 
 interface AvailabilityManagerProps {
     availabilities: Availability[];
