@@ -6,6 +6,7 @@ enabling AI applications to interact with the shift planning system.
 """
 
 import logging
+import os
 from typing import Any
 
 from fastmcp import FastMCP
@@ -69,7 +70,48 @@ class SchichtplanMCPService:
         self.agent_registry = None
         self.workflow_coordinator = None
 
+        # Load user AI assistant prompt
+        self.user_ai_prompt = self._load_user_ai_prompt()
+
         self._register_tools()
+
+    def _load_user_ai_prompt(self) -> str:
+        """Load the user AI assistant prompt from file."""
+        prompt_path = os.path.join(
+            os.path.dirname(__file__), "prompts", "user_ai_assistant.md"
+        )
+
+        try:
+            with open(prompt_path, encoding="utf-8") as f:
+                prompt_content = f.read()
+            self.logger.info("Successfully loaded user AI assistant prompt")
+            return prompt_content
+        except FileNotFoundError:
+            self.logger.warning(
+                f"User AI assistant prompt file not found at {prompt_path}"
+            )
+            return self._get_default_user_ai_prompt()
+        except Exception as e:
+            self.logger.error(f"Error loading user AI assistant prompt: {e}")
+            return self._get_default_user_ai_prompt()
+
+    def _get_default_user_ai_prompt(self) -> str:
+        """Return a default user AI assistant prompt if file loading fails."""
+        return """# Schichtplan Assistant - Default Prompt
+
+You are Schichtplan Assistant, a helpful workforce management companion.
+
+## Your Role
+- Help employees navigate schedules and understand their shifts
+- Assist managers with scheduling decisions and optimization
+- Provide clear, professional communication
+- Focus on scheduling and workforce management topics
+
+## Guidelines
+- Be friendly and professional
+- Provide practical, actionable advice
+- Reference specific dates, times, and contexts when relevant
+- Stay focused on scheduling and workforce management"""
 
     def _register_tools(self):
         """Register all tools with the MCP service."""

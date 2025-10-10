@@ -9,7 +9,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastmcp import Context
 
@@ -43,23 +43,32 @@ class ConversationalSchichtplanMCPService:
         # Get the MCP instance from base service
         self.mcp = base_mcp_service.mcp
 
+        # Get user AI prompt from base service
+        self.user_ai_prompt = getattr(base_mcp_service, "user_ai_prompt", "")
+
         # Register conversational tools
         self._register_conversational_tools()
 
         # Register conversation lifecycle hooks
         self._register_lifecycle_hooks()
 
+    def _build_full_prompt(self, user_prompt: str) -> str:
+        """Build the full prompt by combining user AI prompt with specific request."""
+        if self.user_ai_prompt:
+            return f"{self.user_ai_prompt}\n\n---\n\n{user_prompt}"
+        return user_prompt
+
     def _register_conversational_tools(self):
         """Register new conversational MCP tools."""
 
         @self.mcp.tool()
         async def start_conversation(
-            user_id: Optional[str] = None,
-            session_id: Optional[str] = None,
-            initial_goal: Optional[str] = None,
+            user_id: str | None = None,
+            session_id: str | None = None,
+            initial_goal: str | None = None,
             ai_personality: str = "helpful_scheduler",
             ctx: Context = None,
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             """Start a new conversational AI session.
 
             Args:
@@ -121,9 +130,9 @@ class ConversationalSchichtplanMCPService:
         async def continue_conversation(
             conversation_id: str,
             user_input: str,
-            additional_context: Optional[Dict[str, Any]] = None,
+            additional_context: dict[str, Any] | None = None,
             ctx: Context = None,
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             """Continue an existing conversation.
 
             Args:
@@ -203,7 +212,7 @@ class ConversationalSchichtplanMCPService:
         @self.mcp.tool()
         async def get_conversation_status(
             conversation_id: str, ctx: Context = None
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             """Get current conversation status and context.
 
             Args:
@@ -254,9 +263,9 @@ class ConversationalSchichtplanMCPService:
             conversation_id: str,
             start_date: str,
             end_date: str,
-            optimization_goals: Optional[List[str]] = None,
+            optimization_goals: list[str] | None = None,
             ctx: Context = None,
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             """Start a guided schedule optimization conversation.
 
             Args:
@@ -310,9 +319,9 @@ class ConversationalSchichtplanMCPService:
         async def ai_schedule_analysis(
             conversation_id: str,
             analysis_type: str = "comprehensive",
-            specific_focus: Optional[List[str]] = None,
+            specific_focus: list[str] | None = None,
             ctx: Context = None,
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             """Perform AI-driven schedule analysis with conversation.
 
             Args:
@@ -347,8 +356,8 @@ class ConversationalSchichtplanMCPService:
 
         @self.mcp.tool()
         async def end_conversation(
-            conversation_id: str, summary: Optional[str] = None, ctx: Context = None
-        ) -> Dict[str, Any]:
+            conversation_id: str, summary: str | None = None, ctx: Context = None
+        ) -> dict[str, Any]:
             """End a conversation and generate summary.
 
             Args:
@@ -404,7 +413,7 @@ class ConversationalSchichtplanMCPService:
 
     async def _generate_initial_response(
         self, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate initial AI response for new conversation."""
 
         # Prepare initial prompt
@@ -426,7 +435,7 @@ What would you like to work on today? Feel free to describe your scheduling chal
         # Create AI request
         ai_request = AIRequest(
             conversation_id=context.conversation_id,
-            prompt=prompt,
+            prompt=self._build_full_prompt(prompt),
             context={
                 "conversation_type": "initial_greeting",
                 "goals": initial_goals,
@@ -445,8 +454,8 @@ What would you like to work on today? Feel free to describe your scheduling chal
         self,
         context: ConversationContext,
         user_input: str,
-        additional_context: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        additional_context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Process user input and generate AI response with potential tool usage."""
 
         # Prepare conversation context for AI
@@ -471,7 +480,7 @@ What would you like to work on today? Feel free to describe your scheduling chal
         # Create AI request
         ai_request = AIRequest(
             conversation_id=context.conversation_id,
-            prompt=prompt,
+            prompt=self._build_full_prompt(prompt),
             tools=available_tools,
             context=conversation_context,
             model_preferences=["gpt-4o", "claude-3-5-sonnet-20241022"],
@@ -519,8 +528,8 @@ What would you like to work on today? Feel free to describe your scheduling chal
         context: ConversationContext,
         start_date: str,
         end_date: str,
-        optimization_goals: Optional[List[str]],
-    ) -> Dict[str, Any]:
+        optimization_goals: list[str] | None,
+    ) -> dict[str, Any]:
         """Start a guided schedule optimization process."""
 
         # First, analyze current schedule
@@ -557,7 +566,7 @@ What would you like to work on today? Feel free to describe your scheduling chal
         # Generate optimization plan
         ai_request = AIRequest(
             conversation_id=context.conversation_id,
-            prompt=prompt,
+            prompt=self._build_full_prompt(prompt),
             tools=await self._get_available_tools(),
             context=optimization_context,
         )
@@ -580,8 +589,8 @@ What would you like to work on today? Feel free to describe your scheduling chal
         self,
         context: ConversationContext,
         analysis_type: str,
-        specific_focus: Optional[List[str]],
-    ) -> Dict[str, Any]:
+        specific_focus: list[str] | None,
+    ) -> dict[str, Any]:
         """Perform AI-driven schedule analysis."""
 
         # Determine what data to gather based on analysis type
@@ -644,7 +653,7 @@ Be specific and actionable in your recommendations."""
 
         ai_request = AIRequest(
             conversation_id=context.conversation_id,
-            prompt=prompt,
+            prompt=self._build_full_prompt(prompt),
             context={"analysis_type": analysis_type, "focus": specific_focus},
         )
 
@@ -661,8 +670,8 @@ Be specific and actionable in your recommendations."""
         }
 
     async def _execute_tool_calls(
-        self, context: ConversationContext, tool_calls: List
-    ) -> List[Dict[str, Any]]:
+        self, context: ConversationContext, tool_calls: list
+    ) -> list[dict[str, Any]]:
         """Execute AI-requested tool calls."""
 
         results = []
@@ -703,7 +712,7 @@ Be specific and actionable in your recommendations."""
 
         return results
 
-    async def _call_base_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
+    async def _call_base_tool(self, tool_name: str, arguments: dict[str, Any]) -> Any:
         """Call a tool from the base MCP service."""
 
         # Map tool calls to base service methods
@@ -725,7 +734,7 @@ Be specific and actionable in your recommendations."""
         # Call the tool with arguments
         return await tool_func(**arguments)
 
-    async def _get_available_tools(self) -> List[Dict[str, Any]]:
+    async def _get_available_tools(self) -> list[dict[str, Any]]:
         """Get list of available tools for AI."""
 
         return [
@@ -824,7 +833,7 @@ Be specific and actionable in your recommendations."""
 
     def _prepare_conversation_context(
         self, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Prepare conversation context for AI."""
 
         recent_items = sorted(
@@ -904,7 +913,7 @@ Please provide a concise summary including:
 
         ai_request = AIRequest(
             conversation_id=context.conversation_id,
-            prompt=prompt,
+            prompt=self._build_full_prompt(prompt),
             context={"task": "summarization"},
         )
 
@@ -937,9 +946,9 @@ Please provide a concise summary including:
 async def create_conversational_mcp_service(
     base_mcp_service: SchichtplanMCPService,
     redis_url: str = "redis://localhost:6379",
-    openai_key: Optional[str] = None,
-    anthropic_key: Optional[str] = None,
-    gemini_key: Optional[str] = None,
+    openai_key: str | None = None,
+    anthropic_key: str | None = None,
+    gemini_key: str | None = None,
 ) -> ConversationalSchichtplanMCPService:
     """Create conversational MCP service with all components."""
 
