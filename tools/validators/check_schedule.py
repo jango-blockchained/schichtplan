@@ -1,3 +1,11 @@
+#!/usr/bin/env python3
+import os
+import sys
+
+# Add project root to path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, project_root)
+
 from models import db, Schedule
 from utils.db_utils import session_manager
 from pprint import pprint

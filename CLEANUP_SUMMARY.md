@@ -30,6 +30,13 @@ A complete reorganization of the codebase to eliminate orphan files, consolidate
 - `check_schedule.py`
 - `check_settings.py`
 
+### Root → tools/utils/
+- `ngrok-expose` (utility script for ngrok tunneling)
+
+### scripts/ → tools/utils/
+- `count_employees_this_week.py`
+- `setup_mcp_integration.py`
+
 ### Root → examples/
 - `ai_routes_enhanced_final.py`
 - `mcp_server_minimal.py` → `examples/mcp/`
@@ -90,6 +97,7 @@ A complete reorganization of the codebase to eliminate orphan files, consolidate
 ## Directories Removed
 - `src/backend/examples/` (empty after moving files)
 - `poc/` (moved to docs/archive/poc/)
+- `scripts/` (files moved to tools/utils/)
 
 ## Configuration Updates
 - Updated `.gitignore` to track `docs/` directory (was previously excluded)

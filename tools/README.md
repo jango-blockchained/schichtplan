@@ -16,7 +16,10 @@ Database validation and checking scripts moved from the root directory:
 Debugging and diagnostic utilities (legacy location: `src/backend/tools/debug/`)
 
 ### utils/
-General utility scripts and helpers
+General utility scripts and helpers:
+- `count_employees_this_week.py` - Count scheduled employees for current week
+- `setup_mcp_integration.py` - Configure AI tools for MCP integration
+- `ngrok-expose` - Expose local ports using ngrok
 
 ## Usage
 
