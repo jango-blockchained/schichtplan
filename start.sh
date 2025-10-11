@@ -18,12 +18,21 @@ LOG_DIR="src/logs"
 
 # Command line options
 START_MCP_SERVER=false
+START_CONVERSATIONAL_AI=true  # Enabled by default for full AI capabilities
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --with-mcp|--mcp)
             START_MCP_SERVER=true
+            shift
+            ;;
+        --with-conversational-ai|--conversational-ai)
+            START_CONVERSATIONAL_AI=true
+            shift
+            ;;
+        --no-conversational-ai)
+            START_CONVERSATIONAL_AI=false
             shift
             ;;
         --mcp-port)
@@ -34,12 +43,18 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --with-mcp, --mcp     Start MCP server alongside backend and frontend"
-            echo "  --mcp-port PORT       Port for MCP server (default: 8001)"
-            echo "  --help, -h            Show this help message"
+            echo "  --with-mcp, --mcp                         Start MCP server alongside backend and frontend"
+            echo "  --with-conversational-ai, --conversational-ai    Enable conversational AI server (enabled by default)"
+            echo "  --no-conversational-ai                    Disable conversational AI server"
+            echo "  --mcp-port PORT                           Port for MCP server (default: 8001)"
+            echo "  --help, -h                                Show this help message"
             echo ""
             echo "The MCP server provides AI integration capabilities for external"
             echo "tools and can be connected via stdio, SSE, or HTTP transports."
+            echo ""
+            echo "The conversational AI server (enabled by default) provides advanced multi-turn"
+            echo "AI conversations with conversation memory and complex tool orchestration."
+            echo "Note: Conversational AI requires Redis server (auto-started if not running)."
             exit 0
             ;;
         *)
@@ -124,6 +139,13 @@ check_dependencies() {
         fi
     done
     
+    # Check for Redis if conversational AI is enabled
+    if [ "$START_CONVERSATIONAL_AI" = true ]; then
+        if ! command -v "redis-server" &> /dev/null; then
+            missing_deps+=("redis-server")
+        fi
+    fi
+    
     if [ ${#missing_deps[@]} -ne 0 ]; then
         log "ERROR" "Missing required dependencies: ${missing_deps[*]}"
         log "ERROR" "Please install the missing dependencies and try again"
@@ -137,6 +159,42 @@ check_dependencies() {
     fi
     
     log "INFO" "All dependencies are satisfied"
+}
+
+# Check and start Redis server if conversational AI is enabled
+check_and_start_redis() {
+    if [ "$START_CONVERSATIONAL_AI" = true ]; then
+        log "INFO" "Checking Redis server status..."
+        
+        # Check if Redis is already running
+        if pgrep -x "redis-server" > /dev/null; then
+            log "INFO" "Redis server is already running"
+            
+            # Test Redis connection
+            if python3 -c "import redis; r = redis.Redis(host='localhost', port=6379, db=0); r.ping()" 2>/dev/null; then
+                log "INFO" "Redis connection test successful"
+            else
+                log "ERROR" "Redis server is running but connection test failed"
+                exit 1
+            fi
+        else
+            log "INFO" "Starting Redis server..."
+            
+            # Start Redis server in background
+            redis-server --daemonize yes --port 6379
+            
+            # Wait a moment for Redis to start
+            sleep 2
+            
+            # Test connection
+            if python3 -c "import redis; r = redis.Redis(host='localhost', port=6379, db=0); r.ping()" 2>/dev/null; then
+                log "SUCCESS" "Redis server started successfully"
+            else
+                log "ERROR" "Failed to start Redis server or connection test failed"
+                exit 1
+            fi
+        fi
+    fi
 }
 
 # Create and setup virtual environment
@@ -250,8 +308,8 @@ setup_tmux_session() {
         tmux send-keys -t "$TMUX_SESSION" "cd src/frontend" C-m
         tmux send-keys -t "$TMUX_SESSION" "echo 'Installing frontend dependencies...'" C-m
         tmux send-keys -t "$TMUX_SESSION" "bun install" C-m
-        tmux send-keys -t "$TMUX_SESSION" "echo 'Starting Frontend in background...'" C-m
-        tmux send-keys -t "$TMUX_SESSION" "npx vite > \"$SCRIPT_DIR/$LOG_DIR/tmux_frontend_output.log\" 2>&1 &" C-m
+        tmux send-keys -t "$TMUX_SESSION" "echo 'Starting Frontend with Bun in background...'" C-m
+        tmux send-keys -t "$TMUX_SESSION" "bun dev > \"$SCRIPT_DIR/$LOG_DIR/tmux_frontend_output.log\" 2>&1 &" C-m
         tmux send-keys -t "$TMUX_SESSION" "echo 'Frontend started. Showing output log:'" C-m
         tmux send-keys -t "$TMUX_SESSION" "tail -f \"$SCRIPT_DIR/$LOG_DIR/tmux_frontend_output.log\"" C-m
     else
@@ -273,8 +331,21 @@ setup_tmux_session() {
         log "INFO" "MCP Server will be available at http://localhost:$MCP_SERVER_PORT/sse"
     fi
     
-    # Split horizontally for menu (adjust the target pane based on whether MCP is running)
-    if [ "$START_MCP_SERVER" = true ]; then
+    # Add Conversational AI server pane if requested
+    if [ "$START_CONVERSATIONAL_AI" = true ]; then
+        # Split vertically for conversational AI server
+        tmux split-window -v -l 20
+        tmux send-keys -t "$TMUX_SESSION" "cd $SCRIPT_DIR" C-m
+        tmux send-keys -t "$TMUX_SESSION" "source $VENV_PATH/bin/activate" C-m
+        tmux send-keys -t "$TMUX_SESSION" "echo 'Starting Conversational AI Server...'" C-m
+        tmux send-keys -t "$TMUX_SESSION" "python3 start_conversational_ai.py --transport sse --port 8002 > src/logs/tmux_conversational_ai_output.log 2>&1 &" C-m
+        tmux send-keys -t "$TMUX_SESSION" "echo 'Conversational AI Server started. Showing output log:'" C-m
+        tmux send-keys -t "$TMUX_SESSION" "tail -f src/logs/tmux_conversational_ai_output.log" C-m
+        log "INFO" "Conversational AI Server will be available at http://localhost:8002/sse"
+    fi
+    
+    # Split horizontally for menu (adjust the target pane based on whether services are running)
+    if [ "$START_MCP_SERVER" = true ] || [ "$START_CONVERSATIONAL_AI" = true ]; then
         tmux split-window -v -l 10
     else
         tmux split-window -v -l 10
@@ -285,8 +356,12 @@ setup_tmux_session() {
     tmux send-keys -t "$TMUX_SESSION" "src/scripts/menu.sh" C-m
     
     # Set window title
-    if [ "$START_MCP_SERVER" = true ]; then
+    if [ "$START_MCP_SERVER" = true ] && [ "$START_CONVERSATIONAL_AI" = true ]; then
+        tmux rename-window -t "$TMUX_SESSION" "Schichtplan Dev+AI"
+    elif [ "$START_MCP_SERVER" = true ]; then
         tmux rename-window -t "$TMUX_SESSION" "Schichtplan Dev+MCP"
+    elif [ "$START_CONVERSATIONAL_AI" = true ]; then
+        tmux rename-window -t "$TMUX_SESSION" "Schichtplan Dev+ConvAI"
     else
         tmux rename-window -t "$TMUX_SESSION" "Schichtplan Dev"
     fi
@@ -473,9 +548,16 @@ main() {
         log "INFO" "  - SSE: http://localhost:$MCP_SERVER_PORT/sse"
         log "INFO" "  - stdio: Use 'python3 src/backend/mcp_server.py' for direct communication"
     fi
+    if [ "$START_CONVERSATIONAL_AI" = true ]; then
+        log "INFO" "Conversational AI Server will be started on port 8002 (enabled by default)"
+        log "INFO" "Conversational AI endpoints:"
+        log "INFO" "  - SSE: http://localhost:8002/sse"
+        log "INFO" "  - Redis server will be auto-started on localhost:6379 if needed"
+    fi
     
     remove_pycache_folders
     check_dependencies
+    check_and_start_redis
     create_directories
     check_permissions
     setup_venv
@@ -486,6 +568,9 @@ main() {
     : > "$SCRIPT_DIR/$LOG_DIR/tmux_frontend_output.log"
     if [ "$START_MCP_SERVER" = true ]; then
         : > "$SCRIPT_DIR/$LOG_DIR/tmux_mcp_output.log"
+    fi
+    if [ "$START_CONVERSATIONAL_AI" = true ]; then
+        : > "$SCRIPT_DIR/$LOG_DIR/tmux_conversational_ai_output.log"
     fi
     
     # Clean up ONLY existing processes before starting new ones

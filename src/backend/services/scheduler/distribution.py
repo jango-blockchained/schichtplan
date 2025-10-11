@@ -5,7 +5,7 @@ import os
 import sys
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta  # Import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 from .resources import (
     ScheduleResources,
@@ -39,7 +39,7 @@ except ImportError:
         interval_start_time: time,
         resources: ScheduleResources,
         interval_duration_minutes: int = 15,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Fallback implementation returning minimum staffing"""
         # Parameters are changed, but the fallback logic remains simple.
         return {
@@ -119,15 +119,15 @@ def import_models():
 
                     id: int
                     employee_group: str
-                    skills: List[str]
-                    preferred_shift_types: List[str]
+                    skills: list[str]
+                    preferred_shift_types: list[str]
                     is_keyholder: bool = False
                     is_active: bool = True
                     contracted_hours: float = 40.0
-                    preferences: Dict[
+                    preferences: dict[
                         str, Any
                     ] = {}  # Add preferences attribute to prevent errors
-                    availability: List[Any] = []  # Add availability attribute
+                    availability: list[Any] = []  # Add availability attribute
 
                 class ShiftTemplate:
                     """Type hint class for ShiftTemplate"""
@@ -138,7 +138,7 @@ def import_models():
                     shift_type: str
                     shift_type_id: str
                     duration_hours: float
-                    required_skills: List[str] = []
+                    required_skills: list[str] = []
 
                 class Schedule:
                     """Type hint class for Schedule"""
@@ -208,9 +208,8 @@ class DistributionManager:
         availability_checker=None,
         config=None,
         logger=None,
-        feature_extractor: Optional[
-            FeatureExtractor
-        ] = None,  # Add feature_extractor parameter
+        feature_extractor: FeatureExtractor
+        | None = None,  # Add feature_extractor parameter
         ml_model: Any = None,  # Add placeholder for ML model
     ):
         self.resources = resources
@@ -273,10 +272,10 @@ class DistributionManager:
     def assign_employees_by_type(
         self,
         current_date: date,
-        shifts: List[Dict],
-        available_employees: List[Any],
+        shifts: list[dict],
+        available_employees: list[Any],
         shift_type: str,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Assign employees to shifts of a specific type"""
         try:
             self.logger.info(
@@ -300,10 +299,7 @@ class DistributionManager:
                     if (
                         isinstance(assignment, dict)
                         and assignment.get("date") == current_date
-                    ):
-                        shifts_assigned_today[employee_id] += 1
-                    # Corrected: Use .get("date") for dictionaries
-                    elif (
+                    ) or (
                         isinstance(assignment, dict)
                         and assignment.get("date") == current_date
                     ):
@@ -416,69 +412,10 @@ class DistributionManager:
             # A better approach for ML integration in assignment is to score employee-shift pairs.
             # I will add a placeholder for scoring pairs and using ML predictions.
 
-            # --- Score Employee-Shift Pairs (with ML) Placeholder ---
-            # Instead of sorting employees globally, we should generate potential employee-shift pairs,
-            # calculate a score for each pair (combining rule-based logic and ML prediction),
-            # and then select the best pairs to fill the shifts.
-            # This requires iterating through shifts and, for each shift, iterating through available employees.
-
-            scored_employee_shift_pairs = []
-            for shift in shifts:
-                shift_id = self.get_id(shift, ["id", "shift_id", "shift_template_id"])
-                if shift_id is None:
-                    continue
-
-                for employee in available_employees:
-                    employee_id = self.get_id(employee, ["id", "employee_id"])
-                    if employee_id is None:
-                        continue
-
-                    # Check basic feasibility (e.g., daily shift limit, availability)
-                    if shifts_assigned_today.get(employee_id, 0) >= max_shifts_per_day:
-                        continue
-
-                    # --- Calculate Score for Employee-Shift Pair ---
-                    # This score should combine rule-based factors (history, preferences, seniority)
-                    # and the ML prediction score for this specific (employee_id, shift_id) pair.
-
-                    # Get ML prediction score for this pair
-                    ml_prediction = predictions.get(
-                        (employee_id, shift_id), 0
-                    )  # Default to 0 if no prediction
-
-                    # Calculate rule-based score components (example)
-                    # You would use methods like self._calculate_history_adjustment, self._calculate_preference_adjustment, etc.
-                    # Need to pass necessary context to these methods.
-                    # For now, a simple placeholder combined score:
-                    rule_based_score = self.calculate_assignment_score(
-                        employee_id, shift, current_date, {}, AvailabilityType.AVAILABLE
-                    )
-                    # Note: _calculate_assignment_score currently takes ShiftTemplate as input,
-                    # you might need to adapt it or get the ShiftTemplate object here.
-                    # The fourth argument ({}) is a placeholder for the context dictionary.
-                    # The fifth argument is a placeholder for availability_type_override.
-
-                    # Combine rule-based score and ML prediction
-                    # This combination logic is crucial and needs refinement.
-                    # Example: Weighting or using ML as a modifier
-                    combined_score = rule_based_score + (
-                        ml_prediction * -100
-                    )  # Example: higher prediction = better = lower score
-
-                    # Add the scored pair to the list
-                    scored_employee_shift_pairs.append(
-                        {
-                            "employee_id": employee_id,
-                            "shift_id": shift_id,
-                            "combined_score": combined_score,
-                            "employee": employee,  # Keep reference to employee object
-                            "shift": shift,  # Keep reference to shift object/dict
-                            "date": current_date,
-                        }
-                    )
-
-            # Sort employee-shift pairs by combined score (ascending - lower score is better)
-            scored_employee_shift_pairs.sort(key=lambda item: item["combined_score"])
+            # --- Optimized Employee Sorting ---
+            # Instead of pre-scoring ALL employee-shift pairs (which is O(n*m) and very expensive),
+            # we'll sort employees once by a simple priority score, then score specific pairs
+            # only when needed during assignment. This dramatically reduces computational overhead.
 
             sorted_employees = []
             for employee in available_employees:
@@ -544,41 +481,26 @@ class DistributionManager:
             # Sort employees by the base priority score (ascending - lower score is higher priority)
             sorted_employees.sort(key=lambda item: item[1])
 
-            assigned_employees_count = 0
-            # Iterate through sorted employees and available shifts to make assignments
-            # ... (rest of the assignment logic would go here)
-            # This part of the code is extensive (lines ~250 onwards) and involves
-            # iterating through shifts and employees, checking constraints, etc.
-            # I will not replicate the full code here but mark where the assignment loop happens.
-
             self.logger.info(
-                "Employees sorted by priority score (Rule-based). ML predictions are available for use in assignment loop."
+                f"Employees sorted by priority score. Processing {len(shifts)} shifts."
             )
 
             # --- Core Assignment Logic ---
-            # Now, iterate through shifts and assign employees based on scores and coverage
-            self.logger.info(
-                f"Selecting employees for {len(shifts)} shifts based on scores."
-            )
+            # Iterate through shifts and assign employees based on priority and constraints
+            # This approach avoids pre-calculating ALL employee-shift pairs (performance optimization)
 
-            # Sort shifts by some criteria if needed (e.g., start time, priority)
-            # For now, process in the order provided
-            for shift in shifts:
+            total_shifts = len(shifts)
+            self.logger.info(f"Processing {total_shifts} shifts for assignment...")
+
+            for shift_idx, shift in enumerate(shifts):
+                # Log progress every 10 shifts
+                if shift_idx % 10 == 0 and shift_idx > 0:
+                    self.logger.info(
+                        f"Progress: {shift_idx}/{total_shifts} shifts processed"
+                    )
                 shift_id = self.get_id(shift, ["id", "shift_id", "shift_template_id"])
                 if shift_id is None:
                     continue
-
-                self.logger.debug(f"Processing shift: {shift_id}")
-
-                # Filter scored pairs for the current shift
-                shift_candidates = [
-                    pair
-                    for pair in scored_employee_shift_pairs
-                    if pair["shift_id"] == shift_id
-                ]
-
-                # Sort candidates by combined score (lower is better)
-                shift_candidates.sort(key=lambda x: x["combined_score"])
 
                 # Determine required staffing for this shift based on coverage rules
                 staffing_info = self._get_required_staffing_info_for_shift(
@@ -592,12 +514,47 @@ class DistributionManager:
 
                 assigned_count = 0
                 keyholder_assigned = False
-                # Keep track of employees already assigned to this specific shift to prevent duplicates
                 employees_assigned_to_this_shift = set()
 
-                self.logger.debug(
-                    f"Shift {shift_id} requires {min_required_employees}-{max_allowed_employees} employees, keyholder: {requires_keyholder}"
-                )
+                # Build candidate list for this specific shift only
+                shift_candidates = []
+                for employee, _ in sorted_employees:
+                    employee_id = self.get_id(employee, ["id", "employee_id"])
+                    if employee_id is None:
+                        continue
+
+                    # Skip if already at daily limit
+                    if shifts_assigned_today.get(employee_id, 0) >= max_shifts_per_day:
+                        continue
+
+                    # Calculate score for this specific employee-shift pair only when needed
+                    ml_prediction = predictions.get((employee_id, shift_id), 0)
+
+                    # Simple scoring without expensive calculate_assignment_score calls
+                    # Base score from sorted_employees priority
+                    base_score = 0.0
+
+                    # Keyholder bonus if required
+                    if requires_keyholder and getattr(employee, "is_keyholder", False):
+                        base_score -= 1000.0  # Negative = higher priority
+                    elif requires_keyholder and not getattr(
+                        employee, "is_keyholder", False
+                    ):
+                        base_score += 1000.0  # Positive = lower priority
+
+                    # ML prediction influence
+                    combined_score = base_score + (ml_prediction * -100)
+
+                    shift_candidates.append(
+                        {
+                            "employee_id": employee_id,
+                            "employee": employee,
+                            "combined_score": combined_score,
+                        }
+                    )
+
+                # Sort candidates by combined score (lower is better)
+                shift_candidates.sort(key=lambda x: x["combined_score"])
 
                 # Phase 1: Assign employees up to the minimum required staffing
                 for candidate in shift_candidates:
@@ -610,32 +567,20 @@ class DistributionManager:
 
                     # Check if employee has reached daily shift limit
                     if shifts_assigned_today.get(employee_id, 0) >= max_shifts_per_day:
-                        self.logger.debug(
-                            f"Employee {employee_id} reached daily shift limit."
-                        )
                         continue
 
                     # Check if we have met the minimum required staffing for this shift
                     if assigned_count >= min_required_employees:
-                        self.logger.debug(
-                            f"Met minimum required staffing ({min_required_employees}) for shift {shift_id}."
-                        )
                         break  # Stop assigning once minimum is met
 
                     # Validate constraints before assignment
                     if not self._validate_assignment_constraints(
                         employee, shift, current_date
                     ):
-                        self.logger.debug(
-                            f"Employee {employee_id} failed constraint validation for shift {shift_id}"
-                        )
                         continue
 
                     # Double-check availability as a safety measure
                     if not self._validate_employee_availability(employee, current_date):
-                        self.logger.debug(
-                            f"Employee {employee_id} failed availability check for {current_date}"
-                        )
                         continue
 
                     # Create the assignment
@@ -656,10 +601,6 @@ class DistributionManager:
                     # Track keyholder assignment
                     if getattr(employee, "is_keyholder", False):
                         keyholder_assigned = True
-
-                    self.logger.info(
-                        f"Assigned employee {employee_id} to shift {shift_id} on {current_date} (assignment {assigned_count}/{min_required_employees})"
-                    )
 
                 # Phase 2: Check if minimum staffing was met
                 if assigned_count < min_required_employees:
@@ -781,7 +722,7 @@ class DistributionManager:
 
     def _get_required_staffing_info_for_shift(
         self, shift: Any, shift_date: date
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Get the complete staffing information for a specific shift based on coverage rules."""
         try:
             # Extract shift timing information
@@ -843,6 +784,10 @@ class DistributionManager:
     ) -> bool:
         """Validate that an employee can be assigned to a shift based on constraints."""
         try:
+            # Fast path: Basic checks first
+            if not getattr(employee, "is_active", True):
+                return False
+
             if not self.constraint_checker:
                 # If no constraint checker available, perform basic validation
                 return self._basic_constraint_validation(employee, shift, shift_date)
@@ -852,9 +797,6 @@ class DistributionManager:
             shift_id = self.get_id(shift, ["id", "shift_id", "shift_template_id"])
 
             if employee_id is None or shift_id is None:
-                self.logger.warning(
-                    f"Cannot validate constraints: missing employee_id ({employee_id}) or shift_id ({shift_id})"
-                )
                 return False
 
             # Create a temporary assignment for validation
@@ -873,7 +815,7 @@ class DistributionManager:
                 temp_assignment, employee, shift
             )
 
-            # Check keyholder constraints if employee is a keyholder
+            # Only check keyholder constraints if basic validation passed
             if is_valid and getattr(employee, "is_keyholder", False):
                 keyholder_violations = (
                     self.constraint_checker.check_keyholder_constraints(
@@ -884,20 +826,12 @@ class DistributionManager:
                     )
                 )
                 if keyholder_violations:
-                    self.logger.debug(
-                        f"Keyholder constraint violations for employee {employee_id}: {keyholder_violations}"
-                    )
                     is_valid = False
-
-            if not is_valid:
-                self.logger.debug(
-                    f"Constraint validation failed for employee {employee_id}, shift {shift_id}"
-                )
 
             return is_valid
 
-        except Exception as e:
-            self.logger.warning(f"Error validating assignment constraints: {e}")
+        except Exception:
+            # Fail silently in hot path to avoid log spam
             return False
 
     def _basic_constraint_validation(
@@ -923,7 +857,7 @@ class DistributionManager:
             self.logger.warning(f"Error in basic constraint validation: {e}")
             return False
 
-    def _get_current_assignments(self) -> List[Dict]:
+    def _get_current_assignments(self) -> list[dict]:
         """Get current assignments for constraint checking."""
         try:
             # Return the current assignments being built
@@ -958,7 +892,7 @@ class DistributionManager:
 
     def _create_assignment_data(
         self, employee: Any, shift: Any, shift_date: date
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Create assignment data dictionary with all required fields."""
         try:
             employee_id = self.get_id(employee, ["id", "employee_id"])
@@ -1013,9 +947,9 @@ class DistributionManager:
     def generate_assignments_for_day(
         self,
         current_date: date,
-        date_shifts: List[Dict],
-        available_employees: Optional[List[Any]] = None,
-    ) -> List[Dict]:
+        date_shifts: list[dict],
+        available_employees: list[Any] | None = None,
+    ) -> list[dict]:
         """
         Main entry point for generating assignments for a single day.
 
@@ -1115,8 +1049,8 @@ class DistributionManager:
             return []
 
     def _filter_employees_for_shift_type(
-        self, employees: List[Any], shift_type: str, shift_date: date
-    ) -> List[Any]:
+        self, employees: list[Any], shift_type: str, shift_date: date
+    ) -> list[Any]:
         """
         Filter employees based on their suitability for a specific shift type.
 
@@ -1313,7 +1247,7 @@ class DistributionManager:
 
         return adjustment
 
-    def is_shift_assigned(self, shift: Any, assignments: List[Dict]) -> bool:
+    def is_shift_assigned(self, shift: Any, assignments: list[dict]) -> bool:
         """Check if a shift has already been assigned"""
         shift_id = self.get_id(shift, ["id", "shift_id"])
         if shift_id is None:
@@ -1415,7 +1349,7 @@ class DistributionManager:
             f"{len(self.assignments_by_employee)} employees"
         )
 
-    def _initialize_employee_data(self, employees: List[Employee]):
+    def _initialize_employee_data(self, employees: list[Employee]):
         """Initialize employee data structures"""
         for employee in employees:
             self.employee_history[employee.id] = {
@@ -1492,7 +1426,7 @@ class DistributionManager:
             "avoid_days": avoid_days,
         }
 
-    def _load_historical_data(self, schedule_entries: List[Schedule]):
+    def _load_historical_data(self, schedule_entries: list[Schedule]):
         """Load historical schedule data to build distribution metrics"""
         for entry in schedule_entries:
             employee_id = entry.employee_id
@@ -1612,17 +1546,16 @@ class DistributionManager:
                             score["base_score"] = ShiftScore.EARLY_MORNING
                         elif shift.shift_type_id == "LATE":
                             score["base_score"] = ShiftScore.LATE_NIGHT
+                    # Determine type based on start time
+                    elif start_hour < 10:
+                        score["type"] = "EARLY"
+                        score["base_score"] = ShiftScore.EARLY_MORNING
+                    elif 10 <= start_hour < 14:
+                        score["type"] = "MIDDLE"
+                        score["base_score"] = ShiftScore.STANDARD
                     else:
-                        # Determine type based on start time
-                        if start_hour < 10:
-                            score["type"] = "EARLY"
-                            score["base_score"] = ShiftScore.EARLY_MORNING
-                        elif 10 <= start_hour < 14:
-                            score["type"] = "MIDDLE"
-                            score["base_score"] = ShiftScore.STANDARD
-                        else:
-                            score["type"] = "LATE"
-                            score["base_score"] = ShiftScore.LATE_NIGHT
+                        score["type"] = "LATE"
+                        score["base_score"] = ShiftScore.LATE_NIGHT
 
                 except (ValueError, IndexError):
                     pass
@@ -1660,10 +1593,10 @@ class DistributionManager:
     def calculate_assignment_score(
         self,
         employee_id: int,
-        shift_template: Union[ShiftTemplate, Dict[str, Any]],
+        shift_template: ShiftTemplate | dict[str, Any],
         shift_date: date,
-        context: Dict[str, Any],
-        availability_type_override: Union[AvailabilityType, str],
+        context: dict[str, Any],
+        availability_type_override: AvailabilityType | str,
     ) -> float:
         """Calculate a score for assigning this employee to this shift_template on shift_date.
 
@@ -2041,8 +1974,8 @@ class DistributionManager:
     def is_interval_covered(
         self,
         interval_start_time: time,  # Use time
-        interval_needs: Dict[str, Any],
-        current_staffing_for_interval_entry: Dict[str, Any],
+        interval_needs: dict[str, Any],
+        current_staffing_for_interval_entry: dict[str, Any],
         log_details: bool = False,
     ) -> bool:
         """
@@ -2130,8 +2063,8 @@ class DistributionManager:
     def get_employees_working_during_interval(
         self,
         interval_start_time: time,  # Use time
-        all_final_assignments: List[Dict[str, Any]],
-    ) -> List["ActualEmployee"]:
+        all_final_assignments: list[dict[str, Any]],
+    ) -> list["ActualEmployee"]:
         """
         Retrieves a list of Employee objects who are working during the specified time interval.
 
@@ -2142,7 +2075,7 @@ class DistributionManager:
         Returns:
             A list of Employee objects working during that interval.
         """
-        working_employees: List["ActualEmployee"] = []
+        working_employees: list[ActualEmployee] = []
         employee_ids_working: set[int] = (
             set()
         )  # To avoid duplicate Employee objects if somehow assigned multiple overlapping shifts

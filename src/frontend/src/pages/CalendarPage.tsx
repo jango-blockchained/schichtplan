@@ -70,6 +70,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { DragDropContext, Draggable, Droppable, DropResult } from 'react-beautiful-dnd';
 
 // Import AI components
+import { AIScheduleSuggestionsPanel } from "@/components/ai/AIScheduleSuggestionsPanel";
 import { LiveScheduleOptimizer } from "@/components/ai/LiveScheduleOptimizer";
 import { RealTimeConflictDetector } from "@/components/ai/RealTimeConflictDetector";
 
@@ -1102,6 +1103,16 @@ const CalendarPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         <LiveScheduleOptimizer />
         <RealTimeConflictDetector />
+      </div>
+
+      {/* AI Suggestions Panel */}
+      <div className="mb-4">
+        <AIScheduleSuggestionsPanel
+          dateRange={dateRange}
+          scheduleId={selectedVersion}
+          autoRefresh={true}
+          refreshInterval={60000}
+        />
       </div>
 
       {/* Filters */}

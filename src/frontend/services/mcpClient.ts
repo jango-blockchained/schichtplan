@@ -312,14 +312,30 @@ export class MCPClientService {
       });
 
       if (!response.ok) {
-        // Fallback to test-tool endpoint available in backend
-        const fallback = await fetch(`${this.baseUrl}/api/v2/mcp/test-tool`, {
+        // Fallback to execute-tool endpoint
+        const fallback = await fetch(`${this.baseUrl}/api/v2/mcp/execute-tool`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tool_name: request.tool, parameters: request.parameters }),
+          body: JSON.stringify({ tool: request.tool, parameters: request.parameters }),
         });
         if (!fallback.ok) {
-          throw new Error(`Tool execution failed: ${response.status}`);
+          // Final fallback to test-tool endpoint available in backend
+          const testFallback = await fetch(`${this.baseUrl}/api/v2/mcp/test-tool`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tool_name: request.tool, parameters: request.parameters }),
+          });
+          if (!testFallback.ok) {
+            throw new Error(`Tool execution failed: ${response.status}`);
+          }
+          const data = await testFallback.json();
+          const result: MCPResponse = {
+            status: data.status === 'success' ? 'success' : 'error',
+            result: data.result,
+            error: data.error,
+          } as MCPResponse;
+          this.emit('toolExecuted', { request, result });
+          return result;
         }
         const data = await fallback.json();
         const result: MCPResponse = {
@@ -340,6 +356,22 @@ export class MCPClientService {
       this.emit('error', error);
       throw error;
     }
+  }
+
+  /**
+   * Execute a tool by name with parameters (convenience method)
+   */
+  async executeTool(
+    toolName: string, 
+    parameters: Record<string, unknown> = {},
+    conversationId?: string
+  ): Promise<MCPResponse> {
+    const request: MCPRequest = {
+      tool: toolName,
+      parameters,
+      conversation_id: conversationId,
+    };
+    return this.executeToolRequest(request);
   }
 
   /**

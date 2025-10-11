@@ -71,20 +71,23 @@ def list_mcp_tools():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            tools_data = loop.run_until_complete(mcp_service.get_mcp_tool_discovery())
+            tools_data = loop.run_until_complete(
+                mcp_service.get_mcp_tool_discovery()
+            )
             return jsonify(tools_data)
         finally:
             loop.close()
 
     except Exception as e:
-        logger.error(f"Error listing MCP tools: {e}")
+        logger.error("Error listing MCP tools: %s", str(e))
         return jsonify(
-            {"available_tools": [], "categories": {}, "total_count": 0, "error": str(e)}
+            {
+                "available_tools": [],
+                "categories": {},
+                "total_count": 0,
+                "error": str(e),
+            }
         ), 500
-
-    except Exception as e:
-        logger.error(f"Error listing MCP tools: {str(e)}")
-        return jsonify({"error": str(e)}), 500
 
 
 @bp.route("/mcp/resources", methods=["GET"])
@@ -194,6 +197,100 @@ def test_mcp_tool():
         return jsonify({"status": "error", "error": str(e)}), 500
 
 
+@bp.route("/mcp/execute-tool", methods=["POST"])
+def execute_mcp_tool():
+    """Execute an MCP tool with provided parameters (general endpoint)."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+
+        tool_name = data.get("tool") or data.get("tool_name")
+        parameters = data.get("parameters", {})
+        conversation_id = data.get("conversation_id")
+        # user_id and session_id reserved for future use
+        # user_id = data.get("user_id")
+        # session_id = data.get("session_id")
+
+        if not tool_name:
+            return jsonify({"error": "tool or tool_name is required"}), 400
+
+        mcp_service = get_mcp_service()
+        mcp_server = mcp_service.get_mcp_server()
+
+        if tool_name not in mcp_server._tools:
+            return jsonify(
+                {
+                    "status": "error",
+                    "error": f'Tool "{tool_name}" not found',
+                    "available_tools": list(mcp_server._tools.keys()),
+                }
+            ), 404
+
+        # Create execution context
+        class ExecutionContext:
+            def __init__(self):
+                self.logs = []
+                self.warnings = []
+                self.errors = []
+
+            async def info(self, message: str):
+                self.logs.append({"level": "info", "message": message})
+
+            async def error(self, message: str):
+                self.errors.append(message)
+                self.logs.append({"level": "error", "message": message})
+
+            async def warning(self, message: str):
+                self.warnings.append(message)
+                self.logs.append({"level": "warning", "message": message})
+
+        # Get tool function
+        tool_func = mcp_server._tools[tool_name]
+        exec_ctx = ExecutionContext()
+
+        # Prepare parameters with context
+        exec_params = parameters.copy()
+        if "ctx" in tool_func.__code__.co_varnames:
+            exec_params["ctx"] = exec_ctx
+
+        # Execute the tool
+        try:
+            if asyncio.iscoroutinefunction(tool_func):
+                result = asyncio.run(tool_func(**exec_params))
+            else:
+                result = tool_func(**exec_params)
+
+            return jsonify(
+                {
+                    "status": "success",
+                    "tool_name": tool_name,
+                    "result": result,
+                    "logs": exec_ctx.logs,
+                    "warnings": exec_ctx.warnings,
+                    "errors": exec_ctx.errors,
+                    "conversation_id": conversation_id,
+                }
+            )
+
+        except Exception as tool_error:
+            logger.error(f"Tool execution error for {tool_name}: {tool_error}")
+            return jsonify(
+                {
+                    "status": "error",
+                    "tool_name": tool_name,
+                    "error": str(tool_error),
+                    "logs": exec_ctx.logs,
+                    "warnings": exec_ctx.warnings,
+                    "errors": exec_ctx.errors,
+                }
+            ), 500
+
+    except Exception as e:
+        logger.error(f"Error executing MCP tool: {str(e)}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+
 @bp.route("/mcp/config", methods=["GET"])
 def get_mcp_config():
     """Get MCP server configuration for client connections."""
@@ -241,7 +338,8 @@ def get_mcp_config():
 def mcp_health():
     """Health check endpoint for MCP service."""
     try:
-        mcp_service = get_mcp_service()
+        # Initialize MCP service to ensure it's available
+        get_mcp_service()
 
         # Test database connectivity through a simple query
         from src.backend.models import Employee
@@ -251,7 +349,7 @@ def mcp_health():
         return jsonify(
             {
                 "status": "healthy",
-                "timestamp": json.dumps(None, default=str),  # Current timestamp
+                "timestamp": json.dumps(None, default=str),
                 "database": "connected",
                 "employees_count": employee_count,
                 "mcp_service": "active",
@@ -259,5 +357,5 @@ def mcp_health():
         )
 
     except Exception as e:
-        logger.error(f"MCP health check failed: {str(e)}")
+        logger.error("MCP health check failed: %s", str(e))
         return jsonify({"status": "unhealthy", "error": str(e)}), 500

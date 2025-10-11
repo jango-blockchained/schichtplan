@@ -1,4 +1,5 @@
 import AbsenceModal from "@/components/AbsenceModal";
+import { AIEmployeeInsights } from "@/components/ai/AIEmployeeInsights";
 import CSVImportDialog from "@/components/CSVImportDialog";
 import { EmployeeAvailabilityModal } from "@/components/EmployeeAvailabilityModal";
 import { PageHeader } from "@/components/PageHeader";
@@ -280,6 +281,14 @@ export const EmployeesPage = () => {
             </Button>
           </div>
         }
+      />
+
+      {/* AI Employee Insights */}
+      <AIEmployeeInsights
+        employees={employees}
+        selectedEmployeeId={editingEmployee?.id}
+        autoRefresh={true}
+        refreshInterval={60000}
       />
 
       <EmployeeTable
