@@ -1,3 +1,11 @@
+#!/usr/bin/env python3
+import os
+import sys
+
+# Add project root to path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, project_root)
+
 from src.backend.app import create_app
 from src.backend.models import db, Employee, ShiftTemplate, Coverage, EmployeeAvailability, Absence, Settings, User, ScheduleVersionMeta
 

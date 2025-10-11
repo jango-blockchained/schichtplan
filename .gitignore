@@ -137,8 +137,8 @@ __pycache__/
 *.pyc
 **/*.pyc
 
-# Documentation
-docs/
+# Documentation - Note: We now track docs/ for project documentation
+# docs/
 
 # Frontend specific
 src/frontend/node_modules/
