@@ -30,11 +30,24 @@ The frontend communicates with the backend via RESTful APIs. The backend handles
 
 ## Directory Structure
 
-- `/src/frontend/` - React frontend application
-- `/src/backend/` - Flask backend application
-- `/src/instance/` - Application instance (database, migrations)
-- `/docs/` - Project documentation
-- `/logs/` - Application and scheduler logs
+```
+schichtplan/
+├── docs/                    # Project documentation
+│   └── archive/            # Archived docs and POC materials
+├── examples/               # Example code and reference implementations
+│   └── mcp/               # MCP server examples
+├── src/
+│   ├── backend/           # Flask backend application
+│   ├── frontend/          # React frontend application
+│   └── instance/          # Application instance (database, migrations)
+├── tools/                 # Development and maintenance utilities
+│   ├── validators/        # Database validation scripts
+│   ├── utils/            # Utility scripts
+│   └── debug/            # Debug utilities
+└── [configuration files]
+```
+
+For details on the reorganized structure, see [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md).
 
 ## Key Features
 
@@ -152,9 +165,13 @@ For detailed MCP documentation, see [docs/mcp_api.md](docs/mcp_api.md).
 
 ## Additional Documentation
 
+- [Cleanup Summary](CLEANUP_SUMMARY.md) - Recent codebase reorganization
+- [Migration Guide](MIGRATION_GUIDE.md) - Update guide for new file locations
 - [Logging System](docs/README_LOGGING.md)
 - [Migrations Guide](src/instance/migrations/README.md)
 - [Frontend Features](src/frontend/README.md)
 - [Backend Scheduler Tests](src/backend/tests/schedule/README.md)
+- [Tools Documentation](tools/README.md)
+- [Examples Documentation](examples/README.md)
 
 For further questions, see the `/docs` directory or open an issue.
