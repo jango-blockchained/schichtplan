@@ -97,7 +97,7 @@ class EnhancedAIService {
   
   // Access base URL and headers via private methods
   private get baseURL(): string {
-    return '/api/ai';
+    return '/api/v2';
   }
   
   private get headers(): Record<string, string> {

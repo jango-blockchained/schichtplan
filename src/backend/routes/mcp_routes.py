@@ -71,9 +71,7 @@ def list_mcp_tools():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            tools_data = loop.run_until_complete(
-                mcp_service.get_mcp_tool_discovery()
-            )
+            tools_data = loop.run_until_complete(mcp_service.get_mcp_tool_discovery())
             return jsonify(tools_data)
         finally:
             loop.close()
