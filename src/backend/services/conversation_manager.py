@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any
 
-import redis
+import redis.asyncio as redis
 from sqlalchemy import JSON, Column, DateTime, String
 from sqlalchemy.orm import declarative_base
 
@@ -248,6 +248,14 @@ class RedisStateStore(StateStore):
     def _serialize_context(self, context: ConversationContext) -> dict[str, Any]:
         """Serialize conversation context to dictionary."""
         data = asdict(context)
+
+        # Convert ConversationState enum to string value
+        data["state"] = context.state.value
+
+        # Convert ConversationPriority enums to string values
+        for goal in data.get("goals", []):
+            if hasattr(goal, "priority") and hasattr(goal["priority"], "value"):
+                goal["priority"] = goal["priority"].value
 
         # Convert datetime objects to ISO strings
         data["created_at"] = context.created_at.isoformat()

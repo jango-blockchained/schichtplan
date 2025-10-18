@@ -1,7 +1,18 @@
 import "@happy-dom/global-registrator";
+
+// Ensure document.body exists for testing-library `screen` queries early
+try {
+  if (typeof document !== "undefined" && !document.body) {
+    const body = document.createElement("body");
+    document.documentElement.appendChild(body);
+  }
+} catch (e) {
+  // ignore
+}
+
+// Ensure test globals (mockSettings, api) are attached early
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@testing-library/jest-dom";
-// Ensure test globals (mockSettings, api) are attached early
 import { cleanup, render } from "@testing-library/react";
 import { afterEach } from "bun:test";
 import { ThemeProvider } from "../providers/ThemeProvider";
@@ -27,6 +38,16 @@ if (!(globalThis as any).fetch) {
       json: async () => body,
     } as Response;
   };
+}
+
+// Ensure document.body exists for testing-library `screen` queries
+try {
+  if (typeof document !== "undefined" && !document.body) {
+    const body = document.createElement("body");
+    document.documentElement.appendChild(body);
+  }
+} catch (e) {
+  // ignore
 }
 
 if (!(globalThis as any).XMLHttpRequest) {

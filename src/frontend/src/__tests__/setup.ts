@@ -8,6 +8,28 @@ import "@testing-library/jest-dom";
 // Test helpers/globals
 import "../test-utils/test-globals";
 
+// Ensure a document.body exists as early as possible so testing-library's
+// screen helpers (which bind to document.body) can initialize without
+// throwing the "global document has to be available" error.
+try {
+  if (typeof document !== "undefined" && !document.body) {
+    // Ensure document.documentElement exists
+    if (!document.documentElement) {
+      const html = document.createElement("html");
+      try { document.appendChild(html); } catch { /* ignore */ }
+      (document as any).documentElement = html;
+    }
+    const body = document.createElement("body");
+    try {
+      document.documentElement.appendChild(body);
+    } catch {
+      try { document.appendChild(body); } catch { /* ignore */ }
+    }
+  }
+} catch (e) {
+  // ignore - best-effort for test environment
+}
+
 // Mock global APIs
 if (typeof (globalThis as any).HTMLElement === 'undefined') {
   (globalThis as any).HTMLElement = (class MockHTMLElement {
@@ -616,6 +638,16 @@ if (!(globalThis as any).fetch) {
       json: async () => body,
     } as Response;
   };
+}
+
+// Ensure a synchronous test AI service exists so components can call it
+// immediately during unit tests (avoids race with async monkeypatching).
+if (!(globalThis as any).__TEST_AI_SERVICE) {
+  (globalThis as any).__TEST_AI_SERVICE = {
+    uploadFile: async (_file: any) => ({ id: "file_1", name: "test.txt", type: "text/plain", size: 1000 }),
+    analyzeFile: async (_id: string) => ({ id: "file_1", analysis: {}, processed: true }),
+    processVoiceCommand: async (_blob: any) => ({ transcript: "test", confidence: 0.95, id: "vc_1", timestamp: new Date() }),
+  } as any;
 }
 
 // Monkey-patch frontend service modules to use our test globals where possible.

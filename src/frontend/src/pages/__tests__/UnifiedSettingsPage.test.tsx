@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { act } from "react-dom/test-utils";
-import { fireEvent, render, screen, waitFor } from "../../test-utils/test-utils";
+import "../../__tests__/setup";
 import type { Settings } from "../../types";
 import UnifiedSettingsPage from "../UnifiedSettingsPage";
+// Defer importing test-utils until runtime (in beforeEach) to ensure the
+// shared setup has created document.body and initialized happy-dom.
+let render: any;
+let fireEvent: any;
+let waitFor: any;
 
 // Use the globally provided api from test-globals which is a spy-like object
 // (attached to globalThis in test-globals)
@@ -10,11 +15,23 @@ import UnifiedSettingsPage from "../UnifiedSettingsPage";
 const api: any = (globalThis as any).api;
 
 // Create a mock settings object that matches the expected structure
+let screen: any;
 
 describe("UnifiedSettingsPage", () => {
   beforeEach(async () => {
     // Add a small delay to ensure DOM is ready
     await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Import testing-library's screen dynamically so it initializes after
+    // the setup module has created document.body (avoids the screen-global error)
+    const tl = await import("@testing-library/react");
+    screen = tl.screen;
+
+    // Import our test-utils after DOM is ready
+    const tu = await import("../../test-utils/test-utils");
+    render = tu.render;
+    fireEvent = tu.fireEvent;
+    waitFor = tu.waitFor;
 
     // Ensure getSettings returns the mock data for each test
     // (mockGetSettings is a simple function that resolves mockSettings)

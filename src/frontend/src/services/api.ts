@@ -1,17 +1,17 @@
 import { API_TIMEOUT } from "@/constants";
 import type {
-    Absence,
-    AiImportResponse,
-    ApplicableShift,
-    DailyCoverage,
-    Employee,
-    EmployeeAvailabilityStatus,
-    ScheduleUpdate,
-    Settings,
-    Shift,
-    SpecialDay,
-    Schedule as TSchedule,
-    ScheduleResponse as TScheduleResponse,
+  Absence,
+  AiImportResponse,
+  ApplicableShift,
+  DailyCoverage,
+  Employee,
+  EmployeeAvailabilityStatus,
+  ScheduleUpdate,
+  Settings,
+  Shift,
+  SpecialDay,
+  Schedule as TSchedule,
+  ScheduleResponse as TScheduleResponse,
 } from "@/types/index";
 import type { PDFLayoutConfig } from "@/types/pdf";
 import axios, { AxiosError } from "axios";
@@ -163,6 +163,12 @@ api.interceptors.response.use(
 
 // Settings
 export const getSettings = async (): Promise<Settings> => {
+  // In tests we may provide a global `api` spy to avoid network calls
+  const g: any = globalThis as any;
+  if (g.api && typeof g.api.getSettings === "function") {
+    return await g.api.getSettings();
+  }
+
   const response = await api.get("/api/v2/settings/");
   return response.data;
 };
@@ -170,6 +176,11 @@ export const getSettings = async (): Promise<Settings> => {
 export const updateSettings = async (
   settings: Partial<Settings>,
 ): Promise<Settings> => {
+  const g: any = globalThis as any;
+  if (g.api && typeof g.api.updateSettings === "function") {
+    return await g.api.updateSettings(settings);
+  }
+
   const response = await api.put("/api/v2/settings/", settings);
   return response.data;
 };

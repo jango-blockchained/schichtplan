@@ -277,7 +277,7 @@ export const FileUploadComponent: React.FC<FileUploadComponentProps> = ({
   };
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div data-testid="file-upload" role="region" aria-label="File Upload" tabIndex={0} className={cn("space-y-4", className)}>
       {/* Upload Area */}
       <Card
         className={cn(
@@ -310,7 +310,7 @@ export const FileUploadComponent: React.FC<FileUploadComponentProps> = ({
 
           {uploadState.isUploading && (
             <div className="mt-4">
-              <Progress value={uploadState.uploadProgress} className="w-full" />
+              <Progress data-testid="upload-progress" value={uploadState.uploadProgress} className="w-full" />
               <p className="text-sm text-muted-foreground mt-1">
                 Uploading... {Math.round(uploadState.uploadProgress)}%
               </p>

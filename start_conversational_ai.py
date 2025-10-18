@@ -133,7 +133,7 @@ class ConversationalMCPServer:
             # Test database connection
             try:
                 with self.flask_app.app_context():
-                    from backend.models import db
+                    from src.backend.models import db
 
                     db.session.execute(db.text("SELECT 1"))
                     db.session.commit()

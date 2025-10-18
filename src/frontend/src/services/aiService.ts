@@ -217,7 +217,6 @@ class AIService {
 
   constructor() {
     this.baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-    this.connectWebSocket();
   }
 
   public async connectWebSocket(): Promise<void> {
@@ -509,6 +508,12 @@ class AIService {
 
   // Voice Input Methods
   async processVoiceCommand(audioBlob: Blob): Promise<VoiceCommand> {
+    // If a test double is present, delegate to it to avoid network calls.
+    const g: any = globalThis as any;
+    if (g && g.__TEST_AI_SERVICE && typeof g.__TEST_AI_SERVICE.processVoiceCommand === "function") {
+      return g.__TEST_AI_SERVICE.processVoiceCommand(audioBlob);
+    }
+
     const formData = new FormData();
     formData.append("audio", audioBlob);
 
@@ -532,6 +537,11 @@ class AIService {
 
   // File Upload Methods
   async uploadFile(file: File): Promise<FileUpload> {
+    const g: any = globalThis as any;
+    if (g && g.__TEST_AI_SERVICE && typeof g.__TEST_AI_SERVICE.uploadFile === "function") {
+      return g.__TEST_AI_SERVICE.uploadFile(file);
+    }
+
     const formData = new FormData();
     formData.append("file", file);
 
@@ -550,6 +560,11 @@ class AIService {
   async analyzeFile(
     fileId: string,
   ): Promise<{ analysis: Record<string, unknown> }> {
+    const g: any = globalThis as any;
+    if (g && g.__TEST_AI_SERVICE && typeof g.__TEST_AI_SERVICE.analyzeFile === "function") {
+      return g.__TEST_AI_SERVICE.analyzeFile(fileId);
+    }
+
     return this.request<{ analysis: Record<string, unknown> }>(
       `/files/${fileId}/analyze`,
       {
