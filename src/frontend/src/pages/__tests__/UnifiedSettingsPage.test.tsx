@@ -1,5 +1,5 @@
-import { describe, it, expect, mock, beforeEach, waitFor } from "bun:test";
-import { render, screen, fireEvent } from "../../test-utils/test-utils";
+import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { render, screen, fireEvent, waitFor } from "../../test-utils/test-utils";
 import UnifiedSettingsPage from "../UnifiedSettingsPage";
 import type { Settings } from "../../types";
 import { act } from "react-dom/test-utils";

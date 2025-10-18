@@ -1,5 +1,5 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, test } from "bun:test";
+import { beforeEach, describe, expect, it as test } from "bun:test";
 import { VoiceInput } from "../../components/ai/VoiceInput";
 import "../setup";
 
@@ -116,9 +116,9 @@ describe("VoiceInput Component", () => {
   });
 
   test("handles speech recognition results", async () => {
-    const onTranscription = createMockFn();
+    const onTranscript = createMockFn();
     const { container } = render(
-      <VoiceInput onTranscript={onTranscription} disabled={false} />,
+      <VoiceInput onTranscript={onTranscript} disabled={false} />,
     );
 
     const micButton = container.querySelector("button");
@@ -149,12 +149,12 @@ describe("VoiceInput Component", () => {
       }
     });
 
-    expect(onTranscription.toHaveBeenCalledWith("Hello world")).toBe(true);
+    expect(onTranscript.toHaveBeenCalledWith("Hello world")).toBe(true);
   });
 
   test("shows audio level visualization when recording", async () => {
     const { container } = render(
-      <VoiceInput enabled={true} showAudioLevel={true} />,
+      <VoiceInput onTranscript={onTranscription} />,
     );
 
     const micButton = container.querySelector("button");
@@ -213,7 +213,7 @@ describe("VoiceInput Component", () => {
   test("handles microphone permission errors", async () => {
     const onError = createMockFn();
     const { container } = render(
-      <VoiceInput enabled={true} onError={onError} />,
+      <VoiceInput onTranscript={() => {}} />,
     );
 
     const micButton = container.querySelector("button");
@@ -273,7 +273,7 @@ describe("VoiceInput Component", () => {
 
   test("shows confidence score for speech recognition", async () => {
     const { container } = render(
-      <VoiceInput enabled={true} showConfidence={true} />,
+      <VoiceInput onTranscript={() => {}} />,
     );
 
     const micButton = container.querySelector("button");
@@ -313,7 +313,7 @@ describe("VoiceInput Component", () => {
   test("handles speech recognition errors gracefully", async () => {
     const onError = createMockFn();
     const { container } = render(
-      <VoiceInput enabled={true} onError={onError} />,
+      <VoiceInput onTranscript={() => {}} />,
     );
 
     const micButton = container.querySelector("button");
@@ -342,7 +342,7 @@ describe("VoiceInput Component", () => {
   });
 
   test("provides visual feedback for recording state", async () => {
-    const { container } = render(<VoiceInput enabled={true} />);
+    const { container } = render(<VoiceInput onTranscript={() => {}} />);
 
     const micButton = container.querySelector("button");
 
@@ -362,7 +362,7 @@ describe("VoiceInput Component", () => {
     delete globalThis.SpeechRecognition;
     delete globalThis.webkitSpeechRecognition;
 
-    const { container } = render(<VoiceInput enabled={true} />);
+    const { container } = render(<VoiceInput onTranscript={() => {}} />);
 
     const micButton = container.querySelector("button");
     expect(micButton?.disabled).toBe(true);

@@ -12,6 +12,7 @@ interface ChatMessage {
 interface ChatRequest {
   message: string;
   conversation_id?: string;
+  context?: any;
 }
 
 interface ChatResponse {
@@ -875,6 +876,16 @@ class AIService {
     }>("/search/suggestions", {
       method: "POST",
       body: JSON.stringify(parameters),
+    });
+  }
+
+  async trackSuggestionAction(
+    suggestionId: string,
+    action: "accepted" | "dismissed" | "viewed"
+  ): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>("/suggestions/track", {
+      method: "POST",
+      body: JSON.stringify({ suggestion_id: suggestionId, action }),
     });
   }
 }

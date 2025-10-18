@@ -198,12 +198,33 @@ export interface MEPStyling {
   tableStyle?: MEPTableStyle & Partial<MEPTableStyleAliases>;
 }
 
+export interface MEPContentLayout {
+  headerFooter: {
+    showHeader: boolean;
+    headerText: string;
+    showFooter: boolean;
+    footerText: string;
+  };
+  pageNumbering: {
+    enabled: boolean;
+    position: "top-left" | "top-center" | "top-right" | "bottom-left" | "bottom-center" | "bottom-right";
+    format: "page" | "page-of-total" | "roman" | "roman-of-total";
+  };
+  columnLayout: "single" | "double" | "triple";
+  showEmployeeId: boolean;
+  showPosition: boolean;
+  showBreaks: boolean;
+  showTotalHours: boolean;
+}
+
 export interface SimplifiedPDFConfig {
   header: MEPHeader;
   table: MEPTable;
   footer: MEPFooter;
   styling: MEPStyling;
   pageSetup: MEPPageSetup;
+  contentLayout: MEPContentLayout;
+  preset?: string;
 }
 
 export interface PresetTemplate {
@@ -502,6 +523,24 @@ export const DEFAULT_CONFIG: SimplifiedPDFConfig = {
       bottom: 15,
       left: 15,
     },
+  },
+  contentLayout: {
+    headerFooter: {
+      showHeader: true,
+      headerText: "Mitarbeiter-Einsatz-Planung",
+      showFooter: true,
+      footerText: "Erstellt mit Schichtplan System",
+    },
+    pageNumbering: {
+      enabled: true,
+      position: "bottom-right",
+      format: "page-of-total",
+    },
+    columnLayout: "single",
+    showEmployeeId: true,
+    showPosition: true,
+    showBreaks: true,
+    showTotalHours: true,
   },
 };
 

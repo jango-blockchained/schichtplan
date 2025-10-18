@@ -1,6 +1,6 @@
-import { describe, test, expect, beforeEach } from "bun:test";
+import { describe, it as test, expect, beforeEach } from "bun:test";
 import { render, fireEvent, waitFor, act } from "@testing-library/react";
-import { TypingIndicator } from "../../components/ai/TypingIndicator";
+import { TypingIndicatorComponent } from "../../components/ai/TypingIndicator";
 import "../setup";
 
 // Create mock functions

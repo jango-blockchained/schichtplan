@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from "bun:test";
+import { describe, it as test, expect, beforeEach } from "bun:test";
 import { render, fireEvent, waitFor, act } from "@testing-library/react";
 import { FileUploadComponent } from "../../components/ai/FileUploadComponent";
 import "../setup";

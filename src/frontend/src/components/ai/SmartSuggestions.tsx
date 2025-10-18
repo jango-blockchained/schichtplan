@@ -129,7 +129,12 @@ export const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
       });
 
       if (response.success && response.suggestions) {
-        setSuggestions(response.suggestions);
+        // Add timestamps to suggestions from AI service
+        const suggestionsWithTimestamps = response.suggestions.map(suggestion => ({
+          ...suggestion,
+          timestamp: new Date(),
+        }));
+        setSuggestions(suggestionsWithTimestamps);
       }
     } catch (error) {
       console.error("Failed to generate AI suggestions:", error);

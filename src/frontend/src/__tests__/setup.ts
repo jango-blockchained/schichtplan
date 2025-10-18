@@ -31,7 +31,7 @@ globalThis.HTMLElement = globalThis.HTMLElement || (class MockHTMLElement {
   hasAttribute() { return false; }
   getAttributeNames() { return []; }
   getBoundingClientRect() { return {} as DOMRect; }
-  getClientRects() { return [] as DOMRectList; }
+  getClientRects() { return { item: () => null, length: 0 } as unknown as DOMRectList; }
   scrollIntoView() {}
   scroll() {}
   scrollTo() {}
@@ -39,11 +39,11 @@ globalThis.HTMLElement = globalThis.HTMLElement || (class MockHTMLElement {
   insertAdjacentElement() { return null; }
   insertAdjacentText() {}
   insertAdjacentHTML() {}
-  getElementsByTagName() { return [] as HTMLCollectionOf<Element>; }
-  getElementsByTagNameNS() { return [] as HTMLCollectionOf<Element>; }
-  getElementsByClassName() { return [] as HTMLCollectionOf<Element>; }
+  getElementsByTagName() { return { item: () => null, length: 0, namedItem: () => null } as unknown as HTMLCollectionOf<Element>; }
+  getElementsByTagNameNS() { return { item: () => null, length: 0, namedItem: () => null } as unknown as HTMLCollectionOf<Element>; }
+  getElementsByClassName() { return { item: () => null, length: 0, namedItem: () => null } as unknown as HTMLCollectionOf<Element>; }
   querySelector() { return null; }
-  querySelectorAll() { return [] as NodeListOf<Element>; }
+  querySelectorAll() { return { item: () => null, length: 0 } as unknown as NodeListOf<Element>; }
   closest() { return null; }
   matches() { return false; }
   webkitMatchesSelector() { return false; }
@@ -95,7 +95,7 @@ globalThis.HTMLElement = globalThis.HTMLElement || (class MockHTMLElement {
   ownerDocument = null;
   parentNode = null;
   parentElement = null;
-  childNodes = [] as NodeListOf<ChildNode>;
+  childNodes = { item: () => null, length: 0 } as unknown as NodeListOf<ChildNode>;
   firstChild = null;
   lastChild = null;
   previousSibling = null;
@@ -111,10 +111,10 @@ globalThis.HTMLElement = globalThis.HTMLElement || (class MockHTMLElement {
     value: "",
     toString() { return ""; },
     forEach() {},
-    entries() { return [] as IterableIterator<[number, string]>; },
-    keys() { return [] as IterableIterator<number>; },
-    values() { return [] as IterableIterator<string>; },
-    [Symbol.iterator]() { return [] as IterableIterator<string>; }
+    entries() { return { next: () => ({ done: true, value: undefined }) } as IterableIterator<[number, string]>; },
+    keys() { return { next: () => ({ done: true, value: undefined }) } as IterableIterator<number>; },
+    values() { return { next: () => ({ done: true, value: undefined }) } as IterableIterator<string>; },
+    [Symbol.iterator]() { return { next: () => ({ done: true, value: undefined }) } as IterableIterator<string>; }
   } as DOMTokenList;
   id = "";
   slot = "";
@@ -208,7 +208,7 @@ globalThis.HTMLElement = globalThis.HTMLElement || (class MockHTMLElement {
   outerHTML = "";
   previousElementSibling = null;
   nextElementSibling = null;
-  children = [] as HTMLCollectionOf<Element>;
+  children = { item: () => null, length: 0, namedItem: () => null } as unknown as HTMLCollectionOf<Element>;
   firstElementChild = null;
   lastElementChild = null;
   childElementCount = 0;

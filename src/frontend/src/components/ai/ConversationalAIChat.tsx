@@ -59,6 +59,7 @@ interface ConversationSession {
   last_message_at: Date;
   message_count: number;
   ai_provider: "openai" | "anthropic" | "gemini";
+  status?: "active" | "inactive" | "archived";
   files?: string[]; // File IDs in this session
 }
 

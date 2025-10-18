@@ -17,6 +17,7 @@ export interface ConversationResponse {
   conversation_id?: string;
   state?: string;
   message?: string;
+  error_code?: string;
   next_actions?: string[];
   analysis?: any;
   recommendations?: any;
