@@ -1,5 +1,5 @@
-import { describe, it as test, expect, beforeEach } from "bun:test";
-import { render, fireEvent, waitFor, act } from "@testing-library/react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it as test } from "bun:test";
 import { FileUploadComponent } from "../../components/ai/FileUploadComponent";
 import "../setup";
 
@@ -25,7 +25,7 @@ class MockFile {
     public name: string,
     public size: number,
     public type: string,
-  ) {}
+  ) { }
 }
 
 describe("FileUploadComponent", () => {
@@ -125,7 +125,7 @@ describe("FileUploadComponent", () => {
       // Should show drag state
       expect(
         uploadArea.classList.contains("drag-over") ||
-          uploadArea.classList.contains("dragging"),
+        uploadArea.classList.contains("dragging"),
       ).toBe(true);
     }
   });
@@ -172,8 +172,8 @@ describe("FileUploadComponent", () => {
     // Should have accessibility attributes
     expect(
       uploadArea?.getAttribute("tabIndex") ||
-        uploadArea?.getAttribute("role") ||
-        uploadArea?.getAttribute("aria-label"),
+      uploadArea?.getAttribute("role") ||
+      uploadArea?.getAttribute("aria-label"),
     ).toBeTruthy();
   });
 

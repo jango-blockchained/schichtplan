@@ -1,20 +1,18 @@
-import React, { useState, useEffect, useMemo } from "react";
+import "@testing-library/jest-dom";
 import {
+  act,
+  fireEvent,
   render,
   screen,
-  fireEvent,
   waitFor,
-  act,
 } from "@testing-library/react";
-import "@testing-library/jest-dom";
-import { AddScheduleDialog } from "../Schedule/AddScheduleDialog"; // Adjust path as necessary
-import { useToast } from "../ui/use-toast"; // Mock this
 import * as apiService from "../../services/api"; // Use apiService for mocking
 import {
   EmployeeWithAvailability,
-  ShiftForEmployee,
   ScheduleEntry,
+  ShiftForEmployee,
 } from "../../types"; // Import the types
+import { AddScheduleDialog } from "../Schedule/AddScheduleDialog"; // Adjust path as necessary
 
 // Mock dependencies
 const mockToast = jest.fn();

@@ -892,19 +892,20 @@ class AIService {
 
 export const aiService = new AIService();
 export type {
-  Agent,
-  AISettings,
-  AnalyticsData,
-  ChatMessage,
-  ChatRequest,
-  ChatResponse,
-  FileUpload,
-  LiveUpdate,
-  MCPTool,
-  ToolExecutionResult,
-  TypingIndicator,
-  VoiceCommand,
-  WorkflowExecution,
-  WorkflowStep,
-  WorkflowTemplate,
+    Agent,
+    AISettings,
+    AnalyticsData,
+    ChatMessage,
+    ChatRequest,
+    ChatResponse,
+    FileUpload,
+    LiveUpdate,
+    MCPTool,
+    ToolExecutionResult,
+    TypingIndicator,
+    VoiceCommand,
+    WorkflowExecution,
+    WorkflowStep,
+    WorkflowTemplate
 };
+

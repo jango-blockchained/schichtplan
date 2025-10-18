@@ -213,7 +213,7 @@ describe("VoiceInput Component", () => {
   test("handles microphone permission errors", async () => {
     const onError = createMockFn();
     const { container } = render(
-      <VoiceInput onTranscript={() => {}} />,
+      <VoiceInput onTranscript={() => { }} />,
     );
 
     const micButton = container.querySelector("button");
@@ -273,7 +273,7 @@ describe("VoiceInput Component", () => {
 
   test("shows confidence score for speech recognition", async () => {
     const { container } = render(
-      <VoiceInput onTranscript={() => {}} />,
+      <VoiceInput onTranscript={() => { }} />,
     );
 
     const micButton = container.querySelector("button");
@@ -313,7 +313,7 @@ describe("VoiceInput Component", () => {
   test("handles speech recognition errors gracefully", async () => {
     const onError = createMockFn();
     const { container } = render(
-      <VoiceInput onTranscript={() => {}} />,
+      <VoiceInput onTranscript={() => { }} />,
     );
 
     const micButton = container.querySelector("button");
@@ -342,7 +342,7 @@ describe("VoiceInput Component", () => {
   });
 
   test("provides visual feedback for recording state", async () => {
-    const { container } = render(<VoiceInput onTranscript={() => {}} />);
+    const { container } = render(<VoiceInput onTranscript={() => { }} />);
 
     const micButton = container.querySelector("button");
 
@@ -362,7 +362,7 @@ describe("VoiceInput Component", () => {
     delete globalThis.SpeechRecognition;
     delete globalThis.webkitSpeechRecognition;
 
-    const { container } = render(<VoiceInput onTranscript={() => {}} />);
+    const { container } = render(<VoiceInput onTranscript={() => { }} />);
 
     const micButton = container.querySelector("button");
     expect(micButton?.disabled).toBe(true);

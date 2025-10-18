@@ -1,8 +1,8 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
-import { render, screen, fireEvent, waitFor } from "../../test-utils/test-utils";
-import UnifiedSettingsPage from "../UnifiedSettingsPage";
-import type { Settings } from "../../types";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { act } from "react-dom/test-utils";
+import { fireEvent, render, screen, waitFor } from "../../test-utils/test-utils";
+import type { Settings } from "../../types";
+import UnifiedSettingsPage from "../UnifiedSettingsPage";
 
 // Mock the API functions
 const mockGetSettings = mock.fn();

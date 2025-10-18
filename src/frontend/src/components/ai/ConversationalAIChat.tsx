@@ -162,10 +162,10 @@ export const ConversationalAIChat: React.FC = () => {
         setCurrentSession((prev) =>
           prev
             ? {
-                ...prev,
-                last_message_at: new Date(),
-                message_count: prev.message_count + 2,
-              }
+              ...prev,
+              last_message_at: new Date(),
+              message_count: prev.message_count + 2,
+            }
             : null,
         );
       }
@@ -198,10 +198,10 @@ export const ConversationalAIChat: React.FC = () => {
           setCurrentSession((prev) =>
             prev
               ? {
-                  ...prev,
-                  last_message_at: new Date(),
-                  message_count: prev.message_count + 2,
-                }
+                ...prev,
+                last_message_at: new Date(),
+                message_count: prev.message_count + 2,
+              }
               : null,
           );
         }
@@ -522,7 +522,7 @@ export const ConversationalAIChat: React.FC = () => {
                             className={cn(
                               "h-6 w-6 p-0",
                               message.feedback === "positive" &&
-                                "text-green-500",
+                              "text-green-500",
                             )}
                             onClick={() =>
                               handleFeedback(message.id, "positive")

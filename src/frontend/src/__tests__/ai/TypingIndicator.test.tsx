@@ -1,6 +1,5 @@
-import { describe, it as test, expect, beforeEach } from "bun:test";
-import { render, fireEvent, waitFor, act } from "@testing-library/react";
-import { TypingIndicatorComponent } from "../../components/ai/TypingIndicator";
+import { render } from "@testing-library/react";
+import { beforeEach, describe, expect, it as test } from "bun:test";
 import "../setup";
 
 // Create mock functions
@@ -114,8 +113,8 @@ describe("TypingIndicator Component", () => {
     // Should have some accessibility attributes
     expect(
       indicator?.getAttribute("aria-live") ||
-        indicator?.getAttribute("role") ||
-        indicator?.getAttribute("aria-label"),
+      indicator?.getAttribute("role") ||
+      indicator?.getAttribute("aria-label"),
     ).toBeTruthy();
   });
 
