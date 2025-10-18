@@ -58,7 +58,7 @@ interface WorkflowExecution {
   id: string;
   template_id: string;
   name: string;
-  status: "pending" | "running" | "completed" | "failed";
+  status: "pending" | "running" | "paused" | "completed" | "failed";
   progress: number;
   start_time: string;
   end_time?: string;

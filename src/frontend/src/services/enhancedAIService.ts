@@ -404,7 +404,7 @@ class EnhancedAIService {
   ): Promise<BackgroundTask> {
     return this.startBackgroundTask(
       "optimize_schedule",
-      request as Record<string, unknown>,
+      (request as unknown) as Record<string, unknown>,
     );
   }
 
@@ -416,7 +416,7 @@ class EnhancedAIService {
   ): Promise<BackgroundTask> {
     return this.startBackgroundTask(
       "resolve_conflicts",
-      request as Record<string, unknown>,
+      (request as unknown) as Record<string, unknown>,
     );
   }
 

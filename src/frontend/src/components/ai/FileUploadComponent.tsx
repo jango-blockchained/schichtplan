@@ -20,12 +20,22 @@ import React, { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 
 interface FileUploadComponentProps {
+  // New canonical props
   onFilesUploaded?: (files: FileUpload[]) => void;
   onFileAnalyzed?: (fileId: string, analysis: Record<string, unknown>) => void;
   maxFiles?: number;
   maxFileSize?: number; // in MB
   allowedTypes?: string[];
   className?: string;
+
+  // Backwards-compatible aliases used by older tests/components
+  acceptedFileTypes?: string[]; // e.g. ['.pdf', '.txt'] or mime types
+  onFileSelected?: (files: File[]) => void; // called on raw selection/drop
+  onError?: (error: string) => void;
+  multiple?: boolean;
+  showProgress?: boolean;
+  // older name used in some places
+  acceptedTypes?: string[];
 }
 
 interface UploadState {
@@ -38,6 +48,13 @@ interface UploadState {
 export const FileUploadComponent: React.FC<FileUploadComponentProps> = ({
   onFilesUploaded,
   onFileAnalyzed,
+  // backward compatibility
+  acceptedFileTypes,
+  onFileSelected,
+  onError,
+  multiple = true,
+  showProgress = false,
+  acceptedTypes,
   maxFiles = 10,
   maxFileSize = 50, // 50MB default
   allowedTypes = [
@@ -86,7 +103,16 @@ export const FileUploadComponent: React.FC<FileUploadComponentProps> = ({
   };
 
   const validateFile = (file: File): string | null => {
-    if (!allowedTypes.includes(file.type)) {
+    const fileExt = file.name.includes(".")
+      ? `.${file.name.split('.').pop()}`.toLowerCase()
+      : "";
+
+    const accepted =
+      (acceptedFileTypes && acceptedFileTypes.length > 0 && acceptedFileTypes.includes(fileExt)) ||
+      (acceptedTypes && acceptedTypes.length > 0 && acceptedTypes.includes(fileExt)) ||
+      allowedTypes.includes(file.type);
+
+    if (!accepted) {
       return `Dateityp ${file.type} nicht erlaubt`;
     }
     if (file.size > maxFileSize * 1024 * 1024) {
@@ -146,6 +172,13 @@ export const FileUploadComponent: React.FC<FileUploadComponentProps> = ({
             } catch (error) {
               console.warn("File analysis failed:", error);
             }
+            if (onFileSelected) {
+              try {
+                onFileSelected([file]);
+              } catch (e) {
+                // ignore
+              }
+            }
           }
         } catch (error) {
           console.error("Upload failed:", error);
@@ -169,6 +202,14 @@ export const FileUploadComponent: React.FC<FileUploadComponentProps> = ({
     const files = Array.from(event.target.files || []);
     uploadFiles(files);
 
+    // notify raw selection callback
+    if (onFileSelected && files.length > 0) {
+      try {
+        onFileSelected(files);
+      } catch {
+        // ignore
+      }
+    }
     // Reset the input
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -182,8 +223,15 @@ export const FileUploadComponent: React.FC<FileUploadComponentProps> = ({
 
       const files = Array.from(event.dataTransfer.files);
       uploadFiles(files);
+      if (onFileSelected && files.length > 0) {
+        try {
+          onFileSelected(files);
+        } catch {
+          // ignore
+        }
+      }
     },
-    [uploadState.files.length],
+    [],
   );
 
   const handleDragOver = useCallback((event: React.DragEvent) => {
@@ -274,8 +322,8 @@ export const FileUploadComponent: React.FC<FileUploadComponentProps> = ({
       <input
         ref={fileInputRef}
         type="file"
-        multiple
-        accept={allowedTypes.join(",")}
+        multiple={multiple}
+        accept={(acceptedFileTypes && acceptedFileTypes.join(",")) || (acceptedTypes && acceptedTypes.join(",")) || allowedTypes.join(",")}
         onChange={handleFileSelect}
         className="hidden"
       />

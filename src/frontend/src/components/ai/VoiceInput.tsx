@@ -19,7 +19,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 interface VoiceInputProps {
-  onTranscript: (text: string) => void;
+  onTranscript: (text: string, confidence: number) => void;
   onCommand?: (command: VoiceCommand) => void;
   disabled?: boolean;
   language?: string;
@@ -188,7 +188,7 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
       }));
 
       if (voiceCommand.confidence > settings.sensitivity) {
-        onTranscript(voiceCommand.transcript);
+        onTranscript(voiceCommand.transcript, voiceCommand.confidence);
         if (onCommand) {
           onCommand(voiceCommand);
         }

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { aiService } from "@/services/aiService";
+import { aiService, type FileUpload } from "@/services/aiService";
 import { Bot, Loader2, Mic, Send, Upload, User } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
@@ -23,6 +23,11 @@ interface Message {
     source?: string;
     tools_used?: string[];
     processing_time?: number;
+    file_id?: string;
+    file_name?: string;
+    file_size?: number;
+    input_type?: string;
+    analysis_type?: string;
   };
 }
 
@@ -78,28 +83,40 @@ export const ConversationalAIChat: React.FC<ConversationalAIChatProps> = ({
         aiService.joinConversation(currentConversationId, "user");
 
         // Set up event listeners
-        aiService.on("typing_indicator", (data: Record<string, unknown>) => {
-          if (data.conversation_id === currentConversationId) {
-            if (data.is_typing && data.user_id !== "user") {
+        aiService.on("typing_indicator", (data: unknown) => {
+          const payload = data as Record<string, unknown> | null;
+          if (!payload) return;
+          const conversationId = payload["conversation_id"] as string | undefined;
+          if (conversationId === currentConversationId) {
+            const userId = (payload["user_id"] as string) ?? "";
+            const isTyping = Boolean(payload["is_typing"]);
+            if (isTyping && userId !== "user") {
               setTypingUsers((prev) => [
-                ...prev.filter((u) => u !== data.user_id),
-                data.user_id as string,
+                ...prev.filter((u) => u !== userId),
+                String(userId),
               ]);
             } else {
-              setTypingUsers((prev) => prev.filter((u) => u !== data.user_id));
+              setTypingUsers((prev) => prev.filter((u) => u !== userId));
             }
           }
         });
 
-        aiService.on("ai_thinking", (data: Record<string, unknown>) => {
-          if (data.conversation_id === currentConversationId) {
-            setAiThinking(data.is_thinking as boolean);
+        aiService.on("ai_thinking", (data: unknown) => {
+          const payload = data as Record<string, unknown> | null;
+          if (!payload) return;
+          const conversationId = payload["conversation_id"] as string | undefined;
+          if (conversationId === currentConversationId) {
+            setAiThinking(Boolean(payload["is_thinking"]));
           }
         });
 
-        aiService.on("new_message", (data: Record<string, unknown>) => {
-          if (data.conversation_id === currentConversationId) {
-            setMessages((prev) => [...prev, data.message]);
+        aiService.on("new_message", (data: unknown) => {
+          const payload = data as Record<string, unknown> | null;
+          if (!payload) return;
+          const conversationId = payload["conversation_id"] as string | undefined;
+          const message = payload["message"] as Message | undefined;
+          if (conversationId === currentConversationId && message) {
+            setMessages((prev) => [...prev, message]);
           }
         });
       } catch (error) {
@@ -182,7 +199,6 @@ export const ConversationalAIChat: React.FC<ConversationalAIChatProps> = ({
         id: `msg_${Date.now()}_ai`,
         content:
           response.message ||
-          response.response ||
           "Sorry, I could not process your request.",
         type: "ai",
         timestamp: new Date().toISOString(),
@@ -220,11 +236,12 @@ export const ConversationalAIChat: React.FC<ConversationalAIChatProps> = ({
   };
 
   // Handle file upload
-  const handleFileUpload = async (file: File) => {
+  const handleFileUpload = async (files: FileUpload[]) => {
+    if (files.length === 0) return;
+
+    const file = files[0]; // Take the first uploaded file
     try {
       setIsLoading(true);
-
-      const uploadResult = await aiService.uploadFile(file);
 
       const fileMessage: Message = {
         id: `msg_${Date.now()}_file`,
@@ -232,7 +249,7 @@ export const ConversationalAIChat: React.FC<ConversationalAIChatProps> = ({
         type: "user",
         timestamp: new Date().toISOString(),
         metadata: {
-          file_id: uploadResult.id,
+          file_id: file.id,
           file_name: file.name,
           file_size: file.size,
           input_type: "file",
@@ -247,16 +264,25 @@ export const ConversationalAIChat: React.FC<ConversationalAIChatProps> = ({
           file.name.toLowerCase().endsWith(ext),
         )
       ) {
-        const analysis = await aiService.analyzeFile(uploadResult.id);
+        const analysis = await aiService.analyzeFile(file.id);
+
+        const summary =
+          typeof analysis?.analysis?.summary === "string"
+            ? (analysis.analysis.summary as string)
+            : JSON.stringify(analysis?.analysis?.summary ?? "");
+
+        const insightsArr = Array.isArray(analysis?.analysis?.insights)
+          ? (analysis.analysis.insights as string[])
+          : [];
 
         const analysisMessage: Message = {
           id: `msg_${Date.now()}_analysis`,
-          content: `📊 File Analysis:\n${analysis.analysis.summary}\n\nInsights:\n${analysis.analysis.insights.join("\n")}`,
+          content: `📊 File Analysis:\n${summary}\n\nInsights:\n${insightsArr.join("\n")}`,
           type: "ai",
           timestamp: new Date().toISOString(),
           metadata: {
             source: "file_analysis",
-            file_id: uploadResult.id,
+            file_id: file.id,
             analysis_type: "automatic",
           },
         };
@@ -338,16 +364,15 @@ export const ConversationalAIChat: React.FC<ConversationalAIChatProps> = ({
             <div className="space-y-3">
               {isVoiceEnabled && (
                 <VoiceInput
-                  onVoiceCommand={handleVoiceCommand}
-                  isEnabled={isVoiceEnabled}
-                  conversationId={currentConversationId}
+                  onTranscript={handleVoiceCommand}
+                  disabled={!isVoiceEnabled}
                 />
               )}
 
               {showFileUpload && (
                 <FileUploadComponent
-                  onFileUpload={handleFileUpload}
-                  maxSize={50 * 1024 * 1024} // 50MB
+                  onFilesUploaded={handleFileUpload}
+                  maxFileSize={50}
                   acceptedTypes={[
                     "text/plain",
                     "text/csv",
@@ -383,10 +408,10 @@ export const ConversationalAIChat: React.FC<ConversationalAIChatProps> = ({
                 >
                   <div
                     className={`max-w-[80%] rounded-lg p-3 ${message.type === "user"
-                        ? "bg-blue-500 text-white"
-                        : message.type === "ai"
-                          ? "bg-gray-100 text-gray-900"
-                          : "bg-yellow-50 text-yellow-800 border border-yellow-200"
+                      ? "bg-blue-500 text-white"
+                      : message.type === "ai"
+                        ? "bg-gray-100 text-gray-900"
+                        : "bg-yellow-50 text-yellow-800 border border-yellow-200"
                       }`}
                   >
                     <div className="flex items-start gap-2">

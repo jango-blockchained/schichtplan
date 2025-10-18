@@ -242,3 +242,19 @@ export const TypingIndicatorInline: React.FC<{
     </div>
   );
 };
+
+// Backwards-compatible export for tests and older imports (test suite expects a lightweight API)
+// Backwards-compatible export for tests and older imports
+// Provide a legacy wrapper that accepts (typing, users, className)
+export const TypingIndicator: React.FC<{
+  typing: boolean;
+  users?: string[] | undefined;
+  className?: string;
+}> = ({ typing, users, className }) => {
+  if (!typing && (!users || users.length === 0)) return null;
+  return (
+    <div className={className}>
+      <TypingIndicatorInline users={users ?? []} aiThinking={false} />
+    </div>
+  );
+};

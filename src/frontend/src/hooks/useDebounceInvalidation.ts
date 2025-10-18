@@ -1,6 +1,6 @@
-import { useCallback, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import debounce from "lodash/debounce";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 interface InvalidationConfig {
   queryKey: string[];
@@ -45,52 +45,53 @@ export const useDebounceInvalidation = (
     });
   }, [configs]);
 
-  const debouncedInvalidations = useCallback(
-    configs.reduce(
-      (
-        acc,
-        {
-          queryKey,
-          debounceMs = defaultDebounceMs,
-          maxWait = defaultMaxWait,
-          priority = "medium",
-          batchWith,
-        },
-      ) => {
-        const key = queryKey.join(".");
-        const groupKey = batchWith
-          ? [key, ...batchWith].sort().join("|")
-          : undefined;
+  const debouncedInvalidations = useMemo(
+    () =>
+      configs.reduce(
+        (
+          acc,
+          {
+            queryKey,
+            debounceMs = defaultDebounceMs,
+            maxWait = defaultMaxWait,
+            priority = "medium",
+            batchWith,
+          },
+        ) => {
+          const key = queryKey.join(".");
+          const groupKey = batchWith
+            ? [key, ...batchWith].sort().join("|")
+            : undefined;
 
-        acc[key] = {
-          fn: debounce(
-            () => {
-              // If part of a batch group, invalidate all related queries
-              if (groupKey && batchGroupsRef.current.has(groupKey)) {
-                const group = batchGroupsRef.current.get(groupKey)!;
-                group.forEach((queryKey) => {
-                  const keys = queryKey.split(".");
-                  queryClient.invalidateQueries({ queryKey: keys });
-                });
-              } else {
-                queryClient.invalidateQueries({ queryKey });
-              }
-            },
-            debounceMs,
-            {
-              maxWait,
-              leading: priority === "high", // High priority gets leading edge execution
-              trailing: true,
-            },
-          ),
-          priority: PRIORITY_MAP[priority],
-          batchGroup: groupKey,
-        };
-        return acc;
-      },
-      {} as Record<string, DebouncedInvalidation>,
-    ),
-    [queryClient],
+          acc[key] = {
+            fn: debounce(
+              () => {
+                // If part of a batch group, invalidate all related queries
+                if (groupKey && batchGroupsRef.current.has(groupKey)) {
+                  const group = batchGroupsRef.current.get(groupKey)!;
+                  group.forEach((queryKey) => {
+                    const keys = queryKey.split(".");
+                    queryClient.invalidateQueries({ queryKey: keys });
+                  });
+                } else {
+                  queryClient.invalidateQueries({ queryKey });
+                }
+              },
+              debounceMs,
+              {
+                maxWait,
+                leading: priority === "high", // High priority gets leading edge execution
+                trailing: true,
+              },
+            ),
+            priority: PRIORITY_MAP[priority],
+            batchGroup: groupKey,
+          };
+          return acc;
+        },
+        {} as Record<string, DebouncedInvalidation>,
+      ),
+    [configs, queryClient, defaultDebounceMs, defaultMaxWait],
   );
 
   const invalidateQueries = useCallback(

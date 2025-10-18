@@ -250,7 +250,7 @@ const ShiftCell = ({
   const shiftTypeId = determineShiftType();
 
   // Find the shift type details in settings
-  const shiftTypeInfo = settings?.shift_types?.find(
+  const shiftTypeInfo = settings?.employee_groups?.shift_types?.find(
     (type) => type.id === shiftTypeId,
   );
 
