@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 """
-Script to run all schedule generation tests.
-This script runs all the schedule generation tests and provides a summary of the results.
+Script to run all schedule generation tests and print a high-level summary.
 """
 
-import sys
-import logging
-import time
 import importlib
+import logging
+import sys
+import time
 from datetime import datetime
 
 # Set up logging
@@ -20,9 +19,9 @@ logger = logging.getLogger(__name__)
 
 # List of test modules to run
 TEST_MODULES = [
-    "src.backend.tests.schedule.test_schedule_generation_extended",
-    "src.backend.tests.schedule.test_schedule_constraints",
-    "src.backend.tests.api.test_schedule_generation_api",
+    "tests.backend.schedule.test_schedule_generation_extended",
+    "tests.backend.schedule.test_schedule_constraints",
+    "tests.backend.api.test_schedule_generation_api",
 ]
 
 
@@ -31,7 +30,10 @@ def run_tests():
     logger.info("=" * 80)
     logger.info("SCHEDULE GENERATION TEST SUITE")
     logger.info("=" * 80)
-    logger.info(f"Starting tests at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(
+        "Starting tests at: %s",
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    )
     logger.info("-" * 80)
 
     results = {}
@@ -59,19 +61,29 @@ def run_tests():
                 }
 
                 logger.info(
-                    f"Module '{module_name}' completed in {execution_time:.2f} seconds"
+                    "Module '%s' completed in %.2f seconds",
+                    module_name,
+                    execution_time,
                 )
             else:
                 # For pytest modules, we'll need to run them differently
                 logger.info(
-                    f"Module '{module_name}' does not have a run_all_tests function. Skipping."
+                    (
+                        "Module '%s' does not have a run_all_tests "
+                        "function. Skipping."
+                    ),
+                    module_name,
                 )
                 results[module_name] = {
                     "status": "Skipped",
                     "reason": "No run_all_tests function",
                 }
         except Exception as e:
-            logger.error(f"Error running tests from module '{module_name}': {str(e)}")
+            logger.error(
+                "Error running tests from module '%s': %s",
+                module_name,
+                str(e),
+            )
             results[module_name] = {"status": "Failed", "error": str(e)}
 
     # Print summary
@@ -100,7 +112,10 @@ def run_tests():
     logger.info(f"Failed: {failed_count}")
     logger.info(f"Skipped: {skipped_count}")
     logger.info(f"Total execution time: {total_time:.2f} seconds")
-    logger.info(f"Tests completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(
+        "Tests completed at: %s",
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    )
     logger.info("=" * 80)
 
     return results

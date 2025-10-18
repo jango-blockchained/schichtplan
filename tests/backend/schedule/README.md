@@ -22,13 +22,13 @@ Or you can run individual test modules:
 
 ```bash
 # Run extended schedule generation tests
-python -m src.backend.tests.schedule.test_schedule_generation_extended
+python -m tests.backend.schedule.test_schedule_generation_extended
 
 # Run schedule constraints tests
-python -m src.backend.tests.schedule.test_schedule_constraints
+python -m tests.backend.schedule.test_schedule_constraints
 
 # Run schedule generation API tests
-python -m pytest src.backend.tests.api.test_schedule_generation_api.py
+python -m pytest tests/backend/api/test_schedule_generation_api.py
 ```
 
 ## Test Modules
@@ -92,7 +92,7 @@ The logs are written to the console and can be redirected to a file if needed.
 To add new tests, you can:
 
 1. Add new test functions to the existing modules
-2. Create new test modules in the `src/backend/tests/schedule` directory
+2. Create new test modules in the `tests/backend/schedule` directory
 3. Add the new modules to the `TEST_MODULES` list in the `run_schedule_tests.py` script
 
 When adding new tests, make sure to:
@@ -100,4 +100,4 @@ When adding new tests, make sure to:
 - Clean up any test data created during the test
 - Restore any settings or data modified during the test
 - Add appropriate assertions to verify the test results
-- Add detailed logging to help diagnose test failures 
+- Add detailed logging to help diagnose test failures
