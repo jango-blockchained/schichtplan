@@ -52,8 +52,8 @@ describe("UnifiedSettingsPage", () => {
   });
 
   it("renders the general store setup section by default and displays data", async () => {
-  // Verify that getSettings was called (done in beforeEach implies it, but explicit check is fine)
-  expect(api.getSettings.toHaveBeenCalled()).toBe(true);
+    // Verify that getSettings was called (done in beforeEach implies it, but explicit check is fine)
+    expect(api.getSettings.toHaveBeenCalled()).toBe(true);
 
     // The page defaults to the "General Store Setup" section.
     // Check if the store_name from mockSettings is displayed in an input field.
@@ -102,12 +102,12 @@ describe("UnifiedSettingsPage", () => {
     });
 
     // Check that updateSettings has not been called immediately
-  expect(api.updateSettings.toHaveBeenCalled()).toBe(false);
+    expect(api.updateSettings.toHaveBeenCalled()).toBe(false);
 
     // Use waitFor to wait for the debounced call to happen
     await waitFor(
       () => {
-  expect(api.updateSettings.toHaveBeenCalledTimes(1)).toBe(true);
+        expect(api.updateSettings.toHaveBeenCalledTimes(1)).toBe(true);
       },
       { timeout: 3000 },
     ); // Use a timeout slightly longer than the debounce delay
@@ -120,7 +120,7 @@ describe("UnifiedSettingsPage", () => {
         store_name: newStoreName,
       },
     };
-  expect(api.updateSettings.toHaveBeenCalledWith(expectedPayload)).toBe(true);
+    expect(api.updateSettings.toHaveBeenCalledWith(expectedPayload)).toBe(true);
   });
 
   // Add more tests for different sections and interactions

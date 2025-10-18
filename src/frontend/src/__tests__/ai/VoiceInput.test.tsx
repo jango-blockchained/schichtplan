@@ -74,7 +74,7 @@ Object.defineProperty(navigator, "mediaDevices", {
       const fn = createMockFn();
       // Default to returning a fake stream with stop-able tracks
       fn.mockReturnValue = Promise.resolve({
-        getTracks: () => [{ stop: () => {} }],
+        getTracks: () => [{ stop: () => { } }],
       });
       return fn;
     })(),

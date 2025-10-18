@@ -1,9 +1,11 @@
 import "@happy-dom/global-registrator";
-import "@testing-library/jest-dom";
-import { afterEach } from "bun:test";
-import { cleanup, render } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import "@testing-library/jest-dom";
+// Ensure test globals (mockSettings, api) are attached early
+import { cleanup, render } from "@testing-library/react";
+import { afterEach } from "bun:test";
 import { ThemeProvider } from "../providers/ThemeProvider";
+import "./test-globals";
 
 // Set up a basic DOM environment
 // happy-dom global-registrator ensures document/window are available.
@@ -39,7 +41,7 @@ if (!(globalThis as any).XMLHttpRequest) {
       this.method = method;
       this.url = url;
     }
-    setRequestHeader() {}
+    setRequestHeader() { }
     send(_body?: any) {
       const url = this.url || "";
       let body: any = {};
@@ -52,7 +54,7 @@ if (!(globalThis as any).XMLHttpRequest) {
       this.responseText = JSON.stringify(body);
       if (this.onload) setTimeout(() => this.onload && this.onload(), 0);
     }
-    abort() {}
+    abort() { }
   }
   (globalThis as any).XMLHttpRequest = MockXHR as any;
 }
@@ -65,7 +67,7 @@ if (!(globalThis as any).navigator.mediaDevices.getUserMedia) {
   const fn: any = (..._args: any[]) => {
     if (typeof fn.mockImplementation === "function") return fn.mockImplementation(..._args);
     if (typeof fn.mockReturnValue !== "undefined") return fn.mockReturnValue;
-    return Promise.resolve({ getTracks: () => [], getAudioTracks: () => [], stop: () => {} });
+    return Promise.resolve({ getTracks: () => [], getAudioTracks: () => [], stop: () => { } });
   };
   fn.mockReturnValue = undefined;
   fn.mockImplementation = undefined;
@@ -75,9 +77,9 @@ if (!(globalThis as any).navigator.mediaDevices.getUserMedia) {
 // Mock localStorage
 const localStorageMock = {
   getItem: (key: string) => null,
-  setItem: (key: string, value: string) => {},
-  removeItem: (key: string) => {},
-  clear: () => {},
+  setItem: (key: string, value: string) => { },
+  removeItem: (key: string) => { },
+  clear: () => { },
   length: 0,
   key: (index: number) => null,
 };
@@ -120,3 +122,4 @@ afterEach(() => {
 // Re-export everything
 export * from "@testing-library/react";
 export { customRender as render };
+

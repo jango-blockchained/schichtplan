@@ -85,9 +85,9 @@ describe("FileUploadComponent", () => {
     const maxFiles = 3;
     const { container } = render(<FileUploadComponent maxFiles={maxFiles} />);
 
-  const text = container.textContent || "";
-  // UI is localized; verify the numeric max file count is shown
-  expect(text).toContain("3");
+    const text = container.textContent || "";
+    // UI is localized; verify the numeric max file count is shown
+    expect(text).toContain("3");
   });
 
   test("calls file analyzed callback", async () => {
