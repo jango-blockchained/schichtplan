@@ -21,10 +21,7 @@ export function MEPTableStructureSection({
   // Handler for employee columns and summary columns
   const handleColumnChange = (
     section: "employee" | "summary",
-    field: keyof (
-      | typeof config.table.employee_columns
-      | typeof config.table.summary_columns
-    ),
+    field: string,
     subfield: "label" | "width",
     value: string | number,
   ) => {
@@ -36,7 +33,7 @@ export function MEPTableStructureSection({
             ...config.table.employee_columns,
             [field]: {
               ...config.table.employee_columns[
-                field as keyof typeof config.table.employee_columns
+              field as keyof typeof config.table.employee_columns
               ],
               [subfield]: value,
             },
@@ -51,7 +48,7 @@ export function MEPTableStructureSection({
             ...config.table.summary_columns,
             [field]: {
               ...config.table.summary_columns[
-                field as keyof typeof config.table.summary_columns
+              field as keyof typeof config.table.summary_columns
               ],
               [subfield]: value,
             },
@@ -75,7 +72,7 @@ export function MEPTableStructureSection({
             ...config.table.day_columns,
             day_labels: {
               ...config.table.day_columns.day_labels,
-              [day]: value,
+              [day]: String(value),
             },
           },
         },

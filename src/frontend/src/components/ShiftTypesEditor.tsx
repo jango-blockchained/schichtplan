@@ -165,10 +165,9 @@ export default function ShiftTypesEditor({
                 <span style={{ display: "flex", alignItems: "center" }}>
                   {type.name}
                   {type.autoAssignOnly && (
-                    <Lock
-                      className="ml-2 h-4 w-4 text-gray-400"
-                      title="Nur für automatische Zuweisung" // Standard HTML title attribute
-                    />
+                    <span title="Nur für automatische Zuweisung">
+                      <Lock className="ml-2 h-4 w-4 text-gray-400" />
+                    </span>
                   )}
                 </span>
               </TableCell>
@@ -239,13 +238,13 @@ export default function ShiftTypesEditor({
                   setEditingType((prev) =>
                     prev
                       ? {
-                          ...prev,
-                          id: e.target.value as
-                            | "EARLY"
-                            | "MIDDLE"
-                            | "LATE"
-                            | "NO_WORK",
-                        }
+                        ...prev,
+                        id: e.target.value as
+                          | "EARLY"
+                          | "MIDDLE"
+                          | "LATE"
+                          | "NO_WORK",
+                      }
                       : null,
                   )
                 }

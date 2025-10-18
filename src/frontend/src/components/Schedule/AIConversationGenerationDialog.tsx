@@ -231,7 +231,6 @@ export function AIConversationGenerationDialog({
             "AI generation requires a Gemini API key. Please configure it in your environment settings.",
           );
         }
-        handleMissingGeminiApiKeyError(response);
         throw new Error(response.message || "Failed to generate schedule");
       }
     } catch (error) {
@@ -426,7 +425,7 @@ export function AIConversationGenerationDialog({
                         className="flex items-center justify-between"
                       >
                         <span className="text-muted-foreground">{key}:</span>
-                        <span className="font-medium">{value}%</span>
+                        <span className="font-medium">{value as number}%</span>
                       </div>
                     ))}
                   </div>

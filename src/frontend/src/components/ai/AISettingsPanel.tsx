@@ -76,6 +76,32 @@ interface SystemSettings {
   maintenance_mode: boolean;
 }
 
+interface AgentSettings {
+  schedule_optimizer: {
+    enabled: boolean;
+    max_concurrent_requests: number;
+    optimization_algorithms: string[];
+    constraint_weights: {
+      workload_balance: number;
+      coverage_requirements: number;
+      employee_preferences: number;
+      cost_optimization: number;
+    };
+  };
+  employee_manager: {
+    enabled: boolean;
+    max_concurrent_requests: number;
+    preference_weight: number;
+    availability_check_strict: boolean;
+  };
+  workflow_coordinator: {
+    enabled: boolean;
+    max_parallel_workflows: number;
+    workflow_timeout: number;
+    auto_recovery: boolean;
+  };
+}
+
 export const AISettingsPanel: React.FC = () => {
   const [aiSettings, setAISettings] = useState<AISettings>({
     provider: "openai",
@@ -551,10 +577,10 @@ export const AISettingsPanel: React.FC = () => {
                             .replace(/_/g, " ")
                             .replace(/\b\w/g, (l) => l.toUpperCase())}
                         </span>
-                        <span>{value.toFixed(1)}</span>
+                        <span>{(value as number).toFixed(1)}</span>
                       </div>
                       <Slider
-                        value={[value]}
+                        value={[value as number]}
                         onValueChange={([newValue]) =>
                           setAgentSettings((prev) => ({
                             ...prev,

@@ -107,7 +107,7 @@ export function ContentLayoutSection({
     onConfigChange({
       contentLayout: {
         ...config.contentLayout,
-        columnLayout: layout as "single" | "multi",
+        columnLayout: layout as "single" | "double" | "triple",
       },
     });
   };

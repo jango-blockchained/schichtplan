@@ -78,12 +78,12 @@ export const ConversationalAIChat: React.FC<ConversationalAIChatProps> = ({
         aiService.joinConversation(currentConversationId, "user");
 
         // Set up event listeners
-        aiService.on("typing_indicator", (data) => {
+        aiService.on("typing_indicator", (data: Record<string, unknown>) => {
           if (data.conversation_id === currentConversationId) {
             if (data.is_typing && data.user_id !== "user") {
               setTypingUsers((prev) => [
                 ...prev.filter((u) => u !== data.user_id),
-                data.user_id,
+                data.user_id as string,
               ]);
             } else {
               setTypingUsers((prev) => prev.filter((u) => u !== data.user_id));
@@ -91,13 +91,13 @@ export const ConversationalAIChat: React.FC<ConversationalAIChatProps> = ({
           }
         });
 
-        aiService.on("ai_thinking", (data) => {
+        aiService.on("ai_thinking", (data: Record<string, unknown>) => {
           if (data.conversation_id === currentConversationId) {
-            setAiThinking(data.is_thinking);
+            setAiThinking(data.is_thinking as boolean);
           }
         });
 
-        aiService.on("new_message", (data) => {
+        aiService.on("new_message", (data: Record<string, unknown>) => {
           if (data.conversation_id === currentConversationId) {
             setMessages((prev) => [...prev, data.message]);
           }
@@ -378,18 +378,16 @@ export const ConversationalAIChat: React.FC<ConversationalAIChatProps> = ({
               messages.map((message) => (
                 <div
                   key={message.id}
-                  className={`flex gap-3 ${
-                    message.type === "user" ? "justify-end" : "justify-start"
-                  }`}
+                  className={`flex gap-3 ${message.type === "user" ? "justify-end" : "justify-start"
+                    }`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-lg p-3 ${
-                      message.type === "user"
+                    className={`max-w-[80%] rounded-lg p-3 ${message.type === "user"
                         ? "bg-blue-500 text-white"
                         : message.type === "ai"
                           ? "bg-gray-100 text-gray-900"
                           : "bg-yellow-50 text-yellow-800 border border-yellow-200"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-start gap-2">
                       {message.type === "user" ? (

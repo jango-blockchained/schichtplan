@@ -297,15 +297,7 @@ export function EnhancedAvailabilityModal({
         );
 
         // Create active_days for all days of the week for now
-        const activeDays = {
-          "0": true,
-          "1": true,
-          "2": true,
-          "3": true,
-          "4": true,
-          "5": true,
-          "6": true,
-        };
+        const activeDays = [0, 1, 2, 3, 4, 5, 6]; // Monday to Sunday
 
         const newShift = await createShift({
           start_time: startTimeStr,
@@ -591,11 +583,11 @@ export function EnhancedAvailabilityModal({
                 version: currentVersion!,
                 // Include adjusted times if needed
                 ...(adjustedTimes.start_time !== matchingShift.start_time ||
-                adjustedTimes.end_time !== matchingShift.end_time
+                  adjustedTimes.end_time !== matchingShift.end_time
                   ? {
-                      // Store custom times in notes for now, since backend might not support custom times directly
-                      notes: `Angepasste Zeiten: ${adjustedTimes.start_time} - ${adjustedTimes.end_time}`,
-                    }
+                    // Store custom times in notes for now, since backend might not support custom times directly
+                    notes: `Angepasste Zeiten: ${adjustedTimes.start_time} - ${adjustedTimes.end_time}`,
+                  }
                   : {}),
               };
 

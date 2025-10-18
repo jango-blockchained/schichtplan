@@ -78,7 +78,7 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
     try {
       setIsLoading(true);
       const currentSettings = await aiService.getSettings();
-      setSettings(currentSettings);
+      setSettings(currentSettings as typeof settings);
     } catch (error) {
       console.error("Failed to load AI settings:", error);
       toast.error("Failed to load AI settings");
@@ -211,11 +211,10 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
               <div className="flex items-center gap-2">
                 {providerStatus.openai && (
                   <div
-                    className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
-                      providerStatus.openai.available
+                    className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${providerStatus.openai.available
                         ? "bg-green-100 text-green-700"
                         : "bg-red-100 text-red-700"
-                    }`}
+                      }`}
                   >
                     {providerStatus.openai.available ? (
                       <>
@@ -273,11 +272,10 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
               <div className="flex items-center gap-2">
                 {providerStatus.anthropic && (
                   <div
-                    className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
-                      providerStatus.anthropic.available
+                    className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${providerStatus.anthropic.available
                         ? "bg-green-100 text-green-700"
                         : "bg-red-100 text-red-700"
-                    }`}
+                      }`}
                   >
                     {providerStatus.anthropic.available ? (
                       <>
@@ -335,11 +333,10 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
               <div className="flex items-center gap-2">
                 {providerStatus.gemini && (
                   <div
-                    className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
-                      providerStatus.gemini.available
+                    className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${providerStatus.gemini.available
                         ? "bg-green-100 text-green-700"
                         : "bg-red-100 text-red-700"
-                    }`}
+                      }`}
                   >
                     {providerStatus.gemini.available ? (
                       <>

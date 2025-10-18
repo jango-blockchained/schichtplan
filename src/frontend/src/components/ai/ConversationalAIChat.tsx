@@ -108,6 +108,7 @@ export const ConversationalAIChat: React.FC = () => {
       last_message_at: new Date(),
       message_count: 1,
       status: "active",
+      ai_provider: "gemini", // Default AI provider
     };
     setCurrentSession(initialSession);
     setSessions([initialSession]);
@@ -323,6 +324,7 @@ export const ConversationalAIChat: React.FC = () => {
       last_message_at: new Date(),
       message_count: 0,
       status: "active",
+      ai_provider: "gemini", // Default AI provider
     };
 
     setCurrentSession(newSession);
