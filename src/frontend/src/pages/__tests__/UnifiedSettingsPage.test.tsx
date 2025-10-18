@@ -4,15 +4,10 @@ import { fireEvent, render, screen, waitFor } from "../../test-utils/test-utils"
 import type { Settings } from "../../types";
 import UnifiedSettingsPage from "../UnifiedSettingsPage";
 
-// Mock the API functions using simple local mocks
-const mockGetSettings = () => Promise.resolve(mockSettings);
-const mockUpdateSettings = (settings: any) => Promise.resolve(settings);
-
-// Create a local api object used by tests
-const api = {
-  getSettings: mockGetSettings,
-  updateSettings: mockUpdateSettings,
-};
+// Use the globally provided api from test-globals which is a spy-like object
+// (attached to globalThis in test-globals)
+// eslint-disable-next-line no-unused-vars
+const api: any = (globalThis as any).api;
 
 // Create a mock settings object that matches the expected structure
 
@@ -21,13 +16,8 @@ describe("UnifiedSettingsPage", () => {
     // Add a small delay to ensure DOM is ready
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    // Reset mocks before each test
-    mockGetSettings.mockReset();
-    mockUpdateSettings.mockReset();
-
-    // Ensure getSettings mock returns the mock data
-    mockGetSettings.mockReturnValue(Promise.resolve(mockSettings));
-
+    // Ensure getSettings returns the mock data for each test
+    // (mockGetSettings is a simple function that resolves mockSettings)
     render(<UnifiedSettingsPage />);
   });
 
@@ -62,8 +52,8 @@ describe("UnifiedSettingsPage", () => {
   });
 
   it("renders the general store setup section by default and displays data", async () => {
-    // Verify that getSettings was called (done in beforeEach implies it, but explicit check is fine)
-    expect(api.getSettings).toHaveBeenCalled();
+  // Verify that getSettings was called (done in beforeEach implies it, but explicit check is fine)
+  expect(api.getSettings.toHaveBeenCalled()).toBe(true);
 
     // The page defaults to the "General Store Setup" section.
     // Check if the store_name from mockSettings is displayed in an input field.
@@ -91,12 +81,12 @@ describe("UnifiedSettingsPage", () => {
       },
     } as Partial<Settings>);
 
-    expect(mockUpdateSettings).toHaveBeenCalledTimes(1);
-    expect(mockUpdateSettings).toHaveBeenCalledWith({
+    expect(api.updateSettings.toHaveBeenCalledTimes(1)).toBe(true);
+    expect(api.updateSettings.toHaveBeenCalledWith({
       display: {
         theme: "dark",
       },
-    });
+    })).toBe(true);
   });
 
   it("debounces settings updates on input change", async () => {
@@ -112,12 +102,12 @@ describe("UnifiedSettingsPage", () => {
     });
 
     // Check that updateSettings has not been called immediately
-    expect(mockUpdateSettings).not.toHaveBeenCalled();
+  expect(api.updateSettings.toHaveBeenCalled()).toBe(false);
 
     // Use waitFor to wait for the debounced call to happen
     await waitFor(
       () => {
-        expect(mockUpdateSettings).toHaveBeenCalledTimes(1);
+  expect(api.updateSettings.toHaveBeenCalledTimes(1)).toBe(true);
       },
       { timeout: 3000 },
     ); // Use a timeout slightly longer than the debounce delay
@@ -130,7 +120,7 @@ describe("UnifiedSettingsPage", () => {
         store_name: newStoreName,
       },
     };
-    expect(mockUpdateSettings).toHaveBeenCalledWith(expectedPayload);
+  expect(api.updateSettings.toHaveBeenCalledWith(expectedPayload)).toBe(true);
   });
 
   // Add more tests for different sections and interactions

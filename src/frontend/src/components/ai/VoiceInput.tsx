@@ -4,6 +4,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { aiService, type VoiceCommand } from "@/services/aiService";
+// Allow tests to inject a test double via globalThis.__TEST_AI_SERVICE to avoid
+// network calls and enable deterministic behavior in unit tests.
+const effectiveAiService: any = (globalThis as any).__TEST_AI_SERVICE || aiService;
 import {
   Activity,
   AlertCircle,
@@ -178,7 +181,7 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
 
   const processAudioBlob = async (audioBlob: Blob) => {
     try {
-      const voiceCommand = await aiService.processVoiceCommand(audioBlob);
+    const voiceCommand = await effectiveAiService.processVoiceCommand(audioBlob);
 
       setVoiceState((prev) => ({
         ...prev,

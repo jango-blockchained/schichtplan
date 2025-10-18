@@ -35,4 +35,7 @@ declare global {
   let mock: any;
 }
 
+// Provide a global mockSettings object used in some tests
+declare const mockSettings: any;
+
 

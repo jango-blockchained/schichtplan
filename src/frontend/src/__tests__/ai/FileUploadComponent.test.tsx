@@ -3,19 +3,21 @@ import { beforeEach, describe, expect, it as test } from "bun:test";
 import { FileUploadComponent } from "../../components/ai/FileUploadComponent";
 import "../setup";
 
-// Create mock functions
+// Create mock functions that record calls
 const createMockFn = () => {
-  const fn = (...args: any[]) => fn.mockReturnValue;
+  const calls: any[] = [];
+  const fn: any = (...args: any[]) => {
+    calls.push(args);
+    return fn.mockReturnValue;
+  };
   fn.mockClear = () => {
-    fn.calls = [];
+    calls.length = 0;
   };
   fn.mockReturnValue = undefined;
-  fn.calls = [] as any[];
-  fn.toHaveBeenCalled = () => fn.calls.length > 0;
+  fn.calls = calls;
+  fn.toHaveBeenCalled = () => calls.length > 0;
   fn.toHaveBeenCalledWith = (expectedArgs: any) =>
-    fn.calls.some(
-      (call) => JSON.stringify(call) === JSON.stringify(expectedArgs),
-    );
+    calls.some((call) => JSON.stringify(call) === JSON.stringify([expectedArgs]));
   return fn;
 };
 
@@ -83,8 +85,9 @@ describe("FileUploadComponent", () => {
     const maxFiles = 3;
     const { container } = render(<FileUploadComponent maxFiles={maxFiles} />);
 
-    const text = container.textContent;
-    expect(text).toContain("3") || expect(text).toContain("files");
+  const text = container.textContent || "";
+  // UI is localized; verify the numeric max file count is shown
+  expect(text).toContain("3");
   });
 
   test("calls file analyzed callback", async () => {

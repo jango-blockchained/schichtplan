@@ -3,10 +3,14 @@ import { cleanup } from "@testing-library/react";
 import { afterEach, beforeAll } from "bun:test";
 
 // Setup DOM environment
+import '@happy-dom/global-registrator';
 import "@testing-library/jest-dom";
+// Test helpers/globals
+import "../test-utils/test-globals";
 
 // Mock global APIs
-globalThis.HTMLElement = globalThis.HTMLElement || (class MockHTMLElement {
+if (typeof (globalThis as any).HTMLElement === 'undefined') {
+  (globalThis as any).HTMLElement = (class MockHTMLElement {
   accessKey = "";
   accessKeyLabel = "";
   autocapitalize = "";
@@ -228,9 +232,11 @@ globalThis.HTMLElement = globalThis.HTMLElement || (class MockHTMLElement {
   hasPointerCapture() { return false; }
   requestFullscreen() { return Promise.resolve(); }
   requestPointerLock() {}
-} as any);
+  } as any);
+}
 
-globalThis.HTMLButtonElement = globalThis.HTMLButtonElement || (class MockHTMLButtonElement extends (globalThis.HTMLElement as any) {
+if (typeof (globalThis as any).HTMLButtonElement === 'undefined') {
+  (globalThis as any).HTMLButtonElement = (class MockHTMLButtonElement extends (globalThis.HTMLElement as any) {
   disabled = false;
   form = null;
   formAction = "";
@@ -248,9 +254,11 @@ globalThis.HTMLButtonElement = globalThis.HTMLButtonElement || (class MockHTMLBu
   checkValidity() { return true; }
   reportValidity() { return true; }
   setCustomValidity() {}
-} as any);
+  } as any);
+}
 
-globalThis.HTMLInputElement = globalThis.HTMLInputElement || (class MockHTMLInputElement extends (globalThis.HTMLElement as any) {
+if (typeof (globalThis as any).HTMLInputElement === 'undefined') {
+  (globalThis as any).HTMLInputElement = (class MockHTMLInputElement extends (globalThis.HTMLElement as any) {
   accept = "";
   align = "";
   alt = "";
@@ -308,42 +316,138 @@ globalThis.HTMLInputElement = globalThis.HTMLInputElement || (class MockHTMLInpu
   showPicker() { return Promise.resolve(); }
   stepDown() {}
   stepUp() {}
-} as any);
+  } as any);
+}
 
-globalThis.HTMLDivElement = globalThis.HTMLDivElement || (class MockHTMLDivElement extends (globalThis.HTMLElement as any) {
+if (typeof (globalThis as any).HTMLDivElement === 'undefined') {
+  (globalThis as any).HTMLDivElement = (class MockHTMLDivElement extends (globalThis.HTMLElement as any) {
   align = "";
-} as any);
+  } as any);
+}
 
 // Mock Speech Recognition API
 class MockSpeechRecognition {
+  public calls: Array<any[]> = [];
+  public listeners: Record<string, Function[]> = {};
   start = () => {};
   stop = () => {};
   abort = () => {};
-  addEventListener = (_type: string, _listener: EventListener) => {};
-  removeEventListener = (_type: string, _listener: EventListener) => {};
-  dispatchEvent = (_event: Event) => true;
+  addEventListener = (type: string, listener: Function) => {
+    this.calls.push([type, listener]);
+    if (!this.listeners[type]) this.listeners[type] = [];
+    this.listeners[type].push(listener);
+  };
+  removeEventListener = (type: string, listener: Function) => {
+    this.calls.push(["remove", type, listener]);
+    if (this.listeners[type]) {
+      this.listeners[type] = this.listeners[type].filter((l) => l !== listener);
+    }
+  };
+  dispatchEvent = (event: any) => {
+    const type = event.type || "result";
+    const listeners = this.listeners[type] || [];
+    listeners.forEach((l) => {
+      try {
+        l(event);
+      } catch (e) {
+        // ignore
+      }
+    });
+    return true;
+  };
   continuous = true;
   interimResults = true;
   lang = "en-US";
   maxAlternatives = 1;
   serviceURI = "";
   grammars = null;
-  onaudiostart = null;
-  onaudioend = null;
-  onend = null;
-  onerror = null;
-  onnomatch = null;
-  onresult = null;
-  onsoundstart = null;
-  onsoundend = null;
-  onspeechstart = null;
-  onspeechend = null;
-  onstart = null;
+  onaudiostart: any = null;
+  onaudioend: any = null;
+  onend: any = null;
+  onerror: any = null;
+  onnomatch: any = null;
+  onresult: any = null;
+  onsoundstart: any = null;
+  onsoundend: any = null;
+  onspeechstart: any = null;
+  onspeechend: any = null;
+  onstart: any = null;
 }
 
 globalThis.SpeechRecognition = MockSpeechRecognition as any;
 
 globalThis.webkitSpeechRecognition = globalThis.SpeechRecognition;
+
+// Simple Mock MediaRecorder so component can call start/stop without errors
+class MockMediaRecorder {
+  public ondataavailable: ((e: any) => void) | null = null;
+  public onstop: (() => void) | null = null;
+  public state: string = "inactive";
+  constructor(_stream: any, _opts?: any) {}
+  start() {
+    this.state = "recording";
+    // produce data and auto-stop shortly after
+    setTimeout(() => {
+      if (this.ondataavailable) this.ondataavailable({ data: new Blob(["test"]) });
+      this.stop();
+    }, 10);
+  }
+  stop() {
+    this.state = "inactive";
+    if (this.onstop) this.onstop();
+  }
+}
+
+globalThis.MediaRecorder = MockMediaRecorder as any;
+
+// Minimal AudioContext/Analyser mock to allow audio level monitoring
+if (typeof (globalThis as any).AudioContext === "undefined") {
+  class MockAnalyser {
+    frequencyBinCount = 128;
+    getByteFrequencyData(arr: Uint8Array) {
+      for (let i = 0; i < arr.length; i++) arr[i] = Math.floor(Math.random() * 255);
+    }
+  }
+  class MockAudioContext {
+    createAnalyser() { return new MockAnalyser() as any; }
+    createMediaStreamSource(_stream: any) { return { connect: () => {} } as any; }
+    close() { return Promise.resolve(); }
+  }
+  (globalThis as any).AudioContext = MockAudioContext;
+}
+
+// Minimal XMLHttpRequest shim so axios (browser XHR) works in tests and returns our mock data.
+if (typeof (globalThis as any).XMLHttpRequest === "undefined") {
+  class MockXHR {
+    method: string = "";
+    url: string = "";
+    async responseTextSetter(text: string) { this.responseText = text; }
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    status: number = 200;
+    responseText: string = "";
+    open(method: string, url: string) {
+      this.method = method;
+      this.url = url;
+    }
+    setRequestHeader() {}
+    send(_body?: any) {
+      // Simple routing
+      const url = this.url || "";
+      let body: any = {};
+      if (url.includes("/api/v2/settings")) body = (globalThis as any).mockSettings || {};
+      else if (url.includes("/api/v2/employees")) body = [];
+      else if (url.includes("/api/v2/shifts")) body = [];
+      else if (url.includes("/api/v2/files/upload")) body = { id: "file_1", name: "test.txt" };
+
+      this.status = 200;
+      this.responseText = JSON.stringify(body);
+      if (this.onload) setTimeout(() => this.onload && this.onload(), 0);
+    }
+    abort() {}
+  }
+  (globalThis as any).XMLHttpRequest = MockXHR;
+}
 
 // Mock WebSocket
 /* eslint-disable @typescript-eslint/no-unused-vars */
@@ -494,3 +598,76 @@ afterEach(() => {
   cleanup();
   console.error = originalConsoleError;
 });
+
+// Mock fetch to prevent real network calls in unit tests
+if (!(globalThis as any).fetch) {
+  (globalThis as any).fetch = async (input: RequestInfo) => {
+    const url = typeof input === "string" ? input : (input as Request).url;
+    // Simple heuristics: return empty arrays or objects based on endpoint
+    let body: any = {};
+    if (url.includes("/api/v2/settings")) body = (globalThis as any).mockSettings;
+    else if (url.includes("/api/v2/files/upload")) body = { id: "file_1", name: "test.txt" };
+    else if (url.includes("/api/v2/employees")) body = [];
+    else if (url.includes("/api/v2/shifts")) body = [];
+
+    return {
+      ok: true,
+      status: 200,
+      json: async () => body,
+    } as Response;
+  };
+}
+
+// Monkey-patch frontend service modules to use our test globals where possible.
+// This prevents axios/aiService from making real network requests during unit tests.
+(async () => {
+  try {
+    const apiModule = await import("../services/api");
+    const aiModule = await import("../services/aiService");
+    const g: any = globalThis as any;
+
+    if (g.api) {
+      // Replace selected exported functions with test-friendly wrappers
+      if (apiModule && typeof apiModule.getSettings === "function") {
+        apiModule.getSettings = async () => g.api.getSettings();
+      }
+      if (apiModule && typeof apiModule.updateSettings === "function") {
+        apiModule.updateSettings = async (s: any) => g.api.updateSettings(s);
+      }
+      if (apiModule && typeof apiModule.getEmployees === "function") {
+        apiModule.getEmployees = async () => [];
+      }
+      if (apiModule && typeof apiModule.getShifts === "function") {
+        apiModule.getShifts = async () => [];
+      }
+    }
+
+    if (aiModule) {
+      // Expose a global test AI service that tests can override if needed
+      const testAi = {
+        uploadFile: async (_file: any) => ({ id: "file_1", name: "test.txt", type: "text/plain", size: 1000 }),
+        analyzeFile: async (_id: string) => ({ id: "file_1", analysis: {}, processed: true }),
+        processVoiceCommand: async (_blob: any) => ({ transcript: "test", confidence: 0.95, id: "vc_1", timestamp: new Date() }),
+      };
+      (globalThis as any).__TEST_AI_SERVICE = testAi;
+    }
+  } catch (e) {
+    // ignore module load errors in environments where modules are not available
+  }
+})();
+
+// Provide a test MediaRecorder implementation if not available
+if (typeof (globalThis as any).MediaRecorder === "undefined") {
+  class MockMediaRecorder {
+    state = "inactive";
+    ondataavailable: any = null;
+    onstop: any = null;
+    chunks: any[] = [];
+    constructor(_stream: any, _opts?: any) {}
+    start() { this.state = "recording"; }
+    stop() { this.state = "inactive"; if (this.ondataavailable) this.ondataavailable({ data: new Blob([]) }); if (this.onstop) this.onstop(); }
+    addEventListener(_type: string, _cb: any) {}
+    removeEventListener(_type: string, _cb: any) {}
+  }
+  (globalThis as any).MediaRecorder = MockMediaRecorder;
+}
