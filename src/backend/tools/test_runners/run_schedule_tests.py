@@ -68,10 +68,7 @@ def run_tests():
             else:
                 # For pytest modules, we'll need to run them differently
                 logger.info(
-                    (
-                        "Module '%s' does not have a run_all_tests "
-                        "function. Skipping."
-                    ),
+                    ("Module '%s' does not have a run_all_tests function. Skipping."),
                     module_name,
                 )
                 results[module_name] = {

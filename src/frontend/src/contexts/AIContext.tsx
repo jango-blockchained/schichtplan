@@ -3,6 +3,7 @@
  * This enables the AI to understand what the user is currently viewing
  */
 
+import { PageContextSummary } from '@/services/enhancedAIService';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
@@ -28,7 +29,8 @@ export interface AIContextType {
     setFilter: (key: string, value: unknown) => void;
     clearFilters: () => void;
     setCustomData: (key: string, value: unknown) => void;
-    getContextSummary: () => string;
+    getContextSummary: () => PageContextSummary;
+    getContextString: () => string;  // Helper for legacy code
 }
 
 const AIContext = createContext<AIContextType | undefined>(undefined);
@@ -121,7 +123,42 @@ export const AIContextProvider: React.FC<AIContextProviderProps> = ({ children }
         }));
     };
 
-    const getContextSummary = (): string => {
+    const getContextSummary = (): PageContextSummary => {
+        const context = pageContext;
+
+        // Convert selected items to the expected format
+        const selected_items = Object.entries(context.selectedItems).map(([key, value]) => ({
+            type: key,
+            id: String(value),
+            label: `${key}: ${String(value)}`
+        }));
+
+        // Convert filters to recent actions format
+        const recent_actions = Object.entries(context.filters).map(([key, value]) => ({
+            type: 'filter',
+            description: `Filter ${key}: ${String(value)}`,
+            timestamp: new Date().toISOString()
+        }));
+
+        // Add search query as a recent action if present
+        if (context.searchQuery) {
+            recent_actions.push({
+                type: 'search',
+                description: `Search: "${context.searchQuery}"`,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        return {
+            current_page: context.route,
+            page_name: context.pageTitle,
+            current_view: context.viewMode,
+            selected_items,
+            recent_actions
+        };
+    };
+
+    const getContextString = (): string => {
         const context = pageContext;
         let summary = `Current page: ${context.pageTitle} (${context.route})\n`;
 
@@ -160,7 +197,8 @@ export const AIContextProvider: React.FC<AIContextProviderProps> = ({ children }
         setFilter,
         clearFilters,
         setCustomData,
-        getContextSummary
+        getContextSummary,
+        getContextString
     };
 
     return (

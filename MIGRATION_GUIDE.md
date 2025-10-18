@@ -7,6 +7,7 @@ This guide helps developers update their workflows and scripts after the codebas
 ### Validation Scripts
 
 **Before:**
+
 ```bash
 python check_db_schema.py
 python check_database_entities.py
@@ -16,6 +17,7 @@ python check_settings.py
 ```
 
 **After:**
+
 ```bash
 python tools/validators/check_db_schema.py
 python tools/validators/check_database_entities.py
@@ -27,6 +29,7 @@ python tools/validators/check_settings.py
 ### MCP Examples
 
 **Before:**
+
 ```bash
 python src/backend/examples/mcp_client_example.py
 python mcp_server_minimal.py
@@ -34,6 +37,7 @@ python mcp_server_enhanced.py
 ```
 
 **After:**
+
 ```bash
 python examples/mcp/mcp_client_example.py
 python examples/mcp/mcp_server_minimal.py
@@ -43,6 +47,7 @@ python examples/mcp/mcp_server_enhanced.py
 ### Utility Scripts
 
 **Before:**
+
 ```bash
 ./ngrok-expose
 python scripts/count_employees_this_week.py
@@ -50,6 +55,7 @@ python scripts/setup_mcp_integration.py
 ```
 
 **After:**
+
 ```bash
 ./tools/utils/ngrok-expose
 python tools/utils/count_employees_this_week.py
@@ -59,6 +65,7 @@ python tools/utils/setup_mcp_integration.py
 ### Backend Migration Tools
 
 **Before:**
+
 ```bash
 python src/backend/tools/rebuild_db.py
 python src/backend/tools/run_migration.py
@@ -66,6 +73,7 @@ python src/backend/tools/add_settings_columns.py
 ```
 
 **After:**
+
 ```bash
 python src/backend/tools/migrations/rebuild_db.py
 python src/backend/tools/migrations/run_migration.py
@@ -77,11 +85,13 @@ python src/backend/tools/updates/add_settings_columns.py
 ### New Directories
 
 1. **`tools/`** - Root-level development tools
+
    - `validators/` - Database validation scripts
    - `utils/` - Utility scripts
    - `debug/` - Debug utilities (currently empty)
 
 2. **`examples/`** - Example code and reference implementations
+
    - `mcp/` - MCP server examples
 
 3. **`docs/archive/`** - Archived documentation
@@ -98,12 +108,14 @@ python src/backend/tools/updates/add_settings_columns.py
 If you've been importing validation scripts in your code:
 
 **Before:**
+
 ```python
 # This won't work anymore
 from check_db_schema import check_schema
 ```
 
 **After:**
+
 ```python
 # Add project root to path first
 import sys
@@ -140,15 +152,17 @@ git commit
 
 ## Testing
 
-All tests remain in `src/backend/tests/` with the following changes:
+All tests now live in `tests/backend/` with the following changes:
+
 - Manual test scripts moved to `src/backend/tools/debug/`
 - Outdated `_fixed` test files removed
 - Disabled tests moved to `tools/debug/`
 
-**Running tests unchanged:**
+**Running tests:**
+
 ```bash
 pytest
-pytest src/backend/tests/
+pytest tests/backend/
 ```
 
 ## CI/CD Impact

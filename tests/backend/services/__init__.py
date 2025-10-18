@@ -1,1 +1,1 @@
-# src/backend/tests/services/__init__.py
+"""Backend service-level pytest helpers."""

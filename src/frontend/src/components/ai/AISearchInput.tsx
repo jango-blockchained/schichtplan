@@ -55,7 +55,7 @@ export const AISearchInput: React.FC<AISearchInputProps> = ({
     maxSuggestions = 5,
     debounceMs = 300
 }) => {
-    const { pageContext, getContextSummary } = useAIContext();
+    const { pageContext, getContextString } = useAIContext();
     const [query, setQuery] = useState("");
     const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -118,7 +118,7 @@ export const AISearchInput: React.FC<AISearchInputProps> = ({
 
         setIsLoading(true);
         try {
-            const contextSummary = getContextSummary();
+            const contextSummary = getContextString();
 
             const response = await aiService.generateSearchSuggestions({
                 query: searchQuery,
@@ -139,7 +139,7 @@ export const AISearchInput: React.FC<AISearchInputProps> = ({
         } finally {
             setIsLoading(false);
         }
-    }, [pageContext.route, maxSuggestions, getContextSummary, generateFallbackSuggestions]);
+    }, [pageContext.route, maxSuggestions, getContextString, generateFallbackSuggestions]);
 
     // Debounced search
     useEffect(() => {

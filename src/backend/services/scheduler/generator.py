@@ -13,7 +13,7 @@ import sys
 import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -86,8 +86,8 @@ from .resources import ScheduleResources as RuntimeScheduleResources  # Runtime 
 from .serialization import ScheduleSerializer
 from .validator import (
     ScheduleConfig as ValidatorRuntimeScheduleConfig,
+    ScheduleValidator,
 )  # Runtime alias for validator's config
-from .validator import ScheduleValidator
 
 # --- Model Imports ---
 try:
@@ -157,15 +157,15 @@ class ScheduleAssignment:
         shift_id: int,
         date_val: date,
         shift_template: Any = None,  # This can be ShiftTemplate ORM object or a dict
-        availability_type: Optional[Union[str, AvailabilityType]] = None,
+        availability_type: str | AvailabilityType | None = None,
         status: str = "PENDING",
         version: int = 1,
         # Add other potential fields from DistributionManager\'s assignment dict
-        break_start: Optional[str] = None,
-        break_end: Optional[str] = None,
-        notes: Optional[str] = None,
+        break_start: str | None = None,
+        break_end: str | None = None,
+        notes: str | None = None,
         # Add the logger as a parameter
-        logger_instance: Optional[logging.Logger] = None,
+        logger_instance: logging.Logger | None = None,
     ):
         """
         Initializes a ScheduleAssignment instance.
@@ -221,9 +221,9 @@ class ScheduleAssignment:
         self.status = status
         self.version = version
 
-        self.start_time: Optional[str] = None
-        self.end_time: Optional[str] = None
-        self.shift_type_str: Optional[str] = None  # Store shift_type as string
+        self.start_time: str | None = None
+        self.end_time: str | None = None
+        self.shift_type_str: str | None = None  # Store shift_type as string
         self.notes = notes
         self.break_start = break_start
         self.break_end = break_end
@@ -245,7 +245,7 @@ class ScheduleAssignment:
         if shift_template:
             # Get start_time with detailed logging
             if hasattr(shift_template, "start_time"):
-                self.start_time = getattr(shift_template, "start_time")
+                self.start_time = shift_template.start_time
                 current_logger.debug(
                     f"Extracted start_time from attribute: {self.start_time}"
                 )
@@ -264,7 +264,7 @@ class ScheduleAssignment:
 
             # Get end_time with detailed logging
             if hasattr(shift_template, "end_time"):
-                self.end_time = getattr(shift_template, "end_time")
+                self.end_time = shift_template.end_time
                 current_logger.debug(
                     f"Extracted end_time from attribute: {self.end_time}"
                 )
@@ -391,17 +391,17 @@ class ScheduleContainer:
         self.end_date = end_date
         self.status = status
         self.version = version
-        self.assignments: List[ScheduleAssignment] = []
-        self.schedule_entries_by_date: Dict[date, List[ScheduleAssignment]] = (
+        self.assignments: list[ScheduleAssignment] = []
+        self.schedule_entries_by_date: dict[date, list[ScheduleAssignment]] = (
             defaultdict(list)
         )
         self.id = None  # Add an ID field
 
-    def get_schedule(self) -> List[ScheduleAssignment]:
+    def get_schedule(self) -> list[ScheduleAssignment]:
         """Return self as this is the schedule container"""
         return self.assignments
 
-    def get_assignments(self) -> List[ScheduleAssignment]:
+    def get_assignments(self) -> list[ScheduleAssignment]:
         """Return the schedule entries"""
         return self.assignments
 
@@ -410,7 +410,7 @@ class ScheduleContainer:
         self.assignments.append(assignment)
         self.schedule_entries_by_date[assignment.date].append(assignment)
 
-    def get_assignments_for_date(self, target_date: date) -> List[ScheduleAssignment]:
+    def get_assignments_for_date(self, target_date: date) -> list[ScheduleAssignment]:
         """Get all assignments for a specific date"""
         return self.schedule_entries_by_date.get(target_date, [])
 
@@ -453,9 +453,9 @@ class ScheduleGenerator:
 
     def __init__(
         self,
-        resources: Optional[RuntimeScheduleResources] = None,
-        passed_config: Optional[SchedulerConfig] = None,
-        app_instance: Optional[Any] = None,
+        resources: RuntimeScheduleResources | None = None,
+        passed_config: SchedulerConfig | None = None,
+        app_instance: Any | None = None,
     ):
         """
         Initializes the ScheduleGenerator.
@@ -551,24 +551,26 @@ class ScheduleGenerator:
         self.serializer = ScheduleSerializer(self.logger)
 
         # Initialize generation_errors list
-        self.generation_errors: List[Any] = []
+        self.generation_errors: list[Any] = []
 
         # Schedule data
         if TYPE_CHECKING:
-            self.schedule: Optional[ScheduleContainer] = None
+            self.schedule: ScheduleContainer | None = None
         else:
             self.schedule = None
         self.assignments = []  # Deprecated
         self.schedule_by_date = {}  # Deprecated
+        self.generation_options: dict[str, Any] = {}
+        self.active_phase_mode: str | None = None
 
     def generate(
         self,
-        start_date: Union[date, str],
-        end_date: Union[date, str],
-        external_config_dict: Optional[Dict] = None,
+        start_date: date | str,
+        end_date: date | str,
+        external_config_dict: dict | None = None,
         create_empty_schedules: bool = False,
-        version: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        version: int | None = None,
+    ) -> dict[str, Any]:
         """
         Generate a schedule for the given date range
 
@@ -605,6 +607,14 @@ class ScheduleGenerator:
             self.diagnostic_logger.info(
                 f"Generation parameters: start={start_date}, end={end_date}, config={external_config_dict}, create_empty={create_empty_schedules}, version={version}"
             )
+
+            self.generation_options = (
+                external_config_dict.get("generation_options", {})
+                if external_config_dict
+                else {}
+            )
+            self.active_phase_mode = self.generation_options.get("phaseMode")
+            self._handle_phase_preprocessing(start_date, end_date, version)
 
             # Start the process tracking
             self.process_tracker.start_process()
@@ -788,14 +798,14 @@ class ScheduleGenerator:
             # Step 3: Serialization & Validation
             self.process_tracker.start_step("Schedule Serialization and Validation")
             try:
-                schedule_assignments_to_process: List[ScheduleAssignment] = []
+                schedule_assignments_to_process: list[ScheduleAssignment] = []
                 if self.schedule:
                     schedule_assignments_to_process = self.schedule.get_assignments()
 
                 # CONVERSION STEP: ScheduleAssignment to dict or ActualScheduleModel for serializer/validator
                 # This is a placeholder; actual mapping fields would be needed.
-                processed_for_downstream: List[
-                    Union[ActualScheduleModel, Dict[str, Any]]
+                processed_for_downstream: list[
+                    ActualScheduleModel | dict[str, Any]
                 ] = []
                 if TYPE_CHECKING:
                     # For type hinting, this would be List[ActualScheduleModel]
@@ -805,7 +815,7 @@ class ScheduleGenerator:
 
                 for sa in schedule_assignments_to_process:
                     # Create a more comprehensive dictionary with all available fields
-                    assignment_dict: Dict[str, Any] = {
+                    assignment_dict: dict[str, Any] = {
                         "id": getattr(
                             sa, "id", None
                         ),  # ScheduleAssignment might not have an ID yet
@@ -856,9 +866,11 @@ class ScheduleGenerator:
                 # Perform validation
                 self.process_tracker.start_step("Schedule Validation")
 
-                validator_config_arg: Optional[
-                    Union[ActualValidatorScheduleConfig, ValidatorRuntimeScheduleConfig]
-                ] = None
+                validator_config_arg: (
+                    ActualValidatorScheduleConfig
+                    | ValidatorRuntimeScheduleConfig
+                    | None
+                ) = None
                 if external_config_dict:
                     if TYPE_CHECKING:
                         # validator_config_arg = ActualValidatorScheduleConfig.from_settings(external_config_dict) # Ideal
@@ -869,16 +881,15 @@ class ScheduleGenerator:
                                 external_config_dict
                             )
                         )
-                else:  # Use self.config (generator's config)
-                    if TYPE_CHECKING:
-                        # This assumes ActualSchedulerConfig is compatible with or convertible to ActualValidatorScheduleConfig
-                        # If not, conversion logic or a more specific type is needed.
-                        # validator_config_arg = convert_generator_config_to_validator_config(self.config)
-                        pass  # Placeholder
-                    else:
-                        # At runtime, if ValidatorRuntimeScheduleConfig can take SchedulerConfig or has from_settings for it.
-                        # validator_config_arg = ValidatorRuntimeScheduleConfig.from_generator_config(self.config)
-                        pass  # Placeholder; direct pass might cause issues if types differ
+                elif TYPE_CHECKING:
+                    # This assumes ActualSchedulerConfig is compatible with or convertible to ActualValidatorScheduleConfig
+                    # If not, conversion logic or a more specific type is needed.
+                    # validator_config_arg = convert_generator_config_to_validator_config(self.config)
+                    pass  # Placeholder
+                else:
+                    # At runtime, if ValidatorRuntimeScheduleConfig can take SchedulerConfig or has from_settings for it.
+                    # validator_config_arg = ValidatorRuntimeScheduleConfig.from_generator_config(self.config)
+                    pass  # Placeholder; direct pass might cause issues if types differ
 
                 # If no external_config_dict and no conversion, pass self.config (hoping for compatibility)
                 if (
@@ -1028,6 +1039,80 @@ class ScheduleGenerator:
 
             return serialized_result
 
+    def _handle_phase_preprocessing(
+        self, start_date: date, end_date: date, version: int | None
+    ) -> None:
+        """Apply pre-generation behaviour based on the active phase settings."""
+
+        options = self.generation_options or {}
+        phase_mode = options.get("phaseMode")
+        keep_existing = options.get("keepExistingAssignments", False)
+
+        if phase_mode:
+            self.diagnostic_logger.info(
+                f"Phase-aware generation active: mode={phase_mode}, keep_existing={keep_existing}"
+            )
+
+        if keep_existing:
+            self.diagnostic_logger.info(
+                "Retaining existing assignments for this generation phase."
+            )
+            return
+
+        self._clear_existing_assignments(start_date, end_date, version, phase_mode)
+
+    def _clear_existing_assignments(
+        self,
+        start_date: date,
+        end_date: date,
+        version: int | None,
+        phase_mode: str | None,
+    ) -> None:
+        """Remove persisted assignments for the target range before regeneration."""
+
+        from sqlalchemy.exc import SQLAlchemyError
+
+        from src.backend.models import db
+        from src.backend.models.schedule import Schedule
+
+        try:
+            start_dt = datetime.combine(start_date, datetime.min.time())
+            end_dt = datetime.combine(end_date, datetime.max.time())
+
+            deleted = (
+                db.session.query(Schedule)
+                .filter(Schedule.version == (version or 1))
+                .filter(Schedule.date >= start_dt)
+                .filter(Schedule.date <= end_dt)
+                .delete(synchronize_session=False)
+            )
+            db.session.commit()
+
+            readable_phase = phase_mode or "full"
+            self.logger.info(
+                "Cleared %s existing assignments before phase '%s' generation",
+                deleted,
+                readable_phase,
+            )
+            self.diagnostic_logger.info(
+                "Database cleanup complete for phase %s: %s rows removed",
+                readable_phase,
+                deleted,
+            )
+        except SQLAlchemyError as exc:
+            db.session.rollback()
+            readable_phase = phase_mode or "full"
+            self.logger.error(
+                "Failed to clear existing assignments prior to generation: %s",
+                exc,
+                exc_info=True,
+            )
+            self.diagnostic_logger.error(
+                "Failed to clear existing assignments before phase %s: %s",
+                readable_phase,
+                exc,
+            )
+
     def _validate_shift_durations(self):
         """
         Validate that all shift templates have durations
@@ -1078,7 +1163,7 @@ class ScheduleGenerator:
         )
         return not missing_durations  # Return True if validation passes
 
-    def _process_coverage(self, process_date: date) -> Dict[str, List[Dict]]:
+    def _process_coverage(self, process_date: date) -> dict[str, list[dict]]:
         """
         Process coverage requirements for a specific date.
         Returns a dictionary mapping time intervals to required staffing.
@@ -1116,7 +1201,7 @@ class ScheduleGenerator:
 
         return coverage_by_interval
 
-    def _create_date_shifts(self, date_to_create: date) -> List[Dict]:
+    def _create_date_shifts(self, date_to_create: date) -> list[dict]:
         """Create shift instances for a specific date based on shift templates"""
         date_shifts = []
         weekday = date_to_create.weekday()  # 0 = Monday, 6 = Sunday
@@ -1368,7 +1453,7 @@ class ScheduleGenerator:
         )
         return date_shifts
 
-    def _generate_assignments_for_date(self, current_date: date) -> List[Dict]:
+    def _generate_assignments_for_date(self, current_date: date) -> list[dict]:
         """
         Generates shift assignments for a single date.
         This method will now:
@@ -1383,7 +1468,7 @@ class ScheduleGenerator:
         )
         self.process_tracker.log_info(f"Starting assignment generation for {date_str}")
 
-        assignments_for_date: List[Dict] = []
+        assignments_for_date: list[dict] = []
 
         try:
             # Check if store is closed on this date due to a special day/holiday
@@ -1640,7 +1725,7 @@ class ScheduleGenerator:
             f"unassigned employees on {current_date}"
         )
 
-    def _save_to_database(self, assignments: List[Dict]):
+    def _save_to_database(self, assignments: list[dict]):
         """Save assignments to the database using bulk insertion."""
         if not assignments:
             self.logger.info("No assignments to save to database")

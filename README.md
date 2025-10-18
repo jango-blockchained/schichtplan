@@ -170,7 +170,7 @@ For detailed MCP documentation, see [docs/mcp_api.md](docs/mcp_api.md).
 - [Logging System](docs/README_LOGGING.md)
 - [Migrations Guide](src/instance/migrations/README.md)
 - [Frontend Features](src/frontend/README.md)
-- [Backend Scheduler Tests](src/backend/tests/schedule/README.md)
+- [Backend Scheduler Tests](tests/backend/schedule/README.md)
 - [Tools Documentation](tools/README.md)
 - [Examples Documentation](examples/README.md)
 

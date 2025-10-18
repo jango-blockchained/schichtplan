@@ -16,6 +16,7 @@ import { useAIContext } from "@/contexts/AIContext";
 import { cn } from "@/lib/utils";
 import { enhancedAIService, ProactiveSuggestion } from "@/services/enhancedAIService";
 import {
+    AlertCircle,
     AlertTriangle,
     CheckCircle,
     Info,
@@ -70,13 +71,11 @@ export const AIScheduleSuggestionsPanel: React.FC<AIScheduleSuggestionsPanelProp
             // Add date range and schedule info to context
             const enrichedContext = {
                 ...context,
-                data: {
-                    dateRange: dateRange ? {
-                        start: dateRange.start.toISOString(),
-                        end: dateRange.end.toISOString(),
-                    } : undefined,
-                    scheduleId,
-                },
+                date_range: dateRange ? {
+                    start: dateRange.start.toISOString(),
+                    end: dateRange.end.toISOString(),
+                } : undefined,
+                schedule_id: scheduleId,
             };
 
             const result = await enhancedAIService.getProactiveSuggestions(enrichedContext);
@@ -337,7 +336,7 @@ export const AIScheduleSuggestionsPanel: React.FC<AIScheduleSuggestionsPanelProp
 
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <div className="flex items-center gap-1">
-                        <PriorityIcon className="h-3 w-3" />
+                        <AlertCircle className="h-3 w-3" />
                         <span>
                             {highPrioritySuggestions} high priority
                         </span>

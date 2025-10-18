@@ -1,7 +1,51 @@
 from datetime import date as datetime_date
-from typing import Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+
+class GenerationOptions(BaseModel):
+    """Optional generation flags forwarded from the frontend."""
+
+    keep_existing_assignments: bool | None = Field(
+        None,
+        alias="keepExistingAssignments",
+        description=(
+            "If false, existing assignments in the date range are cleared "
+            "before generation."
+        ),
+    )
+    use_phase1_fixed_assignments: bool | None = Field(
+        None,
+        alias="usePhase1FixedAssignments",
+        description="Whether phase 1 (fixed availability) is enabled.",
+    )
+    use_phase2_preferred_availability: bool | None = Field(
+        None,
+        alias="usePhase2PreferredAvailability",
+        description="Whether phase 2 (preferred availability) is enabled.",
+    )
+    use_phase3_standard_generation: bool | None = Field(
+        None,
+        alias="usePhase3StandardGeneration",
+        description="Whether phase 3 (standard generation) is enabled.",
+    )
+    phase_mode: (
+        Literal[
+            "fixed_assignments",
+            "preferred_availability",
+            "standard_generation",
+            "finalize",
+        ]
+        | None
+    ) = Field(
+        None,
+        alias="phaseMode",
+        description="Active multi-phase mode for this generation request.",
+    )
+
+    class Config:
+        allow_population_by_field_name = True
 
 
 class ScheduleGenerateRequest(BaseModel):
@@ -13,39 +57,49 @@ class ScheduleGenerateRequest(BaseModel):
     end_date: datetime_date = Field(
         ..., description="End date of the schedule in YYYY-MM-DD format."
     )
-    create_empty_schedules: Optional[bool] = Field(
+    create_empty_schedules: bool | None = Field(
         True,
-        description="Whether to create empty schedules for dates without assignments.",
+        description=(
+            "Whether to create empty schedules for dates without assignments."
+        ),
     )
-    version: Optional[int] = Field(
+    version: int | None = Field(
         1, description="Version number for the generated schedule."
     )
-    enable_diagnostics: Optional[bool] = Field(
-        False, description="Whether to enable diagnostic logging during generation."
+    enable_diagnostics: bool | None = Field(
+        False,
+        description="Whether to enable diagnostic logging during generation.",
+    )
+    generation_options: GenerationOptions | None = Field(
+        None,
+        alias="generation_options",
+        description=(
+            "Optional feature flags that control phased generation behaviour."
+        ),
     )
 
 
 class ScheduleUpdateRequest(BaseModel):
     """Schema for updating a schedule entry."""
 
-    employee_id: Optional[int] = Field(
+    employee_id: int | None = Field(
         None, description="ID of the employee assigned to the schedule."
     )
-    shift_id: Optional[int] = Field(
+    shift_id: int | None = Field(
         None, description="ID of the shift assigned to the schedule."
     )
-    date: Optional[datetime_date] = Field(
+    date: datetime_date | None = Field(
         None,
-        description="Date for the schedule entry. Can be updated for rescheduling.",
+        description="Date for the entry. Can be updated for rescheduling.",
     )
-    version: Optional[int] = Field(None, description="Version of the schedule.")
-    notes: Optional[str] = Field(None, description="Notes for the schedule entry.")
-    availability_type: Optional[str] = Field(
+    version: int | None = Field(None, description="Version of the schedule.")
+    notes: str | None = Field(None, description="Notes for the schedule entry.")
+    availability_type: str | None = Field(
         None,
-        description="Availability type for the schedule entry (e.g., FIXED, PREF, AVAILABLE).",
+        description=(
+            "Availability type for the schedule entry (e.g., FIXED, PREF, AVAILABLE)."
+        ),
     )
-    break_duration: Optional[int] = Field(
-        None, description="Break duration in minutes."
-    )
+    break_duration: int | None = Field(None, description="Break duration in minutes.")
     # shift_type is derived from shift_id, not a direct input field
     # id is part of the URL, not the request body

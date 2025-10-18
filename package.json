@@ -13,7 +13,7 @@
     "format": "npm run format:backend && npm run format:frontend",
     "lint": "npm run lint:backend && npm run lint:frontend",
     "check:all": "npm run lint && cd src/frontend && bun run typecheck",
-    "test:backend": "pytest -v -s src/backend/tests/",
+  "test:backend": "pytest -v -s tests/backend/",
     "test:frontend": "cd src/frontend && bun test",
     "test": "npm run test:backend && npm run test:frontend",
     "build": "cd src/frontend && tsc && vite build"

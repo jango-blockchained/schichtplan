@@ -55,7 +55,7 @@ export const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
     autoRefresh = true,
     refreshInterval = 30000 // 30 seconds
 }) => {
-    const { pageContext, getContextSummary } = useAIContext();
+    const { pageContext, getContextString } = useAIContext();
     const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
@@ -118,7 +118,7 @@ export const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
     const generateSuggestions = useCallback(async () => {
         setIsLoading(true);
         try {
-            const contextSummary = getContextSummary();
+            const contextSummary = getContextString();
 
             // Call AI service to generate suggestions
             const response = await aiService.generateSuggestions({
@@ -137,7 +137,7 @@ export const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
         } finally {
             setIsLoading(false);
         }
-    }, [pageContext, maxSuggestions, getContextSummary, generateMockSuggestions]);
+    }, [pageContext, maxSuggestions, getContextString, generateMockSuggestions]);
 
     // Handle suggestion action
     const handleSuggestionAction = async (suggestion: AISuggestion) => {

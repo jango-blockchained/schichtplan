@@ -515,12 +515,15 @@ def generate_schedule():
     try:
         # Use Pydantic for request validation
         request_data = request.get_json()
+        raw_generation_options = request_data.get("generation_options") or {}
         schedule_request = ScheduleGenerateRequest(**request_data)
 
         # The request might include other config like version, create_empty_schedules etc.
         external_config_dict = schedule_request.dict(
             exclude_unset=True
         )  # Get all passed params as dict
+        if raw_generation_options:
+            external_config_dict["generation_options"] = raw_generation_options
 
         logger.info(
             f"Generating schedule for date range: {schedule_request.start_date} to {schedule_request.end_date}"
@@ -2626,7 +2629,7 @@ def get_schedule_diagnostics(session_id):
 
         # Read the log file
         try:
-            with open(log_file, "r", encoding="utf-8") as f:
+            with open(log_file, encoding="utf-8") as f:
                 log_content = f.read()
 
             # Parse the log content into structured format

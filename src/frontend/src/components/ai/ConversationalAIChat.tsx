@@ -59,7 +59,7 @@ interface ConversationSession {
 }
 
 export const ConversationalAIChat: React.FC = () => {
-  const { pageContext, getContextSummary } = useAIContext();
+  const { pageContext, getContextString } = useAIContext();
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [currentInput, setCurrentInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -122,7 +122,7 @@ export const ConversationalAIChat: React.FC = () => {
 
     try {
       // Prepare message with context
-      const contextSummary = getContextSummary();
+      const contextSummary = getContextString();
       const messageWithContext = contextSummary
         ? `Context:\n${contextSummary}\n\nUser: ${userMessage.content}`
         : userMessage.content;

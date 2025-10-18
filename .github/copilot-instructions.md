@@ -87,7 +87,7 @@ python src/backend/mcp_server.py --transport sse --port 8001
 cd src/frontend && bun test
 
 # Specific test suites:
-pytest src/backend/tests/scheduler/  # Scheduler tests
+pytest tests/backend/scheduler/  # Scheduler tests
 ```
 
 **Important:** `pytest.ini` excludes `src/backend/tools` directory from test discovery.

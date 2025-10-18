@@ -385,8 +385,6 @@ function getQuickActionsForPage(
             const context = aiContext.getContextSummary();
             const task = await enhancedAIService.optimizeSchedule({
               context,
-              start_date: context.data?.start_date,
-              end_date: context.data?.end_date,
             });
 
             toast({
@@ -431,13 +429,11 @@ function getQuickActionsForPage(
             const context = aiContext.getContextSummary();
             const result = await enhancedAIService.resolveConflicts({
               context,
-              start_date: context.data?.start_date,
-              end_date: context.data?.end_date,
             });
 
             toast({
               title: "Conflicts Resolved",
-              description: `Resolved ${result.conflicts_resolved || 0} conflicts.`,
+              description: `Background task ${result.id} started.`,
             });
           } catch (error) {
             toast({
@@ -465,11 +461,11 @@ function getQuickActionsForPage(
             });
 
             const context = aiContext.getContextSummary();
-            const result = await enhancedAIService.balanceWorkload(context);
+            await enhancedAIService.balanceWorkload(context);
 
             toast({
               title: "Workload Balanced",
-              description: `Adjusted shifts for ${result.employees_affected || 0} employees.`,
+              description: `Workload balancing completed successfully.`,
             });
           } catch (error) {
             toast({
@@ -497,11 +493,11 @@ function getQuickActionsForPage(
             });
 
             const context = aiContext.getContextSummary();
-            const suggestions = await enhancedAIService.getAssignmentSuggestions(context);
+            await enhancedAIService.getAssignmentSuggestions(context);
 
             toast({
               title: "Suggestions Ready",
-              description: `Found ${suggestions.length || 0} optimal assignments.`,
+              description: `Assignment suggestions generated successfully.`,
             });
           } catch (error) {
             toast({
@@ -535,11 +531,11 @@ function getQuickActionsForPage(
             });
 
             const context = aiContext.getContextSummary();
-            const analysis = await enhancedAIService.analyzeWorkload(context);
+            await enhancedAIService.analyzeWorkload(context);
 
             toast({
               title: "Analysis Complete",
-              description: `Analyzed ${analysis.employees_count || 0} employees.`,
+              description: `Workload analysis completed successfully.`,
             });
           } catch (error) {
             toast({
@@ -567,11 +563,11 @@ function getQuickActionsForPage(
             });
 
             const context = aiContext.getContextSummary();
-            const suggestions = await enhancedAIService.suggestAvailability(context);
+            await enhancedAIService.suggestAvailability(context);
 
             toast({
               title: "Suggestions Ready",
-              description: `Found ${suggestions.length || 0} availability improvements.`,
+              description: `Availability suggestions generated successfully.`,
             });
           } catch (error) {
             toast({

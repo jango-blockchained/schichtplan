@@ -112,6 +112,7 @@ debug_*.py
 *_debug.py
 simple_debug.py
 test_csv_api.py
+!tests/**
 
 # Backup files
 backup/
