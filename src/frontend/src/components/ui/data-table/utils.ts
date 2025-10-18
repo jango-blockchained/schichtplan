@@ -1,9 +1,6 @@
 import { FilterConfig, PaginationConfig, SortConfig } from "./types";
 
-export function sortData<T>(
-  data: T[], 
-  sortConfig: SortConfig<T> | null
-): T[] {
+export function sortData<T>(data: T[], sortConfig: SortConfig<T> | null): T[] {
   if (!sortConfig) return data;
 
   return [...data].sort((a, b) => {
@@ -34,9 +31,9 @@ export function sortData<T>(
 }
 
 export function filterData<T>(
-  data: T[], 
+  data: T[],
   filterConfig: FilterConfig,
-  searchKeys?: (keyof T)[]
+  searchKeys?: (keyof T)[],
 ): T[] {
   return data.filter((item) => {
     // Handle search filter
@@ -51,41 +48,48 @@ export function filterData<T>(
 
     // Handle other filters
     return Object.entries(filterConfig).every(([key, filterValue]) => {
-      if (key === "search" || filterValue === null || filterValue === undefined || filterValue === "") {
+      if (
+        key === "search" ||
+        filterValue === null ||
+        filterValue === undefined ||
+        filterValue === ""
+      ) {
         return true;
       }
 
       const itemValue = item[key as keyof T];
-      
+
       if (typeof filterValue === "boolean") {
         return itemValue === filterValue;
       }
-      
+
       return itemValue === filterValue;
     });
   });
 }
 
 export function paginateData<T>(
-  data: T[], 
-  pagination: PaginationConfig
+  data: T[],
+  pagination: PaginationConfig,
 ): { paginatedData: T[]; totalPages: number } {
   const totalPages = Math.ceil(data.length / pagination.itemsPerPage);
   const startIndex = (pagination.currentPage - 1) * pagination.itemsPerPage;
   const endIndex = startIndex + pagination.itemsPerPage;
-  
+
   return {
     paginatedData: data.slice(startIndex, endIndex),
-    totalPages
+    totalPages,
   };
 }
 
-export function getDefaultSort<T>(columns: { key: keyof T; sortable?: boolean }[]): SortConfig<T> | null {
-  const firstSortableColumn = columns.find(col => col.sortable !== false);
+export function getDefaultSort<T>(
+  columns: { key: keyof T; sortable?: boolean }[],
+): SortConfig<T> | null {
+  const firstSortableColumn = columns.find((col) => col.sortable !== false);
   if (!firstSortableColumn) return null;
-  
+
   return {
     key: firstSortableColumn.key,
-    direction: "asc"
+    direction: "asc",
   };
 }

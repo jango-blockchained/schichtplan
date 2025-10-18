@@ -1,6 +1,6 @@
 /**
  * Global AI Assistant Component
- * 
+ *
  * Omnipresent AI assistant accessible from any page in the application.
  * Provides context-aware help, suggestions, and conversational interface.
  */
@@ -22,7 +22,7 @@ import {
   MessageSquare,
   Sparkles,
   X,
-  Zap
+  Zap,
 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { ConversationalAIChat } from "./ConversationalAIChat";
@@ -48,7 +48,9 @@ interface GlobalAIAssistantProps {
 // Component
 // ============================================================================
 
-export const GlobalAIAssistant: React.FC<GlobalAIAssistantProps> = ({ className }) => {
+export const GlobalAIAssistant: React.FC<GlobalAIAssistantProps> = ({
+  className,
+}) => {
   const aiContext = useAIContext();
   const { toast } = useToast();
 
@@ -68,7 +70,7 @@ export const GlobalAIAssistant: React.FC<GlobalAIAssistantProps> = ({ className 
       aiContext.pageContext.route,
       aiContext,
       toast,
-      setIsProcessing
+      setIsProcessing,
     );
     setQuickActions(actions);
   }, [aiContext, toast]);
@@ -88,26 +90,26 @@ export const GlobalAIAssistant: React.FC<GlobalAIAssistantProps> = ({ className 
   // Handle escape key to close
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === "Escape" && isOpen) {
         setIsOpen(false);
       }
     };
 
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
   }, [isOpen]);
 
   // Handle global keyboard shortcut (Cmd/Ctrl + /)
   useEffect(() => {
     const handleShortcut = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === '/') {
+      if ((e.metaKey || e.ctrlKey) && e.key === "/") {
         e.preventDefault();
-        setIsOpen(prev => !prev);
+        setIsOpen((prev) => !prev);
       }
     };
 
-    window.addEventListener('keydown', handleShortcut);
-    return () => window.removeEventListener('keydown', handleShortcut);
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
   }, []);
 
   // Handle click outside to close
@@ -116,32 +118,33 @@ export const GlobalAIAssistant: React.FC<GlobalAIAssistantProps> = ({ className 
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         const target = e.target as HTMLElement;
         // Don't close if clicking the floating button
-        if (!target.closest('[data-ai-button]')) {
+        if (!target.closest("[data-ai-button]")) {
           setIsOpen(false);
         }
       }
     };
 
     if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [isOpen]);
 
   const handleToggle = () => {
-    setIsOpen(prev => !prev);
+    setIsOpen((prev) => !prev);
     setIsMinimized(false);
   };
 
   const handleMinimize = () => {
-    setIsMinimized(prev => !prev);
+    setIsMinimized((prev) => !prev);
   };
 
   const handleQuickAction = async (action: QuickAction) => {
     try {
       await action.handler();
     } catch (error) {
-      console.error('Quick action failed:', error);
+      console.error("Quick action failed:", error);
     }
   };
 
@@ -150,10 +153,7 @@ export const GlobalAIAssistant: React.FC<GlobalAIAssistantProps> = ({ className 
       {/* Floating Action Button */}
       <div
         data-ai-button
-        className={cn(
-          "fixed bottom-6 right-6 z-50",
-          className
-        )}
+        className={cn("fixed bottom-6 right-6 z-50", className)}
       >
         <Button
           size="lg"
@@ -161,7 +161,7 @@ export const GlobalAIAssistant: React.FC<GlobalAIAssistantProps> = ({ className 
           className={cn(
             "rounded-full h-14 w-14 shadow-lg hover:shadow-xl transition-all duration-300",
             "bg-gradient-to-br from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700",
-            showPulse && "animate-pulse"
+            showPulse && "animate-pulse",
           )}
           aria-label="Toggle AI Assistant"
         >
@@ -190,10 +190,10 @@ export const GlobalAIAssistant: React.FC<GlobalAIAssistantProps> = ({ className 
           className={cn(
             "fixed right-0 top-0 h-screen z-40 transition-all duration-300 ease-in-out",
             "bg-background border-l border-border shadow-2xl",
-            isMinimized ? "w-16" : "w-[450px]"
+            isMinimized ? "w-16" : "w-[450px]",
           )}
           style={{
-            transform: isOpen ? 'translateX(0)' : 'translateX(100%)'
+            transform: isOpen ? "translateX(0)" : "translateX(100%)",
           }}
         >
           {isMinimized ? (
@@ -280,7 +280,7 @@ export const GlobalAIAssistant: React.FC<GlobalAIAssistantProps> = ({ className 
                       Quick Actions
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      {quickActions.map(action => (
+                      {quickActions.map((action) => (
                         <Button
                           key={action.id}
                           variant="outline"
@@ -291,7 +291,9 @@ export const GlobalAIAssistant: React.FC<GlobalAIAssistantProps> = ({ className 
                         >
                           <div className="flex items-center gap-2 w-full">
                             {action.icon}
-                            <span className="text-xs font-medium">{action.label}</span>
+                            <span className="text-xs font-medium">
+                              {action.label}
+                            </span>
                           </div>
                           <span className="text-[10px] text-muted-foreground leading-tight">
                             {action.description}
@@ -314,7 +316,10 @@ export const GlobalAIAssistant: React.FC<GlobalAIAssistantProps> = ({ className 
                     </div>
                     <Card className="bg-muted/50">
                       <CardContent className="p-3 text-sm text-muted-foreground">
-                        <p>AI suggestions will appear here based on your current context.</p>
+                        <p>
+                          AI suggestions will appear here based on your current
+                          context.
+                        </p>
                       </CardContent>
                     </Card>
                   </div>
@@ -340,7 +345,15 @@ export const GlobalAIAssistant: React.FC<GlobalAIAssistantProps> = ({ className 
               {/* Footer Hint */}
               <div className="flex-shrink-0 p-2 bg-muted/30 border-t border-border">
                 <p className="text-xs text-center text-muted-foreground">
-                  Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">Cmd+/</kbd> to toggle • <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">Esc</kbd> to close
+                  Press{" "}
+                  <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">
+                    Cmd+/
+                  </kbd>{" "}
+                  to toggle •{" "}
+                  <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">
+                    Esc
+                  </kbd>{" "}
+                  to close
                 </p>
               </div>
             </div>
@@ -364,16 +377,16 @@ function getQuickActionsForPage(
   route: string,
   aiContext: any,
   toast: any,
-  setIsProcessing: (value: boolean) => void
+  setIsProcessing: (value: boolean) => void,
 ): QuickAction[] {
   // Schedule page actions
-  if (route.includes('/schedule') || route.includes('/calendar')) {
+  if (route.includes("/schedule") || route.includes("/calendar")) {
     return [
       {
-        id: 'optimize-schedule',
-        label: 'Optimize',
+        id: "optimize-schedule",
+        label: "Optimize",
         icon: <Sparkles className="h-3 w-3" />,
-        description: 'AI-optimize current schedule',
+        description: "AI-optimize current schedule",
         handler: async () => {
           try {
             setIsProcessing(true);
@@ -411,13 +424,13 @@ function getQuickActionsForPage(
             setIsProcessing(false);
           }
         },
-        enabled: true
+        enabled: true,
       },
       {
-        id: 'fix-conflicts',
-        label: 'Fix Conflicts',
+        id: "fix-conflicts",
+        label: "Fix Conflicts",
         icon: <Zap className="h-3 w-3" />,
-        description: 'Resolve scheduling conflicts',
+        description: "Resolve scheduling conflicts",
         handler: async () => {
           try {
             setIsProcessing(true);
@@ -445,13 +458,13 @@ function getQuickActionsForPage(
             setIsProcessing(false);
           }
         },
-        enabled: true
+        enabled: true,
       },
       {
-        id: 'balance-workload',
-        label: 'Balance Load',
+        id: "balance-workload",
+        label: "Balance Load",
         icon: <Bot className="h-3 w-3" />,
-        description: 'Balance employee workload',
+        description: "Balance employee workload",
         handler: async () => {
           try {
             setIsProcessing(true);
@@ -477,13 +490,13 @@ function getQuickActionsForPage(
             setIsProcessing(false);
           }
         },
-        enabled: true
+        enabled: true,
       },
       {
-        id: 'suggest-assignments',
-        label: 'Suggest',
+        id: "suggest-assignments",
+        label: "Suggest",
         icon: <Lightbulb className="h-3 w-3" />,
-        description: 'Get assignment suggestions',
+        description: "Get assignment suggestions",
         handler: async () => {
           try {
             setIsProcessing(true);
@@ -509,19 +522,19 @@ function getQuickActionsForPage(
             setIsProcessing(false);
           }
         },
-        enabled: true
-      }
+        enabled: true,
+      },
     ];
   }
 
   // Employee page actions
-  if (route.includes('/employee')) {
+  if (route.includes("/employee")) {
     return [
       {
-        id: 'analyze-workload',
-        label: 'Analyze',
+        id: "analyze-workload",
+        label: "Analyze",
         icon: <Sparkles className="h-3 w-3" />,
-        description: 'Analyze employee workload',
+        description: "Analyze employee workload",
         handler: async () => {
           try {
             setIsProcessing(true);
@@ -547,13 +560,13 @@ function getQuickActionsForPage(
             setIsProcessing(false);
           }
         },
-        enabled: true
+        enabled: true,
       },
       {
-        id: 'suggest-availability',
-        label: 'Availability',
+        id: "suggest-availability",
+        label: "Availability",
         icon: <Lightbulb className="h-3 w-3" />,
-        description: 'Suggest optimal availability',
+        description: "Suggest optimal availability",
         handler: async () => {
           try {
             setIsProcessing(true);
@@ -579,31 +592,31 @@ function getQuickActionsForPage(
             setIsProcessing(false);
           }
         },
-        enabled: true
-      }
+        enabled: true,
+      },
     ];
   }
 
   // Default actions for other pages
   return [
     {
-      id: 'ask-ai',
-      label: 'Ask AI',
+      id: "ask-ai",
+      label: "Ask AI",
       icon: <MessageSquare className="h-3 w-3" />,
-      description: 'Ask AI about this page',
+      description: "Ask AI about this page",
       handler: async () => {
         toast({
           title: "AI Assistant Ready",
           description: "Type your question in the chat below!",
         });
       },
-      enabled: true
+      enabled: true,
     },
     {
-      id: 'get-help',
-      label: 'Get Help',
+      id: "get-help",
+      label: "Get Help",
       icon: <Lightbulb className="h-3 w-3" />,
-      description: 'Get contextual help',
+      description: "Get contextual help",
       handler: async () => {
         try {
           setIsProcessing(true);
@@ -633,8 +646,8 @@ function getQuickActionsForPage(
           setIsProcessing(false);
         }
       },
-      enabled: true
-    }
+      enabled: true,
+    },
   ];
 }
 

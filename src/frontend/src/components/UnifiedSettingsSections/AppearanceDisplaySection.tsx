@@ -1,5 +1,11 @@
 import React from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import {
@@ -64,7 +70,9 @@ const AppearanceDisplaySection: React.FC<AppearanceDisplaySectionProps> = ({
       <Card>
         <CardHeader>
           <CardTitle>Theme & Colors</CardTitle>
-          <CardDescription>Customize the application's appearance</CardDescription>
+          <CardDescription>
+            Customize the application's appearance
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -113,7 +121,9 @@ const AppearanceDisplaySection: React.FC<AppearanceDisplaySectionProps> = ({
       <Card>
         <CardHeader>
           <CardTitle>Calendar Display</CardTitle>
-          <CardDescription>Configure how the calendar is displayed</CardDescription>
+          <CardDescription>
+            Configure how the calendar is displayed
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -136,7 +146,9 @@ const AppearanceDisplaySection: React.FC<AppearanceDisplaySectionProps> = ({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="calendar-default-view">Default Calendar View</Label>
+              <Label htmlFor="calendar-default-view">
+                Default Calendar View
+              </Label>
               <Select
                 value={settings.calendar_default_view ?? "month"}
                 onValueChange={(value) =>

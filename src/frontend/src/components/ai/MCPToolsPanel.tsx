@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,6 +14,7 @@ import {
   BarChart3,
   Calendar,
   CheckCircle,
+  ChevronDown,
   Code,
   Database,
   Download,
@@ -23,7 +25,7 @@ import {
   Search,
   Settings,
   Users,
-  Zap
+  Zap,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -33,7 +35,6 @@ interface LocalMCPTool extends MCPTool {
   average_response_time: number;
   is_favorite?: boolean;
 }
-
 
 interface ToolExecution {
   id: string;
@@ -69,46 +70,58 @@ export const MCPToolsPanel: React.FC = () => {
         // no-op loading state for now
         const svc = await GlobalMCPService.getInstance(window.location.origin);
         const discovery = await svc.discoverTools();
-        const mapped: LocalMCPTool[] = (discovery.available_tools || []).map((t: {
-          name: string;
-          description: string;
-          category?: string;
-          parameters?: Record<string, unknown> | Array<LocalMCPTool['parameters'][number]>;
-        }) => ({
-          id: t.name,
-          name: t.name,
-          description: t.description,
-          category: t.category || 'general',
-          // Map object parameters to array expected by UI
-          parameters: Array.isArray(t.parameters)
-            ? ((Array.isArray(t.parameters) && typeof (t.parameters as unknown[])[0] === 'string')
-              // Map array of strings to object descriptors
-              ? ((t.parameters as unknown[] as string[]).map((p) => ({
-                name: p,
-                type: 'string',
-                description: '',
-                required: false,
-              })) as LocalMCPTool['parameters'])
-              : (t.parameters as LocalMCPTool['parameters']))
-            : Object.entries((t.parameters || {}) as Record<string, unknown>).map(([name, def]) => {
-              const d = def as { type?: string; description?: string; required?: boolean; default?: unknown };
-              return {
-                name,
-                type: d?.type || 'string',
-                description: d?.description || '',
-                required: !!d?.required,
-                default: d?.default,
-              };
-            }),
-          status: 'available',
-          usage_count: 0,
-          last_used: undefined,
-          average_response_time: 0,
-        }));
+        const mapped: LocalMCPTool[] = (discovery.available_tools || []).map(
+          (t: {
+            name: string;
+            description: string;
+            category?: string;
+            parameters?:
+            | Record<string, unknown>
+            | Array<LocalMCPTool["parameters"][number]>;
+          }) => ({
+            id: t.name,
+            name: t.name,
+            description: t.description,
+            category: t.category || "general",
+            // Map object parameters to array expected by UI
+            parameters: Array.isArray(t.parameters)
+              ? Array.isArray(t.parameters) &&
+                typeof (t.parameters as unknown[])[0] === "string"
+                ? // Map array of strings to object descriptors
+                ((t.parameters as unknown[] as string[]).map((p) => ({
+                  name: p,
+                  type: "string",
+                  description: "",
+                  required: false,
+                })) as LocalMCPTool["parameters"])
+                : (t.parameters as LocalMCPTool["parameters"])
+              : Object.entries(
+                (t.parameters || {}) as Record<string, unknown>,
+              ).map(([name, def]) => {
+                const d = def as {
+                  type?: string;
+                  description?: string;
+                  required?: boolean;
+                  default?: unknown;
+                };
+                return {
+                  name,
+                  type: d?.type || "string",
+                  description: d?.description || "",
+                  required: !!d?.required,
+                  default: d?.default,
+                };
+              }),
+            status: "available",
+            usage_count: 0,
+            last_used: undefined,
+            average_response_time: 0,
+          }),
+        );
         setTools(mapped);
         setExecutions([]);
       } catch (e) {
-        console.warn('MCP tool discovery failed:', e);
+        console.warn("MCP tool discovery failed:", e);
       } finally {
         // done
       }
@@ -123,15 +136,20 @@ export const MCPToolsPanel: React.FC = () => {
       newFavorites.add(toolId);
     }
     setFavorites(newFavorites);
-    localStorage.setItem("mcp-tool-favorites", JSON.stringify([...newFavorites]));
+    localStorage.setItem(
+      "mcp-tool-favorites",
+      JSON.stringify([...newFavorites]),
+    );
   };
 
   const filteredTools = tools
-    .map(tool => ({ ...tool, is_favorite: favorites.has(tool.id) }))
-    .filter(tool => {
-      const matchesSearch = tool.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
+    .map((tool) => ({ ...tool, is_favorite: favorites.has(tool.id) }))
+    .filter((tool) => {
+      const matchesSearch =
+        tool.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
         tool.description.toLowerCase().includes(searchFilter.toLowerCase());
-      const matchesCategory = categoryFilter === "all" || tool.category === categoryFilter;
+      const matchesCategory =
+        categoryFilter === "all" || tool.category === categoryFilter;
       return matchesSearch && matchesCategory;
     })
     .sort((a, b) => {
@@ -152,55 +170,70 @@ export const MCPToolsPanel: React.FC = () => {
       tool_id: selectedTool.id,
       parameters,
       status: "running",
-      started_at: new Date()
+      started_at: new Date(),
     };
 
-    setExecutions(prev => [newExecution, ...prev]);
+    setExecutions((prev) => [newExecution, ...prev]);
 
     try {
       // Execute via MCP backend (with fallback handled in service)
       const svc = await GlobalMCPService.getInstance(window.location.origin);
-      const res = await svc.executeToolRequest({ tool: selectedTool.id, parameters });
+      const res = await svc.executeToolRequest({
+        tool: selectedTool.id,
+        parameters,
+      });
 
-      setExecutions(prev => prev.map(exec =>
-        exec.id === executionId
-          ? {
-            ...exec,
-            status: res.status === 'success' ? 'completed' as const : 'failed' as const,
-            completed_at: new Date(),
-            result: res.status === 'success' ? res.result : undefined,
-            error: res.status === 'success' ? undefined : (res.error as string | undefined)
-          }
-          : exec
-      ));
+      setExecutions((prev) =>
+        prev.map((exec) =>
+          exec.id === executionId
+            ? {
+              ...exec,
+              status:
+                res.status === "success"
+                  ? ("completed" as const)
+                  : ("failed" as const),
+              completed_at: new Date(),
+              result: res.status === "success" ? res.result : undefined,
+              error:
+                res.status === "success"
+                  ? undefined
+                  : (res.error as string | undefined),
+            }
+            : exec,
+        ),
+      );
 
       // Update tool usage statistics
-      setTools(prev => prev.map(tool =>
-        tool.id === selectedTool.id
-          ? {
-            ...tool,
-            usage_count: tool.usage_count + 1,
-            last_used: new Date().toISOString()
-          }
-          : tool
-      ));
+      setTools((prev) =>
+        prev.map((tool) =>
+          tool.id === selectedTool.id
+            ? {
+              ...tool,
+              usage_count: tool.usage_count + 1,
+              last_used: new Date().toISOString(),
+            }
+            : tool,
+        ),
+      );
 
-      if (res.status === 'success') {
+      if (res.status === "success") {
         toast.success(`Tool "${selectedTool.name}" executed successfully`);
       } else {
         toast.error(res.error || "Tool execution failed");
       }
     } catch (e) {
-      setExecutions(prev => prev.map(exec =>
-        exec.id === executionId
-          ? {
-            ...exec,
-            status: "failed" as const,
-            completed_at: new Date(),
-            error: (e as Error).message || "Tool execution failed"
-          }
-          : exec
-      ));
+      setExecutions((prev) =>
+        prev.map((exec) =>
+          exec.id === executionId
+            ? {
+              ...exec,
+              status: "failed" as const,
+              completed_at: new Date(),
+              error: (e as Error).message || "Tool execution failed",
+            }
+            : exec,
+        ),
+      );
       toast.error("Tool execution failed");
     } finally {
       setIsExecuting(false);
@@ -241,7 +274,7 @@ export const MCPToolsPanel: React.FC = () => {
 
   const formatTimestamp = (timestamp?: string | Date | null) => {
     if (!timestamp) return "Never";
-    const t = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+    const t = typeof timestamp === "string" ? new Date(timestamp) : timestamp;
     const now = new Date();
     const diff = now.getTime() - t.getTime();
     const minutes = Math.floor(diff / (1000 * 60));
@@ -257,7 +290,7 @@ export const MCPToolsPanel: React.FC = () => {
     }
   };
 
-  const renderParameterInput = (param: LocalMCPTool['parameters'][number]) => {
+  const renderParameterInput = (param: LocalMCPTool["parameters"][number]) => {
     const value = parameters[param.name];
 
     switch (param.type) {
@@ -268,16 +301,18 @@ export const MCPToolsPanel: React.FC = () => {
               type="checkbox"
               id={param.name}
               checked={
-                (value as boolean) || (
-                  ('default' in param && typeof (param as { default?: unknown }).default === 'boolean')
-                    ? (param as { default?: boolean }).default!
-                    : false
-                )
+                (value as boolean) ||
+                ("default" in param &&
+                  typeof (param as { default?: unknown }).default === "boolean"
+                  ? (param as { default?: boolean }).default!
+                  : false)
               }
-              onChange={(e) => setParameters(prev => ({
-                ...prev,
-                [param.name]: e.target.checked
-              }))}
+              onChange={(e) =>
+                setParameters((prev) => ({
+                  ...prev,
+                  [param.name]: e.target.checked,
+                }))
+              }
               className="rounded border-gray-300"
             />
             <Label htmlFor={param.name} className="text-sm">
@@ -289,11 +324,13 @@ export const MCPToolsPanel: React.FC = () => {
         return (
           <Input
             type="date"
-            value={value as string || ""}
-            onChange={(e) => setParameters(prev => ({
-              ...prev,
-              [param.name]: e.target.value
-            }))}
+            value={(value as string) || ""}
+            onChange={(e) =>
+              setParameters((prev) => ({
+                ...prev,
+                [param.name]: e.target.value,
+              }))
+            }
             required={param.required}
           />
         );
@@ -301,11 +338,13 @@ export const MCPToolsPanel: React.FC = () => {
         return (
           <Input
             type="number"
-            value={value as number || ""}
-            onChange={(e) => setParameters(prev => ({
-              ...prev,
-              [param.name]: Number(e.target.value)
-            }))}
+            value={(value as number) || ""}
+            onChange={(e) =>
+              setParameters((prev) => ({
+                ...prev,
+                [param.name]: Number(e.target.value),
+              }))
+            }
             required={param.required}
           />
         );
@@ -314,10 +353,12 @@ export const MCPToolsPanel: React.FC = () => {
           <Textarea
             placeholder="Enter comma-separated values"
             value={Array.isArray(value) ? value.join(", ") : ""}
-            onChange={(e) => setParameters(prev => ({
-              ...prev,
-              [param.name]: e.target.value.split(",").map(v => v.trim())
-            }))}
+            onChange={(e) =>
+              setParameters((prev) => ({
+                ...prev,
+                [param.name]: e.target.value.split(",").map((v) => v.trim()),
+              }))
+            }
             required={param.required}
             className="h-20"
           />
@@ -326,11 +367,13 @@ export const MCPToolsPanel: React.FC = () => {
         return (
           <Input
             type="text"
-            value={value as string || ""}
-            onChange={(e) => setParameters(prev => ({
-              ...prev,
-              [param.name]: e.target.value
-            }))}
+            value={(value as string) || ""}
+            onChange={(e) =>
+              setParameters((prev) => ({
+                ...prev,
+                [param.name]: e.target.value,
+              }))
+            }
             required={param.required}
           />
         );
@@ -373,14 +416,25 @@ export const MCPToolsPanel: React.FC = () => {
 
               {/* Category Filter */}
               <div className="flex gap-2 mb-4">
-                {["all", "schedule", "employee", "analysis", "workflow", "system"].map((category) => (
+                {[
+                  "all",
+                  "schedule",
+                  "employee",
+                  "analysis",
+                  "workflow",
+                  "system",
+                ].map((category) => (
                   <Button
                     key={category}
                     size="sm"
-                    variant={categoryFilter === category ? "default" : "outline"}
+                    variant={
+                      categoryFilter === category ? "default" : "outline"
+                    }
                     onClick={() => setCategoryFilter(category)}
                   >
-                    {category === "all" ? "All" : category.charAt(0).toUpperCase() + category.slice(1)}
+                    {category === "all"
+                      ? "All"
+                      : category.charAt(0).toUpperCase() + category.slice(1)}
                   </Button>
                 ))}
               </div>
@@ -395,7 +449,7 @@ export const MCPToolsPanel: React.FC = () => {
                         "p-3 rounded-lg border cursor-pointer transition-colors",
                         selectedTool?.id === tool.id
                           ? "border-primary bg-primary/5"
-                          : "hover:bg-muted/50"
+                          : "hover:bg-muted/50",
                       )}
                       onClick={() => setSelectedTool(tool)}
                     >
@@ -417,7 +471,9 @@ export const MCPToolsPanel: React.FC = () => {
                             <Heart
                               className={cn(
                                 "h-3 w-3",
-                                tool.is_favorite ? "fill-red-500 text-red-500" : "text-muted-foreground"
+                                tool.is_favorite
+                                  ? "fill-red-500 text-red-500"
+                                  : "text-muted-foreground",
                               )}
                             />
                           </Button>
@@ -431,7 +487,9 @@ export const MCPToolsPanel: React.FC = () => {
                         {tool.description}
                       </p>
                       <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>Last used: {formatTimestamp(tool.last_used)}</span>
+                        <span>
+                          Last used: {formatTimestamp(tool.last_used)}
+                        </span>
                         <span>Avg response: {tool.average_response_time}s</span>
                       </div>
                     </div>
@@ -460,8 +518,12 @@ export const MCPToolsPanel: React.FC = () => {
                       {selectedTool.parameters.map((param) => (
                         <div key={param.name} className="space-y-2">
                           <Label className="text-sm">
-                            {param.name.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}
-                            {param.required && <span className="text-red-500 ml-1">*</span>}
+                            {param.name
+                              .replace(/_/g, " ")
+                              .replace(/\b\w/g, (l) => l.toUpperCase())}
+                            {param.required && (
+                              <span className="text-red-500 ml-1">*</span>
+                            )}
                           </Label>
                           {renderParameterInput(param)}
                           <p className="text-xs text-muted-foreground">
@@ -474,7 +536,9 @@ export const MCPToolsPanel: React.FC = () => {
 
                   <Button
                     onClick={handleExecuteTool}
-                    disabled={isExecuting || selectedTool.status !== "available"}
+                    disabled={
+                      isExecuting || selectedTool.status !== "available"
+                    }
                     className="w-full"
                   >
                     {isExecuting ? (
@@ -511,9 +575,14 @@ export const MCPToolsPanel: React.FC = () => {
                 <ScrollArea className="h-[300px]">
                   <div className="space-y-3">
                     {executions.map((execution) => {
-                      const tool = tools.find(t => t.id === execution.tool_id);
+                      const tool = tools.find(
+                        (t) => t.id === execution.tool_id,
+                      );
                       return (
-                        <div key={execution.id} className="p-3 rounded-lg border">
+                        <div
+                          key={execution.id}
+                          className="p-3 rounded-lg border"
+                        >
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
                               {tool && getCategoryIcon(tool.category)}
@@ -553,13 +622,20 @@ export const MCPToolsPanel: React.FC = () => {
                           <div className="text-xs text-muted-foreground space-y-1">
                             <div className="flex justify-between">
                               <span>Started:</span>
-                              <span>{execution.started_at.toLocaleTimeString()}</span>
+                              <span>
+                                {execution.started_at.toLocaleTimeString()}
+                              </span>
                             </div>
                             {execution.completed_at && (
                               <div className="flex justify-between">
                                 <span>Duration:</span>
                                 <span>
-                                  {Math.round((execution.completed_at.getTime() - execution.started_at.getTime()) / 1000)}s
+                                  {Math.round(
+                                    (execution.completed_at.getTime() -
+                                      execution.started_at.getTime()) /
+                                    1000,
+                                  )}
+                                  s
                                 </span>
                               </div>
                             )}
@@ -569,7 +645,11 @@ export const MCPToolsPanel: React.FC = () => {
                             <Collapsible>
                               <div className="mt-2">
                                 <CollapsibleTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="w-full justify-between text-xs p-2 h-auto">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-full justify-between text-xs p-2 h-auto"
+                                  >
                                     <span>View Result</span>
                                     <ChevronDown className="h-3 w-3" />
                                   </Button>
@@ -577,10 +657,13 @@ export const MCPToolsPanel: React.FC = () => {
                                 <CollapsibleContent className="mt-1">
                                   <div className="p-2 bg-muted/50 rounded text-xs max-h-40 overflow-auto">
                                     <pre className="whitespace-pre-wrap">
-                                      {typeof execution.result === 'object'
-                                        ? JSON.stringify(execution.result, null, 2)
-                                        : String(execution.result)
-                                      }
+                                      {typeof execution.result === "object"
+                                        ? JSON.stringify(
+                                          execution.result,
+                                          null,
+                                          2,
+                                        )
+                                        : String(execution.result)}
                                     </pre>
                                   </div>
                                 </CollapsibleContent>

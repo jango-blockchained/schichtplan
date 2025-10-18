@@ -55,9 +55,9 @@ describe("AddScheduleDialog", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockApiService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue(
-      [availableEmployee],
-    );
+    mockApiService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue([
+      availableEmployee,
+    ]);
     mockApiService.fetchApplicableShiftsForEmployee.mockResolvedValue([
       availableShift,
       preferredShift,
@@ -108,9 +108,10 @@ describe("AddScheduleDialog", () => {
       status: "Absence: Vacation",
       is_active: true,
     };
-    mockApiService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue(
-      [availableEmployee, anotherEmployee],
-    );
+    mockApiService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue([
+      availableEmployee,
+      anotherEmployee,
+    ]);
 
     render(
       <AddScheduleDialog
@@ -255,9 +256,9 @@ describe("AddScheduleDialog", () => {
   });
 
   test("handles pre-selected employee and shift values correctly", async () => {
-    mockApiService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue(
-      [availableEmployee],
-    );
+    mockApiService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue([
+      availableEmployee,
+    ]);
     mockApiService.fetchApplicableShiftsForEmployee.mockResolvedValue([
       availableShift,
       preferredShift,
@@ -359,9 +360,9 @@ describe("AddScheduleDialog", () => {
   });
 
   test("shows loading state for shift dropdown", async () => {
-    mockApiService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue(
-      [availableEmployee],
-    );
+    mockApiService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue([
+      availableEmployee,
+    ]);
 
     let resolveShifts: any;
     mockApiService.fetchApplicableShiftsForEmployee.mockImplementationOnce(
@@ -444,9 +445,9 @@ describe("AddScheduleDialog", () => {
   });
 
   test("shows error state for shift dropdown", async () => {
-    mockApiService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue(
-      [availableEmployee],
-    );
+    mockApiService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue([
+      availableEmployee,
+    ]);
 
     const errorMessage = "Failed to fetch shifts";
     mockApiService.fetchApplicableShiftsForEmployee.mockRejectedValueOnce(

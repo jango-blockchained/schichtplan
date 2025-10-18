@@ -1,16 +1,23 @@
-import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Button } from '@/components/ui/button';
-import { ChevronsUpDown } from 'lucide-react';
-import AIGenerationControls from './AIGenerationControls';
-import AISuggestionView from './AISuggestionView';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ChevronsUpDown } from "lucide-react";
+import React from "react";
+import AIGenerationControls from "./AIGenerationControls";
+import AISuggestionView from "./AISuggestionView";
 
 /**
  * @interface AISchedulerPanelProps
  * @description Props for the AISchedulerPanel component. Currently, it takes no props.
  */
-interface AISchedulerPanelProps {}
+interface AISchedulerPanelProps {
+  scheduleId?: string;
+  // Add other props as needed in the future
+}
 
 /**
  * @component AISchedulerPanel
@@ -41,9 +48,7 @@ const AISchedulerPanel: React.FC<AISchedulerPanelProps> = () => {
             <AISuggestionView />
             {/* Placeholder for Status/Feedback Area */}
             <div>
-              <p className="text-sm text-muted-foreground">
-                Status: AI Ready.
-              </p>
+              <p className="text-sm text-muted-foreground">Status: AI Ready.</p>
             </div>
           </CardContent>
         </CollapsibleContent>

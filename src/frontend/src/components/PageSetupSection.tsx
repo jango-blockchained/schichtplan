@@ -1,9 +1,15 @@
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Slider } from '@/components/ui/slider';
-import { SimplifiedPDFConfig } from '@/types/SimplifiedPDFConfig';
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { SimplifiedPDFConfig } from "@/types/SimplifiedPDFConfig";
 
 interface PageSetupSectionProps {
   config: SimplifiedPDFConfig;
@@ -11,12 +17,16 @@ interface PageSetupSectionProps {
   className?: string;
 }
 
-export function PageSetupSection({ config, onConfigChange, className = '' }: PageSetupSectionProps) {
+export function PageSetupSection({
+  config,
+  onConfigChange,
+  className = "",
+}: PageSetupSectionProps) {
   const handlePageSizeChange = (size: string) => {
     onConfigChange({
       pageSetup: {
         ...config.pageSetup,
-        size: size as 'A4' | 'Letter' | 'Legal',
+        size: size as "A4" | "Letter" | "Legal",
       },
     });
   };
@@ -25,12 +35,15 @@ export function PageSetupSection({ config, onConfigChange, className = '' }: Pag
     onConfigChange({
       pageSetup: {
         ...config.pageSetup,
-        orientation: orientation as 'portrait' | 'landscape',
+        orientation: orientation as "portrait" | "landscape",
       },
     });
   };
 
-  const handleMarginChange = (side: keyof typeof config.pageSetup.margins, value: number[]) => {
+  const handleMarginChange = (
+    side: keyof typeof config.pageSetup.margins,
+    value: number[],
+  ) => {
     onConfigChange({
       pageSetup: {
         ...config.pageSetup,
@@ -51,7 +64,10 @@ export function PageSetupSection({ config, onConfigChange, className = '' }: Pag
         {/* Page Size */}
         <div className="space-y-2">
           <Label>Page Size</Label>
-          <Select value={config.pageSetup.size} onValueChange={handlePageSizeChange}>
+          <Select
+            value={config.pageSetup.size}
+            onValueChange={handlePageSizeChange}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -66,7 +82,10 @@ export function PageSetupSection({ config, onConfigChange, className = '' }: Pag
         {/* Orientation */}
         <div className="space-y-2">
           <Label>Orientation</Label>
-          <Select value={config.pageSetup.orientation} onValueChange={handleOrientationChange}>
+          <Select
+            value={config.pageSetup.orientation}
+            onValueChange={handleOrientationChange}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -95,12 +114,12 @@ export function PageSetupSection({ config, onConfigChange, className = '' }: Pag
               mm
             </Badge>
           </div>
-          
+
           {/* Visual margin editor */}
           <div className="relative">
             <div className="w-full h-32 border-2 border-dashed border-muted-foreground/30 rounded-lg relative overflow-hidden">
               {/* Page representation */}
-              <div 
+              <div
                 className="absolute bg-primary/10 border border-primary/20 rounded"
                 style={{
                   top: `${(config.pageSetup.margins.top / 50) * 100}%`,
@@ -113,7 +132,7 @@ export function PageSetupSection({ config, onConfigChange, className = '' }: Pag
                   Content Area
                 </div>
               </div>
-              
+
               {/* Margin labels */}
               <div className="absolute top-1 left-1/2 transform -translate-x-1/2 text-xs text-muted-foreground">
                 {config.pageSetup.margins.top}mm
@@ -136,7 +155,7 @@ export function PageSetupSection({ config, onConfigChange, className = '' }: Pag
               <Label className="text-xs">Top</Label>
               <Slider
                 value={[config.pageSetup.margins.top]}
-                onValueChange={(value) => handleMarginChange('top', value)}
+                onValueChange={(value) => handleMarginChange("top", value)}
                 min={0}
                 max={50}
                 step={1}
@@ -153,7 +172,7 @@ export function PageSetupSection({ config, onConfigChange, className = '' }: Pag
               <Label className="text-xs">Bottom</Label>
               <Slider
                 value={[config.pageSetup.margins.bottom]}
-                onValueChange={(value) => handleMarginChange('bottom', value)}
+                onValueChange={(value) => handleMarginChange("bottom", value)}
                 min={0}
                 max={50}
                 step={1}
@@ -170,7 +189,7 @@ export function PageSetupSection({ config, onConfigChange, className = '' }: Pag
               <Label className="text-xs">Left</Label>
               <Slider
                 value={[config.pageSetup.margins.left]}
-                onValueChange={(value) => handleMarginChange('left', value)}
+                onValueChange={(value) => handleMarginChange("left", value)}
                 min={0}
                 max={50}
                 step={1}
@@ -187,7 +206,7 @@ export function PageSetupSection({ config, onConfigChange, className = '' }: Pag
               <Label className="text-xs">Right</Label>
               <Slider
                 value={[config.pageSetup.margins.right]}
-                onValueChange={(value) => handleMarginChange('right', value)}
+                onValueChange={(value) => handleMarginChange("right", value)}
                 min={0}
                 max={50}
                 step={1}

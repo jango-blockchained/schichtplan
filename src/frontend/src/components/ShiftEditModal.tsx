@@ -1,27 +1,33 @@
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { getEmployees, getSchedules, getSettings, getShifts, updateEmployee } from "@/services/api";
 import {
-    createRequiredConsecutiveShifts,
-    validateConsecutiveShiftRequirements
+  getEmployees,
+  getSchedules,
+  getSettings,
+  getShifts,
+  updateEmployee,
+} from "@/services/api";
+import {
+  createRequiredConsecutiveShifts,
+  validateConsecutiveShiftRequirements,
 } from "@/services/scheduleUtils";
 import { Employee, Schedule, ScheduleUpdate, Settings } from "@/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -51,12 +57,10 @@ export function ShiftEditModal({
   const [shiftEndTime, setShiftEndTime] = useState<string>(
     schedule.shift_end || "17:00",
   );
-  const [breakDuration, setBreakDuration] = useState<number>(
-    0,
-  );
+  const [breakDuration, setBreakDuration] = useState<number>(0);
   const [notes, setNotes] = useState(schedule.notes ?? "");
   const [isKeyholder, setIsKeyholder] = useState<boolean>(false);
-  
+
   // Auto/Manual mode states
   const [isAutoBreakDuration, setIsAutoBreakDuration] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -89,13 +93,13 @@ export function ShiftEditModal({
       startDate.setDate(startDate.getDate() - 1); // Previous day
       const endDate = new Date(scheduleDate);
       endDate.setDate(endDate.getDate() + 1); // Next day
-      
+
       return getSchedules(
-        startDate.toISOString().split('T')[0],
-        endDate.toISOString().split('T')[0],
+        startDate.toISOString().split("T")[0],
+        endDate.toISOString().split("T")[0],
         undefined, // version
-        true // includeEmpty
-      ).then(response => response.schedules || []);
+        true, // includeEmpty
+      ).then((response) => response.schedules || []);
     },
     enabled: !!schedule.date, // Only run when we have a schedule date
   });
@@ -111,55 +115,58 @@ export function ShiftEditModal({
   });
 
   // Enhanced break calculation function for keyholders
-  const calculateAutoBreakDuration = useCallback((
-    startTime: string, 
-    endTime: string, 
-    employeeData: Employee | undefined, 
-    settingsData: Settings | undefined
-  ): number => {
-    try {
-      if (!startTime || !endTime) return 0;
-      
-      // Calculate base working hours
-      const startMinutes = timeToMinutes(startTime);
-      let endMinutes = timeToMinutes(endTime);
-      
-      // Handle overnight shifts
-      if (endMinutes < startMinutes) {
-        endMinutes += 24 * 60;
-      }
-      
-      const baseWorkingHours = (endMinutes - startMinutes) / 60;
-      
-      // Standard break for >6h working time
-      let totalBreakMinutes = baseWorkingHours > 6 ? 30 : 0;
-      
-      // Add keyholder extra time as break
-      if (employeeData?.is_keyholder && settingsData?.general) {
-        const { 
-          keyholder_before_minutes = 5, 
-          keyholder_after_minutes = 10, 
-          store_opening, 
-          store_closing 
-        } = settingsData.general;
-        
-        // Early shift (opening) - add before minutes as break
-        if (store_opening && startTime <= store_opening) {
-          totalBreakMinutes += keyholder_before_minutes;
+  const calculateAutoBreakDuration = useCallback(
+    (
+      startTime: string,
+      endTime: string,
+      employeeData: Employee | undefined,
+      settingsData: Settings | undefined,
+    ): number => {
+      try {
+        if (!startTime || !endTime) return 0;
+
+        // Calculate base working hours
+        const startMinutes = timeToMinutes(startTime);
+        let endMinutes = timeToMinutes(endTime);
+
+        // Handle overnight shifts
+        if (endMinutes < startMinutes) {
+          endMinutes += 24 * 60;
         }
-        
-        // Late shift (closing) - add after minutes as break  
-        if (store_closing && endTime >= store_closing) {
-          totalBreakMinutes += keyholder_after_minutes;
+
+        const baseWorkingHours = (endMinutes - startMinutes) / 60;
+
+        // Standard break for >6h working time
+        let totalBreakMinutes = baseWorkingHours > 6 ? 30 : 0;
+
+        // Add keyholder extra time as break
+        if (employeeData?.is_keyholder && settingsData?.general) {
+          const {
+            keyholder_before_minutes = 5,
+            keyholder_after_minutes = 10,
+            store_opening,
+            store_closing,
+          } = settingsData.general;
+
+          // Early shift (opening) - add before minutes as break
+          if (store_opening && startTime <= store_opening) {
+            totalBreakMinutes += keyholder_before_minutes;
+          }
+
+          // Late shift (closing) - add after minutes as break
+          if (store_closing && endTime >= store_closing) {
+            totalBreakMinutes += keyholder_after_minutes;
+          }
         }
+
+        return totalBreakMinutes;
+      } catch (error) {
+        console.error("Error calculating auto break duration:", error);
+        return 0;
       }
-      
-      return totalBreakMinutes;
-    } catch (error) {
-      console.error("Error calculating auto break duration:", error);
-      return 0;
-    }
-  }, []);
+    },
+    [],
+  );
 
   // Helper function to convert time string to minutes
   const timeToMinutes = (timeStr: string): number => {
@@ -174,14 +181,17 @@ export function ShiftEditModal({
     setShiftStartTime(schedule.shift_start || "09:00");
     setShiftEndTime(schedule.shift_end || "17:00");
     setNotes(schedule.notes ?? "");
-    
+
     // Initialize auto/manual flags (default to auto for backward compatibility)
-    const hasManualBreak = schedule.break_duration != null && schedule.break_duration > 0;
+    const hasManualBreak =
+      schedule.break_duration != null && schedule.break_duration > 0;
     setIsAutoBreakDuration(!hasManualBreak);
-    
+
     // Calculate and set break duration
-    const currentEmployee = employees?.find(emp => emp.id === schedule.employee_id);
-    
+    const currentEmployee = employees?.find(
+      (emp) => emp.id === schedule.employee_id,
+    );
+
     if (hasManualBreak) {
       // Use existing manual break duration
       setBreakDuration(schedule.break_duration);
@@ -189,49 +199,72 @@ export function ShiftEditModal({
       // Calculate auto break duration
       const startTime = schedule.shift_start || "09:00";
       const endTime = schedule.shift_end || "17:00";
-      const autoBreak = calculateAutoBreakDuration(startTime, endTime, currentEmployee, settings);
+      const autoBreak = calculateAutoBreakDuration(
+        startTime,
+        endTime,
+        currentEmployee,
+        settings,
+      );
       setBreakDuration(autoBreak);
     }
-    
+
     // Default keyholder to false for assignments (don't auto-check based on employee status)
     setIsKeyholder(false);
-    
-    console.log(
-      "📋 ShiftEditModal initialized with break calculation:",
-      {
-        schedule_id: schedule.id,
-        hasManualBreak,
-        break_duration: schedule.break_duration,
-        calculated_auto_break: calculateAutoBreakDuration(
-          schedule.shift_start || "09:00", 
-          schedule.shift_end || "17:00", 
-          currentEmployee, 
-          settings
-        ),
-        availability_type: schedule.availability_type || "AVAILABLE",
-      }
-    );
+
+    console.log("📋 ShiftEditModal initialized with break calculation:", {
+      schedule_id: schedule.id,
+      hasManualBreak,
+      break_duration: schedule.break_duration,
+      calculated_auto_break: calculateAutoBreakDuration(
+        schedule.shift_start || "09:00",
+        schedule.shift_end || "17:00",
+        currentEmployee,
+        settings,
+      ),
+      availability_type: schedule.availability_type || "AVAILABLE",
+    });
   }, [schedule, employees, settings, calculateAutoBreakDuration]);
 
   // Recalculate break duration when times or keyholder status change (in auto mode)
   useEffect(() => {
     if (isAutoBreakDuration && shiftStartTime && shiftEndTime) {
-      const currentEmployee = employees?.find(emp => emp.id === schedule.employee_id);
+      const currentEmployee = employees?.find(
+        (emp) => emp.id === schedule.employee_id,
+      );
       if (isKeyholder) {
         // Use keyholder status from state (might be different from DB)
         const keyholderEmployee = { ...currentEmployee, is_keyholder: true };
-        const autoBreak = calculateAutoBreakDuration(shiftStartTime, shiftEndTime, keyholderEmployee, settings);
+        const autoBreak = calculateAutoBreakDuration(
+          shiftStartTime,
+          shiftEndTime,
+          keyholderEmployee,
+          settings,
+        );
         setBreakDuration(autoBreak);
       } else {
-        const autoBreak = calculateAutoBreakDuration(shiftStartTime, shiftEndTime, currentEmployee, settings);
+        const autoBreak = calculateAutoBreakDuration(
+          shiftStartTime,
+          shiftEndTime,
+          currentEmployee,
+          settings,
+        );
         setBreakDuration(autoBreak);
       }
     }
-  }, [isAutoBreakDuration, shiftStartTime, shiftEndTime, isKeyholder, employees, settings, schedule.employee_id, calculateAutoBreakDuration]);
+  }, [
+    isAutoBreakDuration,
+    shiftStartTime,
+    shiftEndTime,
+    isKeyholder,
+    employees,
+    settings,
+    schedule.employee_id,
+    calculateAutoBreakDuration,
+  ]);
 
   const handleShiftTemplateChange = (shiftId: string) => {
     setSelectedShiftId(shiftId);
-    
+
     // Auto-populate times from selected shift template
     const selectedShift = shifts?.find((s) => s.id === parseInt(shiftId));
     if (selectedShift) {
@@ -246,30 +279,36 @@ export function ShiftEditModal({
       hasAllSchedules: !!allSchedules,
       hasEmployees: !!employees,
       allSchedulesLength: allSchedules?.length || 0,
-      employeesLength: employees?.length || 0
+      employeesLength: employees?.length || 0,
     });
-    
+
     if (!isKeyholder || !allSchedules || !employees) {
       console.log("🔍 Early return from conflict check - missing data");
       return null;
     }
-    
+
     const scheduleDate = schedule.date;
-    const currentEmployee = employees.find(emp => emp.id === schedule.employee_id);
-    
+    const currentEmployee = employees.find(
+      (emp) => emp.id === schedule.employee_id,
+    );
+
     console.log("🔍 Checking conflicts for:", {
       scheduleDate,
       currentEmployeeId: schedule.employee_id,
-      currentEmployeeName: currentEmployee ? `${currentEmployee.first_name} ${currentEmployee.last_name}` : "Unknown"
+      currentEmployeeName: currentEmployee
+        ? `${currentEmployee.first_name} ${currentEmployee.last_name}`
+        : "Unknown",
     });
-    
+
     // Find other keyholder shifts on the same date
-    const conflictingSchedule = allSchedules.find(s => {
+    const conflictingSchedule = allSchedules.find((s) => {
       const matchesDate = s.date === scheduleDate;
       const differentSchedule = s.id !== schedule.id;
       const differentEmployee = s.employee_id !== schedule.employee_id;
-      const employeeIsKeyholder = employees.find(emp => emp.id === s.employee_id)?.is_keyholder;
-      
+      const employeeIsKeyholder = employees.find(
+        (emp) => emp.id === s.employee_id,
+      )?.is_keyholder;
+
       console.log("🔍 Checking schedule:", {
         scheduleId: s.id,
         employeeId: s.employee_id,
@@ -277,19 +316,26 @@ export function ShiftEditModal({
         matchesDate,
         differentSchedule,
         differentEmployee,
-        employeeIsKeyholder
+        employeeIsKeyholder,
       });
-      
-      return matchesDate && differentSchedule && differentEmployee && employeeIsKeyholder;
+
+      return (
+        matchesDate &&
+        differentSchedule &&
+        differentEmployee &&
+        employeeIsKeyholder
+      );
     });
-    
+
     if (conflictingSchedule) {
-      const conflictingEmployee = employees.find(emp => emp.id === conflictingSchedule.employee_id);
+      const conflictingEmployee = employees.find(
+        (emp) => emp.id === conflictingSchedule.employee_id,
+      );
       const conflictName = `${conflictingEmployee?.first_name} ${conflictingEmployee?.last_name}`;
       console.log("🔍 Found keyholder conflict:", conflictName);
       return conflictName;
     }
-    
+
     console.log("🔍 No keyholder conflict found");
     return null;
   };
@@ -301,9 +347,9 @@ export function ShiftEditModal({
       allSchedules: allSchedules?.length || 0,
       employees: employees?.length || 0,
       scheduleDate: schedule.date,
-      currentEmployeeId: schedule.employee_id
+      currentEmployeeId: schedule.employee_id,
     });
-    
+
     // Check for keyholder conflicts if trying to set as keyholder
     if (isKeyholder) {
       const conflictEmployee = checkKeyholderConflict();
@@ -314,7 +360,7 @@ export function ShiftEditModal({
         return; // Don't proceed with save
       }
     }
-    
+
     await performSave();
   };
 
@@ -325,16 +371,16 @@ export function ShiftEditModal({
 
   const performSave = async () => {
     setIsSubmitting(true);
-    
+
     try {
       console.log("🟢 Starting save process...");
-      
+
       // Step 1: Prepare schedule updates
       const updates: ScheduleUpdate = {
         shift_id: selectedShiftId ? parseInt(selectedShiftId, 10) : null,
         shift_start: shiftStartTime,
         shift_end: shiftEndTime,
-        break_duration: isAutoBreakDuration ? null : (breakDuration || null), // null = auto-calculate
+        break_duration: isAutoBreakDuration ? null : breakDuration || null, // null = auto-calculate
         notes: notes || null,
         availability_type: schedule.availability_type || "AVAILABLE",
       };
@@ -351,7 +397,7 @@ export function ShiftEditModal({
       console.log("🟢 Schedule updates:", {
         ...updates,
         isAutoBreakDuration,
-        calculatedBreakDuration: breakDuration
+        calculatedBreakDuration: breakDuration,
       });
 
       // Step 2: Save the schedule
@@ -359,18 +405,27 @@ export function ShiftEditModal({
       console.log("🟢 Schedule saved successfully");
 
       // Step 2.5: Handle consecutive shift requirements for ALL employees
-      const currentEmployee = employees?.find(emp => emp.id === schedule.employee_id);
+      const currentEmployee = employees?.find(
+        (emp) => emp.id === schedule.employee_id,
+      );
       if (currentEmployee) {
         try {
           console.log("🔄 Processing consecutive shift requirements...");
           await handleConsecutiveDayRequirements(currentEmployee, updates);
-          console.log("✅ Consecutive shift requirements processed successfully");
+          console.log(
+            "✅ Consecutive shift requirements processed successfully",
+          );
         } catch (error) {
-          console.error("❌ Error handling consecutive shift requirements:", error);
+          console.error(
+            "❌ Error handling consecutive shift requirements:",
+            error,
+          );
           // Show warning but don't fail the entire operation
           toast({
             title: "Warning",
-            description: "Shift updated but failed to create required consecutive shifts: " + (error instanceof Error ? error.message : "Unknown error"),
+            description:
+              "Shift updated but failed to create required consecutive shifts: " +
+              (error instanceof Error ? error.message : "Unknown error"),
             variant: "destructive",
           });
         }
@@ -379,38 +434,49 @@ export function ShiftEditModal({
       // Step 3: Handle keyholder status changes
       if (currentEmployee && currentEmployee.is_keyholder !== isKeyholder) {
         console.log("🔑 Processing keyholder status change...");
-        
+
         try {
           if (isKeyholder) {
             console.log("🔑 Setting employee as keyholder...");
-            
+
             // First, unset all other keyholders
-            const otherKeyholders = employees?.filter(emp => 
-              emp.id !== schedule.employee_id && emp.is_keyholder
-            ) || [];
-            
-            console.log("🔑 Found other keyholders to unset:", otherKeyholders.length);
-            
+            const otherKeyholders =
+              employees?.filter(
+                (emp) => emp.id !== schedule.employee_id && emp.is_keyholder,
+              ) || [];
+
+            console.log(
+              "🔑 Found other keyholders to unset:",
+              otherKeyholders.length,
+            );
+
             for (const keyholder of otherKeyholders) {
-              console.log("🔑 Unsetting keyholder:", keyholder.first_name, keyholder.last_name);
-              await updateEmployee(keyholder.id, { 
-                ...keyholder, 
-                is_keyholder: false 
+              console.log(
+                "🔑 Unsetting keyholder:",
+                keyholder.first_name,
+                keyholder.last_name,
+              );
+              await updateEmployee(keyholder.id, {
+                ...keyholder,
+                is_keyholder: false,
               });
             }
           }
-          
+
           // Update current employee's keyholder status
           console.log("🔑 Updating current employee keyholder status...");
-          await updateEmployee(currentEmployee.id, { 
-            ...currentEmployee, 
-            is_keyholder: isKeyholder 
+          await updateEmployee(currentEmployee.id, {
+            ...currentEmployee,
+            is_keyholder: isKeyholder,
           });
-          
+
           console.log("🔑 Keyholder status updated successfully");
         } catch (error) {
           console.error("❌ Error updating keyholder status:", error);
-          throw new Error("Failed to update keyholder status: " + (error instanceof Error ? error.message : "Unknown error"));
+          throw new Error(
+            "Failed to update keyholder status: " +
+              (error instanceof Error ? error.message : "Unknown error"),
+          );
         }
       }
 
@@ -419,23 +485,23 @@ export function ShiftEditModal({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["schedules"] }),
         queryClient.invalidateQueries({ queryKey: ["employees"] }),
-        queryClient.invalidateQueries({ queryKey: ["shifts"] })
+        queryClient.invalidateQueries({ queryKey: ["shifts"] }),
       ]);
-      
+
       console.log("✅ Save process completed successfully");
-      
+
       toast({
         title: "Success",
         description: "Shift updated successfully",
       });
-      
+
       onClose();
-      
     } catch (error) {
       console.error("❌ Error in performSave:", error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update shift",
+        description:
+          error instanceof Error ? error.message : "Failed to update shift",
         variant: "destructive",
       });
     } finally {
@@ -444,34 +510,39 @@ export function ShiftEditModal({
   };
 
   // Handle consecutive day requirements for ALL employees
-  const handleConsecutiveDayRequirements = async (employee: Employee, scheduleUpdates: ScheduleUpdate) => {
+  const handleConsecutiveDayRequirements = async (
+    employee: Employee,
+    scheduleUpdates: ScheduleUpdate,
+  ) => {
     if (!shifts) return;
-    
-    const selectedShift = shifts.find(s => s.id === scheduleUpdates.shift_id);
+
+    const selectedShift = shifts.find((s) => s.id === scheduleUpdates.shift_id);
     if (!selectedShift) return;
-    
+
     console.log("� Checking consecutive day requirements for all employees:", {
       employeeId: employee.id,
       shiftType: selectedShift.shift_type_id,
-      date: schedule.date
+      date: schedule.date,
     });
-    
+
     try {
       // Validate consecutive shift requirements first
       const settings = await getSettings();
       const openingDays = settings?.general?.opening_days;
-      
+
       const validation = await validateConsecutiveShiftRequirements(
         employee.id,
         selectedShift,
         new Date(schedule.date),
-        openingDays
+        openingDays,
       );
-      
+
       if (!validation.isValid) {
-        throw new Error(`Consecutive shift requirements conflict: ${validation.conflicts.join(". ")}`);
+        throw new Error(
+          `Consecutive shift requirements conflict: ${validation.conflicts.join(". ")}`,
+        );
       }
-      
+
       // Create required consecutive shifts
       await createRequiredConsecutiveShifts(
         employee.id,
@@ -479,11 +550,10 @@ export function ShiftEditModal({
         new Date(schedule.date),
         currentVersion || schedule.version || 1,
         shifts,
-        openingDays
+        openingDays,
       );
-      
+
       console.log("✅ Consecutive day requirements handled successfully");
-      
     } catch (error) {
       console.error("❌ Error handling consecutive day requirements:", error);
       throw error; // Re-throw to let the caller handle the error
@@ -504,7 +574,10 @@ export function ShiftEditModal({
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="shift">Schicht</Label>
-              <Select value={selectedShiftId} onValueChange={handleShiftTemplateChange}>
+              <Select
+                value={selectedShiftId}
+                onValueChange={handleShiftTemplateChange}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Schicht auswählen" />
                 </SelectTrigger>
@@ -543,10 +616,12 @@ export function ShiftEditModal({
               <Checkbox
                 id="keyholder"
                 checked={isKeyholder}
-                onCheckedChange={(checked) => setIsKeyholder(checked as boolean)}
+                onCheckedChange={(checked) =>
+                  setIsKeyholder(checked as boolean)
+                }
               />
-              <Label 
-                htmlFor="keyholder" 
+              <Label
+                htmlFor="keyholder"
                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
               >
                 Als Schlüsselträger markieren
@@ -558,28 +633,32 @@ export function ShiftEditModal({
                 <Checkbox
                   id="autoBreakDuration"
                   checked={isAutoBreakDuration}
-                  onCheckedChange={(checked) => setIsAutoBreakDuration(checked as boolean)}
+                  onCheckedChange={(checked) =>
+                    setIsAutoBreakDuration(checked as boolean)
+                  }
                 />
-                <Label 
-                  htmlFor="autoBreakDuration" 
+                <Label
+                  htmlFor="autoBreakDuration"
                   className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
                   Pausenlänge automatisch berechnen
                 </Label>
               </div>
-              
+
               {isAutoBreakDuration ? (
                 <div className="space-y-2">
                   <Label className="text-sm text-muted-foreground">
                     Berechnete Pausenlänge: {breakDuration} Minuten
                     {breakDuration > 30 && (
                       <span className="text-xs block text-blue-600">
-                        (30min Standard + {breakDuration - 30}min Schlüsselträger-Zeit)
+                        (30min Standard + {breakDuration - 30}min
+                        Schlüsselträger-Zeit)
                       </span>
                     )}
                   </Label>
                   <div className="text-xs text-muted-foreground">
-                    Automatische Berechnung: 30min für Schichten &gt;6h, plus Schlüsselträger-Zeit
+                    Automatische Berechnung: 30min für Schichten &gt;6h, plus
+                    Schlüsselträger-Zeit
                   </div>
                 </div>
               ) : (
@@ -653,19 +732,19 @@ function KeyholderConflictDialog({
         </DialogHeader>
         <div className="py-4">
           <p>
-            Es ist bereits ein anderer Schlüsselträger für diesen Tag eingeteilt: <strong>{conflictingKeyholder}</strong>
+            Es ist bereits ein anderer Schlüsselträger für diesen Tag
+            eingeteilt: <strong>{conflictingKeyholder}</strong>
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
-            Es kann nur einen Schlüsselträger pro Tag geben. Möchten Sie den aktuellen Schlüsselträger ersetzen?
+            Es kann nur einen Schlüsselträger pro Tag geben. Möchten Sie den
+            aktuellen Schlüsselträger ersetzen?
           </p>
         </div>
         <div className="flex justify-end space-x-2">
           <Button variant="outline" onClick={onClose}>
             Abbrechen
           </Button>
-          <Button onClick={onConfirm}>
-            Schlüsselträger ersetzen
-          </Button>
+          <Button onClick={onConfirm}>Schlüsselträger ersetzen</Button>
         </div>
       </DialogContent>
     </Dialog>

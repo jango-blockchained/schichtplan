@@ -1,21 +1,32 @@
 /**
  * WeekNavigator component for the Schichtplan application.
- * 
+ *
  * Provides core week navigation UI with month boundary indicators,
  * week display, and navigation controls.
  */
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { getWeekSegments, WeekSegmentsResponse } from '@/services/api';
-import { WeekInfo } from '@/types/weekVersion';
-import { useQuery } from '@tanstack/react-query';
-import { format } from 'date-fns';
-import { AlertCircle, Calendar, ChevronLeft, ChevronRight, Split } from 'lucide-react';
-import { useEffect } from 'react';
-import { WeekNavigationSettingsOverlay } from './WeekNavigationSettingsOverlay';
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { getWeekSegments, WeekSegmentsResponse } from "@/services/api";
+import { WeekInfo } from "@/types/weekVersion";
+import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
+import {
+  AlertCircle,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Split,
+} from "lucide-react";
+import { useEffect } from "react";
+import { WeekNavigationSettingsOverlay } from "./WeekNavigationSettingsOverlay";
 
 interface WeekNavigatorProps {
   currentWeekInfo: WeekInfo;
@@ -26,7 +37,7 @@ interface WeekNavigatorProps {
   showMonthBoundaryIndicator?: boolean;
   className?: string;
   weekNavigationSettings?: {
-    weekendStart?: number; // 0 = Sunday, 1 = Monday  
+    weekendStart?: number; // 0 = Sunday, 1 = Monday
     monthBoundaryMode?: string; // 'keep_intact' or 'split_by_month'
   };
   currentSegment?: number;
@@ -43,23 +54,33 @@ export function WeekNavigator({
   className = "",
   weekNavigationSettings,
   currentSegment = 1,
-  onSegmentChange
+  onSegmentChange,
 }: WeekNavigatorProps) {
   // Fetch week segments when in split mode
   const { data: segmentsData } = useQuery<WeekSegmentsResponse>({
-    queryKey: ['week-segments', `${currentWeekInfo.year}-W${String(currentWeekInfo.weekNumber).padStart(2, '0')}`],
-    queryFn: () => getWeekSegments(`${currentWeekInfo.year}-W${String(currentWeekInfo.weekNumber).padStart(2, '0')}`),
-    enabled: weekNavigationSettings?.monthBoundaryMode === 'split_by_month' && currentWeekInfo.spansMonths,
+    queryKey: [
+      "week-segments",
+      `${currentWeekInfo.year}-W${String(currentWeekInfo.weekNumber).padStart(2, "0")}`,
+    ],
+    queryFn: () =>
+      getWeekSegments(
+        `${currentWeekInfo.year}-W${String(currentWeekInfo.weekNumber).padStart(2, "0")}`,
+      ),
+    enabled:
+      weekNavigationSettings?.monthBoundaryMode === "split_by_month" &&
+      currentWeekInfo.spansMonths,
     staleTime: 5 * 60 * 1000,
   });
 
-  const isSplitMode = weekNavigationSettings?.monthBoundaryMode === 'split_by_month' &&
+  const isSplitMode =
+    weekNavigationSettings?.monthBoundaryMode === "split_by_month" &&
     currentWeekInfo.spansMonths &&
     segmentsData?.isSplit;
 
-  const currentSegmentData = isSplitMode && segmentsData?.segments
-    ? segmentsData.segments.find(s => s.segment_number === currentSegment)
-    : null;
+  const currentSegmentData =
+    isSplitMode && segmentsData?.segments
+      ? segmentsData.segments.find((s) => s.segment_number === currentSegment)
+      : null;
 
   // Reset segment to 1 when week changes or if current segment exceeds available segments
   useEffect(() => {
@@ -69,7 +90,13 @@ export function WeekNavigator({
         onSegmentChange(1);
       }
     }
-  }, [currentWeekInfo.weekNumber, currentWeekInfo.year, segmentsData, currentSegment, onSegmentChange]);
+  }, [
+    currentWeekInfo.weekNumber,
+    currentWeekInfo.year,
+    segmentsData,
+    currentSegment,
+    onSegmentChange,
+  ]);
 
   // Format week display
   const formatWeekDisplay = () => {
@@ -84,9 +111,9 @@ export function WeekNavigator({
     if (isSplitMode && currentSegmentData) {
       const startDate = new Date(currentSegmentData.start_date);
       const endDate = new Date(currentSegmentData.end_date);
-      return `${format(startDate, 'dd.MM.')} - ${format(endDate, 'dd.MM.yyyy')}`;
+      return `${format(startDate, "dd.MM.")} - ${format(endDate, "dd.MM.yyyy")}`;
     }
-    return `${format(currentWeekInfo.startDate, 'dd.MM.')} - ${format(currentWeekInfo.endDate, 'dd.MM.yyyy')}`;
+    return `${format(currentWeekInfo.startDate, "dd.MM.")} - ${format(currentWeekInfo.endDate, "dd.MM.yyyy")}`;
   };
 
   // Handle segment navigation
@@ -99,7 +126,11 @@ export function WeekNavigator({
   };
 
   const handleNavigateNext = () => {
-    if (isSplitMode && segmentsData && currentSegment < segmentsData.segments.length) {
+    if (
+      isSplitMode &&
+      segmentsData &&
+      currentSegment < segmentsData.segments.length
+    ) {
       onSegmentChange?.(currentSegment + 1);
     } else {
       onNavigateNext();
@@ -131,20 +162,30 @@ export function WeekNavigator({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="flex items-center gap-1 text-amber-600">
-                      {isSplitMode ? <Split className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+                      {isSplitMode ? (
+                        <Split className="h-4 w-4" />
+                      ) : (
+                        <AlertCircle className="h-4 w-4" />
+                      )}
                       <span className="text-sm">
-                        {isSplitMode ? 'Geteilte Woche' : 'Monatsgrenze'}
+                        {isSplitMode ? "Geteilte Woche" : "Monatsgrenze"}
                       </span>
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Diese Woche erstreckt sich über {currentWeekInfo.months.join(' und ')}</p>
+                    <p>
+                      Diese Woche erstreckt sich über{" "}
+                      {currentWeekInfo.months.join(" und ")}
+                    </p>
                     {isSplitMode ? (
                       <div>
-                        <p className="text-xs mt-1">Modus: An Monatsgrenze geteilt</p>
+                        <p className="text-xs mt-1">
+                          Modus: An Monatsgrenze geteilt
+                        </p>
                         {segmentsData && (
                           <p className="text-xs mt-1">
-                            Zeigt Teil {currentSegment} von {segmentsData.segments.length}
+                            Zeigt Teil {currentSegment} von{" "}
+                            {segmentsData.segments.length}
                           </p>
                         )}
                       </div>
@@ -168,13 +209,13 @@ export function WeekNavigator({
             className="flex items-center gap-2"
           >
             <ChevronLeft className="h-4 w-4" />
-            {isSplitMode && currentSegment > 1 ? 'Vorheriger Teil' : 'Vorherige Woche'}
+            {isSplitMode && currentSegment > 1
+              ? "Vorheriger Teil"
+              : "Vorherige Woche"}
           </Button>
 
           <div className="text-center">
-            <div className="text-lg font-semibold">
-              {formatWeekDisplay()}
-            </div>
+            <div className="text-lg font-semibold">{formatWeekDisplay()}</div>
             <div className="text-sm text-muted-foreground">
               {formatDateRange()}
             </div>
@@ -182,7 +223,7 @@ export function WeekNavigator({
               <div className="text-xs text-amber-600 mt-1">
                 {isSplitMode && currentSegmentData
                   ? `${currentSegmentData.month} ${currentSegmentData.year}`
-                  : currentWeekInfo.months.join(' / ')}
+                  : currentWeekInfo.months.join(" / ")}
               </div>
             )}
             {isSplitMode && segmentsData && (
@@ -190,7 +231,11 @@ export function WeekNavigator({
                 {segmentsData.segments.map((segment) => (
                   <Button
                     key={segment.segment_id}
-                    variant={segment.segment_number === currentSegment ? "default" : "outline"}
+                    variant={
+                      segment.segment_number === currentSegment
+                        ? "default"
+                        : "outline"
+                    }
                     size="sm"
                     className="h-6 px-2 text-xs"
                     onClick={() => onSegmentChange?.(segment.segment_number)}
@@ -209,7 +254,11 @@ export function WeekNavigator({
             disabled={navigationDisabled}
             className="flex items-center gap-2"
           >
-            {isSplitMode && segmentsData && currentSegment < segmentsData.segments.length ? 'Nächster Teil' : 'Nächste Woche'}
+            {isSplitMode &&
+            segmentsData &&
+            currentSegment < segmentsData.segments.length
+              ? "Nächster Teil"
+              : "Nächste Woche"}
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>

@@ -8,7 +8,7 @@ import {
   BarChart3,
   Calendar,
   Target,
-  TrendingUp
+  TrendingUp,
 } from "lucide-react";
 import {
   Bar,
@@ -21,8 +21,8 @@ import {
   ResponsiveContainer,
   Tooltip,
   XAxis,
-  YAxis
-} from 'recharts';
+  YAxis,
+} from "recharts";
 
 interface CoverageAnalysisProps {
   dailyCoverageStats: {
@@ -33,39 +33,64 @@ interface CoverageAnalysisProps {
   };
 }
 
-export function CoverageAnalysis({ dailyCoverageStats }: CoverageAnalysisProps) {
-  const { avgCoverage, coverageByDay, minCoverage, maxCoverage } = dailyCoverageStats;
+export function CoverageAnalysis({
+  dailyCoverageStats,
+}: CoverageAnalysisProps) {
+  const { avgCoverage, coverageByDay, minCoverage, maxCoverage } =
+    dailyCoverageStats;
 
   // Find days with lowest and highest coverage
-  const worstDay = coverageByDay.find(d => d.coverage === minCoverage);
-  const bestDay = coverageByDay.find(d => d.coverage === maxCoverage);
-  const daysWithNoCoverage = coverageByDay.filter(d => d.coverage === 0);
+  const worstDay = coverageByDay.find((d) => d.coverage === minCoverage);
+  const bestDay = coverageByDay.find((d) => d.coverage === maxCoverage);
+  const daysWithNoCoverage = coverageByDay.filter((d) => d.coverage === 0);
 
   const getCoverageStatus = (coverage: number) => {
-    if (coverage === 0) return { variant: "destructive" as const, label: "Keine Besetzung" };
-    if (coverage < avgCoverage * 0.5) return { variant: "destructive" as const, label: "Kritisch" };
-    if (coverage < avgCoverage * 0.8) return { variant: "secondary" as const, label: "Niedrig" };
+    if (coverage === 0)
+      return { variant: "destructive" as const, label: "Keine Besetzung" };
+    if (coverage < avgCoverage * 0.5)
+      return { variant: "destructive" as const, label: "Kritisch" };
+    if (coverage < avgCoverage * 0.8)
+      return { variant: "secondary" as const, label: "Niedrig" };
     return { variant: "default" as const, label: "Normal" };
   };
 
   // Prepare chart data
-  const chartData = coverageByDay.map(day => ({
-    date: format(day.date, 'dd.MM', { locale: de }),
-    fullDate: format(day.date, 'EEEE, dd.MM.', { locale: de }),
+  const chartData = coverageByDay.map((day) => ({
+    date: format(day.date, "dd.MM", { locale: de }),
+    fullDate: format(day.date, "EEEE, dd.MM.", { locale: de }),
     coverage: day.coverage,
     dayName: day.dayName,
     status: getCoverageStatus(day.coverage).label,
-    statusColor: day.coverage === 0 ? '#ef4444' :
-      day.coverage < avgCoverage * 0.5 ? '#ef4444' :
-        day.coverage < avgCoverage * 0.8 ? '#f59e0b' : '#10b981'
+    statusColor:
+      day.coverage === 0
+        ? "#ef4444"
+        : day.coverage < avgCoverage * 0.5
+          ? "#ef4444"
+          : day.coverage < avgCoverage * 0.8
+            ? "#f59e0b"
+            : "#10b981",
   }));
 
   // Coverage distribution data
   const coverageRanges = [
-    { range: '0', count: daysWithNoCoverage.length, color: '#ef4444' },
-    { range: '1-2', count: coverageByDay.filter(d => d.coverage >= 1 && d.coverage <= 2).length, color: '#f59e0b' },
-    { range: '3-5', count: coverageByDay.filter(d => d.coverage >= 3 && d.coverage <= 5).length, color: '#3b82f6' },
-    { range: '6+', count: coverageByDay.filter(d => d.coverage >= 6).length, color: '#10b981' }
+    { range: "0", count: daysWithNoCoverage.length, color: "#ef4444" },
+    {
+      range: "1-2",
+      count: coverageByDay.filter((d) => d.coverage >= 1 && d.coverage <= 2)
+        .length,
+      color: "#f59e0b",
+    },
+    {
+      range: "3-5",
+      count: coverageByDay.filter((d) => d.coverage >= 3 && d.coverage <= 5)
+        .length,
+      color: "#3b82f6",
+    },
+    {
+      range: "6+",
+      count: coverageByDay.filter((d) => d.coverage >= 6).length,
+      color: "#10b981",
+    },
   ];
 
   return (
@@ -79,9 +104,7 @@ export function CoverageAnalysis({ dailyCoverageStats }: CoverageAnalysisProps) 
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{avgCoverage.toFixed(1)}</div>
-            <p className="text-xs text-muted-foreground">
-              Mitarbeiter pro Tag
-            </p>
+            <p className="text-xs text-muted-foreground">Mitarbeiter pro Tag</p>
           </CardContent>
         </Card>
 
@@ -91,9 +114,13 @@ export function CoverageAnalysis({ dailyCoverageStats }: CoverageAnalysisProps) 
             <Target className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{maxCoverage}</div>
+            <div className="text-2xl font-bold text-green-600">
+              {maxCoverage}
+            </div>
             <p className="text-xs text-muted-foreground">
-              {bestDay ? format(bestDay.date, 'EEE dd.MM.', { locale: de }) : 'N/A'}
+              {bestDay
+                ? format(bestDay.date, "EEE dd.MM.", { locale: de })
+                : "N/A"}
             </p>
           </CardContent>
         </Card>
@@ -101,14 +128,20 @@ export function CoverageAnalysis({ dailyCoverageStats }: CoverageAnalysisProps) 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Minimum</CardTitle>
-            <AlertTriangle className={`h-4 w-4 ${minCoverage === 0 ? 'text-red-600' : 'text-orange-600'}`} />
+            <AlertTriangle
+              className={`h-4 w-4 ${minCoverage === 0 ? "text-red-600" : "text-orange-600"}`}
+            />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${minCoverage === 0 ? 'text-red-600' : 'text-orange-600'}`}>
+            <div
+              className={`text-2xl font-bold ${minCoverage === 0 ? "text-red-600" : "text-orange-600"}`}
+            >
               {minCoverage}
             </div>
             <p className="text-xs text-muted-foreground">
-              {worstDay ? format(worstDay.date, 'EEE dd.MM.', { locale: de }) : 'N/A'}
+              {worstDay
+                ? format(worstDay.date, "EEE dd.MM.", { locale: de })
+                : "N/A"}
             </p>
           </CardContent>
         </Card>
@@ -125,21 +158,29 @@ export function CoverageAnalysis({ dailyCoverageStats }: CoverageAnalysisProps) 
         <CardContent>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <ComposedChart
+                data={chartData}
+                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 12 }}
-                />
+                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip
-                  formatter={(value: number) => [`${value} Mitarbeiter`, 'Besetzung']}
+                  formatter={(value: number) => [
+                    `${value} Mitarbeiter`,
+                    "Besetzung",
+                  ]}
                   labelFormatter={(label) => {
-                    const day = chartData.find(d => d.date === label);
+                    const day = chartData.find((d) => d.date === label);
                     return day ? day.fullDate : label;
                   }}
                 />
-                <ReferenceLine y={avgCoverage} stroke="#666" strokeDasharray="5 5" label="Ø" />
+                <ReferenceLine
+                  y={avgCoverage}
+                  stroke="#666"
+                  strokeDasharray="5 5"
+                  label="Ø"
+                />
                 <Bar
                   dataKey="coverage"
                   fill="#8884d8"
@@ -172,12 +213,15 @@ export function CoverageAnalysis({ dailyCoverageStats }: CoverageAnalysisProps) 
         <CardContent>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={coverageRanges} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <BarChart
+                data={coverageRanges}
+                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="range" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip
-                  formatter={(value: number) => [`${value} Tage`, 'Anzahl']}
+                  formatter={(value: number) => [`${value} Tage`, "Anzahl"]}
                   labelFormatter={(label) => `${label} Mitarbeiter`}
                 />
                 <Bar
@@ -212,7 +256,8 @@ export function CoverageAnalysis({ dailyCoverageStats }: CoverageAnalysisProps) 
                   <span className="text-sm font-medium">Beste Abdeckung:</span>
                 </div>
                 <div className="text-sm font-medium">
-                  {format(bestDay.date, 'EEEE, dd.MM.', { locale: de })} ({bestDay.coverage} Mitarbeiter)
+                  {format(bestDay.date, "EEEE, dd.MM.", { locale: de })} (
+                  {bestDay.coverage} Mitarbeiter)
                 </div>
               </div>
             )}
@@ -221,10 +266,13 @@ export function CoverageAnalysis({ dailyCoverageStats }: CoverageAnalysisProps) 
               <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg">
                 <div className="flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-orange-600" />
-                  <span className="text-sm font-medium">Niedrigste Abdeckung:</span>
+                  <span className="text-sm font-medium">
+                    Niedrigste Abdeckung:
+                  </span>
                 </div>
                 <div className="text-sm font-medium">
-                  {format(worstDay.date, 'EEEE, dd.MM.', { locale: de })} ({worstDay.coverage} Mitarbeiter)
+                  {format(worstDay.date, "EEEE, dd.MM.", { locale: de })} (
+                  {worstDay.coverage} Mitarbeiter)
                 </div>
               </div>
             )}
@@ -238,9 +286,9 @@ export function CoverageAnalysis({ dailyCoverageStats }: CoverageAnalysisProps) 
                   </span>
                 </div>
                 <div className="text-sm text-red-600 dark:text-red-400">
-                  {daysWithNoCoverage.map(day =>
-                    format(day.date, 'dd.MM.', { locale: de })
-                  ).join(', ')}
+                  {daysWithNoCoverage
+                    .map((day) => format(day.date, "dd.MM.", { locale: de }))
+                    .join(", ")}
                 </div>
               </div>
             )}
@@ -265,24 +313,30 @@ export function CoverageAnalysis({ dailyCoverageStats }: CoverageAnalysisProps) 
                   key={index}
                   className="flex items-center justify-between p-3 rounded-lg border hover:shadow-sm transition-shadow"
                   style={{
-                    borderColor: status.variant === 'destructive' ? '#ef4444' :
-                      status.variant === 'secondary' ? '#f59e0b' : '#10b981',
-                    backgroundColor: status.variant === 'destructive' ? '#fef2f2' :
-                      status.variant === 'secondary' ? '#fffbeb' : '#f0fdf4'
+                    borderColor:
+                      status.variant === "destructive"
+                        ? "#ef4444"
+                        : status.variant === "secondary"
+                          ? "#f59e0b"
+                          : "#10b981",
+                    backgroundColor:
+                      status.variant === "destructive"
+                        ? "#fef2f2"
+                        : status.variant === "secondary"
+                          ? "#fffbeb"
+                          : "#f0fdf4",
                   }}
                 >
                   <div>
                     <div className="text-sm font-medium">
-                      {format(day.date, 'EEE dd.MM.', { locale: de })}
+                      {format(day.date, "EEE dd.MM.", { locale: de })}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {day.dayName}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold">
-                      {day.coverage}
-                    </span>
+                    <span className="text-lg font-bold">{day.coverage}</span>
                     <Badge variant={status.variant} className="text-xs">
                       {status.label}
                     </Badge>

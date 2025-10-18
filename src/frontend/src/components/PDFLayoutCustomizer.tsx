@@ -1,28 +1,25 @@
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { useToast } from '@/components/ui/use-toast';
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
-    Eye,
-    EyeOff,
-    Info,
-    Lightbulb,
-    Menu,
-    Settings
-} from 'lucide-react';
-import React, { useCallback, useState } from 'react';
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { useToast } from "@/components/ui/use-toast";
+import { Eye, EyeOff, Info, Lightbulb, Menu, Settings } from "lucide-react";
+import React, { useCallback, useState } from "react";
 
-import { usePDFLayoutState } from '@/hooks/usePDFLayoutState';
-import { SimplifiedPDFConfig } from '@/types/SimplifiedPDFConfig';
-import { ContentLayoutSection } from './ContentLayoutSection';
-import { LivePDFPreview } from './LivePDFPreview';
-import { PageSetupSection } from './PageSetupSection';
-import { PreviewControls } from './PreviewControls';
-import { QuickPresets } from './QuickPresets';
-import { StylingSection } from './StylingSection';
+import { usePDFLayoutState } from "@/hooks/usePDFLayoutState";
+import { SimplifiedPDFConfig } from "@/types/SimplifiedPDFConfig";
+import { ContentLayoutSection } from "./ContentLayoutSection";
+import { LivePDFPreview } from "./LivePDFPreview";
+import { PageSetupSection } from "./PageSetupSection";
+import { PreviewControls } from "./PreviewControls";
+import { QuickPresets } from "./QuickPresets";
+import { StylingSection } from "./StylingSection";
 
 interface PDFLayoutCustomizerProps {
   initialConfig?: Partial<SimplifiedPDFConfig>;
@@ -35,7 +32,7 @@ export function PDFLayoutCustomizer({
   initialConfig,
   onSave,
   onDownload,
-  className = '',
+  className = "",
 }: PDFLayoutCustomizerProps) {
   const [selectedElement, setSelectedElement] = useState<string | undefined>();
   const [settingsVisible, setSettingsVisible] = useState(true);
@@ -58,7 +55,7 @@ export function PDFLayoutCustomizer({
   } = usePDFLayoutState({
     initialConfig,
     autoSave: true,
-    autoSaveKey: 'pdf-layout-customizer',
+    autoSaveKey: "pdf-layout-customizer",
     onSave,
   });
 
@@ -67,54 +64,60 @@ export function PDFLayoutCustomizer({
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
-    
+
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  const handleConfigChange = useCallback((updates: Partial<SimplifiedPDFConfig>) => {
-    const errors = validateConfig(updates);
-    if (errors.length > 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Configuration Error',
-        description: errors.join(', '),
-      });
-      return;
-    }
-    
-    updateConfig(updates);
-  }, [updateConfig, validateConfig, toast]);
+  const handleConfigChange = useCallback(
+    (updates: Partial<SimplifiedPDFConfig>) => {
+      const errors = validateConfig(updates);
+      if (errors.length > 0) {
+        toast({
+          variant: "destructive",
+          title: "Configuration Error",
+          description: errors.join(", "),
+        });
+        return;
+      }
 
-  const handlePresetSelect = useCallback((presetId: string) => {
-    const success = applyPreset(presetId);
-    if (success) {
-      toast({
-        title: 'Preset Applied',
-        description: `Successfully applied ${presetId} preset.`,
-      });
-    } else {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to apply preset.',
-      });
-    }
-  }, [applyPreset, toast]);
+      updateConfig(updates);
+    },
+    [updateConfig, validateConfig, toast],
+  );
+
+  const handlePresetSelect = useCallback(
+    (presetId: string) => {
+      const success = applyPreset(presetId);
+      if (success) {
+        toast({
+          title: "Preset Applied",
+          description: `Successfully applied ${presetId} preset.`,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to apply preset.",
+        });
+      }
+    },
+    [applyPreset, toast],
+  );
 
   const handleSave = useCallback(async () => {
     try {
       await save();
       toast({
-        title: 'Settings Saved',
-        description: 'Your PDF layout settings have been saved successfully.',
+        title: "Settings Saved",
+        description: "Your PDF layout settings have been saved successfully.",
       });
     } catch {
       toast({
-        variant: 'destructive',
-        title: 'Save Failed',
-        description: 'Failed to save settings. Please try again.',
+        variant: "destructive",
+        title: "Save Failed",
+        description: "Failed to save settings. Please try again.",
       });
     }
   }, [save, toast]);
@@ -124,14 +127,14 @@ export function PDFLayoutCustomizer({
       try {
         await onDownload(config);
         toast({
-          title: 'Download Started',
-          description: 'Your PDF is being generated and will download shortly.',
+          title: "Download Started",
+          description: "Your PDF is being generated and will download shortly.",
         });
       } catch {
         toast({
-          variant: 'destructive',
-          title: 'Download Failed',
-          description: 'Failed to generate PDF. Please try again.',
+          variant: "destructive",
+          title: "Download Failed",
+          description: "Failed to generate PDF. Please try again.",
         });
       }
     }
@@ -140,8 +143,8 @@ export function PDFLayoutCustomizer({
   const handleReset = useCallback(() => {
     reset();
     toast({
-      title: 'Settings Reset',
-      description: 'All settings have been reset to default values.',
+      title: "Settings Reset",
+      description: "All settings have been reset to default values.",
     });
   }, [reset, toast]);
 
@@ -171,8 +174,8 @@ export function PDFLayoutCustomizer({
           <Info className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
             <span>Current preset: {config.preset}</span>
-            <Badge variant={isDirty ? 'secondary' : 'default'}>
-              {isDirty ? 'Modified' : 'Saved'}
+            <Badge variant={isDirty ? "secondary" : "default"}>
+              {isDirty ? "Modified" : "Saved"}
             </Badge>
           </AlertDescription>
         </Alert>
@@ -181,8 +184,9 @@ export function PDFLayoutCustomizer({
         <Alert>
           <Lightbulb className="h-4 w-4" />
           <AlertDescription className="text-sm">
-            <strong>Tip:</strong> Click on elements in the preview to select and modify them. 
-            Use presets as starting points and customize to your needs.
+            <strong>Tip:</strong> Click on elements in the preview to select and
+            modify them. Use presets as starting points and customize to your
+            needs.
           </AlertDescription>
         </Alert>
 
@@ -203,10 +207,7 @@ export function PDFLayoutCustomizer({
             onConfigChange={handleConfigChange}
           />
 
-          <StylingSection
-            config={config}
-            onConfigChange={handleConfigChange}
-          />
+          <StylingSection config={config} onConfigChange={handleConfigChange} />
 
           <PreviewControls
             canUndo={canUndo}
@@ -232,7 +233,7 @@ export function PDFLayoutCustomizer({
           <Eye className="h-5 w-5" />
           <h2 className="text-lg font-semibold">Live Preview</h2>
         </div>
-        
+
         <div className="flex items-center gap-2">
           {!settingsVisible && !isMobile && (
             <Button
@@ -244,7 +245,7 @@ export function PDFLayoutCustomizer({
               <Settings className="h-4 w-4" />
             </Button>
           )}
-          
+
           {isMobile && (
             <Sheet>
               <SheetTrigger asChild>
@@ -273,11 +274,7 @@ export function PDFLayoutCustomizer({
   );
 
   if (isMobile) {
-    return (
-      <div className={`h-full ${className}`}>
-        {renderPreviewPanel()}
-      </div>
-    );
+    return <div className={`h-full ${className}`}>{renderPreviewPanel()}</div>;
   }
 
   return (

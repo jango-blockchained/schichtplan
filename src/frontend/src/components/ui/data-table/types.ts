@@ -26,7 +26,11 @@ export interface ColumnDefinition<T> {
   searchable?: boolean;
   render?: (value: T[keyof T], item: T) => ReactNode;
   type?: "text" | "number" | "boolean" | "date" | "enum" | "badges" | "actions";
-  enumOptions?: { value: string | number | boolean; label: string; variant?: string }[];
+  enumOptions?: {
+    value: string | number | boolean;
+    label: string;
+    variant?: string;
+  }[];
 }
 
 export interface TableAction<T> {

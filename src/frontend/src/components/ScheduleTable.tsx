@@ -30,16 +30,19 @@ import {
 } from "@/components/ui/tooltip";
 import { useEmployeeAvailability } from "@/hooks/useAvailabilityContext";
 import { cn } from "@/lib/utils";
-import {
-  createSchedule,
-  getEmployees,
-  getSettings,
-} from "@/services/api";
+import { createSchedule, getEmployees, getSettings } from "@/services/api";
 import { Employee, Schedule, ScheduleUpdate, SpecialDay } from "@/types";
 import { categorizeShift } from "@/utils/shiftType";
 import { WeekInfo } from "@/utils/weekUtils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { addDays, endOfDay, format, isWithinInterval, parseISO, startOfDay } from "date-fns";
+import {
+  addDays,
+  endOfDay,
+  format,
+  isWithinInterval,
+  parseISO,
+  startOfDay,
+} from "date-fns";
 import {
   ArrowDown,
   ArrowUp,
@@ -54,7 +57,7 @@ import {
   Maximize2,
   Minimize2,
   Plus,
-  Trash2
+  Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { DateRange } from "react-day-picker";
@@ -63,7 +66,9 @@ import { AddScheduleDialog } from "./Schedule/AddScheduleDialog";
 import { ShiftEditModal } from "./ShiftEditModal";
 
 // Helper function to get status badge for version status (matching Action Dock style)
-const getStatusBadge = (status: "DRAFT" | "PUBLISHED" | "ARCHIVED" | undefined) => {
+const getStatusBadge = (
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED" | undefined,
+) => {
   if (!status) return null;
 
   return (
@@ -71,9 +76,12 @@ const getStatusBadge = (status: "DRAFT" | "PUBLISHED" | "ARCHIVED" | undefined) 
       variant="outline"
       className={cn(
         "text-xs",
-        status === "PUBLISHED" && "bg-green-500/20 text-green-300 border-green-500/30",
-        status === "DRAFT" && "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
-        status === "ARCHIVED" && "bg-gray-500/20 text-gray-300 border-gray-500/30"
+        status === "PUBLISHED" &&
+          "bg-green-500/20 text-green-300 border-green-500/30",
+        status === "DRAFT" &&
+          "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+        status === "ARCHIVED" &&
+          "bg-gray-500/20 text-gray-300 border-gray-500/30",
       )}
     >
       {status.toLowerCase()}
@@ -126,12 +134,27 @@ const calculateBaseDuration = (startTime: string, endTime: string): number => {
 const getKeyholderAdjustedTimes = (
   schedule: Schedule,
   employee: Employee | undefined,
-  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
+  settings?: {
+    general?: {
+      keyholder_before_minutes?: number;
+      keyholder_after_minutes?: number;
+      store_opening?: string;
+      store_closing?: string;
+    };
+  },
 ): { startTime: string; endTime: string } => {
   const isKeyholderShift = employee?.is_keyholder && schedule?.shift_id;
 
-  if (!isKeyholderShift || !schedule.shift_start || !schedule.shift_end || !settings?.general) {
-    return { startTime: schedule.shift_start || "00:00", endTime: schedule.shift_end || "00:00" };
+  if (
+    !isKeyholderShift ||
+    !schedule.shift_start ||
+    !schedule.shift_end ||
+    !settings?.general
+  ) {
+    return {
+      startTime: schedule.shift_start || "00:00",
+      endTime: schedule.shift_end || "00:00",
+    };
   }
 
   const keyholderBeforeMinutes = settings.general.keyholder_before_minutes || 5;
@@ -148,7 +171,7 @@ const getKeyholderAdjustedTimes = (
     const adjustedMinutes = hours * 60 + minutes - keyholderBeforeMinutes;
     const newHours = Math.floor(adjustedMinutes / 60);
     const newMinutes = adjustedMinutes % 60;
-    adjustedStartTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
+    adjustedStartTime = `${newHours.toString().padStart(2, "0")}:${newMinutes.toString().padStart(2, "0")}`;
   }
 
   // Check if this is a closing shift (ends at store closing time)
@@ -157,7 +180,7 @@ const getKeyholderAdjustedTimes = (
     const adjustedMinutes = hours * 60 + minutes + keyholderAfterMinutes;
     const newHours = Math.floor(adjustedMinutes / 60);
     const newMinutes = adjustedMinutes % 60;
-    adjustedEndTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
+    adjustedEndTime = `${newHours.toString().padStart(2, "0")}:${newMinutes.toString().padStart(2, "0")}`;
   }
 
   return { startTime: adjustedStartTime, endTime: adjustedEndTime };
@@ -167,7 +190,14 @@ const getKeyholderAdjustedTimes = (
 const calculateBreakDuration = (
   schedule: Schedule,
   employee: Employee | undefined,
-  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
+  settings?: {
+    general?: {
+      keyholder_before_minutes?: number;
+      keyholder_after_minutes?: number;
+      store_opening?: string;
+      store_closing?: string;
+    };
+  },
 ): number => {
   // Start with the regular break duration from the schedule
   let totalBreakTime = 0;
@@ -176,8 +206,15 @@ const calculateBreakDuration = (
   }
 
   // Fallback to auto break when no manual duration is stored
-  if ((!schedule.break_duration || schedule.break_duration <= 0) && schedule.shift_start && schedule.shift_end) {
-    const baseHours = calculateBaseDuration(schedule.shift_start, schedule.shift_end);
+  if (
+    (!schedule.break_duration || schedule.break_duration <= 0) &&
+    schedule.shift_start &&
+    schedule.shift_end
+  ) {
+    const baseHours = calculateBaseDuration(
+      schedule.shift_start,
+      schedule.shift_end,
+    );
     // Standard: 30 minutes for shifts > 6h
     if (baseHours > 6) {
       totalBreakTime += 0.5;
@@ -190,9 +227,16 @@ const calculateBreakDuration = (
 
   // Add keyholder extra time as break time
   const isKeyholderShift = employee?.is_keyholder && schedule?.shift_id;
-  if (isKeyholderShift && schedule.shift_start && schedule.shift_end && settings?.general) {
-    const keyholderBeforeMinutes = settings.general.keyholder_before_minutes || 5;
-    const keyholderAfterMinutes = settings.general.keyholder_after_minutes || 10;
+  if (
+    isKeyholderShift &&
+    schedule.shift_start &&
+    schedule.shift_end &&
+    settings?.general
+  ) {
+    const keyholderBeforeMinutes =
+      settings.general.keyholder_before_minutes || 5;
+    const keyholderAfterMinutes =
+      settings.general.keyholder_after_minutes || 10;
     const storeOpening = settings.general.store_opening;
     const storeClosing = settings.general.store_closing;
 
@@ -219,15 +263,25 @@ const calculateBreakDuration = (
 const calculateWorkingTime = (
   schedule: Schedule,
   employee: Employee | undefined,
-  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
-): { totalTime: number, breakTime: number, workingTime: number } => {
-
+  settings?: {
+    general?: {
+      keyholder_before_minutes?: number;
+      keyholder_after_minutes?: number;
+      store_opening?: string;
+      store_closing?: string;
+    };
+  },
+): { totalTime: number; breakTime: number; workingTime: number } => {
   if (!schedule.shift_start || !schedule.shift_end) {
     return { totalTime: 0, breakTime: 0, workingTime: 0 };
   }
 
   // Calculate total time using keyholder-adjusted times (includes keyholder extra time)
-  const { startTime, endTime } = getKeyholderAdjustedTimes(schedule, employee, settings);
+  const { startTime, endTime } = getKeyholderAdjustedTimes(
+    schedule,
+    employee,
+    settings,
+  );
   const totalTime = calculateBaseDuration(startTime, endTime);
 
   // Calculate total break time (including keyholder extra time as break)
@@ -312,7 +366,14 @@ interface TimeSlotDisplayProps {
   startTime: string;
   endTime: string;
   shiftType: string;
-  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } };
+  settings?: {
+    general?: {
+      keyholder_before_minutes?: number;
+      keyholder_after_minutes?: number;
+      store_opening?: string;
+      store_closing?: string;
+    };
+  };
   schedule: Schedule;
   employee: Employee | undefined;
 }
@@ -354,8 +415,10 @@ const TimeSlotDisplay = ({
       return { adjustedStartTime: startTime, adjustedEndTime: endTime };
     }
 
-    const keyholderBeforeMinutes = settings.general.keyholder_before_minutes || 5;
-    const keyholderAfterMinutes = settings.general.keyholder_after_minutes || 10;
+    const keyholderBeforeMinutes =
+      settings.general.keyholder_before_minutes || 5;
+    const keyholderAfterMinutes =
+      settings.general.keyholder_after_minutes || 10;
     const storeOpening = settings.general.store_opening;
     const storeClosing = settings.general.store_closing;
 
@@ -368,7 +431,7 @@ const TimeSlotDisplay = ({
       const adjustedMinutes = hours * 60 + minutes - keyholderBeforeMinutes;
       const newHours = Math.floor(adjustedMinutes / 60);
       const newMinutes = adjustedMinutes % 60;
-      adjustedStartTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
+      adjustedStartTime = `${newHours.toString().padStart(2, "0")}:${newMinutes.toString().padStart(2, "0")}`;
     }
 
     // Check if this is a closing shift (ends at store closing time)
@@ -377,7 +440,7 @@ const TimeSlotDisplay = ({
       const adjustedMinutes = hours * 60 + minutes + keyholderAfterMinutes;
       const newHours = Math.floor(adjustedMinutes / 60);
       const newMinutes = adjustedMinutes % 60;
-      adjustedEndTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
+      adjustedEndTime = `${newHours.toString().padStart(2, "0")}:${newMinutes.toString().padStart(2, "0")}`;
     }
 
     return { adjustedStartTime, adjustedEndTime };
@@ -408,13 +471,14 @@ const TimeSlotDisplay = ({
     // Categorize without passing full settings; function has defaults for opening/closing
     const cat = categorizeShift(startTime, endTime);
     return cat;
-
   };
 
   // Add a more visible diagnostic indicator for missing time data
-  const hasMissingTimeData = (
-    (!startTime || !endTime) || (startTime === "00:00" && endTime === "00:00")
-  ) && schedule?.shift_id;
+  const hasMissingTimeData =
+    (!startTime ||
+      !endTime ||
+      (startTime === "00:00" && endTime === "00:00")) &&
+    schedule?.shift_id;
 
   // Enhanced debug logging for time slot display
   // Remove debug logging for production
@@ -431,21 +495,31 @@ const TimeSlotDisplay = ({
   // Get shift type color matching dock items
   const getShiftTypeColor = (shiftType: string) => {
     switch (shiftType) {
-      case "EARLY": return "bg-blue-500/20 text-blue-700 border-blue-500/30";
-      case "MIDDLE": return "bg-green-500/20 text-green-700 border-green-500/30";
-      case "LATE": return "bg-amber-500/20 text-amber-700 border-amber-500/30";
-      default: return "bg-slate-500/20 text-slate-700 border-slate-500/30";
+      case "EARLY":
+        return "bg-blue-500/20 text-blue-700 border-blue-500/30";
+      case "MIDDLE":
+        return "bg-green-500/20 text-green-700 border-green-500/30";
+      case "LATE":
+        return "bg-amber-500/20 text-amber-700 border-amber-500/30";
+      default:
+        return "bg-slate-500/20 text-slate-700 border-slate-500/30";
     }
   };
 
   const getShiftTypeName = (shiftType: string) => {
     switch (shiftType) {
-      case "EARLY": return "Früh";
-      case "MIDDLE": return "Mitte";
-      case "LATE": return "Spät";
-      case "NO_WORK": return "Kein Dienst";
-      case "UNAVAILABLE": return "Nicht verfügbar";
-      default: return "Schicht";
+      case "EARLY":
+        return "Früh";
+      case "MIDDLE":
+        return "Mitte";
+      case "LATE":
+        return "Spät";
+      case "NO_WORK":
+        return "Kein Dienst";
+      case "UNAVAILABLE":
+        return "Nicht verfügbar";
+      default:
+        return "Schicht";
     }
   };
 
@@ -465,7 +539,8 @@ const TimeSlotDisplay = ({
 
   // Handle the case where we have a schedule with ID but no time data
   if (hasMissingTimeData) {
-    const shiftTypeName = schedule?.shift_type_name || getShiftTypeName(effectiveShiftType);
+    const shiftTypeName =
+      schedule?.shift_type_name || getShiftTypeName(effectiveShiftType);
 
     return (
       <div className="flex flex-col items-center p-3 rounded-lg border border-border bg-card min-w-[100px] select-none">
@@ -476,13 +551,14 @@ const TimeSlotDisplay = ({
         <div className="flex flex-col gap-1 items-center">
           <Badge
             variant="secondary"
-            className={cn("text-xs font-medium", getShiftTypeColor(effectiveShiftType))}
+            className={cn(
+              "text-xs font-medium",
+              getShiftTypeColor(effectiveShiftType),
+            )}
           >
             {getShiftTypeName(effectiveShiftType)}
           </Badge>
-          <div className="text-xs text-muted-foreground">
-            Zeiten fehlen
-          </div>
+          <div className="text-xs text-muted-foreground">Zeiten fehlen</div>
           {duration > 0 && (
             <div className="text-xs text-muted-foreground font-medium">
               {formatDuration(duration)}
@@ -497,9 +573,7 @@ const TimeSlotDisplay = ({
     <div className="flex flex-col items-center p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-all min-w-[100px] select-none">
       <div className="flex items-center gap-1 mb-1">
         <GripVertical className="h-4 w-4 text-muted-foreground" />
-        {isKeyholderShift && (
-          <Key className="h-4 w-4 text-amber-600" />
-        )}
+        {isKeyholderShift && <Key className="h-4 w-4 text-amber-600" />}
         {schedule?.availability_type === "FIXED" && (
           <Calendar className="h-4 w-4 text-blue-600" />
         )}
@@ -512,7 +586,7 @@ const TimeSlotDisplay = ({
           variant="secondary"
           className={cn(
             "text-xs font-medium",
-            getShiftTypeColor(effectiveShiftType)
+            getShiftTypeColor(effectiveShiftType),
           )}
         >
           {getShiftTypeName(effectiveShiftType)}
@@ -522,9 +596,17 @@ const TimeSlotDisplay = ({
             {(() => {
               if (schedule) {
                 // Use the centralized function that handles keyholder adjustments properly
-                const timeCalc = calculateWorkingTime(schedule, employee, settings);
-                const workingTimeFormatted = formatTimeHourMin(timeCalc.workingTime);
-                const breakTimeFormatted = formatTimeHourMin(timeCalc.breakTime);
+                const timeCalc = calculateWorkingTime(
+                  schedule,
+                  employee,
+                  settings,
+                );
+                const workingTimeFormatted = formatTimeHourMin(
+                  timeCalc.workingTime,
+                );
+                const breakTimeFormatted = formatTimeHourMin(
+                  timeCalc.breakTime,
+                );
                 return `${workingTimeFormatted} / ${breakTimeFormatted}`;
               }
               return formatDuration(duration);
@@ -571,7 +653,11 @@ const ScheduleCell = ({
   const [showActions, setShowActions] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   // Use optimized bulk availability checking instead of individual API calls
-  const { isAvailable: employeeAvailable, absenceInfo, isLoading: availabilityLoading } = useEmployeeAvailability(employeeId, date);
+  const {
+    isAvailable: employeeAvailable,
+    absenceInfo,
+    isLoading: availabilityLoading,
+  } = useEmployeeAvailability(employeeId, date);
   const queryClient = useQueryClient();
 
   // Get employee data
@@ -586,7 +672,7 @@ const ScheduleCell = ({
     queryFn: getSettings,
   });
 
-  const employee = employees?.find(emp => emp.id === employeeId);
+  const employee = employees?.find((emp) => emp.id === employeeId);
 
   // Add drag functionality for existing schedules
   const [{ isDragging }, drag] = useDrag({
@@ -601,8 +687,8 @@ const ScheduleCell = ({
         date: schedule.date,
         shift_type_id: schedule.shift_type_id,
         isDockItem: false,
-  start_time: schedule.shift_start,
-  end_time: schedule.shift_end,
+        start_time: schedule.shift_start,
+        end_time: schedule.shift_end,
       };
     },
     collect: (monitor) => ({
@@ -627,7 +713,8 @@ const ScheduleCell = ({
         const opening = daySpecial.custom_hours.opening;
         const closing = daySpecial.custom_hours.closing;
         // Determine candidate times: prefer drag item times, fallback to existing schedule times
-        const candStart = item?.start_time || schedule?.shift_start || undefined;
+        const candStart =
+          item?.start_time || schedule?.shift_start || undefined;
         const candEnd = item?.end_time || schedule?.shift_end || undefined;
         if (candStart && candEnd) {
           if (candStart < opening || candEnd > closing) {
@@ -647,7 +734,8 @@ const ScheduleCell = ({
       if (daySpecial && daySpecial.custom_hours) {
         const opening = daySpecial.custom_hours.opening;
         const closing = daySpecial.custom_hours.closing;
-        const candStart = item?.start_time || schedule?.shift_start || undefined;
+        const candStart =
+          item?.start_time || schedule?.shift_start || undefined;
         const candEnd = item?.end_time || schedule?.shift_end || undefined;
         if (candStart && candEnd) {
           if (candStart < opening || candEnd > closing) {
@@ -664,8 +752,8 @@ const ScheduleCell = ({
 
           // Call the dock drop handler through a global mechanism or context
           // For now, we'll use a custom event to communicate with the parent
-          const dockDropEvent = new CustomEvent('dockDrop', {
-            detail: { employeeId, date, shiftId: item.shiftId }
+          const dockDropEvent = new CustomEvent("dockDrop", {
+            detail: { employeeId, date, shiftId: item.shiftId },
           });
           window.dispatchEvent(dockDropEvent);
         } else if (item.employeeId && item.employeeId > 0) {
@@ -695,7 +783,8 @@ const ScheduleCell = ({
   useEffect(() => {
     if (schedule) {
       // Debug output for cell availability
-      if (employee?.first_name === "Maike" && date.getDay() === 5) { // Friday is 5 in JS
+      if (employee?.first_name === "Maike" && date.getDay() === 5) {
+        // Friday is 5 in JS
         // Show debug info in the cell for Maike on Friday
         (window as { maikeFridayDebug?: object }).maikeFridayDebug = {
           employeeId,
@@ -719,8 +808,16 @@ const ScheduleCell = ({
         className={cn(
           "relative h-full min-h-[80px] p-2 transition-colors",
           isUnavailable ? "cursor-not-allowed" : "",
-          !isUnavailable && !isLoading && isOver && canDrop && "bg-primary/10 border-primary/30",
-          !isUnavailable && !isLoading && isOver && !canDrop && "bg-destructive/10 border-destructive/30"
+          !isUnavailable &&
+            !isLoading &&
+            isOver &&
+            canDrop &&
+            "bg-primary/10 border-primary/30",
+          !isUnavailable &&
+            !isLoading &&
+            isOver &&
+            !canDrop &&
+            "bg-destructive/10 border-destructive/30",
         )}
         onMouseEnter={() => !isLoading && setShowActions(true)}
         onMouseLeave={() => {
@@ -744,9 +841,9 @@ const ScheduleCell = ({
             {absenceInfo ? (
               <Badge
                 style={{
-                  backgroundColor: absenceInfo.absence_type_color + '20',
+                  backgroundColor: absenceInfo.absence_type_color + "20",
                   borderColor: absenceInfo.absence_type_color,
-                  color: absenceInfo.absence_type_color
+                  color: absenceInfo.absence_type_color,
                 }}
                 className="text-xs font-medium border"
               >
@@ -759,7 +856,9 @@ const ScheduleCell = ({
             )}
             {/* Debug info for specific employee */}
             {employeeId === 10 && date.getDay() === 2 && (
-              <span className="text-[10px] text-gray-400 mt-1">Debug: {String(employeeAvailable)}</span>
+              <span className="text-[10px] text-gray-400 mt-1">
+                Debug: {String(employeeAvailable)}
+              </span>
             )}
           </div>
         )}
@@ -790,9 +889,11 @@ const ScheduleCell = ({
               <div className="w-px h-6 bg-border" />
 
               {/* Dropdown arrow for submenu */}
-              <DropdownMenu onOpenChange={(open) => {
-                setIsDropdownOpen(open);
-              }}>
+              <DropdownMenu
+                onOpenChange={(open) => {
+                  setIsDropdownOpen(open);
+                }}
+              >
                 <DropdownMenuTrigger asChild>
                   <Button
                     size="sm"
@@ -809,7 +910,9 @@ const ScheduleCell = ({
                     Schicht hinzufügen
                   </DropdownMenuItem>
                   {onAddAbsence && (
-                    <DropdownMenuItem onClick={() => onAddAbsence(employeeId, date)}>
+                    <DropdownMenuItem
+                      onClick={() => onAddAbsence(employeeId, date)}
+                    >
                       <Calendar className="h-4 w-4 mr-2" />
                       Abwesenheit hinzufügen
                     </DropdownMenuItem>
@@ -838,7 +941,9 @@ const ScheduleCell = ({
                   const open = daySpecial.custom_hours.opening;
                   const close = daySpecial.custom_hours.closing;
                   if (sel.start_time < open || sel.end_time > close) {
-                    throw new Error(`Schicht liegt außerhalb der erlaubten Öffnungszeiten (${open}–${close}).`);
+                    throw new Error(
+                      `Schicht liegt außerhalb der erlaubten Öffnungszeiten (${open}–${close}).`,
+                    );
                   }
                 }
               }
@@ -861,7 +966,9 @@ const ScheduleCell = ({
                 await createSchedule(newScheduleData);
 
                 // Invalidate the schedules cache to trigger a refetch
-                await queryClient.invalidateQueries({ queryKey: ['schedules'] });
+                await queryClient.invalidateQueries({
+                  queryKey: ["schedules"],
+                });
               }
               // Close the modal after successful operation
               setIsAddModalOpen(false);
@@ -887,8 +994,10 @@ const ScheduleCell = ({
         isOver && canDrop && "bg-primary/10 border-primary/30",
         isOver && !canDrop && "bg-destructive/10 border-destructive/30",
         isDragging && "opacity-50 scale-95",
-        !isEmptySchedule(schedule) && employeeAvailable !== false && "cursor-move",
-        employeeAvailable === false && "opacity-60"
+        !isEmptySchedule(schedule) &&
+          employeeAvailable !== false &&
+          "cursor-move",
+        employeeAvailable === false && "opacity-60",
       )}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => {
@@ -925,7 +1034,7 @@ const ScheduleCell = ({
         </div>
       )}
 
-  <div className="flex flex-col items-center justify-center h-full">
+      <div className="flex flex-col items-center justify-center h-full">
         <TimeSlotDisplay
           startTime={schedule?.shift_start}
           endTime={schedule?.shift_end}
@@ -1022,23 +1131,30 @@ interface EmployeeStatisticsProps {
   employeeGroup?: string;
 }
 
-function EmployeeStatistics({ employeeId, schedules, contractedHours, employeeGroup }: EmployeeStatisticsProps) {
+function EmployeeStatistics({
+  employeeId,
+  schedules,
+  contractedHours,
+  employeeGroup,
+}: EmployeeStatisticsProps) {
   const hours = useMemo(() => {
     // Calculate hours for this employee across all schedules
     const employeeSchedules = schedules.filter(
-      (s) => s.employee_id === employeeId && s.shift_id !== null && !s.is_empty
+      (s) => s.employee_id === employeeId && s.shift_id !== null && !s.is_empty,
     );
 
     let totalHours = 0;
 
     employeeSchedules.forEach((schedule) => {
-      if (!schedule.shift_start || !schedule.shift_end || !schedule.date) return;
+      if (!schedule.shift_start || !schedule.shift_end || !schedule.date)
+        return;
 
       try {
         // Simple hour calculation without date range filtering for hover card
         const startTime = parseISO(`${schedule.date}T${schedule.shift_start}`);
         const endTime = parseISO(`${schedule.date}T${schedule.shift_end}`);
-        const diffInHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+        const diffInHours =
+          (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
 
         totalHours += diffInHours;
       } catch (error) {
@@ -1049,12 +1165,14 @@ function EmployeeStatistics({ employeeId, schedules, contractedHours, employeeGr
     return {
       weeklyHours: totalHours,
       monthlyHours: totalHours,
-      totalHours: totalHours
+      totalHours: totalHours,
     };
   }, [employeeId, schedules]);
 
   const shiftCount = useMemo(() => {
-    return schedules.filter(s => s.employee_id === employeeId && s.shift_id !== null).length;
+    return schedules.filter(
+      (s) => s.employee_id === employeeId && s.shift_id !== null,
+    ).length;
   }, [employeeId, schedules]);
 
   return (
@@ -1075,12 +1193,16 @@ function EmployeeStatistics({ employeeId, schedules, contractedHours, employeeGr
 
           <div className="flex justify-between">
             <span className="text-muted-foreground">Auslastung:</span>
-            <span className={cn(
-              "font-medium px-2 py-1 rounded text-xs",
-              hours.weeklyHours > contractedHours ? "text-red-700 bg-red-100" :
-                hours.weeklyHours < contractedHours * 0.9 ? "text-amber-700 bg-amber-100" :
-                  "text-green-700 bg-green-100"
-            )}>
+            <span
+              className={cn(
+                "font-medium px-2 py-1 rounded text-xs",
+                hours.weeklyHours > contractedHours
+                  ? "text-red-700 bg-red-100"
+                  : hours.weeklyHours < contractedHours * 0.9
+                    ? "text-amber-700 bg-amber-100"
+                    : "text-green-700 bg-green-100",
+              )}
+            >
               {((hours.weeklyHours / contractedHours) * 100).toFixed(0)}%
             </span>
           </div>
@@ -1149,38 +1271,55 @@ const calculateEmployeeHours = (
   monthlyPublishedSchedules: Schedule[] | undefined,
   dateRange: DateRange | undefined,
   employees?: Employee[],
-  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } },
+  settings?: {
+    general?: {
+      keyholder_before_minutes?: number;
+      keyholder_after_minutes?: number;
+      store_opening?: string;
+      store_closing?: string;
+    };
+  },
   employeeAbsences?: Record<number, unknown[]>,
-  absenceTypes?: Array<{ id: string; name: string; color: string; type: "absence" }>
+  absenceTypes?: Array<{
+    id: string;
+    name: string;
+    color: string;
+    type: "absence";
+  }>,
 ) => {
   if (!dateRange?.from || !dateRange?.to) {
     return { weeklyHours: 0, monthlyHours: 0, totalHours: 0 };
   }
 
   // Find the employee for keyholder calculations
-  const employee = employees?.find(emp => emp.id === employeeId);
+  const employee = employees?.find((emp) => emp.id === employeeId);
 
   // Calculate weekly hours from current version schedules, deduplicating by date
   const weeklyCandidateSchedules = schedules.filter(
-    (s) => s.employee_id === employeeId && s.shift_id !== null && !s.is_empty
+    (s) => s.employee_id === employeeId && s.shift_id !== null && !s.is_empty,
   );
 
   // Build a best-per-day map to avoid double-counting multiple entries on the same day
   const weeklyBestByDate = new Map<string, Schedule>();
   weeklyCandidateSchedules.forEach((s) => {
-    const dateKey = (typeof s.date === 'string' ? s.date.split('T')[0] : format(s.date as unknown as Date, 'yyyy-MM-dd'));
+    const dateKey =
+      typeof s.date === "string"
+        ? s.date.split("T")[0]
+        : format(s.date as unknown as Date, "yyyy-MM-dd");
     const existing = weeklyBestByDate.get(dateKey);
-    const isPlaceholder = s.shift_start === '00:00' && s.shift_end === '00:00';
+    const isPlaceholder = s.shift_start === "00:00" && s.shift_end === "00:00";
     const hasTimes = !!s.shift_start && !!s.shift_end;
     if (!existing) {
       if (hasTimes && !isPlaceholder) weeklyBestByDate.set(dateKey, s);
       else weeklyBestByDate.set(dateKey, s);
     } else {
-      const existingPlaceholder = existing.shift_start === '00:00' && existing.shift_end === '00:00';
+      const existingPlaceholder =
+        existing.shift_start === "00:00" && existing.shift_end === "00:00";
       const existingHasTimes = !!existing.shift_start && !!existing.shift_end;
       // Prefer schedules with real times over missing/placeholder
       const currentScore = (hasTimes ? 2 : 0) + (!isPlaceholder ? 1 : 0);
-      const existingScore = (existingHasTimes ? 2 : 0) + (!existingPlaceholder ? 1 : 0);
+      const existingScore =
+        (existingHasTimes ? 2 : 0) + (!existingPlaceholder ? 1 : 0);
       if (currentScore > existingScore) weeklyBestByDate.set(dateKey, s);
     }
   });
@@ -1192,7 +1331,7 @@ const calculateEmployeeHours = (
       // Parse schedule date without timezone to avoid off-by-one-day issues
       let scheduleDate = startOfDay(parseISO(`${dateKey}`));
       if (/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
-        const [y, m, d] = dateKey.split('-').map(Number);
+        const [y, m, d] = dateKey.split("-").map(Number);
         scheduleDate = new Date(y, (m || 1) - 1, d || 1);
       }
       const start = startOfDay(dateRange.from);
@@ -1210,29 +1349,36 @@ const calculateEmployeeHours = (
   let monthlyHours = 0;
   if (monthlyPublishedSchedules) {
     const monthlyCandidates = monthlyPublishedSchedules.filter(
-      (s) => s.employee_id === employeeId && s.shift_id !== null && !s.is_empty
+      (s) => s.employee_id === employeeId && s.shift_id !== null && !s.is_empty,
     );
 
     const monthlyBestByDate = new Map<string, Schedule>();
     monthlyCandidates.forEach((s) => {
-      const dateKey = (typeof s.date === 'string' ? s.date.split('T')[0] : format(s.date as unknown as Date, 'yyyy-MM-dd'));
+      const dateKey =
+        typeof s.date === "string"
+          ? s.date.split("T")[0]
+          : format(s.date as unknown as Date, "yyyy-MM-dd");
       const existing = monthlyBestByDate.get(dateKey);
-      const isPlaceholder = s.shift_start === '00:00' && s.shift_end === '00:00';
+      const isPlaceholder =
+        s.shift_start === "00:00" && s.shift_end === "00:00";
       const hasTimes = !!s.shift_start && !!s.shift_end;
       if (!existing) {
         if (hasTimes && !isPlaceholder) monthlyBestByDate.set(dateKey, s);
         else monthlyBestByDate.set(dateKey, s);
       } else {
-        const existingPlaceholder = existing.shift_start === '00:00' && existing.shift_end === '00:00';
+        const existingPlaceholder =
+          existing.shift_start === "00:00" && existing.shift_end === "00:00";
         const existingHasTimes = !!existing.shift_start && !!existing.shift_end;
         const currentScore = (hasTimes ? 2 : 0) + (!isPlaceholder ? 1 : 0);
-        const existingScore = (existingHasTimes ? 2 : 0) + (!existingPlaceholder ? 1 : 0);
+        const existingScore =
+          (existingHasTimes ? 2 : 0) + (!existingPlaceholder ? 1 : 0);
         if (currentScore > existingScore) monthlyBestByDate.set(dateKey, s);
       }
     });
 
     monthlyBestByDate.forEach((schedule) => {
-      if (!schedule.shift_start || !schedule.shift_end || !schedule.date) return;
+      if (!schedule.shift_start || !schedule.shift_end || !schedule.date)
+        return;
       try {
         const timeCalc = calculateWorkingTime(schedule, employee, settings);
         monthlyHours += timeCalc.workingTime;
@@ -1244,20 +1390,29 @@ const calculateEmployeeHours = (
 
   // Add absence credits for days without worked schedules within the selected range
   if (dateRange?.from && dateRange?.to && employees && employeeAbsences) {
-    const employee = employees.find(emp => emp.id === employeeId);
+    const employee = employees.find((emp) => emp.id === employeeId);
     if (employee) {
       let dayCursor = startOfDay(dateRange.from);
       const end = endOfDay(dateRange.to);
       while (dayCursor <= end) {
-        const dateKey = format(dayCursor, 'yyyy-MM-dd');
+        const dateKey = format(dayCursor, "yyyy-MM-dd");
         const scheduled = weeklyBestByDate.get(dateKey);
-        const hasWorkedSchedule = scheduled && scheduled.shift_start && scheduled.shift_end;
+        const hasWorkedSchedule =
+          scheduled && scheduled.shift_start && scheduled.shift_end;
         if (!hasWorkedSchedule) {
-          const absence = checkForAbsence(employeeId, dateKey, employeeAbsences, absenceTypes);
+          const absence = checkForAbsence(
+            employeeId,
+            dateKey,
+            employeeAbsences,
+            absenceTypes,
+          );
           if (absence) {
             // Credit based on rules: VZ/TL -> 8h, else contracted_hours / 6
             let creditHours = 0;
-            if (employee.employee_group === 'VZ' || employee.employee_group === 'TL') {
+            if (
+              employee.employee_group === "VZ" ||
+              employee.employee_group === "TL"
+            ) {
               creditHours = 8;
             } else {
               const raw = (employee.contracted_hours || 0) / 6;
@@ -1275,7 +1430,7 @@ const calculateEmployeeHours = (
   return {
     weeklyHours: weeklyHours,
     monthlyHours: monthlyHours,
-    totalHours: weeklyHours // Total hours is same as weekly for compatibility
+    totalHours: weeklyHours, // Total hours is same as weekly for compatibility
   };
 };
 
@@ -1301,8 +1456,18 @@ export function ScheduleTable({
 }: ScheduleTableProps) {
   const [isFullWidth, setIsFullWidth] = useState(false);
   const [currentDayOffset, setCurrentDayOffset] = useState(0);
-  const [employeeSortBy, setEmployeeSortBy] = useState<"name" | "group" | "hours" | "alphabetical" | "keyholder" | "shifts" | "workload">("hours");
-  const [employeeSortOrder, setEmployeeSortOrder] = useState<"asc" | "desc">("desc");
+  const [employeeSortBy, setEmployeeSortBy] = useState<
+    | "name"
+    | "group"
+    | "hours"
+    | "alphabetical"
+    | "keyholder"
+    | "shifts"
+    | "workload"
+  >("hours");
+  const [employeeSortOrder, setEmployeeSortOrder] = useState<"asc" | "desc">(
+    "desc",
+  );
 
   // Enhanced debugging for schedule data
   console.log("🔴 DEBUG: RENDERING ScheduleTable with:", {
@@ -1369,7 +1534,10 @@ export function ScheduleTable({
 
   // Calculate visible days for current page
   const visibleDaysToDisplay = useMemo(() => {
-    return daysToDisplay.slice(currentDayOffset, currentDayOffset + maxDaysToShow);
+    return daysToDisplay.slice(
+      currentDayOffset,
+      currentDayOffset + maxDaysToShow,
+    );
   }, [daysToDisplay, currentDayOffset]);
 
   // Navigation handlers
@@ -1395,31 +1563,31 @@ export function ScheduleTable({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey) {
         switch (event.key) {
-          case '1':
+          case "1":
             event.preventDefault();
             setEmployeeSortBy("alphabetical");
             break;
-          case '2':
+          case "2":
             event.preventDefault();
             setEmployeeSortBy("group");
             break;
-          case '3':
+          case "3":
             event.preventDefault();
             setEmployeeSortBy("hours");
             break;
-          case '4':
+          case "4":
             event.preventDefault();
             setEmployeeSortBy("workload");
             break;
-          case '5':
+          case "5":
             event.preventDefault();
             setEmployeeSortBy("shifts");
             break;
-          case '6':
+          case "6":
             event.preventDefault();
             setEmployeeSortBy("keyholder");
             break;
-          case 'r':
+          case "r":
             event.preventDefault();
             setEmployeeSortOrder(employeeSortOrder === "asc" ? "desc" : "asc");
             break;
@@ -1427,8 +1595,8 @@ export function ScheduleTable({
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [employeeSortOrder]);
 
   if (isLoading) {
@@ -1444,15 +1612,22 @@ export function ScheduleTable({
   }
 
   return (
-    <div className={cn("w-full", isFullWidth && "fixed inset-0 z-[55] bg-background flex flex-col")}>
-      <Card className={cn("border border-border", isFullWidth && "flex-1 flex flex-col h-full")}>
+    <div
+      className={cn(
+        "w-full",
+        isFullWidth && "fixed inset-0 z-[55] bg-background flex flex-col",
+      )}
+    >
+      <Card
+        className={cn(
+          "border border-border",
+          isFullWidth && "flex-1 flex flex-col h-full",
+        )}
+      >
         <CardHeader className="flex flex-row items-center justify-between sticky top-0 z-[35] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border flex-shrink-0">
           <div>
             <div className="flex items-center gap-3">
-              <ShinyText
-                className="text-xl font-medium"
-                variant="grey"
-              >
+              <ShinyText className="text-xl font-medium" variant="grey">
                 Schichtplan
               </ShinyText>
 
@@ -1494,7 +1669,8 @@ export function ScheduleTable({
                     KW {weekInfo.weekNumber}/{weekInfo.year}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {format(weekInfo.startDate, 'dd.MM.')} - {format(weekInfo.endDate, 'dd.MM.')}
+                    {format(weekInfo.startDate, "dd.MM.")} -{" "}
+                    {format(weekInfo.endDate, "dd.MM.")}
                   </div>
                 </div>
 
@@ -1513,7 +1689,9 @@ export function ScheduleTable({
               {weekNavigationSettings && (
                 <div className="flex items-center gap-1">
                   <Badge variant="secondary" className="text-xs">
-                    {weekNavigationSettings.weekendStart === 0 ? 'So-Start' : 'Mo-Start'}
+                    {weekNavigationSettings.weekendStart === 0
+                      ? "So-Start"
+                      : "Mo-Start"}
                   </Badge>
                   {weekInfo.spansMonths && (
                     <Badge variant="outline" className="text-xs text-amber-600">
@@ -1531,26 +1709,51 @@ export function ScheduleTable({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="flex items-center gap-2">
-                    <Label htmlFor="employee-sort" className="text-sm whitespace-nowrap">
+                    <Label
+                      htmlFor="employee-sort"
+                      className="text-sm whitespace-nowrap"
+                    >
                       Sortierung:
                     </Label>
-                    <Select value={employeeSortBy} onValueChange={(value: "name" | "group" | "hours" | "alphabetical" | "keyholder" | "shifts" | "workload") => setEmployeeSortBy(value)}>
+                    <Select
+                      value={employeeSortBy}
+                      onValueChange={(
+                        value:
+                          | "name"
+                          | "group"
+                          | "hours"
+                          | "alphabetical"
+                          | "keyholder"
+                          | "shifts"
+                          | "workload",
+                      ) => setEmployeeSortBy(value)}
+                    >
                       <SelectTrigger className="w-[140px]">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="alphabetical">📝 Alphabetisch</SelectItem>
+                        <SelectItem value="alphabetical">
+                          📝 Alphabetisch
+                        </SelectItem>
                         <SelectItem value="group">👥 Arbeitsgruppe</SelectItem>
-                        <SelectItem value="hours">📋 Vertragsstunden</SelectItem>
+                        <SelectItem value="hours">
+                          📋 Vertragsstunden
+                        </SelectItem>
                         <SelectItem value="workload">⏰ Ist-Stunden</SelectItem>
                         <SelectItem value="shifts">📊 Schichtanzahl</SelectItem>
-                        <SelectItem value="keyholder">🔑 Schlüsselinhaber</SelectItem>
+                        <SelectItem value="keyholder">
+                          🔑 Schlüsselinhaber
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setEmployeeSortOrder(employeeSortOrder === "asc" ? "desc" : "asc")}
+                      onClick={() =>
+                        setEmployeeSortOrder(
+                          employeeSortOrder === "asc" ? "desc" : "asc",
+                        )
+                      }
                       className="h-8 w-8 p-0"
                       title={`Sortierung ${employeeSortOrder === "asc" ? "aufsteigend" : "absteigend"}`}
                     >
@@ -1566,13 +1769,25 @@ export function ScheduleTable({
                   <div className="space-y-1">
                     <p>Mitarbeiter sortieren nach verschiedenen Kriterien</p>
                     <div className="text-xs text-muted-foreground">
-                      Aktuell: {employeeSortBy === "alphabetical" ? "Alphabetisch" :
-                        employeeSortBy === "group" ? "Arbeitsgruppe" :
-                          employeeSortBy === "hours" ? "Vertragsstunden" :
-                            employeeSortBy === "workload" ? "Ist-Stunden" :
-                              employeeSortBy === "shifts" ? "Schichtanzahl" :
-                                employeeSortBy === "keyholder" ? "Schlüsselinhaber" : employeeSortBy}
-                      ({employeeSortOrder === "asc" ? "aufsteigend" : "absteigend"})
+                      Aktuell:{" "}
+                      {employeeSortBy === "alphabetical"
+                        ? "Alphabetisch"
+                        : employeeSortBy === "group"
+                          ? "Arbeitsgruppe"
+                          : employeeSortBy === "hours"
+                            ? "Vertragsstunden"
+                            : employeeSortBy === "workload"
+                              ? "Ist-Stunden"
+                              : employeeSortBy === "shifts"
+                                ? "Schichtanzahl"
+                                : employeeSortBy === "keyholder"
+                                  ? "Schlüsselinhaber"
+                                  : employeeSortBy}
+                      (
+                      {employeeSortOrder === "asc"
+                        ? "aufsteigend"
+                        : "absteigend"}
+                      )
                     </div>
                   </div>
                 </TooltipContent>
@@ -1597,18 +1812,33 @@ export function ScheduleTable({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>{isFullWidth ? "Normale Ansicht" : "Vollbild-Ansicht für bessere Übersicht"}</p>
+                  <p>
+                    {isFullWidth
+                      ? "Normale Ansicht"
+                      : "Vollbild-Ansicht für bessere Übersicht"}
+                  </p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>
         </CardHeader>
 
-        <CardContent className={cn("p-0", isFullWidth ? "flex-1 overflow-auto" : "overflow-x-auto")}>
+        <CardContent
+          className={cn(
+            "p-0",
+            isFullWidth ? "flex-1 overflow-auto" : "overflow-x-auto",
+          )}
+        >
           {isLoading ? (
             <Skeleton className="w-full h-[400px]" />
           ) : (
-            <div className={cn("w-full", isFullWidth ? "h-full overflow-auto" : "overflow-x-auto")} style={{ maxWidth: "100%" }}>
+            <div
+              className={cn(
+                "w-full",
+                isFullWidth ? "h-full overflow-auto" : "overflow-x-auto",
+              )}
+              style={{ maxWidth: "100%" }}
+            >
               <ScheduleTableNormal
                 schedules={schedules}
                 monthlyPublishedSchedules={monthlyPublishedSchedules}
@@ -1626,7 +1856,9 @@ export function ScheduleTable({
                 onPrevDays={handlePrevDays}
                 onNextDays={handleNextDays}
                 canNavigatePrev={currentDayOffset > 0}
-                canNavigateNext={currentDayOffset + maxDaysToShow < daysToDisplay.length}
+                canNavigateNext={
+                  currentDayOffset + maxDaysToShow < daysToDisplay.length
+                }
                 isFullWidth={isFullWidth}
                 employeeSortBy={employeeSortBy}
                 employeeSortOrder={employeeSortOrder}
@@ -1637,7 +1869,12 @@ export function ScheduleTable({
         </CardContent>
 
         {/* Color Legend - Moved to bottom */}
-        <div className={cn("border-t border-border p-4 bg-muted/20", isFullWidth && "flex-shrink-0")}>
+        <div
+          className={cn(
+            "border-t border-border p-4 bg-muted/20",
+            isFullWidth && "flex-shrink-0",
+          )}
+        >
           <ScheduleColorLegend absenceTypes={absenceTypes} />
         </div>
       </Card>
@@ -1667,7 +1904,7 @@ function ScheduleTableNormal({
   employeeSortOrder,
   weekNavigationSettings,
   specialDays,
-}: Omit<ScheduleTableProps, 'isLoading'> & {
+}: Omit<ScheduleTableProps, "isLoading"> & {
   daysToDisplay: Date[];
   showNavigation: boolean;
   onPrevDays: () => void;
@@ -1675,7 +1912,14 @@ function ScheduleTableNormal({
   canNavigatePrev: boolean;
   canNavigateNext: boolean;
   isFullWidth: boolean;
-  employeeSortBy: "name" | "group" | "hours" | "alphabetical" | "keyholder" | "shifts" | "workload";
+  employeeSortBy:
+    | "name"
+    | "group"
+    | "hours"
+    | "alphabetical"
+    | "keyholder"
+    | "shifts"
+    | "workload";
   employeeSortOrder: "asc" | "desc";
   weekNavigationSettings?: {
     weekendStart?: number;
@@ -1740,13 +1984,17 @@ function ScheduleTableNormal({
   };
 
   // Helper function to check if a date is at the start of a new month segment
-  const isMonthBoundary = (currentDate: Date, prevDate: Date | null): boolean => {
+  const isMonthBoundary = (
+    currentDate: Date,
+    prevDate: Date | null,
+  ): boolean => {
     if (!prevDate) return false;
     return currentDate.getMonth() !== prevDate.getMonth();
   };
 
   // Check if we're in split month mode
-  const isSplitMonthMode = weekNavigationSettings?.monthBoundaryMode === 'split_by_month';
+  const isSplitMonthMode =
+    weekNavigationSettings?.monthBoundaryMode === "split_by_month";
 
   // Group schedules by employee ID and then by date for quick lookup
   const groupedSchedules = useMemo(() => {
@@ -1756,8 +2004,9 @@ function ScheduleTableNormal({
       return grouped;
     }
 
-    const uniqueEmployeeIds = [...new Set(schedules.map((s) => s.employee_id))]
-      .filter(id => id > 0); // Filter out placeholder employee ID (-1)
+    const uniqueEmployeeIds = [
+      ...new Set(schedules.map((s) => s.employee_id)),
+    ].filter((id) => id > 0); // Filter out placeholder employee ID (-1)
 
     uniqueEmployeeIds.forEach((employeeId) => {
       const employeeSchedules = schedules.filter(
@@ -1788,14 +2037,15 @@ function ScheduleTableNormal({
 
   // Get unique employees from schedules with sorting
   const sortedEmployeeIds = useMemo(() => {
-    const uniqueIds = [...new Set(schedules.map((s) => s.employee_id))]
-      .filter(id => id > 0); // Filter out placeholder employee ID (-1)
+    const uniqueIds = [...new Set(schedules.map((s) => s.employee_id))].filter(
+      (id) => id > 0,
+    ); // Filter out placeholder employee ID (-1)
 
     if (!employees) return uniqueIds;
 
     const sortedIds = uniqueIds.sort((a, b) => {
-      const empA = employees.find(emp => emp.id === a);
-      const empB = employees.find(emp => emp.id === b);
+      const empA = employees.find((emp) => emp.id === a);
+      const empB = employees.find((emp) => emp.id === b);
 
       if (!empA || !empB) return 0;
 
@@ -1803,13 +2053,19 @@ function ScheduleTableNormal({
 
       switch (employeeSortBy) {
         case "alphabetical":
-          comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+          comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(
+            `${empB.last_name}, ${empB.first_name}`,
+          );
           break;
         case "group":
-          comparison = (empA.employee_group || "").localeCompare(empB.employee_group || "");
+          comparison = (empA.employee_group || "").localeCompare(
+            empB.employee_group || "",
+          );
           if (comparison === 0) {
             // Secondary sort by name
-            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(
+              `${empB.last_name}, ${empB.first_name}`,
+            );
           }
           break;
         case "hours": {
@@ -1818,27 +2074,55 @@ function ScheduleTableNormal({
           comparison = contractedA - contractedB;
           if (comparison === 0) {
             // Secondary sort by name
-            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(
+              `${empB.last_name}, ${empB.first_name}`,
+            );
           }
           break;
         }
         case "workload": {
-          const hoursA = calculateEmployeeHours(a, schedules, monthlyPublishedSchedules, dateRange, employees, settings, employeeAbsences, absenceTypes).weeklyHours;
-          const hoursB = calculateEmployeeHours(b, schedules, monthlyPublishedSchedules, dateRange, employees, settings, employeeAbsences, absenceTypes).weeklyHours;
+          const hoursA = calculateEmployeeHours(
+            a,
+            schedules,
+            monthlyPublishedSchedules,
+            dateRange,
+            employees,
+            settings,
+            employeeAbsences,
+            absenceTypes,
+          ).weeklyHours;
+          const hoursB = calculateEmployeeHours(
+            b,
+            schedules,
+            monthlyPublishedSchedules,
+            dateRange,
+            employees,
+            settings,
+            employeeAbsences,
+            absenceTypes,
+          ).weeklyHours;
           comparison = hoursA - hoursB;
           if (comparison === 0) {
             // Secondary sort by name
-            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(
+              `${empB.last_name}, ${empB.first_name}`,
+            );
           }
           break;
         }
         case "shifts": {
-          const shiftsA = schedules.filter(s => s.employee_id === a && s.shift_id !== null).length;
-          const shiftsB = schedules.filter(s => s.employee_id === b && s.shift_id !== null).length;
+          const shiftsA = schedules.filter(
+            (s) => s.employee_id === a && s.shift_id !== null,
+          ).length;
+          const shiftsB = schedules.filter(
+            (s) => s.employee_id === b && s.shift_id !== null,
+          ).length;
           comparison = shiftsA - shiftsB;
           if (comparison === 0) {
             // Secondary sort by name
-            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(
+              `${empB.last_name}, ${empB.first_name}`,
+            );
           }
           break;
         }
@@ -1848,12 +2132,16 @@ function ScheduleTableNormal({
           comparison = keyholderB - keyholderA; // Keyholders first
           if (comparison === 0) {
             // Secondary sort by name
-            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(
+              `${empB.last_name}, ${empB.first_name}`,
+            );
           }
           break;
         }
         default:
-          comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+          comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(
+            `${empB.last_name}, ${empB.first_name}`,
+          );
       }
 
       return employeeSortOrder === "asc" ? comparison : -comparison;
@@ -1900,10 +2188,7 @@ function ScheduleTableNormal({
         <tr className="border-b border-border">
           <th className="w-[220px] sticky left-0 z-[31] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border">
             <div className="flex items-center justify-between">
-              <ShinyText
-                variant="grey"
-                className="font-medium"
-              >
+              <ShinyText variant="grey" className="font-medium">
                 Mitarbeiter ({sortedEmployeeIds.length})
               </ShinyText>
               {showNavigation && (
@@ -1931,9 +2216,17 @@ function ScheduleTableNormal({
             </div>
           </th>
           {daysToDisplay.map((date, index) => {
-            const dailyHours = calculateDailyHours(schedules, date, employees, settings, employeeAbsences, absenceTypes);
+            const dailyHours = calculateDailyHours(
+              schedules,
+              date,
+              employees,
+              settings,
+              employeeAbsences,
+              absenceTypes,
+            );
             const prevDate = index > 0 ? daysToDisplay[index - 1] : null;
-            const isAtMonthBoundary = isSplitMonthMode && isMonthBoundary(date, prevDate);
+            const isAtMonthBoundary =
+              isSplitMonthMode && isMonthBoundary(date, prevDate);
             const dateKey = format(date, "yyyy-MM-dd");
             const special = specialDays?.[dateKey];
             const isClosed = special?.is_closed;
@@ -1944,8 +2237,9 @@ function ScheduleTableNormal({
                 key={date.toISOString()}
                 className={cn(
                   "w-[160px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
-                  isAtMonthBoundary && "border-l-4 border-l-amber-500 bg-amber-50/50",
-                  isClosed && "bg-red-50"
+                  isAtMonthBoundary &&
+                    "border-l-4 border-l-amber-500 bg-amber-50/50",
+                  isClosed && "bg-red-50",
                 )}
               >
                 {isAtMonthBoundary && (
@@ -1964,13 +2258,18 @@ function ScheduleTableNormal({
                     {formatTimeHourMin(dailyHours)}
                   </div>
                   {special && (
-                    <div className={cn(
-                      "text-[11px] px-1.5 py-0.5 rounded border",
-                      isClosed ? "bg-red-100 text-red-700 border-red-200" : "bg-amber-100 text-amber-700 border-amber-200"
-                    )}
-                    title={special.description}
+                    <div
+                      className={cn(
+                        "text-[11px] px-1.5 py-0.5 rounded border",
+                        isClosed
+                          ? "bg-red-100 text-red-700 border-red-200"
+                          : "bg-amber-100 text-amber-700 border-amber-200",
+                      )}
+                      title={special.description}
                     >
-                      {isClosed ? "Geschlossen" : `Öffn. ${customHours?.opening}–${customHours?.closing}`}
+                      {isClosed
+                        ? "Geschlossen"
+                        : `Öffn. ${customHours?.opening}–${customHours?.closing}`}
                     </div>
                   )}
                 </div>
@@ -1982,10 +2281,14 @@ function ScheduleTableNormal({
       <tbody>
         {uniqueEmployeeIds.map((employeeId) => {
           const employeeSchedules = groupedSchedules[employeeId] || {};
-          const { contractedHours, employeeGroup } = getEmployeeDetails(employeeId);
+          const { contractedHours, employeeGroup } =
+            getEmployeeDetails(employeeId);
 
           return (
-            <tr key={employeeId} className="hover:bg-muted/20 border-b border-border transition-colors">
+            <tr
+              key={employeeId}
+              className="hover:bg-muted/20 border-b border-border transition-colors"
+            >
               <td className="font-medium sticky left-0 z-[15] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 w-[220px] p-3 border-r border-border">
                 <div className="flex items-center gap-2">
                   <HoverCard>
@@ -2039,7 +2342,11 @@ function ScheduleTableNormal({
                               </div>
                             );
                           case "shifts": {
-                            const shiftCount = schedules.filter(s => s.employee_id === employeeId && s.shift_id !== null).length;
+                            const shiftCount = schedules.filter(
+                              (s) =>
+                                s.employee_id === employeeId &&
+                                s.shift_id !== null,
+                            ).length;
                             return (
                               <div className="text-xs bg-purple-50 text-purple-700 px-1 py-0.5 rounded border border-purple-200">
                                 {shiftCount} Schichten
@@ -2047,7 +2354,16 @@ function ScheduleTableNormal({
                             );
                           }
                           case "workload": {
-                            const hours = calculateEmployeeHours(employeeId, schedules, monthlyPublishedSchedules, dateRange, employees, settings, employeeAbsences, absenceTypes);
+                            const hours = calculateEmployeeHours(
+                              employeeId,
+                              schedules,
+                              monthlyPublishedSchedules,
+                              dateRange,
+                              employees,
+                              settings,
+                              employeeAbsences,
+                              absenceTypes,
+                            );
                             return (
                               <div className="text-xs bg-orange-50 text-orange-700 px-1 py-0.5 rounded">
                                 {hours.weeklyHours.toFixed(1)}h
@@ -2061,28 +2377,51 @@ function ScheduleTableNormal({
                     </div>
                     <div className="text-xs text-muted-foreground mt-2 space-y-1 p-2 bg-muted/20 rounded border border-border">
                       {(() => {
-                        const hours = calculateEmployeeHours(employeeId, schedules, monthlyPublishedSchedules, dateRange, employees, settings);
+                        const hours = calculateEmployeeHours(
+                          employeeId,
+                          schedules,
+                          monthlyPublishedSchedules,
+                          dateRange,
+                          employees,
+                          settings,
+                        );
                         const employee = employeeLookup[employeeId];
-                        const contractedHours = employee?.contracted_hours || 40;
+                        const contractedHours =
+                          employee?.contracted_hours || 40;
 
                         return (
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                              <span className="font-medium">Vertrag: {contractedHours}h/Woche</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span>Woche: {hours.weeklyHours.toFixed(1)}h</span>
-                              <span className={cn(
-                                "font-medium px-1 rounded",
-                                hours.weeklyHours > contractedHours ? "text-red-400 bg-red-500/10" :
-                                  hours.weeklyHours < contractedHours * 0.9 ? "text-amber-400 bg-amber-500/10" :
-                                    "text-green-400 bg-green-500/10"
-                              )}>
-                                ({((hours.weeklyHours / contractedHours) * 100).toFixed(0)}%)
+                              <span className="font-medium">
+                                Vertrag: {contractedHours}h/Woche
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span>Monat: {hours.monthlyHours.toFixed(1)}h</span>
+                              <span>
+                                Woche: {hours.weeklyHours.toFixed(1)}h
+                              </span>
+                              <span
+                                className={cn(
+                                  "font-medium px-1 rounded",
+                                  hours.weeklyHours > contractedHours
+                                    ? "text-red-400 bg-red-500/10"
+                                    : hours.weeklyHours < contractedHours * 0.9
+                                      ? "text-amber-400 bg-amber-500/10"
+                                      : "text-green-400 bg-green-500/10",
+                                )}
+                              >
+                                (
+                                {(
+                                  (hours.weeklyHours / contractedHours) *
+                                  100
+                                ).toFixed(0)}
+                                %)
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span>
+                                Monat: {hours.monthlyHours.toFixed(1)}h
+                              </span>
                             </div>
                           </div>
                         );
@@ -2094,8 +2433,10 @@ function ScheduleTableNormal({
               {daysToDisplay.map((date, dateIndex) => {
                 const dateString = format(date, "yyyy-MM-dd");
                 const schedule = employeeSchedules[dateString];
-                const prevDate = dateIndex > 0 ? daysToDisplay[dateIndex - 1] : null;
-                const isAtMonthBoundary = isSplitMonthMode && isMonthBoundary(date, prevDate);
+                const prevDate =
+                  dateIndex > 0 ? daysToDisplay[dateIndex - 1] : null;
+                const isAtMonthBoundary =
+                  isSplitMonthMode && isMonthBoundary(date, prevDate);
                 const special = specialDays?.[dateString];
                 const isClosed = !!special?.is_closed;
 
@@ -2112,11 +2453,16 @@ function ScheduleTableNormal({
                     className={cn(
                       "text-center p-0 w-[160px] h-[130px] border-r border-border last:border-r-0 transition-colors",
                       hasAbsence ? "relative" : "",
-                      isAtMonthBoundary && "border-l-4 border-l-amber-500 bg-amber-50/20",
-                      isClosed && "bg-red-50/60 opacity-70"
+                      isAtMonthBoundary &&
+                        "border-l-4 border-l-amber-500 bg-amber-50/20",
+                      isClosed && "bg-red-50/60 opacity-70",
                     )}
                     title={
-                      hasAbsence ? `${hasAbsence.type.name}` : (special ? special.description : undefined)
+                      hasAbsence
+                        ? `${hasAbsence.type.name}`
+                        : special
+                          ? special.description
+                          : undefined
                     }
                   >
                     {isClosed && (
@@ -2138,7 +2484,12 @@ function ScheduleTableNormal({
                     )}
                     <ScheduleCell
                       schedule={schedule}
-                      onDrop={(scheduleId, newEmployeeId, newDate, newShiftId) =>
+                      onDrop={(
+                        scheduleId,
+                        newEmployeeId,
+                        newDate,
+                        newShiftId,
+                      ) =>
                         onDrop(scheduleId, newEmployeeId, newDate, newShiftId)
                       }
                       onUpdate={(scheduleId, updates) =>
@@ -2165,7 +2516,7 @@ function ScheduleTableNormal({
 
 // Color Legend Component
 function ScheduleColorLegend({
-  absenceTypes
+  absenceTypes,
 }: {
   absenceTypes?: Array<{
     id: string;
@@ -2186,7 +2537,9 @@ function ScheduleColorLegend({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Shift Types Legend */}
         <div>
-          <h5 className="text-xs font-medium text-muted-foreground mb-2">Schichttypen</h5>
+          <h5 className="text-xs font-medium text-muted-foreground mb-2">
+            Schichttypen
+          </h5>
           <div className="flex flex-wrap gap-3 text-sm">
             {settings?.employee_groups?.shift_types?.map((type) => (
               <div key={type.id} className="flex items-center gap-2">
@@ -2197,27 +2550,29 @@ function ScheduleColorLegend({
                 <span className="text-sm">{type.name}</span>
               </div>
             )) || (
-                <>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded border border-border bg-blue-500" />
-                    <span className="text-sm">Früh</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded border border-border bg-green-500" />
-                    <span className="text-sm">Mitte</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded border border-border bg-amber-500" />
-                    <span className="text-sm">Spät</span>
-                  </div>
-                </>
-              )}
+              <>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded border border-border bg-blue-500" />
+                  <span className="text-sm">Früh</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded border border-border bg-green-500" />
+                  <span className="text-sm">Mitte</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded border border-border bg-amber-500" />
+                  <span className="text-sm">Spät</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
         {/* Absence Types Legend */}
         <div>
-          <h5 className="text-xs font-medium text-muted-foreground mb-2">Abwesenheitstypen</h5>
+          <h5 className="text-xs font-medium text-muted-foreground mb-2">
+            Abwesenheitstypen
+          </h5>
           <div className="flex flex-wrap gap-3 text-sm">
             {absenceTypes?.map((type) => (
               <div key={type.id} className="flex items-center gap-2">
@@ -2228,8 +2583,10 @@ function ScheduleColorLegend({
                 <span className="text-sm">{type.name}</span>
               </div>
             )) || (
-                <span className="text-xs text-muted-foreground">Keine Abwesenheitstypen verfügbar</span>
-              )}
+              <span className="text-xs text-muted-foreground">
+                Keine Abwesenheitstypen verfügbar
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -2242,29 +2599,45 @@ const calculateDailyHours = (
   schedules: Schedule[],
   date: Date,
   employees?: Employee[],
-  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } },
+  settings?: {
+    general?: {
+      keyholder_before_minutes?: number;
+      keyholder_after_minutes?: number;
+      store_opening?: string;
+      store_closing?: string;
+    };
+  },
   employeeAbsences?: Record<number, unknown[]>,
-  absenceTypes?: Array<{ id: string; name: string; color: string; type: "absence" }>
+  absenceTypes?: Array<{
+    id: string;
+    name: string;
+    color: string;
+    type: "absence";
+  }>,
 ): number => {
   const dateString = format(date, "yyyy-MM-dd");
-  const daySchedules = schedules.filter(
-    schedule => {
-      // Handle both string dates and Date objects
-      let scheduleDate: string = schedule.date;
-      if (typeof scheduleDate === 'object' && scheduleDate !== null) {
-        scheduleDate = format(scheduleDate as Date, "yyyy-MM-dd");
-      }
-      // Also handle ISO date strings that might include time
-      if (typeof scheduleDate === 'string' && scheduleDate.includes('T')) {
-        scheduleDate = scheduleDate.split('T')[0];
-      }
-
-      // Exclude placeholder shifts (00:00-00:00) from hour sums even if assigned
-      const isAssigned = !!schedule.shift_id;
-      const isPlaceholder = schedule.shift_start === "00:00" && schedule.shift_end === "00:00";
-      return scheduleDate === dateString && !schedule.is_empty && isAssigned && !isPlaceholder;
+  const daySchedules = schedules.filter((schedule) => {
+    // Handle both string dates and Date objects
+    let scheduleDate: string = schedule.date;
+    if (typeof scheduleDate === "object" && scheduleDate !== null) {
+      scheduleDate = format(scheduleDate as Date, "yyyy-MM-dd");
     }
-  );
+    // Also handle ISO date strings that might include time
+    if (typeof scheduleDate === "string" && scheduleDate.includes("T")) {
+      scheduleDate = scheduleDate.split("T")[0];
+    }
+
+    // Exclude placeholder shifts (00:00-00:00) from hour sums even if assigned
+    const isAssigned = !!schedule.shift_id;
+    const isPlaceholder =
+      schedule.shift_start === "00:00" && schedule.shift_end === "00:00";
+    return (
+      scheduleDate === dateString &&
+      !schedule.is_empty &&
+      isAssigned &&
+      !isPlaceholder
+    );
+  });
 
   // Deduplicate by employee: take the best schedule (with real times) per employee for the day
   const bestByEmployee = new Map<number, Schedule>();
@@ -2286,7 +2659,9 @@ const calculateDailyHours = (
   bestByEmployee.forEach((schedule) => {
     if (!schedule.shift_start || !schedule.shift_end) return;
     try {
-      const employee = employees?.find(emp => emp.id === schedule.employee_id);
+      const employee = employees?.find(
+        (emp) => emp.id === schedule.employee_id,
+      );
       const timeCalc = calculateWorkingTime(schedule, employee, settings);
       total += timeCalc.workingTime;
     } catch (error) {
@@ -2296,18 +2671,26 @@ const calculateDailyHours = (
 
   // Credit absence if no worked schedule and employee has an absence that day
   if (employees && employeeAbsences) {
-    employees.forEach(emp => {
-      const hasWorked = Array.from(bestByEmployee.values()).some(s => s.employee_id === emp.id && s.shift_start && s.shift_end);
+    employees.forEach((emp) => {
+      const hasWorked = Array.from(bestByEmployee.values()).some(
+        (s) => s.employee_id === emp.id && s.shift_start && s.shift_end,
+      );
       if (!hasWorked) {
         const dateKey = format(date, "yyyy-MM-dd");
-        const absence = checkForAbsence(emp.id, dateKey, employeeAbsences, absenceTypes);
+        const absence = checkForAbsence(
+          emp.id,
+          dateKey,
+          employeeAbsences,
+          absenceTypes,
+        );
         if (absence) {
           let credit = 0;
-          if (emp.employee_group === 'VZ' || emp.employee_group === 'TL') {
+          if (emp.employee_group === "VZ" || emp.employee_group === "TL") {
             credit = 8;
           } else {
             const raw = (emp.contracted_hours || 0) / 6;
-            credit = Math.floor(raw) + Math.round((raw - Math.floor(raw)) * 60) / 60;
+            credit =
+              Math.floor(raw) + Math.round((raw - Math.floor(raw)) * 60) / 60;
           }
           total += credit;
         }

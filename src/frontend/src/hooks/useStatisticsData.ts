@@ -10,7 +10,14 @@ import {
 } from "@/utils/statisticsUtils";
 import { getWeekStartsOn } from "@/utils/weekStart";
 import { useQuery } from "@tanstack/react-query";
-import { eachWeekOfInterval, endOfDay, endOfWeek, format, parseISO, startOfDay } from "date-fns";
+import {
+  eachWeekOfInterval,
+  endOfDay,
+  endOfWeek,
+  format,
+  parseISO,
+  startOfDay,
+} from "date-fns";
 import { useMemo } from "react";
 import { DateRange } from "react-day-picker";
 
@@ -53,12 +60,20 @@ export const useStatisticsData = ({
   // Basic statistics
   const basicStats = useMemo(() => {
     const totalSchedules = validSchedules.length;
-    const totalEmployees = new Set(validSchedules.map(s => s.employee_id)).size;
-    const totalHours = validSchedules.reduce((sum, s) => sum + calculateShiftDuration(s), 0);
-    const avgHoursPerShift = totalSchedules > 0 ? totalHours / totalSchedules : 0;
+    const totalEmployees = new Set(validSchedules.map((s) => s.employee_id))
+      .size;
+    const totalHours = validSchedules.reduce(
+      (sum, s) => sum + calculateShiftDuration(s),
+      0,
+    );
+    const avgHoursPerShift =
+      totalSchedules > 0 ? totalHours / totalSchedules : 0;
 
-    const shiftsWithBreaks = validSchedules.filter(s => s.break_start && s.break_end).length;
-    const breakCoverage = totalSchedules > 0 ? (shiftsWithBreaks / totalSchedules) * 100 : 0;
+    const shiftsWithBreaks = validSchedules.filter(
+      (s) => s.break_start && s.break_end,
+    ).length;
+    const breakCoverage =
+      totalSchedules > 0 ? (shiftsWithBreaks / totalSchedules) * 100 : 0;
 
     return {
       totalSchedules,
@@ -74,7 +89,7 @@ export const useStatisticsData = ({
   const shiftTypeStats = useMemo(() => {
     const distribution = { early: 0, mid: 0, late: 0 };
 
-    validSchedules.forEach(schedule => {
+    validSchedules.forEach((schedule) => {
       const type = getShiftType(schedule.shift_start!);
       distribution[type]++;
     });
@@ -85,10 +100,16 @@ export const useStatisticsData = ({
   // Daily coverage statistics
   const dailyCoverageStats = useMemo(() => {
     if (!dateRange?.from || !dateRange?.to) {
-      return { avgCoverage: 0, coverageByDay: [], minCoverage: 0, maxCoverage: 0 };
+      return {
+        avgCoverage: 0,
+        coverageByDay: [],
+        minCoverage: 0,
+        maxCoverage: 0,
+      };
     }
 
-    const coverageByDay: { date: Date; coverage: number; dayName: string }[] = [];
+    const coverageByDay: { date: Date; coverage: number; dayName: string }[] =
+      [];
     const currentDate = new Date(dateRange.from);
 
     while (currentDate <= dateRange.to) {
@@ -98,69 +119,84 @@ export const useStatisticsData = ({
         coverageByDay.push({
           date: new Date(currentDate),
           coverage: daySchedules.length,
-          dayName: format(currentDate, 'EEEE'),
+          dayName: format(currentDate, "EEEE"),
         });
       }
 
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    const coverageValues = coverageByDay.map(d => d.coverage);
-    const avgCoverage = coverageValues.length > 0
-      ? coverageValues.reduce((a, b) => a + b, 0) / coverageValues.length
-      : 0;
-    const minCoverage = coverageValues.length > 0 ? Math.min(...coverageValues) : 0;
-    const maxCoverage = coverageValues.length > 0 ? Math.max(...coverageValues) : 0;
+    const coverageValues = coverageByDay.map((d) => d.coverage);
+    const avgCoverage =
+      coverageValues.length > 0
+        ? coverageValues.reduce((a, b) => a + b, 0) / coverageValues.length
+        : 0;
+    const minCoverage =
+      coverageValues.length > 0 ? Math.min(...coverageValues) : 0;
+    const maxCoverage =
+      coverageValues.length > 0 ? Math.max(...coverageValues) : 0;
 
     return { avgCoverage, coverageByDay, minCoverage, maxCoverage };
   }, [validSchedules, dateRange, openingDays]);
 
   // Employee workload distribution
   const workloadStats = useMemo(() => {
-    const employeeWorkload: Record<number, {
-      hours: number;
-      shifts: number;
-      name: string;
-      group: string;
-      isKeyholder: boolean;
-    }> = {};
+    const employeeWorkload: Record<
+      number,
+      {
+        hours: number;
+        shifts: number;
+        name: string;
+        group: string;
+        isKeyholder: boolean;
+      }
+    > = {};
 
-    validSchedules.forEach(schedule => {
+    validSchedules.forEach((schedule) => {
       if (!employeeWorkload[schedule.employee_id]) {
         const employee = employeeLookup[schedule.employee_id];
         employeeWorkload[schedule.employee_id] = {
           hours: 0,
           shifts: 0,
-          name: employee ? `${employee.first_name} ${employee.last_name}` : 'Unknown',
-          group: employee?.employee_group || 'Unknown',
+          name: employee
+            ? `${employee.first_name} ${employee.last_name}`
+            : "Unknown",
+          group: employee?.employee_group || "Unknown",
           isKeyholder: employee?.is_keyholder || false,
         };
       }
 
-      employeeWorkload[schedule.employee_id].hours += calculateShiftDuration(schedule);
+      employeeWorkload[schedule.employee_id].hours +=
+        calculateShiftDuration(schedule);
       employeeWorkload[schedule.employee_id].shifts += 1;
     });
 
-    const workloadArray = Object.entries(employeeWorkload).map(([id, data]) => ({
-      employeeId: parseInt(id),
-      ...data,
-    }));
+    const workloadArray = Object.entries(employeeWorkload).map(
+      ([id, data]) => ({
+        employeeId: parseInt(id),
+        ...data,
+      }),
+    );
 
     // Calculate distribution metrics
-    const hoursArray = workloadArray.map(w => w.hours);
-    const avgHours = hoursArray.length > 0 ? hoursArray.reduce((a, b) => a + b, 0) / hoursArray.length : 0;
+    const hoursArray = workloadArray.map((w) => w.hours);
+    const avgHours =
+      hoursArray.length > 0
+        ? hoursArray.reduce((a, b) => a + b, 0) / hoursArray.length
+        : 0;
     const minHours = hoursArray.length > 0 ? Math.min(...hoursArray) : 0;
     const maxHours = hoursArray.length > 0 ? Math.max(...hoursArray) : 0;
 
     // Find under and over-worked employees
-    const underWorked = workloadArray.filter(w => w.hours < avgHours * 0.8);
-    const overWorked = workloadArray.filter(w => w.hours > avgHours * 1.2);
+    const underWorked = workloadArray.filter((w) => w.hours < avgHours * 0.8);
+    const overWorked = workloadArray.filter((w) => w.hours > avgHours * 1.2);
 
     // Keyholder statistics
-    const keyholders = workloadArray.filter(w => w.isKeyholder);
-    const keyholderCoverage = keyholders.length > 0
-      ? (keyholders.length / workloadArray.length) * 100
-      : 0;
+    const keyholders = workloadArray.filter((w) => w.isKeyholder);
+    const keyholderCoverage =
+      keyholders.length > 0
+        ? (keyholders.length / workloadArray.length) * 100
+        : 0;
 
     return {
       employees: workloadArray,
@@ -174,7 +210,11 @@ export const useStatisticsData = ({
     };
   }, [validSchedules, employeeLookup]);
 
-  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: getSettings, staleTime: 300_000 });
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+    staleTime: 300_000,
+  });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const weekStartsOn = getWeekStartsOn(settings as any);
@@ -186,16 +226,16 @@ export const useStatisticsData = ({
 
     const weeks = eachWeekOfInterval(
       { start: dateRange.from, end: dateRange.to },
-      { weekStartsOn } // dynamic
+      { weekStartsOn }, // dynamic
     );
 
-    return weeks.map(weekStart => {
+    return weeks.map((weekStart) => {
       const weekEnd = endOfWeek(weekStart, { weekStartsOn });
       let weekHours = 0;
       let weekShifts = 0;
       const uniqueEmployees = new Set<number>();
 
-      validSchedules.forEach(schedule => {
+      validSchedules.forEach((schedule) => {
         if (schedule.date) {
           const scheduleDate = startOfDay(parseISO(schedule.date));
           const start = startOfDay(weekStart);
@@ -211,7 +251,7 @@ export const useStatisticsData = ({
       return {
         weekStart,
         weekEnd,
-        weekNumber: format(weekStart, 'I'),
+        weekNumber: format(weekStart, "I"),
         hours: weekHours,
         shifts: weekShifts,
         employees: uniqueEmployees.size,

@@ -34,7 +34,7 @@ export function ScheduleStatisticsModal({
             <span>Schichtplan-Statistiken</span>
           </DialogTitle>
         </DialogHeader>
-        
+
         <div className="mt-4">
           <ScheduleStatistics
             schedules={schedules}

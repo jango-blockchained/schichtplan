@@ -48,7 +48,8 @@ export function GroupsManager({
             onChange={(groups) => {
               const employeeTypes = groups
                 .filter(
-                  (group): group is EmployeeType => group.type === "employee_type",
+                  (group): group is EmployeeType =>
+                    group.type === "employee_type",
                 )
                 .map(({ type, ...rest }) => rest);
               onEmployeeTypesChange(employeeTypes);
@@ -74,7 +75,8 @@ export function GroupsManager({
             onChange={(groups) => {
               const absenceTypes = groups
                 .filter(
-                  (group): group is AbsenceType => group.type === "absence_type",
+                  (group): group is AbsenceType =>
+                    group.type === "absence_type",
                 )
                 .map(({ type, ...rest }) => rest);
               onAbsenceTypesChange(absenceTypes);

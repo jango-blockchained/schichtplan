@@ -11,12 +11,13 @@ import type {
     Shift,
     SpecialDay,
     Schedule as TSchedule,
-    ScheduleResponse as TScheduleResponse
+    ScheduleResponse as TScheduleResponse,
 } from "@/types/index";
 import type { PDFLayoutConfig } from "@/types/pdf";
 import axios, { AxiosError } from "axios";
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from "../types";
-import { getWeekFromIdentifier } from '../utils/weekUtils';
+import { getWeekFromIdentifier } from "../utils/weekUtils";
+import { logService } from "./logService";
 export type { Shift } from "@/types/index";
 
 interface APIErrorResponse {
@@ -57,8 +58,7 @@ export interface AiGenerationResponse {
   end_date: string;
 }
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -74,7 +74,7 @@ export const api = axios.create({
 // Add request interceptor for debugging
 api.interceptors.request.use(
   (config) => {
-    console.log("Making request to:", config.url);
+    logService.debug("api", "request", `Making request to: ${config.url}`);
     return config;
   },
   (error) => {
@@ -87,11 +87,16 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => {
     // Log successful responses for debugging
-    console.log("Response received from:", response.config?.url, {
-      status: response.status,
-      headers: response.headers,
-      data: response.data,
-    });
+    logService.debug(
+      "api",
+      "response",
+      `Response received from: ${response.config?.url}`,
+      {
+        status: response.status,
+        headers: response.headers,
+        data: response.data,
+      },
+    );
 
     // Check if response has data
     if (response.data === undefined || response.data === null) {
@@ -259,9 +264,10 @@ export const getEmployeeAvailabilityByDate = async (
 // Legacy alias for backwards compatibility with older tests/code
 // TODO: Remove after refactoring tests to use getEmployeeAvailabilityByDate
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const fetchEmployeesWithAvailabilityByDate = getEmployeeAvailabilityByDate as unknown as (
-  date: string,
-) => Promise<EmployeeAvailabilityStatus[]>;
+export const fetchEmployeesWithAvailabilityByDate =
+  getEmployeeAvailabilityByDate as unknown as (
+    date: string,
+  ) => Promise<EmployeeAvailabilityStatus[]>;
 
 // New function for Employee Availability Status by Date Range
 export const getEmployeeAvailabilityByDateRange = async (
@@ -269,12 +275,11 @@ export const getEmployeeAvailabilityByDateRange = async (
   endDate: string,
 ): Promise<Record<string, EmployeeAvailabilityStatus[]>> => {
   try {
-    const response = await api.get<Record<string, EmployeeAvailabilityStatus[]>>(
-      "/api/v2/availability/date_range",
-      {
-        params: { start_date: startDate, end_date: endDate },
-      },
-    );
+    const response = await api.get<
+      Record<string, EmployeeAvailabilityStatus[]>
+    >("/api/v2/availability/date_range", {
+      params: { start_date: startDate, end_date: endDate },
+    });
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -292,7 +297,7 @@ export const getApplicableShiftsForEmployee = async (
   employeeId: number,
 ): Promise<ApplicableShift[]> => {
   try {
-  const response = await api.get<ApplicableShift[]>(
+    const response = await api.get<ApplicableShift[]>(
       "/api/v2/availability/shifts_for_employee",
       {
         params: { date, employee_id: employeeId }, // Ensure param name matches backend (employee_id)
@@ -312,10 +317,11 @@ export const getApplicableShiftsForEmployee = async (
 // Legacy alias for backwards compatibility with older tests/code
 // TODO: Remove after refactoring tests to use getApplicableShiftsForEmployee
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const fetchApplicableShiftsForEmployee = getApplicableShiftsForEmployee as unknown as (
-  date: string,
-  employeeId: string | number,
-) => Promise<ApplicableShift[]>;
+export const fetchApplicableShiftsForEmployee =
+  getApplicableShiftsForEmployee as unknown as (
+    date: string,
+    employeeId: string | number,
+  ) => Promise<ApplicableShift[]>;
 
 // Shifts
 export const getShifts = async (): Promise<Shift[]> => {
@@ -374,7 +380,9 @@ export const deleteShift = async (shiftId: number): Promise<void> => {
 
 export const createDefaultShifts = async (): Promise<{ count: number }> => {
   try {
-    const response = await api.post<{ count: number }>("/api/v2/shifts/defaults/");
+    const response = await api.post<{ count: number }>(
+      "/api/v2/shifts/defaults/",
+    );
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -438,7 +446,7 @@ export const generateAiSchedule = async (
   try {
     const response = await api.post<AiGenerationResponse>(
       "/api/v2/schedule/generate-ai",
-      { start_date: startDate, end_date: endDate, version_id: version }
+      { start_date: startDate, end_date: endDate, version_id: version },
     );
     return response.data;
   } catch (error) {
@@ -460,7 +468,11 @@ export const generateSchedule = async (
     usePhase1FixedAssignments?: boolean;
     usePhase2PreferredAvailability?: boolean;
     usePhase3StandardGeneration?: boolean;
-    phaseMode?: "fixed_assignments" | "preferred_availability" | "standard_generation" | "finalize";
+    phaseMode?:
+      | "fixed_assignments"
+      | "preferred_availability"
+      | "standard_generation"
+      | "finalize";
   },
 ): Promise<ScheduleResponse> => {
   try {
@@ -484,18 +496,22 @@ export const generateSchedule = async (
   }
 };
 
-export const getScheduleDiagnostics = async (sessionId: string): Promise<{
+export const getScheduleDiagnostics = async (
+  sessionId: string,
+): Promise<{
   status: string;
   session_id: string;
   diagnostic_logs: Array<{
-    type: 'info' | 'warning' | 'error' | 'success';
+    type: "info" | "warning" | "error" | "success";
     message: string;
     timestamp: string;
   }>;
   log_count: number;
 }> => {
   try {
-    const response = await api.get(`/api/v2/schedules/diagnostics/${sessionId}`);
+    const response = await api.get(
+      `/api/v2/schedules/diagnostics/${sessionId}`,
+    );
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -505,19 +521,23 @@ export const getScheduleDiagnostics = async (sessionId: string): Promise<{
   }
 };
 
-export const importAiScheduleResponse = async (formData: FormData): Promise<AiImportResponse> => {
+export const importAiScheduleResponse = async (
+  formData: FormData,
+): Promise<AiImportResponse> => {
   try {
     const response = await api.post<AiImportResponse>(
       "/api/v2/schedule/import-ai-response",
       formData,
       {
         headers: { "Content-Type": "multipart/form-data" },
-      }
+      },
     );
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to import AI schedule response: ${error.message}`);
+      throw new Error(
+        `Failed to import AI schedule response: ${error.message}`,
+      );
     }
     throw error;
   }
@@ -527,7 +547,7 @@ export const exportSchedule = async (
   startDate: string,
   endDate: string,
   layoutConfig?: PDFLayoutConfig,
-  format?: 'standard' | 'mep' | 'mep-html',
+  format?: "standard" | "mep" | "mep-html",
   filiale?: string,
 ): Promise<Blob> => {
   try {
@@ -535,7 +555,7 @@ export const exportSchedule = async (
       start_date: string;
       end_date: string;
       layout_config?: PDFLayoutConfig;
-      format?: 'standard' | 'mep' | 'mep-html';
+      format?: "standard" | "mep" | "mep-html";
       filiale?: string;
     } = {
       start_date: startDate,
@@ -551,13 +571,9 @@ export const exportSchedule = async (
       payload.filiale = filiale;
     }
 
-    const response = await api.post(
-      "/api/v2/schedules/export",
-      payload,
-      {
-        responseType: "blob",
-      }
-    );
+    const response = await api.post("/api/v2/schedules/export", payload, {
+      responseType: "blob",
+    });
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -575,13 +591,13 @@ export const updateBreakNotes = async (
   try {
     const response = await api.put<ScheduleData>(
       `/api/v2/employees/${employeeId}/schedules/notes`,
-      { date, notes }
+      { date, notes },
     );
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(
-        `Failed to update break notes for employee ${employeeId} on ${date}: ${error.message}`
+        `Failed to update break notes for employee ${employeeId} on ${date}: ${error.message}`,
       );
     }
     throw error;
@@ -601,7 +617,7 @@ export const updateShiftDay = async (
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(
-        `Failed to update shift day for employee ${employeeId} from ${fromDate} to ${toDate}: ${error.message}`
+        `Failed to update shift day for employee ${employeeId} from ${fromDate} to ${toDate}: ${error.message}`,
       );
     }
     throw error;
@@ -748,9 +764,10 @@ export const updateEmployeeAvailability = async (
   >[],
 ) => {
   try {
-    const response = await api.put<
-      EmployeeAvailability[]
-    >(`/api/v2/employees/${employeeId}/availability`, availabilities);
+    const response = await api.put<EmployeeAvailability[]>(
+      `/api/v2/employees/${employeeId}/availability`,
+      availabilities,
+    );
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -768,7 +785,9 @@ export const getAbsences = async (employeeId?: number): Promise<Absence[]> => {
   try {
     // If employeeId is provided, use employee-specific endpoint for backward compatibility
     if (employeeId !== undefined) {
-      const response = await api.get<Absence[]>(`/api/v2/absences/employees/${employeeId}/absences`);
+      const response = await api.get<Absence[]>(
+        `/api/v2/absences/employees/${employeeId}/absences`,
+      );
       return response.data;
     }
 
@@ -793,7 +812,11 @@ export const getAbsencesByRange = async (
 ): Promise<Absence[]> => {
   try {
     const response = await api.get<Absence[]>(`/api/v2/absences/`, {
-      params: { start_date: startDate, end_date: endDate, employee_id: employeeId },
+      params: {
+        start_date: startDate,
+        end_date: endDate,
+        employee_id: employeeId,
+      },
     });
     return response.data;
   } catch (error) {
@@ -809,9 +832,9 @@ export const getAbsencesByRange = async (
 // New: Special days API
 export const getSpecialDays = async (): Promise<Record<string, SpecialDay>> => {
   try {
-    const response = await api.get<{ special_days: Record<string, SpecialDay> }>(
-      "/api/v2/settings/special-days/",
-    );
+    const response = await api.get<{
+      special_days: Record<string, SpecialDay>;
+    }>("/api/v2/settings/special-days/");
     return response.data.special_days || {};
   } catch (error) {
     if (error instanceof Error) {
@@ -835,9 +858,7 @@ export const createAbsence = async (
   }
 };
 
-export const deleteAbsence = async (
-  id: number,
-): Promise<void> => {
+export const deleteAbsence = async (id: number): Promise<void> => {
   try {
     await api.delete(`/api/v2/absences/${id}`);
   } catch (error) {
@@ -895,7 +916,9 @@ export const wipeTables = async (tables: string[]): Promise<void> => {
 
 // Corrected endpoint based on backend routes
 export const fetchTables = async (): Promise<string[]> => {
-  const response = await api.get<{ tables: string[] }>("/api/v2/settings/tables");
+  const response = await api.get<{ tables: string[] }>(
+    "/api/v2/settings/tables",
+  );
   return response.data.tables;
 };
 
@@ -969,7 +992,9 @@ export const publishSchedule = async (version: number) => {
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to publish schedule version ${version}: ${error.message}`);
+      throw new Error(
+        `Failed to publish schedule version ${version}: ${error.message}`,
+      );
     }
     throw error;
   }
@@ -981,7 +1006,9 @@ export const archiveSchedule = async (version: number) => {
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to archive schedule version ${version}: ${error.message}`);
+      throw new Error(
+        `Failed to archive schedule version ${version}: ${error.message}`,
+      );
     }
     throw error;
   }
@@ -1015,9 +1042,12 @@ export const getAllVersions = async (
   endDate?: string,
 ): Promise<VersionResponse> => {
   try {
-    const response = await api.get<VersionResponse>("/api/v2/schedules/versions", {
-      params: { start_date: startDate, end_date: endDate },
-    });
+    const response = await api.get<VersionResponse>(
+      "/api/v2/schedules/versions",
+      {
+        params: { start_date: startDate, end_date: endDate },
+      },
+    );
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -1045,7 +1075,10 @@ export const createNewVersion = async (
   data: CreateVersionRequest,
 ): Promise<CreateVersionResponse> => {
   try {
-    const response = await api.post<CreateVersionResponse>("/api/v2/schedules/version", data);
+    const response = await api.post<CreateVersionResponse>(
+      "/api/v2/schedules/version",
+      data,
+    );
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -1177,7 +1210,9 @@ export const compareVersions = async (
   compareVersion: number,
 ): Promise<CompareVersionsResponse> => {
   // Temporary stub implementation until backend endpoint is available
-  console.warn(`compareVersions is not yet implemented in the backend. Attempted to compare versions ${baseVersion} and ${compareVersion}`);
+  console.warn(
+    `compareVersions is not yet implemented in the backend. Attempted to compare versions ${baseVersion} and ${compareVersion}`,
+  );
 
   // Return a mock response to prevent frontend errors
   return {
@@ -1188,8 +1223,8 @@ export const compareVersions = async (
       removed: 0,
       changed: 0,
       unchanged: 0,
-      details: []
-    }
+      details: [],
+    },
   };
 
   // TODO: Uncomment when backend endpoint is ready
@@ -1224,13 +1259,15 @@ export const updateVersionNotes = async (
   data: UpdateVersionNotesRequest,
 ): Promise<UpdateVersionNotesResponse> => {
   // Temporary stub implementation until backend endpoint is available
-  console.warn(`updateVersionNotes is not yet implemented in the backend. Attempted to update version ${version} with notes: ${data.notes}`);
+  console.warn(
+    `updateVersionNotes is not yet implemented in the backend. Attempted to update version ${version} with notes: ${data.notes}`,
+  );
 
   // Return a mock response to prevent frontend errors
   return {
     version,
     notes: data.notes,
-    message: `Notes update for version ${version} is not yet implemented in the backend`
+    message: `Notes update for version ${version} is not yet implemented in the backend`,
   };
 
   // TODO: Uncomment when backend endpoint is ready
@@ -1255,19 +1292,20 @@ export interface fixShiftDurationsResponse {
   fixed_count: number;
 }
 
-export const fixShiftDurations = async (): Promise<fixShiftDurationsResponse> => {
-  try {
-    const response = await api.post<fixShiftDurationsResponse>(
-      "/api/v2/tools/fix-shift-durations",
-    );
-    return response.data;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to fix shift durations: ${error.message}`);
+export const fixShiftDurations =
+  async (): Promise<fixShiftDurationsResponse> => {
+    try {
+      const response = await api.post<fixShiftDurationsResponse>(
+        "/api/v2/tools/fix-shift-durations",
+      );
+      return response.data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to fix shift durations: ${error.message}`);
+      }
+      throw error;
     }
-    throw error;
-  }
-};
+  };
 
 export interface DeleteVersionResponse {
   message: string;
@@ -1332,10 +1370,11 @@ export const fixScheduleDisplay = async (
   total_schedules: number;
 }> => {
   try {
-    const response = await api.post(
-      "/api/v2/schedules/fix-display",
-      { start_date: startDate, end_date: endDate, version: version }
-    );
+    const response = await api.post("/api/v2/schedules/fix-display", {
+      start_date: startDate,
+      end_date: endDate,
+      version: version,
+    });
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -1398,7 +1437,10 @@ export const updateCoverage = async (
 ): Promise<DailyCoverage[]> => {
   try {
     // Use the bulk update endpoint which accepts POST
-    const response = await api.post<DailyCoverage[]>("/api/v2/coverage/bulk", coverageData);
+    const response = await api.post<DailyCoverage[]>(
+      "/api/v2/coverage/bulk",
+      coverageData,
+    );
     return response.data as DailyCoverage[];
   } catch (error) {
     if (error instanceof Error) {
@@ -1461,37 +1503,53 @@ export const getCurrentWeekInfo = async (): Promise<WeekInfo> => {
   }
 };
 
-export const getWeekInfo = async (weekIdentifier: string): Promise<WeekInfo> => {
+export const getWeekInfo = async (
+  weekIdentifier: string,
+): Promise<WeekInfo> => {
   try {
     const response = await api.get<WeekInfo>(`/api/weeks/${weekIdentifier}`);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to get week info for ${weekIdentifier}: ${error.message}`);
+      throw new Error(
+        `Failed to get week info for ${weekIdentifier}: ${error.message}`,
+      );
     }
     throw error;
   }
 };
 
-export const getNextWeek = async (weekIdentifier: string): Promise<WeekInfo> => {
+export const getNextWeek = async (
+  weekIdentifier: string,
+): Promise<WeekInfo> => {
   try {
-    const response = await api.get<WeekInfo>(`/api/weeks/${weekIdentifier}/next`);
+    const response = await api.get<WeekInfo>(
+      `/api/weeks/${weekIdentifier}/next`,
+    );
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to get next week after ${weekIdentifier}: ${error.message}`);
+      throw new Error(
+        `Failed to get next week after ${weekIdentifier}: ${error.message}`,
+      );
     }
     throw error;
   }
 };
 
-export const getPreviousWeek = async (weekIdentifier: string): Promise<WeekInfo> => {
+export const getPreviousWeek = async (
+  weekIdentifier: string,
+): Promise<WeekInfo> => {
   try {
-    const response = await api.get<WeekInfo>(`/api/weeks/${weekIdentifier}/previous`);
+    const response = await api.get<WeekInfo>(
+      `/api/weeks/${weekIdentifier}/previous`,
+    );
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to get previous week before ${weekIdentifier}: ${error.message}`);
+      throw new Error(
+        `Failed to get previous week before ${weekIdentifier}: ${error.message}`,
+      );
     }
     throw error;
   }
@@ -1531,9 +1589,13 @@ interface BackendWeekSegmentsResponse {
   segments: BackendWeekSegment[];
 }
 
-export const getWeekSegments = async (weekIdentifier: string): Promise<WeekSegmentsResponse> => {
+export const getWeekSegments = async (
+  weekIdentifier: string,
+): Promise<WeekSegmentsResponse> => {
   try {
-    const response = await api.get<BackendWeekSegmentsResponse>(`/api/weeks/${weekIdentifier}/segments`);
+    const response = await api.get<BackendWeekSegmentsResponse>(
+      `/api/weeks/${weekIdentifier}/segments`,
+    );
 
     // Transform snake_case to camelCase for frontend consistency
     return {
@@ -1549,11 +1611,13 @@ export const getWeekSegments = async (weekIdentifier: string): Promise<WeekSegme
         year: seg.year,
         is_first_segment: seg.is_first_segment,
         is_last_segment: seg.is_last_segment,
-      }))
+      })),
     };
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to get week segments for ${weekIdentifier}: ${error.message}`);
+      throw new Error(
+        `Failed to get week segments for ${weekIdentifier}: ${error.message}`,
+      );
     }
     throw error;
   }
@@ -1569,8 +1633,8 @@ export const createWeekVersion = async (
     // Format dates as YYYY-MM-DD
     const formatDate = (date: Date) => {
       const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
       return `${year}-${month}-${day}`;
     };
 
@@ -1579,7 +1643,7 @@ export const createWeekVersion = async (
       end_date: formatDate(weekInfo.endDate),
       base_version: data.base_version,
       notes: data.notes,
-      create_empty_schedules: data.create_empty_schedules ?? true
+      create_empty_schedules: data.create_empty_schedules ?? true,
     };
 
     const response = await api.post("/api/v2/schedules/version", requestData);
@@ -1588,29 +1652,38 @@ export const createWeekVersion = async (
     const backendResponse = response.data;
     return {
       version: backendResponse.version,
-      created_at: backendResponse.version_meta?.created_at || new Date().toISOString(),
+      created_at:
+        backendResponse.version_meta?.created_at || new Date().toISOString(),
       status: backendResponse.status_code || backendResponse.status,
       date_range_start: formatDate(weekInfo.startDate),
       date_range_end: formatDate(weekInfo.endDate),
       week_identifier: data.week_identifier,
       is_week_based: true,
-      notes: data.notes
+      notes: data.notes,
     };
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to create week version for ${data.week_identifier}: ${error.message}`);
+      throw new Error(
+        `Failed to create week version for ${data.week_identifier}: ${error.message}`,
+      );
     }
     throw error;
   }
 };
 
-export const getWeekVersions = async (weekIdentifier: string): Promise<CreateWeekVersionResponse[]> => {
+export const getWeekVersions = async (
+  weekIdentifier: string,
+): Promise<CreateWeekVersionResponse[]> => {
   try {
-    const response = await api.get<CreateWeekVersionResponse[]>(`/api/weeks/${weekIdentifier}/versions`);
+    const response = await api.get<CreateWeekVersionResponse[]>(
+      `/api/weeks/${weekIdentifier}/versions`,
+    );
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to get versions for week ${weekIdentifier}: ${error.message}`);
+      throw new Error(
+        `Failed to get versions for week ${weekIdentifier}: ${error.message}`,
+      );
     }
     throw error;
   }
@@ -1672,10 +1745,10 @@ export const previewAiData = async (
   };
 }> => {
   try {
-    const response = await api.post(
-      "/api/v2/schedule/preview-ai-data",
-      { start_date: startDate, end_date: endDate }
-    );
+    const response = await api.post("/api/v2/schedule/preview-ai-data", {
+      start_date: startDate,
+      end_date: endDate,
+    });
     return response.data;
   } catch (error) {
     if (error instanceof Error) {

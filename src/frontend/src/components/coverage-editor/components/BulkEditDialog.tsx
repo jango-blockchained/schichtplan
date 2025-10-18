@@ -22,10 +22,16 @@ export const BulkEditDialog: React.FC<BulkEditDialogProps> = ({
   onBulkUpdate,
   storeConfig,
 }) => {
-  const [minEmployees, setMinEmployees] = useState<number | undefined>(undefined);
-  const [maxEmployees, setMaxEmployees] = useState<number | undefined>(undefined);
+  const [minEmployees, setMinEmployees] = useState<number | undefined>(
+    undefined,
+  );
+  const [maxEmployees, setMaxEmployees] = useState<number | undefined>(
+    undefined,
+  );
   const [employeeTypes, setEmployeeTypes] = useState<string[]>([]);
-  const [requiresKeyholder, setRequiresKeyholder] = useState<boolean | undefined>(undefined);
+  const [requiresKeyholder, setRequiresKeyholder] = useState<
+    boolean | undefined
+  >(undefined);
   const [updateMinEmployees, setUpdateMinEmployees] = useState(false);
   const [updateMaxEmployees, setUpdateMaxEmployees] = useState(false);
   const [updateEmployeeTypes, setUpdateEmployeeTypes] = useState(false);
@@ -36,7 +42,7 @@ export const BulkEditDialog: React.FC<BulkEditDialogProps> = ({
     if (isOpen && selectedBlocks.length > 0) {
       // Get the first selected block to use as default values
       const firstBlock = selectedBlocks[0];
-      const dayData = coverage.find(c => c.dayIndex === firstBlock.dayIndex);
+      const dayData = coverage.find((c) => c.dayIndex === firstBlock.dayIndex);
       const slotData = dayData?.timeSlots[firstBlock.slotIndex];
 
       if (slotData) {
@@ -49,7 +55,7 @@ export const BulkEditDialog: React.FC<BulkEditDialogProps> = ({
       // Reset to defaults
       setMinEmployees(storeConfig.min_employees_per_shift);
       setMaxEmployees(storeConfig.max_employees_per_shift);
-      setEmployeeTypes(storeConfig.employee_types.map(t => t.id));
+      setEmployeeTypes(storeConfig.employee_types.map((t) => t.id));
       setRequiresKeyholder(false);
     }
 
@@ -81,10 +87,10 @@ export const BulkEditDialog: React.FC<BulkEditDialogProps> = ({
   };
 
   const handleEmployeeTypeToggle = (typeId: string) => {
-    setEmployeeTypes(prev =>
+    setEmployeeTypes((prev) =>
       prev.includes(typeId)
-        ? prev.filter(id => id !== typeId)
-        : [...prev, typeId]
+        ? prev.filter((id) => id !== typeId)
+        : [...prev, typeId],
     );
   };
 
@@ -95,8 +101,8 @@ export const BulkEditDialog: React.FC<BulkEditDialogProps> = ({
   };
 
   const getSelectedBlocksList = () => {
-    return selectedBlocks.map(block => {
-      const dayData = coverage.find(c => c.dayIndex === block.dayIndex);
+    return selectedBlocks.map((block) => {
+      const dayData = coverage.find((c) => c.dayIndex === block.dayIndex);
       const slotData = dayData?.timeSlots[block.slotIndex];
       const dayName = DAYS_SHORT[block.dayIndex];
 
@@ -139,7 +145,9 @@ export const BulkEditDialog: React.FC<BulkEditDialogProps> = ({
                 <Checkbox
                   id="update-min"
                   checked={updateMinEmployees}
-                  onCheckedChange={(checked) => setUpdateMinEmployees(checked === true)}
+                  onCheckedChange={(checked) =>
+                    setUpdateMinEmployees(checked === true)
+                  }
                 />
                 <Label htmlFor="update-min" className="text-sm font-medium">
                   Update Minimum Employees
@@ -149,7 +157,9 @@ export const BulkEditDialog: React.FC<BulkEditDialogProps> = ({
                 type="number"
                 min={1}
                 value={minEmployees || ""}
-                onChange={(e) => setMinEmployees(parseInt(e.target.value) || undefined)}
+                onChange={(e) =>
+                  setMinEmployees(parseInt(e.target.value) || undefined)
+                }
                 disabled={!updateMinEmployees}
                 placeholder="Min employees"
               />
@@ -160,7 +170,9 @@ export const BulkEditDialog: React.FC<BulkEditDialogProps> = ({
                 <Checkbox
                   id="update-max"
                   checked={updateMaxEmployees}
-                  onCheckedChange={(checked) => setUpdateMaxEmployees(checked === true)}
+                  onCheckedChange={(checked) =>
+                    setUpdateMaxEmployees(checked === true)
+                  }
                 />
                 <Label htmlFor="update-max" className="text-sm font-medium">
                   Update Maximum Employees
@@ -170,7 +182,9 @@ export const BulkEditDialog: React.FC<BulkEditDialogProps> = ({
                 type="number"
                 min={1}
                 value={maxEmployees || ""}
-                onChange={(e) => setMaxEmployees(parseInt(e.target.value) || undefined)}
+                onChange={(e) =>
+                  setMaxEmployees(parseInt(e.target.value) || undefined)
+                }
                 disabled={!updateMaxEmployees}
                 placeholder="Max employees"
               />
@@ -183,14 +197,16 @@ export const BulkEditDialog: React.FC<BulkEditDialogProps> = ({
               <Checkbox
                 id="update-types"
                 checked={updateEmployeeTypes}
-                onCheckedChange={(checked) => setUpdateEmployeeTypes(checked === true)}
+                onCheckedChange={(checked) =>
+                  setUpdateEmployeeTypes(checked === true)
+                }
               />
               <Label htmlFor="update-types" className="text-sm font-medium">
                 Update Employee Types
               </Label>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              {storeConfig.employee_types.map(type => (
+              {storeConfig.employee_types.map((type) => (
                 <div key={type.id} className="flex items-center space-x-2">
                   <Checkbox
                     id={`type-${type.id}`}
@@ -212,7 +228,9 @@ export const BulkEditDialog: React.FC<BulkEditDialogProps> = ({
               <Checkbox
                 id="update-keyholder"
                 checked={updateKeyholder}
-                onCheckedChange={(checked) => setUpdateKeyholder(checked === true)}
+                onCheckedChange={(checked) =>
+                  setUpdateKeyholder(checked === true)
+                }
               />
               <Label htmlFor="update-keyholder" className="text-sm font-medium">
                 Update Keyholder Requirement
@@ -222,7 +240,9 @@ export const BulkEditDialog: React.FC<BulkEditDialogProps> = ({
               <Checkbox
                 id="requires-keyholder"
                 checked={requiresKeyholder || false}
-                onCheckedChange={(checked) => setRequiresKeyholder(checked === true)}
+                onCheckedChange={(checked) =>
+                  setRequiresKeyholder(checked === true)
+                }
                 disabled={!updateKeyholder}
               />
               <Label htmlFor="requires-keyholder" className="text-sm">
@@ -238,7 +258,12 @@ export const BulkEditDialog: React.FC<BulkEditDialogProps> = ({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={!updateMinEmployees && !updateMaxEmployees && !updateEmployeeTypes && !updateKeyholder}
+            disabled={
+              !updateMinEmployees &&
+              !updateMaxEmployees &&
+              !updateEmployeeTypes &&
+              !updateKeyholder
+            }
           >
             Apply Changes
           </Button>
@@ -246,4 +271,4 @@ export const BulkEditDialog: React.FC<BulkEditDialogProps> = ({
       </DialogContent>
     </Dialog>
   );
-}; 
+};

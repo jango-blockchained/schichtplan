@@ -8,12 +8,12 @@ import { Employee, Shift } from "@/types";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
-    ChevronDown,
-    ChevronUp,
-    Clock,
-    GripVertical,
-    Users,
-    X
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  GripVertical,
+  Users,
+  X,
 } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useDrag } from "react-dnd";
@@ -50,9 +50,9 @@ interface DraggableShiftProps {
   currentVersion?: number;
 }
 
-const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({ 
-  employee, 
-  selectedDate
+const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({
+  employee,
+  selectedDate,
 }) => {
   const [{ isDragging }, drag] = useDrag({
     type: "SCHEDULE",
@@ -60,7 +60,9 @@ const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({
       type: "SCHEDULE",
       employeeId: employee.id,
       shiftId: null, // Will be assigned when dropped
-      date: selectedDate ? format(selectedDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+      date: selectedDate
+        ? format(selectedDate, "yyyy-MM-dd")
+        : format(new Date(), "yyyy-MM-dd"),
       isDockItem: true, // Flag to indicate this is from the dock
     }),
     collect: (monitor) => ({
@@ -70,11 +72,16 @@ const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({
 
   const getEmployeeGroupColor = (group: string) => {
     switch (group) {
-      case "VZ": return "bg-blue-500/20 text-blue-300 border-blue-500/30";
-      case "TZ": return "bg-green-500/20 text-green-300 border-green-500/30";
-      case "GFB": return "bg-amber-500/20 text-amber-300 border-amber-500/30";
-      case "TL": return "bg-purple-500/20 text-purple-300 border-purple-500/30";
-      default: return "bg-slate-500/20 text-slate-300 border-slate-500/30";
+      case "VZ":
+        return "bg-blue-500/20 text-blue-300 border-blue-500/30";
+      case "TZ":
+        return "bg-green-500/20 text-green-300 border-green-500/30";
+      case "GFB":
+        return "bg-amber-500/20 text-amber-300 border-amber-500/30";
+      case "TL":
+        return "bg-purple-500/20 text-purple-300 border-purple-500/30";
+      default:
+        return "bg-slate-500/20 text-slate-300 border-slate-500/30";
     }
   };
 
@@ -84,7 +91,7 @@ const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({
       className={cn(
         "flex flex-col items-center p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-all cursor-move min-w-[120px] select-none",
         isDragging && "opacity-50 scale-95",
-        !isDragging && "hover:scale-105"
+        !isDragging && "hover:scale-105",
       )}
     >
       <GripVertical className="h-4 w-4 text-muted-foreground mb-1" />
@@ -94,7 +101,10 @@ const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({
       <div className="flex flex-col gap-1 items-center">
         <Badge
           variant="secondary"
-          className={cn("text-xs", getEmployeeGroupColor(employee.employee_group))}
+          className={cn(
+            "text-xs",
+            getEmployeeGroupColor(employee.employee_group),
+          )}
         >
           {employee.employee_group}
         </Badge>
@@ -111,9 +121,9 @@ const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({
   );
 };
 
-const DraggableShift: React.FC<DraggableShiftProps> = ({ 
-  shift, 
-  selectedDate
+const DraggableShift: React.FC<DraggableShiftProps> = ({
+  shift,
+  selectedDate,
 }) => {
   const [{ isDragging }, drag] = useDrag({
     type: "SCHEDULE",
@@ -121,11 +131,13 @@ const DraggableShift: React.FC<DraggableShiftProps> = ({
       type: "SCHEDULE",
       employeeId: 0, // Will be assigned when dropped on an employee
       shiftId: shift.id,
-      date: selectedDate ? format(selectedDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+      date: selectedDate
+        ? format(selectedDate, "yyyy-MM-dd")
+        : format(new Date(), "yyyy-MM-dd"),
       shift_type_id: shift.shift_type_id,
       isDockItem: true, // Flag to indicate this is from the dock
-  start_time: shift.start_time ?? null,
-  end_time: shift.end_time ?? null,
+      start_time: shift.start_time ?? null,
+      end_time: shift.end_time ?? null,
     }),
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
@@ -134,21 +146,31 @@ const DraggableShift: React.FC<DraggableShiftProps> = ({
 
   const getShiftTypeColor = (shiftType?: string) => {
     switch (shiftType) {
-      case "EARLY": return "bg-blue-500/20 text-blue-300 border-blue-500/30";
-      case "MIDDLE": return "bg-green-500/20 text-green-300 border-green-500/30";
-      case "LATE": return "bg-amber-500/20 text-amber-300 border-amber-500/30";
-      default: return "bg-slate-500/20 text-slate-300 border-slate-500/30";
+      case "EARLY":
+        return "bg-blue-500/20 text-blue-300 border-blue-500/30";
+      case "MIDDLE":
+        return "bg-green-500/20 text-green-300 border-green-500/30";
+      case "LATE":
+        return "bg-amber-500/20 text-amber-300 border-amber-500/30";
+      default:
+        return "bg-slate-500/20 text-slate-300 border-slate-500/30";
     }
   };
 
   const getShiftTypeName = (shiftType?: string) => {
     switch (shiftType) {
-      case "EARLY": return "Früh";
-      case "MIDDLE": return "Mitte";
-      case "LATE": return "Spät";
-      case "NO_WORK": return "Kein Dienst";
-      case "UNAVAILABLE": return "Nicht verfügbar";
-      default: return "Schicht";
+      case "EARLY":
+        return "Früh";
+      case "MIDDLE":
+        return "Mitte";
+      case "LATE":
+        return "Spät";
+      case "NO_WORK":
+        return "Kein Dienst";
+      case "UNAVAILABLE":
+        return "Nicht verfügbar";
+      default:
+        return "Schicht";
     }
   };
 
@@ -158,7 +180,7 @@ const DraggableShift: React.FC<DraggableShiftProps> = ({
       className={cn(
         "flex flex-col items-center p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-all cursor-move min-w-[120px] select-none",
         isDragging && "opacity-50 scale-95",
-        !isDragging && "hover:scale-105"
+        !isDragging && "hover:scale-105",
       )}
     >
       <GripVertical className="h-4 w-4 text-muted-foreground mb-1" />
@@ -187,9 +209,9 @@ const DraggableShift: React.FC<DraggableShiftProps> = ({
   );
 };
 
-export const ScheduleDock: React.FC<ScheduleDockProps> = ({ 
+export const ScheduleDock: React.FC<ScheduleDockProps> = ({
   selectedDate,
-  onClose
+  onClose,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState("employees");
@@ -205,30 +227,30 @@ export const ScheduleDock: React.FC<ScheduleDockProps> = ({
   });
 
   // Filter active employees
-  const activeEmployees = useMemo(() => 
-    employees.filter(emp => emp.is_active), 
-    [employees]
+  const activeEmployees = useMemo(
+    () => employees.filter((emp) => emp.is_active),
+    [employees],
   );
 
   // Filter shifts that are available for the selected date
   const availableShifts = useMemo(() => {
     if (!selectedDate) return shifts;
-    
+
     const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
     // Convert to match backend format (0 = Monday)
     const backendDayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    
-    return shifts.filter(shift => {
+
+    return shifts.filter((shift) => {
       if (!shift.active_days) return true;
-      
+
       // Handle both array and object formats for active_days
       if (Array.isArray(shift.active_days)) {
         return shift.active_days.includes(backendDayIndex);
-      } else if (typeof shift.active_days === 'object') {
+      } else if (typeof shift.active_days === "object") {
         // Handle object format where keys are day indices
         return shift.active_days[backendDayIndex.toString()] === true;
       }
-      
+
       return true;
     });
   }, [shifts, selectedDate]);
@@ -245,10 +267,17 @@ export const ScheduleDock: React.FC<ScheduleDockProps> = ({
             className="flex items-center gap-2"
             title="Drag employees or shifts from here onto the schedule table to create new assignments"
           >
-            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            {isExpanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronUp className="h-4 w-4" />
+            )}
             <span className="font-medium">Drag & Drop Stack</span>
             <Badge variant="secondary" className="ml-2">
-              {activeTab === "employees" ? activeEmployees.length : availableShifts.length} items
+              {activeTab === "employees"
+                ? activeEmployees.length
+                : availableShifts.length}{" "}
+              items
             </Badge>
           </Button>
           {!isExpanded && (
@@ -257,7 +286,7 @@ export const ScheduleDock: React.FC<ScheduleDockProps> = ({
             </div>
           )}
         </div>
-        
+
         <div className="flex items-center gap-2">
           {selectedDate && (
             <Badge variant="outline" className="text-xs">
@@ -280,10 +309,17 @@ export const ScheduleDock: React.FC<ScheduleDockProps> = ({
       {/* Dock Content */}
       {isExpanded && (
         <div className="max-h-60 overflow-hidden">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="w-full"
+          >
             <div className="px-4 py-2 border-b border-border">
               <TabsList className="grid w-fit grid-cols-2">
-                <TabsTrigger value="employees" className="flex items-center gap-2">
+                <TabsTrigger
+                  value="employees"
+                  className="flex items-center gap-2"
+                >
                   <Users className="h-4 w-4" />
                   Employees
                 </TabsTrigger>
@@ -311,7 +347,6 @@ export const ScheduleDock: React.FC<ScheduleDockProps> = ({
                           key={employee.id}
                           employee={employee}
                           selectedDate={selectedDate}
-                          
                         />
                       ))}
                     </div>
@@ -337,7 +372,6 @@ export const ScheduleDock: React.FC<ScheduleDockProps> = ({
                           key={shift.id}
                           shift={shift}
                           selectedDate={selectedDate}
-                          
                         />
                       ))}
                     </div>
@@ -350,4 +384,4 @@ export const ScheduleDock: React.FC<ScheduleDockProps> = ({
       )}
     </div>
   );
-}; 
+};

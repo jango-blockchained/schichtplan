@@ -1,7 +1,13 @@
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getAbsencesByRange, getEmployees, getSchedules, getSettings, type ScheduleResponse } from "@/services/api";
+import {
+  getAbsencesByRange,
+  getEmployees,
+  getSchedules,
+  getSettings,
+  type ScheduleResponse,
+} from "@/services/api";
 import { getWeekStartsOn } from "@/utils/weekStart";
 import { useQuery, useQuery as useSettingsQuery } from "@tanstack/react-query";
 import { endOfWeek, format, startOfWeek } from "date-fns";
@@ -11,7 +17,11 @@ import { Link } from "react-router-dom";
 
 export default function OverviewPage() {
   // Settings for dynamic week start
-  const { data: settings } = useSettingsQuery({ queryKey: ["settings"], queryFn: getSettings, staleTime: 300_000 });
+  const { data: settings } = useSettingsQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+    staleTime: 300_000,
+  });
   const weekStartsOn = getWeekStartsOn(settings);
 
   const { startISO, endISO, label } = useMemo(() => {
@@ -25,7 +35,10 @@ export default function OverviewPage() {
     };
   }, [weekStartsOn]);
 
-  const { data: employees } = useQuery({ queryKey: ["employees"], queryFn: getEmployees });
+  const { data: employees } = useQuery({
+    queryKey: ["employees"],
+    queryFn: getEmployees,
+  });
 
   const { data: schedules } = useQuery<ScheduleResponse>({
     queryKey: ["schedules", startISO, endISO, undefined, true],
@@ -38,7 +51,8 @@ export default function OverviewPage() {
   });
 
   const totalShifts = schedules?.schedules?.length ?? 0;
-  const filledShifts = schedules?.schedules?.filter((s) => !!s.employee_id).length ?? 0;
+  const filledShifts =
+    schedules?.schedules?.filter((s) => !!s.employee_id).length ?? 0;
   const emptyShifts = totalShifts - filledShifts;
 
   return (
@@ -68,35 +82,51 @@ export default function OverviewPage() {
             <div className="text-2xl font-bold">{employees?.length ?? 0}</div>
             <p className="text-xs text-muted-foreground mt-1">Gesamtanzahl</p>
             <Button asChild variant="link" className="px-0 mt-2 text-sm">
-              <Link to="/employees" className="inline-flex items-center">Verwalten <ArrowRight className="ml-1 h-3 w-3" /></Link>
+              <Link to="/employees" className="inline-flex items-center">
+                Verwalten <ArrowRight className="ml-1 h-3 w-3" />
+              </Link>
             </Button>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Schichten (diese Woche)</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Schichten (diese Woche)
+            </CardTitle>
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{filledShifts}/{totalShifts}</div>
-            <p className="text-xs text-muted-foreground mt-1">Besetzt / Gesamt • Leer: {emptyShifts}</p>
+            <div className="text-2xl font-bold">
+              {filledShifts}/{totalShifts}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Besetzt / Gesamt • Leer: {emptyShifts}
+            </p>
             <Button asChild variant="link" className="px-0 mt-2 text-sm">
-              <Link to="/">Zum Schichtplan <ArrowRight className="ml-1 h-3 w-3" /></Link>
+              <Link to="/">
+                Zum Schichtplan <ArrowRight className="ml-1 h-3 w-3" />
+              </Link>
             </Button>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Abwesenheiten (diese Woche)</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Abwesenheiten (diese Woche)
+            </CardTitle>
             <CalendarX2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{absences?.length ?? 0}</div>
-            <p className="text-xs text-muted-foreground mt-1">Urlaub/Krankheit u.a.</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Urlaub/Krankheit u.a.
+            </p>
             <Button asChild variant="link" className="px-0 mt-2 text-sm">
-              <Link to="/absences" className="inline-flex items-center">Abwesenheiten <ArrowRight className="ml-1 h-3 w-3" /></Link>
+              <Link to="/absences" className="inline-flex items-center">
+                Abwesenheiten <ArrowRight className="ml-1 h-3 w-3" />
+              </Link>
             </Button>
           </CardContent>
         </Card>
@@ -108,10 +138,18 @@ export default function OverviewPage() {
             <CardTitle>Schnellzugriff</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
-            <Button asChild variant="secondary"><Link to="/versions">Versionen</Link></Button>
-            <Button asChild variant="secondary"><Link to="/shifts">Schichtvorlagen</Link></Button>
-            <Button asChild variant="secondary"><Link to="/coverage">Coverage</Link></Button>
-            <Button asChild variant="secondary"><Link to="/settings">Einstellungen</Link></Button>
+            <Button asChild variant="secondary">
+              <Link to="/versions">Versionen</Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link to="/shifts">Schichtvorlagen</Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link to="/coverage">Coverage</Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link to="/settings">Einstellungen</Link>
+            </Button>
           </CardContent>
         </Card>
       </div>

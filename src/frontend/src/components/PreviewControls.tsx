@@ -1,18 +1,18 @@
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import {
-    AlertCircle,
-    CheckCircle,
-    Clock,
-    Download,
-    Redo2,
-    RotateCcw,
-    Save,
-    Undo2
-} from 'lucide-react';
-import React from 'react';
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Download,
+  Redo2,
+  RotateCcw,
+  Save,
+  Undo2,
+} from "lucide-react";
+import React from "react";
 
 interface PreviewControlsProps {
   canUndo: boolean;
@@ -37,7 +37,7 @@ export function PreviewControls({
   onUndo,
   onRedo,
   onDownload,
-  className = '',
+  className = "",
 }: PreviewControlsProps) {
   const [isSaving, setIsSaving] = React.useState(false);
 
@@ -46,25 +46,26 @@ export function PreviewControls({
       setIsSaving(true);
       await onSave();
     } catch (error) {
-      console.error('Save failed:', error);
+      console.error("Save failed:", error);
     } finally {
       setIsSaving(false);
     }
   };
 
   const formatLastSaved = (date?: Date) => {
-    if (!date) return 'Never';
-    
+    if (!date) return "Never";
+
     const now = new Date();
     const diffInMs = now.getTime() - date.getTime();
     const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-    
-    if (diffInMinutes < 1) return 'Just now';
+
+    if (diffInMinutes < 1) return "Just now";
     if (diffInMinutes < 60) return `${diffInMinutes} min ago`;
-    
+
     const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
-    
+    if (diffInHours < 24)
+      return `${diffInHours} hour${diffInHours > 1 ? "s" : ""} ago`;
+
     return date.toLocaleDateString();
   };
 
@@ -73,7 +74,7 @@ export function PreviewControls({
       <CardContent className="p-4 space-y-4">
         {/* Primary Actions */}
         <div className="flex flex-col gap-2">
-          <Button 
+          <Button
             onClick={handleSave}
             disabled={isSaving || !isDirty}
             className="w-full"
@@ -92,11 +93,7 @@ export function PreviewControls({
           </Button>
 
           {onDownload && (
-            <Button 
-              variant="outline" 
-              onClick={onDownload}
-              className="w-full"
-            >
+            <Button variant="outline" onClick={onDownload} className="w-full">
               <Download className="mr-2 h-4 w-4" />
               Download PDF
             </Button>

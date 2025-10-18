@@ -1,8 +1,8 @@
-import AISchedulerPanel from '@/components/AISchedulerPanel';
-import { AIConversationGenerationDialog } from '@/components/Schedule/AIConversationGenerationDialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import AISchedulerPanel from "@/components/AISchedulerPanel";
+import { AIConversationGenerationDialog } from "@/components/Schedule/AIConversationGenerationDialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -16,18 +16,29 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import QuickActionsMenu from '@/components/ui/QuickActionsMenu';
+import QuickActionsMenu from "@/components/ui/QuickActionsMenu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import {
@@ -45,11 +56,26 @@ import {
   getSpecialDays,
   ScheduleResponse,
   updateSchedule,
-} from '@/services/api';
-import { Absence, Employee, EmployeeAvailabilityStatus, SpecialDay } from '@/types';
-import { getWeekStartsOn } from '@/utils/weekStart';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { addDays, addWeeks, endOfMonth, endOfWeek, format, isSameDay, startOfMonth, startOfWeek, subWeeks } from 'date-fns';
+} from "@/services/api";
+import {
+  Absence,
+  Employee,
+  EmployeeAvailabilityStatus,
+  SpecialDay,
+} from "@/types";
+import { getWeekStartsOn } from "@/utils/weekStart";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  addDays,
+  addWeeks,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameDay,
+  startOfMonth,
+  startOfWeek,
+  subWeeks,
+} from "date-fns";
 import {
   AlertCircle,
   Calendar,
@@ -64,27 +90,32 @@ import {
   MoreVertical,
   Plus,
   Trash2,
-  Users
-} from 'lucide-react';
-import React, { useEffect, useMemo, useState } from 'react';
-import { DragDropContext, Draggable, Droppable, DropResult } from 'react-beautiful-dnd';
+  Users,
+} from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  DragDropContext,
+  Draggable,
+  Droppable,
+  DropResult,
+} from "react-beautiful-dnd";
 
 // Import AI components
 import { AIScheduleSuggestionsPanel } from "@/components/ai/AIScheduleSuggestionsPanel";
 import { LiveScheduleOptimizer } from "@/components/ai/LiveScheduleOptimizer";
 import { RealTimeConflictDetector } from "@/components/ai/RealTimeConflictDetector";
 
-type ViewMode = 'month' | 'week' | 'day';
+type ViewMode = "month" | "week" | "day";
 
 interface ShiftTypeColor {
   [key: string]: string;
 }
 
 const shiftTypeColors: ShiftTypeColor = {
-  'EARLY': 'bg-blue-500',
-  'MIDDLE': 'bg-green-500',
-  'LATE': 'bg-purple-500',
-  'NIGHT': 'bg-indigo-500',
+  EARLY: "bg-blue-500",
+  MIDDLE: "bg-green-500",
+  LATE: "bg-purple-500",
+  NIGHT: "bg-indigo-500",
 };
 
 interface FilterOptions {
@@ -108,10 +139,14 @@ const CalendarPage: React.FC = () => {
   const { toast } = useToast();
 
   // State Management
-  const [viewMode, setViewMode] = useState<ViewMode>('month');
+  const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [selectedVersion, setSelectedVersion] = useState<number | undefined>(undefined);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+    new Date(),
+  );
+  const [selectedVersion, setSelectedVersion] = useState<number | undefined>(
+    undefined,
+  );
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     employees: [],
     shiftTypes: [],
@@ -121,126 +156,170 @@ const CalendarPage: React.FC = () => {
   });
   const [showFilters, setShowFilters] = useState(false);
   const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false);
-  const [editingSchedule, setEditingSchedule] = useState<APISchedule | null>(null);
+  const [editingSchedule, setEditingSchedule] = useState<APISchedule | null>(
+    null,
+  );
   const [isAIConversationOpen, setIsAIConversationOpen] = useState(false);
   const [isAISuggestionsOpen, setIsAISuggestionsOpen] = useState(false);
   // const [isDragging, setIsDragging] = useState(false); // (drag state currently unused)
 
   // Settings for dynamic week start
-  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings, staleTime: 300_000 });
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+    staleTime: 300_000,
+  });
   const weekStartsOn = getWeekStartsOn(settings);
 
   // Date calculations
   const dateRange = useMemo(() => {
     switch (viewMode) {
-      case 'month':
+      case "month":
         return {
           start: startOfMonth(currentDate),
-          end: endOfMonth(currentDate)
+          end: endOfMonth(currentDate),
         };
-      case 'week':
+      case "week":
         return {
           start: startOfWeek(currentDate, { weekStartsOn }),
-          end: endOfWeek(currentDate, { weekStartsOn })
+          end: endOfWeek(currentDate, { weekStartsOn }),
         };
-      case 'day':
+      case "day":
         return {
           start: currentDate,
-          end: currentDate
+          end: currentDate,
         };
     }
   }, [currentDate, viewMode, weekStartsOn]);
 
   // Fetch Special Days / Holidays
   const { data: specialDays } = useQuery<Record<string, SpecialDay>>({
-    queryKey: ['specialDays'],
+    queryKey: ["specialDays"],
     queryFn: getSpecialDays,
     staleTime: 300_000,
   });
 
   // Fetch Absences for current date range
   const { data: absences } = useQuery<Absence[], Error>({
-    queryKey: ['absences', format(dateRange.start, 'yyyy-MM-dd'), format(dateRange.end, 'yyyy-MM-dd')],
-    queryFn: () => getAbsencesByRange(
-      format(dateRange.start, 'yyyy-MM-dd'),
-      format(dateRange.end, 'yyyy-MM-dd')
-    ),
+    queryKey: [
+      "absences",
+      format(dateRange.start, "yyyy-MM-dd"),
+      format(dateRange.end, "yyyy-MM-dd"),
+    ],
+    queryFn: () =>
+      getAbsencesByRange(
+        format(dateRange.start, "yyyy-MM-dd"),
+        format(dateRange.end, "yyyy-MM-dd"),
+      ),
   });
 
   // Fetch Schedules
   // refetchSchedules omitted (unused)
-  const { data: scheduleResponse, isLoading: isLoadingSchedules, error: schedulesError } = useQuery<ScheduleResponse, Error>({
+  const {
+    data: scheduleResponse,
+    isLoading: isLoadingSchedules,
+    error: schedulesError,
+  } = useQuery<ScheduleResponse, Error>({
     queryKey: [
-      'schedules',
-      format(dateRange.start, 'yyyy-MM-dd'),
-      format(dateRange.end, 'yyyy-MM-dd'),
+      "schedules",
+      format(dateRange.start, "yyyy-MM-dd"),
+      format(dateRange.end, "yyyy-MM-dd"),
       selectedVersion,
       filterOptions.showEmpty,
     ],
     queryFn: () =>
       getSchedules(
-        format(dateRange.start, 'yyyy-MM-dd'),
-        format(dateRange.end, 'yyyy-MM-dd'),
+        format(dateRange.start, "yyyy-MM-dd"),
+        format(dateRange.end, "yyyy-MM-dd"),
         selectedVersion,
-        filterOptions.showEmpty
+        filterOptions.showEmpty,
       ),
   });
 
   // Set initial version
   useEffect(() => {
-    if (scheduleResponse?.versions && scheduleResponse.versions.length > 0 && selectedVersion === undefined) {
-      const sortedVersions = [...scheduleResponse.versions].sort((a, b) => b - a);
+    if (
+      scheduleResponse?.versions &&
+      scheduleResponse.versions.length > 0 &&
+      selectedVersion === undefined
+    ) {
+      const sortedVersions = [...scheduleResponse.versions].sort(
+        (a, b) => b - a,
+      );
       setSelectedVersion(sortedVersions[0]);
     }
   }, [scheduleResponse, selectedVersion]);
 
   // Fetch Employees
-  const { data: employees, isLoading: isLoadingEmployees } = useQuery<Employee[], Error>({
-    queryKey: ['employees'],
+  const { data: employees, isLoading: isLoadingEmployees } = useQuery<
+    Employee[],
+    Error
+  >({
+    queryKey: ["employees"],
     queryFn: getEmployees,
   });
 
   // Fetch Shift Templates
-  const { data: shiftTemplates, isLoading: isLoadingShiftTemplates } = useQuery<APIShift[], Error>({
-    queryKey: ['shiftTemplates'],
+  const { data: shiftTemplates, isLoading: isLoadingShiftTemplates } = useQuery<
+    APIShift[],
+    Error
+  >({
+    queryKey: ["shiftTemplates"],
     queryFn: getShiftTemplatesApiService,
   });
 
   // Fetch availability for selected date
-  const { data: availabilityStatus } = useQuery<EmployeeAvailabilityStatus[], Error>({
-    queryKey: ['availability', selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null],
-    queryFn: () => getEmployeeAvailabilityByDate(format(selectedDate!, 'yyyy-MM-dd')),
+  const { data: availabilityStatus } = useQuery<
+    EmployeeAvailabilityStatus[],
+    Error
+  >({
+    queryKey: [
+      "availability",
+      selectedDate ? format(selectedDate, "yyyy-MM-dd") : null,
+    ],
+    queryFn: () =>
+      getEmployeeAvailabilityByDate(format(selectedDate!, "yyyy-MM-dd")),
     enabled: !!selectedDate && filterOptions.showAvailability,
   });
 
   // Create maps for quick lookups
   const employeeMap = useMemo(() => {
     if (!employees) return new Map<number, Employee>();
-    return new Map(employees.map(emp => [emp.id, emp]));
+    return new Map(employees.map((emp) => [emp.id, emp]));
   }, [employees]);
 
   const shiftTemplateMap = useMemo(() => {
     if (!shiftTemplates) return new Map<number, APIShift>();
-    return new Map(shiftTemplates.map(st => [st.id, st]));
+    return new Map(shiftTemplates.map((st) => [st.id, st]));
   }, [shiftTemplates]);
 
   // Filter schedules based on filter options
   const filteredSchedules = useMemo(() => {
     if (!scheduleResponse?.schedules) return [];
 
-    return scheduleResponse.schedules.filter(schedule => {
+    return scheduleResponse.schedules.filter((schedule) => {
       // Filter by employees
-      if (filterOptions.employees.length > 0 && !filterOptions.employees.includes(schedule.employee_id)) {
+      if (
+        filterOptions.employees.length > 0 &&
+        !filterOptions.employees.includes(schedule.employee_id)
+      ) {
         return false;
       }
 
       // Filter by shift types
-      if (filterOptions.shiftTypes.length > 0 && schedule.shift_type_id && !filterOptions.shiftTypes.includes(schedule.shift_type_id)) {
+      if (
+        filterOptions.shiftTypes.length > 0 &&
+        schedule.shift_type_id &&
+        !filterOptions.shiftTypes.includes(schedule.shift_type_id)
+      ) {
         return false;
       }
 
       // Filter empty schedules
-      if (!filterOptions.showEmpty && (!schedule.shift_id || schedule.is_empty)) {
+      if (
+        !filterOptions.showEmpty &&
+        (!schedule.shift_id || schedule.is_empty)
+      ) {
         return false;
       }
 
@@ -251,9 +330,9 @@ const CalendarPage: React.FC = () => {
   // Group schedules by date
   const schedulesByDate = useMemo(() => {
     const grouped = new Map<string, APISchedule[]>();
-    filteredSchedules.forEach(schedule => {
+    filteredSchedules.forEach((schedule) => {
       // Handle both date formats: "2025-08-20" and "2025-08-20T00:00:00"
-      const dateKey = schedule.date.split('T')[0]; // Extract just the date part
+      const dateKey = schedule.date.split("T")[0]; // Extract just the date part
       if (!grouped.has(dateKey)) {
         grouped.set(dateKey, []);
       }
@@ -273,7 +352,7 @@ const CalendarPage: React.FC = () => {
       cursor.setHours(0, 0, 0, 0);
       end.setHours(0, 0, 0, 0);
       while (cursor.getTime() <= end.getTime()) {
-        const key = format(cursor, 'yyyy-MM-dd');
+        const key = format(cursor, "yyyy-MM-dd");
         if (!grouped.has(key)) grouped.set(key, []);
         grouped.get(key)!.push(a);
         cursor = addDays(cursor, 1);
@@ -292,7 +371,7 @@ const CalendarPage: React.FC = () => {
       employeeHours: new Map<number, number>(),
     };
 
-    filteredSchedules.forEach(schedule => {
+    filteredSchedules.forEach((schedule) => {
       if (schedule.shift_id) {
         stats.totalShifts++;
         if (schedule.employee_id) {
@@ -300,7 +379,10 @@ const CalendarPage: React.FC = () => {
           const shift = shiftTemplateMap.get(schedule.shift_id);
           if (shift) {
             const current = stats.employeeHours.get(schedule.employee_id) || 0;
-            stats.employeeHours.set(schedule.employee_id, current + shift.duration_hours);
+            stats.employeeHours.set(
+              schedule.employee_id,
+              current + shift.duration_hours,
+            );
           }
         } else {
           stats.emptyShifts++;
@@ -314,16 +396,17 @@ const CalendarPage: React.FC = () => {
   // Mutations
   const updateScheduleMutation = useMutation({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mutationFn: ({ id, data }: { id: number; data: any }) => updateSchedule(id, data),
+    mutationFn: ({ id, data }: { id: number; data: any }) =>
+      updateSchedule(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['schedules'] });
+      queryClient.invalidateQueries({ queryKey: ["schedules"] });
       toast({ title: "Schedule updated successfully" });
     },
     onError: (error) => {
       toast({
         title: "Failed to update schedule",
         description: error.message,
-        variant: "destructive"
+        variant: "destructive",
       });
     },
   });
@@ -332,7 +415,7 @@ const CalendarPage: React.FC = () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mutationFn: (data: any) => createSchedule(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['schedules'] });
+      queryClient.invalidateQueries({ queryKey: ["schedules"] });
       toast({ title: "Schedule created successfully" });
       setIsScheduleDialogOpen(false);
     },
@@ -340,7 +423,7 @@ const CalendarPage: React.FC = () => {
       toast({
         title: "Failed to create schedule",
         description: error.message,
-        variant: "destructive"
+        variant: "destructive",
       });
     },
   });
@@ -348,14 +431,14 @@ const CalendarPage: React.FC = () => {
   const deleteScheduleMutation = useMutation({
     mutationFn: (id: number) => updateSchedule(id, { shift_id: null }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['schedules'] });
+      queryClient.invalidateQueries({ queryKey: ["schedules"] });
       toast({ title: "Schedule cleared successfully" });
     },
     onError: (error) => {
       toast({
         title: "Failed to clear schedule",
         description: error.message,
-        variant: "destructive"
+        variant: "destructive",
       });
     },
   });
@@ -363,28 +446,32 @@ const CalendarPage: React.FC = () => {
   // Navigation handlers
   const navigatePrevious = () => {
     switch (viewMode) {
-      case 'month':
-        setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+      case "month":
+        setCurrentDate(
+          (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
+        );
         break;
-      case 'week':
-        setCurrentDate(prev => subWeeks(prev, 1));
+      case "week":
+        setCurrentDate((prev) => subWeeks(prev, 1));
         break;
-      case 'day':
-        setCurrentDate(prev => addDays(prev, -1));
+      case "day":
+        setCurrentDate((prev) => addDays(prev, -1));
         break;
     }
   };
 
   const navigateNext = () => {
     switch (viewMode) {
-      case 'month':
-        setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+      case "month":
+        setCurrentDate(
+          (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
+        );
         break;
-      case 'week':
-        setCurrentDate(prev => addWeeks(prev, 1));
+      case "week":
+        setCurrentDate((prev) => addWeeks(prev, 1));
         break;
-      case 'day':
-        setCurrentDate(prev => addDays(prev, 1));
+      case "day":
+        setCurrentDate((prev) => addDays(prev, 1));
         break;
     }
   };
@@ -399,13 +486,13 @@ const CalendarPage: React.FC = () => {
   const handleExport = async () => {
     try {
       const blob = await exportSchedule(
-        format(dateRange.start, 'yyyy-MM-dd'),
-        format(dateRange.end, 'yyyy-MM-dd')
+        format(dateRange.start, "yyyy-MM-dd"),
+        format(dateRange.end, "yyyy-MM-dd"),
       );
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
-      a.download = `schedule-${format(dateRange.start, 'yyyy-MM-dd')}-to-${format(dateRange.end, 'yyyy-MM-dd')}.pdf`;
+      a.download = `schedule-${format(dateRange.start, "yyyy-MM-dd")}-to-${format(dateRange.end, "yyyy-MM-dd")}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -415,7 +502,7 @@ const CalendarPage: React.FC = () => {
       toast({
         title: "Failed to export schedule",
         description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
@@ -425,12 +512,14 @@ const CalendarPage: React.FC = () => {
     if (!result.destination) return;
 
     const sourceId = result.draggableId;
-    const parts = result.destination.droppableId.split('-');
+    const parts = result.destination.droppableId.split("-");
     // Expect pattern: date-shiftId-employeeId; otherwise ignore
     if (parts.length < 3) return;
     const [targetDate, targetShiftId, targetEmployeeId] = parts;
 
-    const schedule = filteredSchedules.find(s => s.id.toString() === sourceId);
+    const schedule = filteredSchedules.find(
+      (s) => s.id.toString() === sourceId,
+    );
     if (!schedule) return;
 
     updateScheduleMutation.mutate({
@@ -438,8 +527,9 @@ const CalendarPage: React.FC = () => {
       data: {
         date: targetDate,
         shift_id: parseInt(targetShiftId),
-        employee_id: targetEmployeeId === 'unassigned' ? null : parseInt(targetEmployeeId),
-      }
+        employee_id:
+          targetEmployeeId === "unassigned" ? null : parseInt(targetEmployeeId),
+      },
     });
   };
 
@@ -450,7 +540,7 @@ const CalendarPage: React.FC = () => {
 
   const handleClearDay = (date: string) => {
     const schedulesForDay = schedulesByDate.get(date) || [];
-    schedulesForDay.forEach(schedule => {
+    schedulesForDay.forEach((schedule) => {
       if (schedule.shift_id) {
         deleteScheduleMutation.mutate(schedule.id);
       }
@@ -459,22 +549,23 @@ const CalendarPage: React.FC = () => {
 
   const handleGenerateDemoData = async () => {
     try {
-      await generateDemoData('all', 10);
-      queryClient.invalidateQueries({ queryKey: ['schedules'] });
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-      queryClient.invalidateQueries({ queryKey: ['absences'] });
-      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      await generateDemoData("all", 10);
+      queryClient.invalidateQueries({ queryKey: ["schedules"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["absences"] });
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
       toast({ title: "Demo data generated successfully" });
     } catch (error) {
       toast({
         title: "Failed to generate demo data",
         description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
 
-  const isLoading = isLoadingSchedules || isLoadingEmployees || isLoadingShiftTemplates;
+  const isLoading =
+    isLoadingSchedules || isLoadingEmployees || isLoadingShiftTemplates;
 
   // Render functions
   const renderMonthView = () => (
@@ -487,45 +578,52 @@ const CalendarPage: React.FC = () => {
         onMonthChange={setCurrentDate}
         className="rounded-md border w-full"
         classNames={{
-          months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
+          months:
+            "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
           month: "space-y-4",
           caption: "flex justify-center pt-1 relative items-center",
           caption_label: "text-sm font-medium",
           nav: "space-x-1 flex items-center",
           nav_button: cn(
             "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
-            "inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+            "inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
           ),
           nav_button_previous: "absolute left-1",
           nav_button_next: "absolute right-1",
           table: "w-full border-collapse space-y-1",
           head_row: "flex",
-          head_cell: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
+          head_cell:
+            "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
           row: "flex w-full mt-2",
           cell: "text-center text-sm p-0 relative [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
           day: cn(
             "h-9 w-9 p-0 font-normal aria-selected:opacity-100",
             "inline-flex items-center justify-center rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-            "hover:bg-accent hover:text-accent-foreground"
+            "hover:bg-accent hover:text-accent-foreground",
           ),
-          day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+          day_selected:
+            "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
           day_today: "bg-accent text-accent-foreground",
           day_outside: "text-muted-foreground opacity-50",
           day_disabled: "text-muted-foreground opacity-50",
-          day_range_middle: "aria-selected:bg-accent aria-selected:text-accent-foreground",
+          day_range_middle:
+            "aria-selected:bg-accent aria-selected:text-accent-foreground",
           day_hidden: "invisible",
         }}
         components={{
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           Day: ({ date, displayMonth }) => {
-            const formattedDate = format(date, 'yyyy-MM-dd');
+            const formattedDate = format(date, "yyyy-MM-dd");
             const daySchedules = schedulesByDate.get(formattedDate) || [];
             const hasSchedules = daySchedules.length > 0;
-            const filledCount = daySchedules.filter(s => s.employee_id && s.shift_id).length;
+            const filledCount = daySchedules.filter(
+              (s) => s.employee_id && s.shift_id,
+            ).length;
             const totalCount = daySchedules.length; // Count ALL schedules, not just those with shift_id
-            const shiftsCount = daySchedules.filter(s => s.shift_id).length;
+            const shiftsCount = daySchedules.filter((s) => s.shift_id).length;
             const holiday = specialDays && specialDays[formattedDate];
-            const absencesCount = absencesByDate.get(formattedDate)?.length || 0;
+            const absencesCount =
+              absencesByDate.get(formattedDate)?.length || 0;
 
             return (
               <TooltipProvider>
@@ -535,15 +633,24 @@ const CalendarPage: React.FC = () => {
                       {holiday && (
                         <div className="absolute top-0 left-0 w-2 h-2 rounded-full bg-amber-500" />
                       )}
-                      <span className="text-sm font-medium">{format(date, "d")}</span>
+                      <span className="text-sm font-medium">
+                        {format(date, "d")}
+                      </span>
                       {hasSchedules && (
                         <div className="absolute bottom-0 left-0 right-0 flex justify-center gap-0.5 px-1">
-                          {Array.from(new Set(daySchedules.filter(s => s.shift_type_id).map(s => s.shift_type_id))).map((shiftType, idx) => (
+                          {Array.from(
+                            new Set(
+                              daySchedules
+                                .filter((s) => s.shift_type_id)
+                                .map((s) => s.shift_type_id),
+                            ),
+                          ).map((shiftType, idx) => (
                             <div
                               key={idx}
                               className={cn(
                                 "w-1.5 h-1.5 rounded-full",
-                                shiftTypeColors[shiftType as string] || 'bg-gray-500'
+                                shiftTypeColors[shiftType as string] ||
+                                  "bg-gray-500",
                               )}
                             />
                           ))}
@@ -569,13 +676,14 @@ const CalendarPage: React.FC = () => {
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
                     <div className="text-xs">
-                      <p className="font-semibold">{format(date, 'PPP')}</p>
+                      <p className="font-semibold">{format(date, "PPP")}</p>
                       {holiday && (
-                        <p>Holiday: {holiday.description}{holiday.is_closed ? ' (Closed)' : ''}</p>
+                        <p>
+                          Holiday: {holiday.description}
+                          {holiday.is_closed ? " (Closed)" : ""}
+                        </p>
                       )}
-                      {absencesCount > 0 && (
-                        <p>Absences: {absencesCount}</p>
-                      )}
+                      {absencesCount > 0 && <p>Absences: {absencesCount}</p>}
                       {hasSchedules ? (
                         <>
                           <p>Total schedules: {totalCount}</p>
@@ -595,7 +703,7 @@ const CalendarPage: React.FC = () => {
                 </Tooltip>
               </TooltipProvider>
             );
-          }
+          },
         }}
       />
     </div>
@@ -609,33 +717,50 @@ const CalendarPage: React.FC = () => {
       <div className="grid grid-cols-8 gap-2">
         {/* Time column */}
         <div className="col-span-1">
-          <div className="h-12 flex items-center justify-center font-semibold text-sm">Time</div>
+          <div className="h-12 flex items-center justify-center font-semibold text-sm">
+            Time
+          </div>
           {Array.from({ length: 24 }, (_, hour) => (
-            <div key={hour} className="h-20 flex items-center justify-center text-xs text-muted-foreground border-t">
-              {String(hour).padStart(2, '0')}:00
+            <div
+              key={hour}
+              className="h-20 flex items-center justify-center text-xs text-muted-foreground border-t"
+            >
+              {String(hour).padStart(2, "0")}:00
             </div>
           ))}
         </div>
 
         {/* Days columns */}
         {weekDays.map((day) => {
-          const formattedDate = format(day, 'yyyy-MM-dd');
+          const formattedDate = format(day, "yyyy-MM-dd");
           const daySchedules = schedulesByDate.get(formattedDate) || [];
           const holiday = specialDays && specialDays[formattedDate];
           const absencesCount = absencesByDate.get(formattedDate)?.length || 0;
 
           return (
             <div key={formattedDate} className="col-span-1">
-              <div className={cn(
-                "h-12 flex flex-col items-center justify-center font-semibold text-sm border rounded-t",
-                isSameDay(day, new Date()) && "bg-primary text-primary-foreground",
-                isSameDay(day, selectedDate || new Date()) && "ring-2 ring-primary"
-              )}>
-                <span>{format(day, 'EEE')}</span>
-                <span className="text-xs">{format(day, 'd')}</span>
+              <div
+                className={cn(
+                  "h-12 flex flex-col items-center justify-center font-semibold text-sm border rounded-t",
+                  isSameDay(day, new Date()) &&
+                    "bg-primary text-primary-foreground",
+                  isSameDay(day, selectedDate || new Date()) &&
+                    "ring-2 ring-primary",
+                )}
+              >
+                <span>{format(day, "EEE")}</span>
+                <span className="text-xs">{format(day, "d")}</span>
                 <div className="flex gap-1 mt-0.5">
-                  {holiday && <Badge variant="secondary" className="h-4 px-1 text-[10px]">Holiday</Badge>}
-                  {absencesCount > 0 && <Badge variant="outline" className="h-4 px-1 text-[10px]">A{absencesCount}</Badge>}
+                  {holiday && (
+                    <Badge variant="secondary" className="h-4 px-1 text-[10px]">
+                      Holiday
+                    </Badge>
+                  )}
+                  {absencesCount > 0 && (
+                    <Badge variant="outline" className="h-4 px-1 text-[10px]">
+                      A{absencesCount}
+                    </Badge>
+                  )}
                 </div>
               </div>
 
@@ -649,8 +774,12 @@ const CalendarPage: React.FC = () => {
                         className="min-h-full"
                       >
                         {daySchedules.map((schedule, index) => {
-                          const employee = employeeMap.get(schedule.employee_id);
-                          const shift = shiftTemplateMap.get(schedule.shift_id!);
+                          const employee = employeeMap.get(
+                            schedule.employee_id,
+                          );
+                          const shift = shiftTemplateMap.get(
+                            schedule.shift_id!,
+                          );
 
                           if (!shift) return null;
 
@@ -667,19 +796,24 @@ const CalendarPage: React.FC = () => {
                                   {...provided.dragHandleProps}
                                   className={cn(
                                     "p-1 m-1 rounded text-xs cursor-move",
-                                    shiftTypeColors[schedule.shift_type_id || ''] || 'bg-gray-100',
+                                    shiftTypeColors[
+                                      schedule.shift_type_id || ""
+                                    ] || "bg-gray-100",
                                     "text-white",
-                                    snapshot.isDragging && "opacity-50"
+                                    snapshot.isDragging && "opacity-50",
                                   )}
                                   style={{
                                     ...provided.draggableProps.style,
                                   }}
                                 >
                                   <p className="font-semibold truncate">
-                                    {employee ? `${employee.first_name} ${employee.last_name}` : 'Unassigned'}
+                                    {employee
+                                      ? `${employee.first_name} ${employee.last_name}`
+                                      : "Unassigned"}
                                   </p>
                                   <p className="text-[10px]">
-                                    {shift.start_time.substring(0, 5)} - {shift.end_time.substring(0, 5)}
+                                    {shift.start_time.substring(0, 5)} -{" "}
+                                    {shift.end_time.substring(0, 5)}
                                   </p>
                                 </div>
                               )}
@@ -700,18 +834,18 @@ const CalendarPage: React.FC = () => {
   };
 
   const renderDayView = () => {
-    const formattedDate = format(currentDate, 'yyyy-MM-dd');
+    const formattedDate = format(currentDate, "yyyy-MM-dd");
     const daySchedules = schedulesByDate.get(formattedDate) || [];
     const holiday = specialDays && specialDays[formattedDate];
     const absencesCount = absencesByDate.get(formattedDate)?.length || 0;
     const hourlySchedules = new Map<number, APISchedule[]>();
 
     // Group schedules by hour
-    daySchedules.forEach(schedule => {
+    daySchedules.forEach((schedule) => {
       const shift = shiftTemplateMap.get(schedule.shift_id!);
       if (!shift) return;
 
-      const startHour = parseInt(shift.start_time.split(':')[0]);
+      const startHour = parseInt(shift.start_time.split(":")[0]);
       if (!hourlySchedules.has(startHour)) {
         hourlySchedules.set(startHour, []);
       }
@@ -722,9 +856,15 @@ const CalendarPage: React.FC = () => {
       <div className="w-full">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold flex items-center gap-2">
-            {format(currentDate, 'PPPP')}
-            {holiday && <Badge variant="secondary">Holiday{holiday.is_closed ? ' (Closed)' : ''}</Badge>}
-            {absencesCount > 0 && <Badge variant="outline">Absences: {absencesCount}</Badge>}
+            {format(currentDate, "PPPP")}
+            {holiday && (
+              <Badge variant="secondary">
+                Holiday{holiday.is_closed ? " (Closed)" : ""}
+              </Badge>
+            )}
+            {absencesCount > 0 && (
+              <Badge variant="outline">Absences: {absencesCount}</Badge>
+            )}
           </h2>
           <div className="flex gap-2">
             <Button
@@ -754,30 +894,39 @@ const CalendarPage: React.FC = () => {
               return (
                 <div key={hour} className="flex gap-4 p-2 border rounded">
                   <div className="w-16 text-sm font-medium text-muted-foreground">
-                    {String(hour).padStart(2, '0')}:00
+                    {String(hour).padStart(2, "0")}:00
                   </div>
                   <div className="flex-1">
                     {schedules.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {schedules.map(schedule => {
-                          const employee = employeeMap.get(schedule.employee_id);
-                          const shift = shiftTemplateMap.get(schedule.shift_id!);
+                        {schedules.map((schedule) => {
+                          const employee = employeeMap.get(
+                            schedule.employee_id,
+                          );
+                          const shift = shiftTemplateMap.get(
+                            schedule.shift_id!,
+                          );
 
                           return (
                             <Card key={schedule.id} className="p-3">
                               <div className="flex justify-between items-start">
                                 <div>
                                   <p className="font-semibold text-sm">
-                                    {employee ? `${employee.first_name} ${employee.last_name}` : 'Unassigned'}
+                                    {employee
+                                      ? `${employee.first_name} ${employee.last_name}`
+                                      : "Unassigned"}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    {shift?.start_time.substring(0, 5)} - {shift?.end_time.substring(0, 5)}
+                                    {shift?.start_time.substring(0, 5)} -{" "}
+                                    {shift?.end_time.substring(0, 5)}
                                   </p>
                                   {schedule.shift_type_id && (
                                     <Badge
                                       className={cn(
                                         "mt-1",
-                                        shiftTypeColors[schedule.shift_type_id] || 'bg-gray-500'
+                                        shiftTypeColors[
+                                          schedule.shift_type_id
+                                        ] || "bg-gray-500",
                                       )}
                                     >
                                       {schedule.shift_type_id}
@@ -786,19 +935,29 @@ const CalendarPage: React.FC = () => {
                                 </div>
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6"
+                                    >
                                       <MoreVertical className="h-3 w-3" />
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent>
-                                    <DropdownMenuItem onClick={() => {
-                                      setEditingSchedule(schedule);
-                                      setIsScheduleDialogOpen(true);
-                                    }}>
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setEditingSchedule(schedule);
+                                        setIsScheduleDialogOpen(true);
+                                      }}
+                                    >
                                       Edit
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
-                                      onClick={() => deleteScheduleMutation.mutate(schedule.id)}
+                                      onClick={() =>
+                                        deleteScheduleMutation.mutate(
+                                          schedule.id,
+                                        )
+                                      }
                                       className="text-destructive"
                                     >
                                       Delete
@@ -811,7 +970,9 @@ const CalendarPage: React.FC = () => {
                         })}
                       </div>
                     ) : (
-                      <div className="text-sm text-muted-foreground">No schedules</div>
+                      <div className="text-sm text-muted-foreground">
+                        No schedules
+                      </div>
                     )}
                   </div>
                 </div>
@@ -826,26 +987,35 @@ const CalendarPage: React.FC = () => {
   const renderSelectedDateSchedules = () => {
     if (!selectedDate) return null;
 
-    const formattedDate = format(selectedDate, 'yyyy-MM-dd');
+    const formattedDate = format(selectedDate, "yyyy-MM-dd");
     const daySchedules = schedulesByDate.get(formattedDate) || [];
 
     return (
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center justify-between">
-            <span>{format(selectedDate, 'PPP')}</span>
+            <span>{format(selectedDate, "PPP")}</span>
             <Badge variant="secondary">{daySchedules.length} schedules</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
           {filterOptions.showAvailability && availabilityStatus && (
             <div className="mb-4">
-              <h4 className="text-sm font-semibold mb-2">Employee Availability</h4>
+              <h4 className="text-sm font-semibold mb-2">
+                Employee Availability
+              </h4>
               <div className="space-y-1">
-                {availabilityStatus.map(status => (
-                  <div key={status.employee_id} className="flex justify-between text-xs">
+                {availabilityStatus.map((status) => (
+                  <div
+                    key={status.employee_id}
+                    className="flex justify-between text-xs"
+                  >
                     <span>{status.employee_name}</span>
-                    <Badge variant={status.status === 'Available' ? 'default' : 'secondary'}>
+                    <Badge
+                      variant={
+                        status.status === "Available" ? "default" : "secondary"
+                      }
+                    >
                       {status.status}
                     </Badge>
                   </div>
@@ -882,25 +1052,31 @@ const CalendarPage: React.FC = () => {
                                 {...provided.dragHandleProps}
                                 className={cn(
                                   "p-3 cursor-move",
-                                  snapshot.isDragging && "opacity-50"
+                                  snapshot.isDragging && "opacity-50",
                                 )}
                               >
                                 <div className="flex justify-between items-start">
                                   <div className="flex-1">
                                     <p className="font-semibold text-sm">
-                                      {employee ? `${employee.first_name} ${employee.last_name}` : 'Unassigned'}
+                                      {employee
+                                        ? `${employee.first_name} ${employee.last_name}`
+                                        : "Unassigned"}
                                     </p>
                                     {shift && (
                                       <p className="text-xs text-muted-foreground">
-                                        {shift.start_time.substring(0, 5)} - {shift.end_time.substring(0, 5)}
-                                        {shift.duration_hours && ` (${shift.duration_hours}h)`}
+                                        {shift.start_time.substring(0, 5)} -{" "}
+                                        {shift.end_time.substring(0, 5)}
+                                        {shift.duration_hours &&
+                                          ` (${shift.duration_hours}h)`}
                                       </p>
                                     )}
                                     {schedule.shift_type_id && (
                                       <Badge
                                         className={cn(
                                           "mt-1",
-                                          shiftTypeColors[schedule.shift_type_id] || 'bg-gray-500'
+                                          shiftTypeColors[
+                                            schedule.shift_type_id
+                                          ] || "bg-gray-500",
                                         )}
                                         variant="secondary"
                                       >
@@ -915,19 +1091,29 @@ const CalendarPage: React.FC = () => {
                                   </div>
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-6 w-6">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6"
+                                      >
                                         <MoreVertical className="h-3 w-3" />
                                       </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent>
-                                      <DropdownMenuItem onClick={() => {
-                                        setEditingSchedule(schedule);
-                                        setIsScheduleDialogOpen(true);
-                                      }}>
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          setEditingSchedule(schedule);
+                                          setIsScheduleDialogOpen(true);
+                                        }}
+                                      >
                                         Edit
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
-                                        onClick={() => deleteScheduleMutation.mutate(schedule.id)}
+                                        onClick={() =>
+                                          deleteScheduleMutation.mutate(
+                                            schedule.id,
+                                          )
+                                        }
                                         className="text-destructive"
                                       >
                                         Delete
@@ -990,7 +1176,10 @@ const CalendarPage: React.FC = () => {
 
         <div className="flex flex-wrap gap-2 items-center">
           {/* View Mode Tabs */}
-          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
+          <Tabs
+            value={viewMode}
+            onValueChange={(v) => setViewMode(v as ViewMode)}
+          >
             <TabsList>
               <TabsTrigger value="month">
                 <Calendar className="h-4 w-4 mr-1" />
@@ -1021,34 +1210,46 @@ const CalendarPage: React.FC = () => {
           </div>
 
           {/* Version Selector */}
-          {scheduleResponse?.versions && scheduleResponse.versions.length > 0 && (
-            <Select
-              value={selectedVersion?.toString()}
-              onValueChange={(value) => setSelectedVersion(Number(value))}
-            >
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Select Version" />
-              </SelectTrigger>
-              <SelectContent>
-                {scheduleResponse.versions.map((ver: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-                  const versionNumber = typeof ver === 'number' ? ver : ver.version;
-                  let currentVersionNumber: number | null = (scheduleResponse.current_version as any); // eslint-disable-line @typescript-eslint/no-explicit-any
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  if (typeof currentVersionNumber === 'object' && currentVersionNumber !== null && 'version' in (currentVersionNumber as any)) {
+          {scheduleResponse?.versions &&
+            scheduleResponse.versions.length > 0 && (
+              <Select
+                value={selectedVersion?.toString()}
+                onValueChange={(value) => setSelectedVersion(Number(value))}
+              >
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Select Version" />
+                </SelectTrigger>
+                <SelectContent>
+                  {scheduleResponse.versions.map((ver: any) => {
+                    // eslint-disable-line @typescript-eslint/no-explicit-any
+                    const versionNumber =
+                      typeof ver === "number" ? ver : ver.version;
+                    let currentVersionNumber: number | null =
+                      scheduleResponse.current_version as any; // eslint-disable-line @typescript-eslint/no-explicit-any
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    currentVersionNumber = (currentVersionNumber as any).version;
-                  }
-                  if (currentVersionNumber == null) currentVersionNumber = -1; // fallback sentinel
-                  return (
-                    <SelectItem key={versionNumber} value={versionNumber.toString()}>
-                      Version {versionNumber}
-                      {versionNumber === currentVersionNumber && ' (Current)'}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          )}
+                    if (
+                      typeof currentVersionNumber === "object" &&
+                      currentVersionNumber !== null &&
+                      "version" in (currentVersionNumber as any)
+                    ) {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      currentVersionNumber = (currentVersionNumber as any)
+                        .version;
+                    }
+                    if (currentVersionNumber == null) currentVersionNumber = -1; // fallback sentinel
+                    return (
+                      <SelectItem
+                        key={versionNumber}
+                        value={versionNumber.toString()}
+                      >
+                        Version {versionNumber}
+                        {versionNumber === currentVersionNumber && " (Current)"}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            )}
 
           {/* Unified quick actions menu (navigation + AI + utilities) */}
           <QuickActionsMenu
@@ -1090,10 +1291,19 @@ const CalendarPage: React.FC = () => {
               <Clock className="h-4 w-4 text-muted-foreground" />
               <span className="font-medium">Coverage:</span>
               <Progress
-                value={(statistics.filledShifts / (statistics.totalShifts || 1)) * 100}
+                value={
+                  (statistics.filledShifts / (statistics.totalShifts || 1)) *
+                  100
+                }
                 className="w-24 h-2"
               />
-              <span>{Math.round((statistics.filledShifts / (statistics.totalShifts || 1)) * 100)}%</span>
+              <span>
+                {Math.round(
+                  (statistics.filledShifts / (statistics.totalShifts || 1)) *
+                    100,
+                )}
+                %
+              </span>
             </div>
           </div>
         </CardContent>
@@ -1129,7 +1339,7 @@ const CalendarPage: React.FC = () => {
                   value={filterOptions.employees.length > 0 ? "custom" : "all"}
                   onValueChange={(value) => {
                     if (value === "all") {
-                      setFilterOptions(prev => ({ ...prev, employees: [] }));
+                      setFilterOptions((prev) => ({ ...prev, employees: [] }));
                     }
                   }}
                 >
@@ -1138,7 +1348,7 @@ const CalendarPage: React.FC = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Employees</SelectItem>
-                    {employees?.map(emp => (
+                    {employees?.map((emp) => (
                       <SelectItem key={emp.id} value={emp.id.toString()}>
                         {emp.first_name} {emp.last_name}
                       </SelectItem>
@@ -1153,7 +1363,7 @@ const CalendarPage: React.FC = () => {
                   value={filterOptions.shiftTypes.length > 0 ? "custom" : "all"}
                   onValueChange={(value) => {
                     if (value === "all") {
-                      setFilterOptions(prev => ({ ...prev, shiftTypes: [] }));
+                      setFilterOptions((prev) => ({ ...prev, shiftTypes: [] }));
                     }
                   }}
                 >
@@ -1176,7 +1386,12 @@ const CalendarPage: React.FC = () => {
                     <input
                       type="checkbox"
                       checked={filterOptions.showEmpty}
-                      onChange={(e) => setFilterOptions(prev => ({ ...prev, showEmpty: e.target.checked }))}
+                      onChange={(e) =>
+                        setFilterOptions((prev) => ({
+                          ...prev,
+                          showEmpty: e.target.checked,
+                        }))
+                      }
                       className="rounded"
                     />
                     Show empty shifts
@@ -1185,7 +1400,12 @@ const CalendarPage: React.FC = () => {
                     <input
                       type="checkbox"
                       checked={filterOptions.showConflicts}
-                      onChange={(e) => setFilterOptions(prev => ({ ...prev, showConflicts: e.target.checked }))}
+                      onChange={(e) =>
+                        setFilterOptions((prev) => ({
+                          ...prev,
+                          showConflicts: e.target.checked,
+                        }))
+                      }
                       className="rounded"
                     />
                     Show conflicts only
@@ -1194,7 +1414,12 @@ const CalendarPage: React.FC = () => {
                     <input
                       type="checkbox"
                       checked={filterOptions.showAvailability}
-                      onChange={(e) => setFilterOptions(prev => ({ ...prev, showAvailability: e.target.checked }))}
+                      onChange={(e) =>
+                        setFilterOptions((prev) => ({
+                          ...prev,
+                          showAvailability: e.target.checked,
+                        }))
+                      }
                       className="rounded"
                     />
                     Show availability
@@ -1217,65 +1442,80 @@ const CalendarPage: React.FC = () => {
             ) : schedulesError ? (
               <div className="flex flex-col items-center justify-center h-[500px]">
                 <AlertCircle className="w-8 h-8 text-destructive mb-2" />
-                <p className="text-destructive font-medium">Error: {schedulesError.message}</p>
+                <p className="text-destructive font-medium">
+                  Error: {schedulesError.message}
+                </p>
               </div>
             ) : (
               <div className="animate-fade-in">
-                {viewMode === 'month' && renderMonthView()}
-                {viewMode === 'week' && renderWeekView()}
-                {viewMode === 'day' && renderDayView()}
+                {viewMode === "month" && renderMonthView()}
+                {viewMode === "week" && renderWeekView()}
+                {viewMode === "day" && renderDayView()}
               </div>
             )}
           </CardContent>
         </Card>
 
         {/* Sidebar for selected date */}
-        {viewMode === 'month' && (
-          <div className="w-full lg:w-96">
-            {renderSelectedDateSchedules()}
-          </div>
+        {viewMode === "month" && (
+          <div className="w-full lg:w-96">{renderSelectedDateSchedules()}</div>
         )}
       </div>
 
       {/* Schedule Dialog */}
-      <Dialog open={isScheduleDialogOpen} onOpenChange={setIsScheduleDialogOpen}>
+      <Dialog
+        open={isScheduleDialogOpen}
+        onOpenChange={setIsScheduleDialogOpen}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {editingSchedule ? 'Edit Schedule' : 'Create Schedule'}
+              {editingSchedule ? "Edit Schedule" : "Create Schedule"}
             </DialogTitle>
             <DialogDescription>
-              {editingSchedule ? 'Update the schedule details below.' : 'Fill in the details to create a new schedule.'}
+              {editingSchedule
+                ? "Update the schedule details below."
+                : "Fill in the details to create a new schedule."}
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            const formData = new FormData(e.currentTarget);
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
 
-            if (editingSchedule) {
-              // Update existing schedule
-              updateScheduleMutation.mutate({
-                id: editingSchedule.id,
-                data: {
-                  employee_id: formData.get('employee') === 'unassigned' ? null : Number(formData.get('employee')),
-                  shift_id: Number(formData.get('shift')),
-                  notes: formData.get('notes')?.toString() || null,
-                }
-              });
-            } else {
-              // Create new schedule
-              createScheduleMutation.mutate({
-                date: formData.get('date')?.toString() || format(selectedDate || new Date(), 'yyyy-MM-dd'),
-                employee_id: formData.get('employee') === 'unassigned' ? null : Number(formData.get('employee')),
-                shift_id: Number(formData.get('shift')),
-                version: selectedVersion || 1,
-                notes: formData.get('notes')?.toString() || null,
-              });
-            }
+              if (editingSchedule) {
+                // Update existing schedule
+                updateScheduleMutation.mutate({
+                  id: editingSchedule.id,
+                  data: {
+                    employee_id:
+                      formData.get("employee") === "unassigned"
+                        ? null
+                        : Number(formData.get("employee")),
+                    shift_id: Number(formData.get("shift")),
+                    notes: formData.get("notes")?.toString() || null,
+                  },
+                });
+              } else {
+                // Create new schedule
+                createScheduleMutation.mutate({
+                  date:
+                    formData.get("date")?.toString() ||
+                    format(selectedDate || new Date(), "yyyy-MM-dd"),
+                  employee_id:
+                    formData.get("employee") === "unassigned"
+                      ? null
+                      : Number(formData.get("employee")),
+                  shift_id: Number(formData.get("shift")),
+                  version: selectedVersion || 1,
+                  notes: formData.get("notes")?.toString() || null,
+                });
+              }
 
-            setEditingSchedule(null);
-          }}>
+              setEditingSchedule(null);
+            }}
+          >
             <div className="space-y-4">
               <div>
                 <Label htmlFor="date">Date</Label>
@@ -1283,7 +1523,10 @@ const CalendarPage: React.FC = () => {
                   id="date"
                   name="date"
                   type="date"
-                  defaultValue={editingSchedule?.date || (selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '')}
+                  defaultValue={
+                    editingSchedule?.date ||
+                    (selectedDate ? format(selectedDate, "yyyy-MM-dd") : "")
+                  }
                   disabled={!!editingSchedule}
                   required={!editingSchedule}
                 />
@@ -1291,13 +1534,18 @@ const CalendarPage: React.FC = () => {
 
               <div>
                 <Label htmlFor="employee">Employee</Label>
-                <Select name="employee" defaultValue={editingSchedule?.employee_id?.toString() || 'unassigned'}>
+                <Select
+                  name="employee"
+                  defaultValue={
+                    editingSchedule?.employee_id?.toString() || "unassigned"
+                  }
+                >
                   <SelectTrigger id="employee">
                     <SelectValue placeholder="Select employee" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {employees?.map(emp => (
+                    {employees?.map((emp) => (
                       <SelectItem key={emp.id} value={emp.id.toString()}>
                         {emp.first_name} {emp.last_name}
                       </SelectItem>
@@ -1308,14 +1556,20 @@ const CalendarPage: React.FC = () => {
 
               <div>
                 <Label htmlFor="shift">Shift</Label>
-                <Select name="shift" defaultValue={editingSchedule?.shift_id?.toString()} required>
+                <Select
+                  name="shift"
+                  defaultValue={editingSchedule?.shift_id?.toString()}
+                  required
+                >
                   <SelectTrigger id="shift">
                     <SelectValue placeholder="Select shift" />
                   </SelectTrigger>
                   <SelectContent>
-                    {shiftTemplates?.map(shift => (
+                    {shiftTemplates?.map((shift) => (
                       <SelectItem key={shift.id} value={shift.id.toString()}>
-                        {shift.shift_type_id} ({shift.start_time.substring(0, 5)} - {shift.end_time.substring(0, 5)})
+                        {shift.shift_type_id} (
+                        {shift.start_time.substring(0, 5)} -{" "}
+                        {shift.end_time.substring(0, 5)})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1328,20 +1582,24 @@ const CalendarPage: React.FC = () => {
                   id="notes"
                   name="notes"
                   placeholder="Add any notes..."
-                  defaultValue={editingSchedule?.notes || ''}
+                  defaultValue={editingSchedule?.notes || ""}
                 />
               </div>
             </div>
 
             <DialogFooter className="mt-6">
-              <Button type="button" variant="outline" onClick={() => {
-                setIsScheduleDialogOpen(false);
-                setEditingSchedule(null);
-              }}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsScheduleDialogOpen(false);
+                  setEditingSchedule(null);
+                }}
+              >
                 Cancel
               </Button>
               <Button type="submit">
-                {editingSchedule ? 'Update' : 'Create'}
+                {editingSchedule ? "Update" : "Create"}
               </Button>
             </DialogFooter>
           </form>
@@ -1349,16 +1607,19 @@ const CalendarPage: React.FC = () => {
       </Dialog>
 
       {/* AI Conversation Dialog (unified menu opens this) */}
-      <Dialog open={isAIConversationOpen} onOpenChange={(open) => setIsAIConversationOpen(open)}>
+      <Dialog
+        open={isAIConversationOpen}
+        onOpenChange={(open) => setIsAIConversationOpen(open)}
+      >
         <DialogContent>
           <AIConversationGenerationDialog
             isOpen={isAIConversationOpen}
             onClose={() => setIsAIConversationOpen(false)}
-            startDate={format(dateRange.start, 'yyyy-MM-dd')}
-            endDate={format(dateRange.end, 'yyyy-MM-dd')}
+            startDate={format(dateRange.start, "yyyy-MM-dd")}
+            endDate={format(dateRange.end, "yyyy-MM-dd")}
             versionId={selectedVersion}
             onComplete={() => {
-              queryClient.invalidateQueries({ queryKey: ['schedules'] });
+              queryClient.invalidateQueries({ queryKey: ["schedules"] });
               setIsAIConversationOpen(false);
             }}
           />
@@ -1366,7 +1627,10 @@ const CalendarPage: React.FC = () => {
       </Dialog>
 
       {/* AI Suggestions Dialog */}
-      <Dialog open={isAISuggestionsOpen} onOpenChange={(open) => setIsAISuggestionsOpen(open)}>
+      <Dialog
+        open={isAISuggestionsOpen}
+        onOpenChange={(open) => setIsAISuggestionsOpen(open)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>AI Suggestions</DialogTitle>

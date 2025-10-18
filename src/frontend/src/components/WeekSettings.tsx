@@ -1,22 +1,22 @@
 /**
  * WeekSettings component for the Schichtplan application.
- * 
+ *
  * Provides UI for weekend start preference and month boundary mode configuration.
  */
 
-import React from 'react';
-import { Settings, Calendar, Split } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
+import React from "react";
+import { Settings, Calendar, Split } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { WeekendStart, MonthBoundaryMode } from '@/types/weekVersion';
+} from "@/components/ui/select";
+import { WeekendStart, MonthBoundaryMode } from "@/types/weekVersion";
 
 interface WeekSettingsProps {
   weekendStart: WeekendStart;
@@ -31,9 +31,8 @@ export function WeekSettings({
   monthBoundaryMode,
   onWeekendStartChange,
   onMonthBoundaryModeChange,
-  className = ""
+  className = "",
 }: WeekSettingsProps) {
-  
   // Handle weekend start toggle
   const handleWeekendStartToggle = (checked: boolean) => {
     onWeekendStartChange(checked ? WeekendStart.MONDAY : WeekendStart.SUNDAY);
@@ -61,16 +60,16 @@ export function WeekSettings({
               Wochenbeginn
             </Label>
           </div>
-          
+
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <div className="text-sm">
-                {weekendStart === WeekendStart.MONDAY ? 'Montag' : 'Sonntag'}
+                {weekendStart === WeekendStart.MONDAY ? "Montag" : "Sonntag"}
               </div>
               <div className="text-xs text-muted-foreground">
-                {weekendStart === WeekendStart.MONDAY 
-                  ? 'Woche beginnt am Montag (ISO-Standard)' 
-                  : 'Woche beginnt am Sonntag'}
+                {weekendStart === WeekendStart.MONDAY
+                  ? "Woche beginnt am Montag (ISO-Standard)"
+                  : "Woche beginnt am Sonntag"}
               </div>
             </div>
             <Switch
@@ -85,11 +84,14 @@ export function WeekSettings({
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Split className="h-4 w-4 text-muted-foreground" />
-            <Label htmlFor="month-boundary-mode" className="text-sm font-medium">
+            <Label
+              htmlFor="month-boundary-mode"
+              className="text-sm font-medium"
+            >
               Monatsgrenzen-Verhalten
             </Label>
           </div>
-          
+
           <Select
             value={monthBoundaryMode}
             onValueChange={handleMonthBoundaryModeChange}
@@ -116,11 +118,11 @@ export function WeekSettings({
               </SelectItem>
             </SelectContent>
           </Select>
-          
+
           <div className="text-xs text-muted-foreground">
             {monthBoundaryMode === MonthBoundaryMode.KEEP_INTACT
-              ? 'Wochen, die sich über Monate erstrecken, bleiben als komplette Wochen erhalten.'
-              : 'Wochen werden am Monatsende geteilt und beginnen mit dem ersten Tag des neuen Monats.'}
+              ? "Wochen, die sich über Monate erstrecken, bleiben als komplette Wochen erhalten."
+              : "Wochen werden am Monatsende geteilt und beginnen mit dem ersten Tag des neuen Monats."}
           </div>
         </div>
 
@@ -129,12 +131,13 @@ export function WeekSettings({
           <div className="text-xs text-muted-foreground space-y-1">
             <div className="font-medium">Hinweis:</div>
             <div>
-              Diese Einstellungen beeinflussen die Berechnung und Anzeige von Kalenderwochen 
-              sowie die Behandlung von Wochen, die sich über Monatsgrenzen erstrecken.
+              Diese Einstellungen beeinflussen die Berechnung und Anzeige von
+              Kalenderwochen sowie die Behandlung von Wochen, die sich über
+              Monatsgrenzen erstrecken.
             </div>
           </div>
         </div>
       </CardContent>
     </Card>
   );
-} 
+}

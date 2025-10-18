@@ -5,12 +5,12 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -20,10 +20,10 @@ import { de } from "date-fns/locale";
 import { AlertCircle, Edit2, Loader2 } from "lucide-react";
 import { useCallback, useState } from "react";
 import {
-    DragDropContext,
-    Draggable,
-    Droppable,
-    DropResult,
+  DragDropContext,
+  Draggable,
+  Droppable,
+  DropResult,
 } from "react-beautiful-dnd";
 
 interface ShiftTableProps {

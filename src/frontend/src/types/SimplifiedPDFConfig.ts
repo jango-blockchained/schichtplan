@@ -169,7 +169,7 @@ export interface MEPTableStyleAliases {
   alternate_rows?: boolean;
   alternateRowColors?: boolean;
   grid_lines?: boolean;
-  header_style?: 'bold' | 'normal';
+  header_style?: "bold" | "normal";
   showBorders?: boolean;
   boldHeaders?: boolean;
 }
@@ -224,7 +224,7 @@ export interface PreviewState {
 }
 
 export interface LayoutAction {
-  type: 'UPDATE_CONFIG' | 'APPLY_PRESET' | 'RESET' | 'UNDO' | 'REDO';
+  type: "UPDATE_CONFIG" | "APPLY_PRESET" | "RESET" | "UNDO" | "REDO";
   payload?: unknown;
 }
 
@@ -240,202 +240,211 @@ export interface LayoutState {
 
 export function validateConfig(config: Partial<SimplifiedPDFConfig>): string[] {
   const errors: string[] = [];
-  
+
   if (config.styling?.fonts) {
     const { header_size, table_size, footer_size } = config.styling.fonts;
     if (header_size && (header_size < 6 || header_size > 20)) {
-      errors.push('Header font size must be between 6 and 20');
+      errors.push("Header font size must be between 6 and 20");
     }
     if (table_size && (table_size < 6 || table_size > 18)) {
-      errors.push('Table font size must be between 6 and 18');
+      errors.push("Table font size must be between 6 and 18");
     }
     if (footer_size && (footer_size < 5 || footer_size > 15)) {
-      errors.push('Footer font size must be between 5 and 15');
+      errors.push("Footer font size must be between 5 and 15");
     }
   }
 
   if (config.styling?.spacing) {
     const { page_margin, section_spacing, row_height } = config.styling.spacing;
     if (page_margin && (page_margin < 5 || page_margin > 50)) {
-      errors.push('Page margin must be between 5 and 50mm');
+      errors.push("Page margin must be between 5 and 50mm");
     }
     if (section_spacing && (section_spacing < 0.5 || section_spacing > 10)) {
-      errors.push('Section spacing must be between 0.5 and 10mm');
+      errors.push("Section spacing must be between 0.5 and 10mm");
     }
     if (row_height && (row_height < 5 || row_height > 30)) {
-      errors.push('Row height must be between 5 and 30mm');
+      errors.push("Row height must be between 5 and 30mm");
     }
   }
 
-  if (config.header?.store_field?.value && config.header.store_field.value.length > 100) {
-    errors.push('Store name cannot exceed 100 characters');
+  if (
+    config.header?.store_field?.value &&
+    config.header.store_field.value.length > 100
+  ) {
+    errors.push("Store name cannot exceed 100 characters");
   }
-  
+
   return errors;
 }
 
 // Utility functions
 export function deepMerge<T>(target: T, source: Partial<T>): T {
   const result = { ...target };
-  
+
   for (const key in source) {
     if (source[key] !== undefined) {
-      if (typeof source[key] === 'object' && source[key] !== null && !Array.isArray(source[key])) {
+      if (
+        typeof source[key] === "object" &&
+        source[key] !== null &&
+        !Array.isArray(source[key])
+      ) {
         result[key] = deepMerge(result[key], source[key]!);
       } else {
         result[key] = source[key]!;
       }
     }
   }
-  
+
   return result;
 }
 
 export function createConfigHash(config: SimplifiedPDFConfig): string {
-  return btoa(JSON.stringify(config)).replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
+  return btoa(JSON.stringify(config))
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .substring(0, 16);
 }
 
 export const DEFAULT_CONFIG: SimplifiedPDFConfig = {
   header: {
-    title: 'Mitarbeiter-Einsatz-Planung (MEP)',
+    title: "Mitarbeiter-Einsatz-Planung (MEP)",
     store_field: {
-      label: 'Filiale:',
-      value: ''
+      label: "Filiale:",
+      value: "",
     },
     period_fields: {
       month_year: {
-        label: 'Monat/Jahr',
-        value: ''
+        label: "Monat/Jahr",
+        value: "",
       },
       week_from: {
-        label: 'Woche vom:',
-        value: ''
+        label: "Woche vom:",
+        value: "",
       },
       week_to: {
-        label: 'bis:',
-        value: ''
-      }
+        label: "bis:",
+        value: "",
+      },
     },
     storage_note: {
-      text: 'Aufbewahrung in der Filiale: 2 Jahre',
-      position: 'right'
-    }
+      text: "Aufbewahrung in der Filiale: 2 Jahre",
+      position: "right",
+    },
   },
   table: {
     employee_columns: {
       name: {
-        label: 'Name',
-        width: 120
+        label: "Name",
+        width: 120,
       },
       function: {
-        label: 'Funktion',
-        width: 80
+        label: "Funktion",
+        width: 80,
       },
       plan_week: {
-        label: 'Plan KW',
-        width: 60
-      }
+        label: "Plan KW",
+        width: 60,
+      },
     },
     day_columns: {
-      enabled_days: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
+      enabled_days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
       day_labels: {
-        mon: 'Mo',
-        tue: 'Di',
-        wed: 'Mi',
-        thu: 'Do',
-        fri: 'Fr',
-        sat: 'Sa',
-        sun: 'So'
+        mon: "Mo",
+        tue: "Di",
+        wed: "Mi",
+        thu: "Do",
+        fri: "Fr",
+        sat: "Sa",
+        sun: "So",
       },
-      day_width: 45
+      day_width: 45,
     },
     summary_columns: {
       week_total: {
-        label: 'Woche',
-        width: 50
+        label: "Woche",
+        width: 50,
       },
       month_total: {
-        label: 'Monat',
-        width: 50
-      }
+        label: "Monat",
+        width: 50,
+      },
     },
     row_structure: {
       date_row: {
-        label: 'Datum',
-        enabled: true
+        label: "Datum",
+        enabled: true,
       },
       active_row: {
-        label: 'Aktiv',
-        enabled: true
+        label: "Aktiv",
+        enabled: true,
       },
       start_row: {
-        label: 'Beginn',
-        enabled: true
+        label: "Beginn",
+        enabled: true,
       },
       break_row: {
-        label: 'Pause',
-        enabled: true
+        label: "Pause",
+        enabled: true,
       },
       end_row: {
-        label: 'Ende',
-        enabled: true
+        label: "Ende",
+        enabled: true,
       },
       total_row: {
-        label: 'Stunden',
-        enabled: true
-      }
-    }
+        label: "Stunden",
+        enabled: true,
+      },
+    },
   },
   footer: {
     break_rules: {
       enabled: true,
-      text: 'Pausenregelung: 30 Min. nach 6 Std., 45 Min. nach 9 Std.'
+      text: "Pausenregelung: 30 Min. nach 6 Std., 45 Min. nach 9 Std.",
     },
     absence_types: {
       enabled: true,
-      title: 'Abwesenheitscodes:',
+      title: "Abwesenheitscodes:",
       types: [
-        { code: 'U', label: 'Urlaub' },
-        { code: 'K', label: 'Krank' },
-        { code: 'F', label: 'Frei' }
-      ]
+        { code: "U", label: "Urlaub" },
+        { code: "K", label: "Krank" },
+        { code: "F", label: "Frei" },
+      ],
     },
     instructions: {
       enabled: true,
-      text: 'Bitte alle Änderungen deutlich markieren'
+      text: "Bitte alle Änderungen deutlich markieren",
     },
     date_stamp: {
       enabled: true,
-      text: 'Erstellt am:'
-    }
+      text: "Erstellt am:",
+    },
   },
   styling: {
     fonts: {
-      header_font: 'Helvetica',
+      header_font: "Helvetica",
       header_size: 11,
-      table_font: 'Helvetica',
+      table_font: "Helvetica",
       table_size: 7,
-      footer_font: 'Helvetica',
-      footer_size: 6
+      footer_font: "Helvetica",
+      footer_size: 6,
     },
     colors: {
-      header_bg: '#FFFFFF',
-      header_text: '#000000',
-      table_border: '#000000',
-      table_bg: '#FFFFFF',
-      table_text: '#000000',
+      header_bg: "#FFFFFF",
+      header_text: "#000000",
+      table_border: "#000000",
+      table_bg: "#FFFFFF",
+      table_text: "#000000",
       // aliases for components (no duplicates of canonical keys)
-      primary: '#000000',
-      secondary: '#666666',
-      text: '#000000',
-      border: '#000000',
-      header_background: '#FFFFFF',
-      tableBorder: '#000000',
-      headerBackground: '#FFFFFF',
-      headerText: '#000000',
-      cellBackground: '#FFFFFF',
-      cellText: '#000000',
-      alternateRowBackground: '#F7F7F7'
+      primary: "#000000",
+      secondary: "#666666",
+      text: "#000000",
+      border: "#000000",
+      header_background: "#FFFFFF",
+      tableBorder: "#000000",
+      headerBackground: "#FFFFFF",
+      headerText: "#000000",
+      cellBackground: "#FFFFFF",
+      cellText: "#000000",
+      alternateRowBackground: "#F7F7F7",
     },
     spacing: {
       page_margin: 15,
@@ -446,33 +455,33 @@ export const DEFAULT_CONFIG: SimplifiedPDFConfig = {
       cellPadding: 2,
       rowHeight: 12,
       borderWidth: 0.5,
-      headerSpacing: 6
+      headerSpacing: 6,
     },
     table_style: {
       border_width: 0.5,
-      grid_style: 'solid',
+      grid_style: "solid",
       cell_padding: 2,
       // aliases
       alternate_rows: false,
       grid_lines: true,
-      header_style: 'bold',
+      header_style: "bold",
       showBorders: true,
       alternateRowColors: false,
-      boldHeaders: true
+      boldHeaders: true,
     },
     tableStyle: {
       border_width: 0.5,
-      grid_style: 'solid',
+      grid_style: "solid",
       cell_padding: 2,
       alternate_rows: false,
       grid_lines: true,
-      header_style: 'bold',
+      header_style: "bold",
       showBorders: true,
       alternateRowColors: false,
-      boldHeaders: true
+      boldHeaders: true,
     },
     // optional convenience aliases
-    fontFamily: 'Helvetica',
+    fontFamily: "Helvetica",
     fontSize: {
       base: 7,
       header: 11,
@@ -481,159 +490,159 @@ export const DEFAULT_CONFIG: SimplifiedPDFConfig = {
       columnHeaders: 7,
       subHeaders: 7,
       tableContent: 7,
-      footer: 6
-    }
+      footer: 6,
+    },
   },
   pageSetup: {
-    size: 'A4',
-    orientation: 'portrait',
+    size: "A4",
+    orientation: "portrait",
     margins: {
       top: 15,
       right: 15,
       bottom: 15,
-      left: 15
-    }
-  }
+      left: 15,
+    },
+  },
 };
 
 export const PRESET_TEMPLATES: PresetTemplate[] = [
   {
-    id: 'mep_standard',
-    name: 'MEP Standard',
-    description: 'Standardformat der deutschen Mitarbeiter-Einsatz-Planung',
-    icon: '📋',
+    id: "mep_standard",
+    name: "MEP Standard",
+    description: "Standardformat der deutschen Mitarbeiter-Einsatz-Planung",
+    icon: "📋",
     config: {
       header: {
-        title: 'Mitarbeiter-Einsatz-Planung (MEP)',
+        title: "Mitarbeiter-Einsatz-Planung (MEP)",
         store_field: {
-          label: 'Filiale:',
-          value: ''
+          label: "Filiale:",
+          value: "",
         },
         period_fields: {
           month_year: {
-            label: 'Monat/Jahr',
-            value: ''
+            label: "Monat/Jahr",
+            value: "",
           },
           week_from: {
-            label: 'Woche vom:',
-            value: ''
+            label: "Woche vom:",
+            value: "",
           },
           week_to: {
-            label: 'bis:',
-            value: ''
-          }
+            label: "bis:",
+            value: "",
+          },
         },
         storage_note: {
-          text: 'Aufbewahrung in der Filiale: 2 Jahre',
-          position: 'right'
-        }
+          text: "Aufbewahrung in der Filiale: 2 Jahre",
+          position: "right",
+        },
       },
       styling: {
         fonts: {
-          header_font: 'Helvetica',
+          header_font: "Helvetica",
           header_size: 11,
-          table_font: 'Helvetica',
+          table_font: "Helvetica",
           table_size: 7,
-          footer_font: 'Helvetica',
-          footer_size: 6
+          footer_font: "Helvetica",
+          footer_size: 6,
         },
         colors: {
-          header_bg: '#FFFFFF',
-          header_text: '#000000',
-          table_border: '#000000',
-          table_bg: '#FFFFFF',
-          table_text: '#000000'
+          header_bg: "#FFFFFF",
+          header_text: "#000000",
+          table_border: "#000000",
+          table_bg: "#FFFFFF",
+          table_text: "#000000",
         },
         spacing: {
           page_margin: 15,
           section_spacing: 6,
-          row_height: 12
+          row_height: 12,
         },
         table_style: {
           border_width: 0.5,
-          grid_style: 'solid',
-          cell_padding: 2
-        }
-      }
-    }
+          grid_style: "solid",
+          cell_padding: 2,
+        },
+      },
+    },
   },
   {
-    id: 'mep_compact',
-    name: 'MEP Kompakt',
-    description: 'Platzsparende Version für mehr Mitarbeiter pro Seite',
-    icon: '📊',
+    id: "mep_compact",
+    name: "MEP Kompakt",
+    description: "Platzsparende Version für mehr Mitarbeiter pro Seite",
+    icon: "📊",
     config: {
       styling: {
         fonts: {
-          header_font: 'Helvetica',
+          header_font: "Helvetica",
           header_size: 10,
-          table_font: 'Helvetica',
+          table_font: "Helvetica",
           table_size: 6,
-          footer_font: 'Helvetica',
-          footer_size: 5
+          footer_font: "Helvetica",
+          footer_size: 5,
         },
         colors: {
-          header_bg: '#F0F0F0',
-          header_text: '#000000',
-          table_border: '#666666',
-          table_bg: '#FFFFFF',
-          table_text: '#000000'
+          header_bg: "#F0F0F0",
+          header_text: "#000000",
+          table_border: "#666666",
+          table_bg: "#FFFFFF",
+          table_text: "#000000",
         },
         spacing: {
           page_margin: 10,
           section_spacing: 4,
-          row_height: 10
+          row_height: 10,
         },
         table_style: {
           border_width: 0.3,
-          grid_style: 'solid',
-          cell_padding: 1
-        }
-      }
-    }
+          grid_style: "solid",
+          cell_padding: 1,
+        },
+      },
+    },
   },
   {
-    id: 'mep_detailed',
-    name: 'MEP Detailliert',
-    description: 'Erweiterte Version mit zusätzlichen Informationen',
-    icon: '📝',
+    id: "mep_detailed",
+    name: "MEP Detailliert",
+    description: "Erweiterte Version mit zusätzlichen Informationen",
+    icon: "📝",
     config: {
       styling: {
         fonts: {
-          header_font: 'Arial',
+          header_font: "Arial",
           header_size: 12,
-          table_font: 'Arial',
+          table_font: "Arial",
           table_size: 8,
-          footer_font: 'Arial',
-          footer_size: 7
+          footer_font: "Arial",
+          footer_size: 7,
         },
         colors: {
-          header_bg: '#E6F3FF',
-          header_text: '#1E40AF',
-          table_border: '#2563EB',
-          table_bg: '#FFFFFF',
-          table_text: '#374151'
+          header_bg: "#E6F3FF",
+          header_text: "#1E40AF",
+          table_border: "#2563EB",
+          table_bg: "#FFFFFF",
+          table_text: "#374151",
         },
         spacing: {
           page_margin: 20,
           section_spacing: 8,
-          row_height: 14
+          row_height: 14,
         },
         table_style: {
           border_width: 0.7,
-          grid_style: 'solid',
-          cell_padding: 3
-        }
-      }
-    }
+          grid_style: "solid",
+          cell_padding: 3,
+        },
+      },
+    },
   },
   {
-    id: 'custom',
-    name: 'Benutzerdefiniert',
-    description: 'Vollständig anpassbares Layout für spezielle Anforderungen',
-    icon: '⚙️',
-    config: {}
-  }
+    id: "custom",
+    name: "Benutzerdefiniert",
+    description: "Vollständig anpassbares Layout für spezielle Anforderungen",
+    icon: "⚙️",
+    config: {},
+  },
 ];
 
 export interface MEPMargins {

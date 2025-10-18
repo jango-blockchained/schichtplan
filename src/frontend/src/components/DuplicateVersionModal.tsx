@@ -1,6 +1,6 @@
 /**
  * Duplicate Version Modal Component
- * 
+ *
  * A modal dialog that allows users to select a target week range
  * when duplicating a schedule version.
  */
@@ -8,7 +8,14 @@
 import { getSettings } from "@/services/api";
 import { getWeekStartsOn } from "@/utils/weekStart";
 import { useQuery } from "@tanstack/react-query";
-import { addWeeks, endOfWeek, format, getWeek, parseISO, startOfWeek } from "date-fns";
+import {
+  addWeeks,
+  endOfWeek,
+  format,
+  getWeek,
+  parseISO,
+  startOfWeek,
+} from "date-fns";
 import { de } from "date-fns/locale";
 import { Calendar, Copy } from "lucide-react";
 import { useState } from "react";
@@ -61,10 +68,18 @@ export function DuplicateVersionModal({
   onDuplicate,
   isLoading = false,
 }: DuplicateVersionModalProps) {
-  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: getSettings, staleTime: 300_000 });
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+    staleTime: 300_000,
+  });
   const weekStartsOn = getWeekStartsOn(settings);
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [selectedWeek, setSelectedWeek] = useState<number>(getWeek(new Date(), { locale: de, weekStartsOn }));
+  const [selectedYear, setSelectedYear] = useState<number>(
+    new Date().getFullYear(),
+  );
+  const [selectedWeek, setSelectedWeek] = useState<number>(
+    getWeek(new Date(), { locale: de, weekStartsOn }),
+  );
   const [notes, setNotes] = useState<string>("");
   const [weekVersion, setWeekVersion] = useState<string>("1"); // Second versioning parameter
 
@@ -78,7 +93,10 @@ export function DuplicateVersionModal({
     return { startDate, endDate };
   };
 
-  const { startDate, endDate } = getDateRangeForWeek(selectedYear, selectedWeek);
+  const { startDate, endDate } = getDateRangeForWeek(
+    selectedYear,
+    selectedWeek,
+  );
 
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
@@ -92,7 +110,9 @@ export function DuplicateVersionModal({
       startDate: formattedStartDate,
       endDate: formattedEndDate,
       weekVersion: weekVersion,
-      notes: notes || `Dupliziert von Version ${sourceVersion} für KW ${selectedWeek}/${selectedYear} v${weekVersion}`,
+      notes:
+        notes ||
+        `Dupliziert von Version ${sourceVersion} für KW ${selectedWeek}/${selectedYear} v${weekVersion}`,
     });
   };
 
@@ -113,8 +133,10 @@ export function DuplicateVersionModal({
             Version {sourceVersion} duplizieren
           </DialogTitle>
           <DialogDescription>
-            Erstellen Sie eine neue Version basierend auf Version {sourceVersion}. Wählen Sie den Zielzeitraum, in den die Schichtpläne kopiert werden sollen.
-            Die Schichtpläne werden entsprechend der Zeitverschiebung angepasst.
+            Erstellen Sie eine neue Version basierend auf Version{" "}
+            {sourceVersion}. Wählen Sie den Zielzeitraum, in den die
+            Schichtpläne kopiert werden sollen. Die Schichtpläne werden
+            entsprechend der Zeitverschiebung angepasst.
           </DialogDescription>
         </DialogHeader>
 
@@ -129,12 +151,22 @@ export function DuplicateVersionModal({
               <div className="font-medium">Version {sourceVersion}</div>
               {sourceVersionMeta && (
                 <>
-                  {sourceVersionMeta.date_range_start && sourceVersionMeta.date_range_end && (
-                    <div className="text-muted-foreground mt-1">
-                      {format(parseISO(sourceVersionMeta.date_range_start), "dd.MM.yyyy", { locale: de })} - {" "}
-                      {format(parseISO(sourceVersionMeta.date_range_end), "dd.MM.yyyy", { locale: de })}
-                    </div>
-                  )}
+                  {sourceVersionMeta.date_range_start &&
+                    sourceVersionMeta.date_range_end && (
+                      <div className="text-muted-foreground mt-1">
+                        {format(
+                          parseISO(sourceVersionMeta.date_range_start),
+                          "dd.MM.yyyy",
+                          { locale: de },
+                        )}{" "}
+                        -{" "}
+                        {format(
+                          parseISO(sourceVersionMeta.date_range_end),
+                          "dd.MM.yyyy",
+                          { locale: de },
+                        )}
+                      </div>
+                    )}
                   {sourceVersionMeta.notes && (
                     <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
                       {sourceVersionMeta.notes}
@@ -197,11 +229,13 @@ export function DuplicateVersionModal({
                   <SelectValue placeholder="v1" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Array.from({ length: 10 }, (_, i) => i + 1).map((version) => (
-                    <SelectItem key={version} value={version.toString()}>
-                      v{version}
-                    </SelectItem>
-                  ))}
+                  {Array.from({ length: 10 }, (_, i) => i + 1).map(
+                    (version) => (
+                      <SelectItem key={version} value={version.toString()}>
+                        v{version}
+                      </SelectItem>
+                    ),
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -219,7 +253,8 @@ export function DuplicateVersionModal({
                 {format(endDate, "EEEE, dd.MM.yyyy", { locale: de })}
               </div>
               <div className="text-xs text-muted-foreground mt-1">
-                KW {selectedWeek}/{selectedYear} v{weekVersion} ({format(startDate, "dd.MM")} - {format(endDate, "dd.MM")})
+                KW {selectedWeek}/{selectedYear} v{weekVersion} (
+                {format(startDate, "dd.MM")} - {format(endDate, "dd.MM")})
               </div>
             </div>
           </div>

@@ -1,14 +1,14 @@
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Clock, PencilIcon, Trash2 } from "lucide-react";
@@ -17,12 +17,12 @@ import { useDrag } from "react-dnd";
 import { CoverageBlockProps } from "../types";
 import { GRID_CONSTANTS } from "../utils/constants";
 import {
-    calculateGridPosition,
-    formatDuration,
-    minutesToTime,
-    normalizeTime,
-    snapToQuarterHour,
-    timeToMinutes,
+  calculateGridPosition,
+  formatDuration,
+  minutesToTime,
+  normalizeTime,
+  snapToQuarterHour,
+  timeToMinutes,
 } from "../utils/time";
 import { BlockEditor } from "./BlockEditor";
 
@@ -273,7 +273,7 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
           opacity: isDragging ? 0.5 : 1,
           zIndex: isResizing ? 10 : isDragging ? 20 : 1,
           transform: isDragging ? "scale(1.02)" : "scale(1)",
-          pointerEvents: (isEditing || selectionMode) ? "all" : "none",
+          pointerEvents: isEditing || selectionMode ? "all" : "none",
         }}
         className={cn(
           "border rounded-md px-2.5 py-1.5 flex group relative",
@@ -281,7 +281,9 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
           isSelected
             ? "bg-blue-500/20 border-blue-500/50 ring-2 ring-blue-400/50"
             : "bg-primary/5 border-primary/20",
-          isEditing && !selectionMode ? "hover:bg-primary/10 hover:border-primary/30" : "",
+          isEditing && !selectionMode
+            ? "hover:bg-primary/10 hover:border-primary/30"
+            : "",
           selectionMode ? "hover:bg-primary/10" : "",
           "hover:border-primary/50 transition-all duration-200 ease-in-out",
           isDragging && "ring-2 ring-primary/30",

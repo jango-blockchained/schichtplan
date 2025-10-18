@@ -44,7 +44,10 @@ export default function FormularsPage() {
       />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {formulars.map((formular) => (
-          <Card key={formular.id} className="hover:scale-105 transition-transform">
+          <Card
+            key={formular.id}
+            className="hover:scale-105 transition-transform"
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
                 {formular.title}

@@ -1,6 +1,6 @@
-import { ConversationMessage } from '@/components/ai/ConversationPanel';
-import { aiService } from '@/services/aiService';
-import { useCallback, useEffect, useState } from 'react';
+import { ConversationMessage } from "@/components/ai/ConversationPanel";
+import { aiService } from "@/services/aiService";
+import { useCallback, useEffect, useState } from "react";
 
 interface AIConversationHook {
   messages: ConversationMessage[];
@@ -10,17 +10,22 @@ interface AIConversationHook {
   setCurrentInput: (input: string) => void;
   sendMessage: () => Promise<void>;
   clearConversation: () => void;
-  addSystemMessage: (content: string, metadata?: Record<string, unknown>) => void;
+  addSystemMessage: (
+    content: string,
+    metadata?: Record<string, unknown>,
+  ) => void;
 }
 
-const STORAGE_KEY = 'ai-conversation-messages';
-const SESSION_KEY = 'ai-conversation-session';
+const STORAGE_KEY = "ai-conversation-messages";
+const SESSION_KEY = "ai-conversation-session";
 
 export function useAIConversation(
-  onSendPrompt?: (prompt: string) => Promise<{ message?: string } | Record<string, unknown>>
+  onSendPrompt?: (
+    prompt: string,
+  ) => Promise<{ message?: string } | Record<string, unknown>>,
 ): AIConversationHook {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
-  const [currentInput, setCurrentInput] = useState('');
+  const [currentInput, setCurrentInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId] = useState(() => {
     // Try to restore session or create new one
@@ -41,11 +46,16 @@ export function useAIConversation(
         const parsed = JSON.parse(stored) as unknown;
         if (Array.isArray(parsed)) {
           const messagesWithDates = parsed.map((m) => {
-            const msg = m as Partial<ConversationMessage> & { timestamp?: string | number | Date };
+            const msg = m as Partial<ConversationMessage> & {
+              timestamp?: string | number | Date;
+            };
             return {
-              id: typeof msg.id === 'string' ? msg.id : `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              type: (msg.type as ConversationMessage['type']) ?? 'system',
-              content: typeof msg.content === 'string' ? msg.content : '',
+              id:
+                typeof msg.id === "string"
+                  ? msg.id
+                  : `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              type: (msg.type as ConversationMessage["type"]) ?? "system",
+              content: typeof msg.content === "string" ? msg.content : "",
               timestamp: new Date(msg.timestamp ?? Date.now()),
               metadata: msg.metadata,
             } as ConversationMessage;
@@ -54,7 +64,7 @@ export function useAIConversation(
         }
       }
     } catch (error) {
-      console.error('Failed to load conversation history:', error);
+      console.error("Failed to load conversation history:", error);
     }
   }, []);
 
@@ -63,38 +73,44 @@ export function useAIConversation(
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
     } catch (error) {
-      console.error('Failed to save conversation history:', error);
+      console.error("Failed to save conversation history:", error);
     }
   }, [messages]);
 
-  const addMessage = useCallback((message: Omit<ConversationMessage, 'id' | 'timestamp'>) => {
-    const newMessage: ConversationMessage = {
-      ...message,
-      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: new Date(),
-    };
-    setMessages(prev => [...prev, newMessage]);
-    return newMessage;
-  }, []);
+  const addMessage = useCallback(
+    (message: Omit<ConversationMessage, "id" | "timestamp">) => {
+      const newMessage: ConversationMessage = {
+        ...message,
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, newMessage]);
+      return newMessage;
+    },
+    [],
+  );
 
-  const addSystemMessage = useCallback((content: string, metadata?: Record<string, unknown>) => {
-    addMessage({
-      type: 'system',
-      content,
-      metadata,
-    });
-  }, [addMessage]);
+  const addSystemMessage = useCallback(
+    (content: string, metadata?: Record<string, unknown>) => {
+      addMessage({
+        type: "system",
+        content,
+        metadata,
+      });
+    },
+    [addMessage],
+  );
 
   const sendMessage = useCallback(async () => {
     if (!currentInput.trim() || isLoading) return;
 
     const userMessage = currentInput.trim();
-    setCurrentInput('');
+    setCurrentInput("");
     setIsLoading(true);
 
     // Add user message
     addMessage({
-      type: 'user',
+      type: "user",
       content: userMessage,
     });
 
@@ -102,11 +118,13 @@ export function useAIConversation(
       if (onSendPrompt) {
         // Call the provided prompt handler
         const result = await onSendPrompt(userMessage);
-        
+
         // Add AI response
         addMessage({
-          type: 'ai',
-          content: (result as { message?: string })?.message ?? 'Anweisung wurde verarbeitet und ausgeführt.',
+          type: "ai",
+          content:
+            (result as { message?: string })?.message ??
+            "Anweisung wurde verarbeitet und ausgeführt.",
           metadata: {
             prompt: userMessage,
             generationResult: result,
@@ -118,23 +136,24 @@ export function useAIConversation(
           message: userMessage,
           conversation_id: sessionId,
         });
-    addMessage({
-          type: 'ai',
+        addMessage({
+          type: "ai",
           content: resp.response,
           metadata: {
             prompt: userMessage,
-      ...resp.metadata,
+            ...resp.metadata,
           },
         });
       }
     } catch (error) {
       // Add error message
       addMessage({
-        type: 'ai',
-        content: 'Entschuldigung, bei der Verarbeitung Ihrer Anfrage ist ein Fehler aufgetreten.',
+        type: "ai",
+        content:
+          "Entschuldigung, bei der Verarbeitung Ihrer Anfrage ist ein Fehler aufgetreten.",
         metadata: {
           prompt: userMessage,
-          error: error instanceof Error ? error.message : 'Unbekannter Fehler',
+          error: error instanceof Error ? error.message : "Unbekannter Fehler",
         },
       });
     } finally {
@@ -144,16 +163,17 @@ export function useAIConversation(
 
   const clearConversation = useCallback(() => {
     setMessages([]);
-    setCurrentInput('');
+    setCurrentInput("");
     // Create new session
     const newSession = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     localStorage.setItem(SESSION_KEY, newSession);
     localStorage.removeItem(STORAGE_KEY);
-    
+
     // Add welcome message
     addMessage({
-      type: 'system',
-      content: 'Neue Unterhaltung gestartet. Stellen Sie Fragen zur Schichtplanung oder bitten Sie um Optimierungen.',
+      type: "system",
+      content:
+        "Neue Unterhaltung gestartet. Stellen Sie Fragen zur Schichtplanung oder bitten Sie um Optimierungen.",
     });
   }, [addMessage]);
 

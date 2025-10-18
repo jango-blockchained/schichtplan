@@ -262,7 +262,9 @@ export function AddScheduleDialog({
     setIsSubmitting(true);
     try {
       // Get shift details for consecutive shift validation
-      const selectedShiftDetails = applicableShiftsList.find(s => s.shift_id === selectedShift);
+      const selectedShiftDetails = applicableShiftsList.find(
+        (s) => s.shift_id === selectedShift,
+      );
 
       if (selectedShiftDetails) {
         // Validate consecutive shift requirements
@@ -273,7 +275,7 @@ export function AddScheduleDialog({
           selectedEmployee,
           selectedShiftDetails,
           selectedDate,
-          openingDays
+          openingDays,
         );
 
         if (!validation.isValid) {
@@ -292,27 +294,31 @@ export function AddScheduleDialog({
           // Get all employees to find other keyholders
           const employees = await getEmployees();
           // Find and unset other keyholders
-          const otherKeyholders = employees.filter(emp =>
-            emp.id !== selectedEmployee && emp.is_keyholder
+          const otherKeyholders = employees.filter(
+            (emp) => emp.id !== selectedEmployee && emp.is_keyholder,
           );
           for (const keyholder of otherKeyholders) {
             await updateEmployee(keyholder.id, {
               ...keyholder,
-              is_keyholder: false
+              is_keyholder: false,
             });
           }
           // Set the selected employee as keyholder
-          const currentEmployee = employees.find(emp => emp.id === selectedEmployee);
+          const currentEmployee = employees.find(
+            (emp) => emp.id === selectedEmployee,
+          );
           if (currentEmployee && !currentEmployee.is_keyholder) {
             await updateEmployee(currentEmployee.id, {
               ...currentEmployee,
-              is_keyholder: true
+              is_keyholder: true,
             });
           }
         } catch (error) {
           toast({
             title: "Warning",
-            description: "Schedule will be created but keyholder status update failed: " + (error instanceof Error ? error.message : "Unknown error"),
+            description:
+              "Schedule will be created but keyholder status update failed: " +
+              (error instanceof Error ? error.message : "Unknown error"),
             variant: "destructive",
           });
         }
@@ -329,7 +335,9 @@ export function AddScheduleDialog({
       });
       // Fire back-compat test callback
       onScheduleAdded?.({
-        id: scheduleId ?? `${selectedEmployee}-${format(selectedDate, "yyyy-MM-dd")}`,
+        id:
+          scheduleId ??
+          `${selectedEmployee}-${format(selectedDate, "yyyy-MM-dd")}`,
         employee_id: selectedEmployee,
         shift_id: selectedShift,
         date: format(selectedDate, "yyyy-MM-dd"),
@@ -350,13 +358,15 @@ export function AddScheduleDialog({
             selectedDate,
             version,
             shifts,
-            openingDays
+            openingDays,
           );
         } catch (error) {
           console.error("Failed to create consecutive shifts:", error);
           toast({
             title: "Warning",
-            description: "Schedule created but failed to create required consecutive shifts: " + (error instanceof Error ? error.message : "Unknown error"),
+            description:
+              "Schedule created but failed to create required consecutive shifts: " +
+              (error instanceof Error ? error.message : "Unknown error"),
             variant: "destructive",
           });
         }
@@ -582,7 +592,7 @@ export function AddScheduleDialog({
                       className={cn(
                         "text-xs opacity-80 ml-2",
                         empStatus.status.startsWith("Absence") &&
-                        "text-red-500",
+                          "text-red-500",
                         empStatus.status.startsWith("Shift") && "text-blue-500",
                         empStatus.status === "Available" && "text-green-500",
                       )}
@@ -649,10 +659,10 @@ export function AddScheduleDialog({
                 {/* Then show unavailable shifts (if any) */}
                 {applicableShiftsList.filter((s) => !s.is_available).length >
                   0 && (
-                    <div className="py-1 px-2 text-xs text-muted-foreground border-t">
-                      Nicht verfügbare Schichten:
-                    </div>
-                  )}
+                  <div className="py-1 px-2 text-xs text-muted-foreground border-t">
+                    Nicht verfügbare Schichten:
+                  </div>
+                )}
                 {applicableShiftsList
                   .filter((s) => !s.is_available)
                   .map((shift) => (
@@ -675,7 +685,9 @@ export function AddScheduleDialog({
               <Checkbox
                 id="keyholder"
                 checked={isKeyholder}
-                onCheckedChange={(checked) => setIsKeyholder(checked as boolean)}
+                onCheckedChange={(checked) =>
+                  setIsKeyholder(checked as boolean)
+                }
                 disabled={isSubmitting}
               />
               <Label

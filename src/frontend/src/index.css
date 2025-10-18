@@ -1,5 +1,5 @@
 /* Import custom effects */
-@import './components/effects/effects.css';
+@import "./components/effects/effects.css";
 
 @tailwind base;
 @tailwind components;
@@ -42,7 +42,7 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    
+
     /* Sidebar Colors */
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -52,12 +52,12 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
-    
+
     /* Animation Durations */
     --duration-fast: 150ms;
     --duration-normal: 200ms;
     --duration-slow: 300ms;
-    
+
     /* Easing Functions */
     --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
     --ease-out: cubic-bezier(0, 0, 0.2, 1);

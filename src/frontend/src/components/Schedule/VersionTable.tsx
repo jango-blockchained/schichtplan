@@ -47,7 +47,7 @@ import {
   Info,
   Pencil,
   Plus,
-  Trash
+  Trash,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -77,7 +77,10 @@ export function VersionTable({
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [isOpen, setIsOpen] = useState(true);
   const [filterByDate, setFilterByDate] = useState(false);
-  const [dateRange, setDateRange] = useState<{ start: string; end: string } | null>(null);
+  const [dateRange, setDateRange] = useState<{
+    start: string;
+    end: string;
+  } | null>(null);
 
   if (!versions || versions.length === 0) {
     return (
@@ -142,18 +145,21 @@ export function VersionTable({
   };
 
   // Filter versions by date range if enabled
-  const filteredVersions = filterByDate && dateRange
-    ? versions.filter(v => {
-      const vStart = new Date(v.date_range.start);
-      const vEnd = new Date(v.date_range.end);
-      const fStart = new Date(dateRange.start);
-      const fEnd = new Date(dateRange.end);
-      return vStart >= fStart && vEnd <= fEnd;
-    })
-    : versions;
+  const filteredVersions =
+    filterByDate && dateRange
+      ? versions.filter((v) => {
+          const vStart = new Date(v.date_range.start);
+          const vEnd = new Date(v.date_range.end);
+          const fStart = new Date(dateRange.start);
+          const fEnd = new Date(dateRange.end);
+          return vStart >= fStart && vEnd <= fEnd;
+        })
+      : versions;
 
   // Sort versions by version number descending
-  const sortedVersions = [...filteredVersions].sort((a, b) => b.version - a.version);
+  const sortedVersions = [...filteredVersions].sort(
+    (a, b) => b.version - a.version,
+  );
 
   // Pagination calculations
   const totalPages = Math.ceil(sortedVersions.length / itemsPerPage);
@@ -261,13 +267,18 @@ export function VersionTable({
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CardHeader className="flex flex-row items-center justify-between border-b border-border">
           <CollapsibleTrigger asChild>
-            <Button variant="ghost" className="flex items-center gap-2 p-0 hover:bg-muted/50">
+            <Button
+              variant="ghost"
+              className="flex items-center gap-2 p-0 hover:bg-muted/50"
+            >
               {isOpen ? (
                 <ChevronDown className="h-4 w-4" />
               ) : (
                 <ChevronRight className="h-4 w-4" />
               )}
-              <CardTitle className="text-lg font-semibold">Versionen ({filteredVersions.length})</CardTitle>
+              <CardTitle className="text-lg font-semibold">
+                Versionen ({filteredVersions.length})
+              </CardTitle>
             </Button>
           </CollapsibleTrigger>
           {onCreateNewVersion && (
@@ -290,7 +301,7 @@ export function VersionTable({
                 <input
                   type="checkbox"
                   checked={filterByDate}
-                  onChange={e => setFilterByDate(e.target.checked)}
+                  onChange={(e) => setFilterByDate(e.target.checked)}
                 />
                 <span className="text-sm">Nach Zeitraum filtern</span>
               </label>
@@ -298,15 +309,19 @@ export function VersionTable({
                 <>
                   <input
                     type="date"
-                    value={dateRange?.start || ''}
-                    onChange={e => setDateRange(r => ({ ...r, start: e.target.value }))}
+                    value={dateRange?.start || ""}
+                    onChange={(e) =>
+                      setDateRange((r) => ({ ...r, start: e.target.value }))
+                    }
                     className="border rounded px-2 py-1 text-sm"
                   />
                   <span className="text-sm">bis</span>
                   <input
                     type="date"
-                    value={dateRange?.end || ''}
-                    onChange={e => setDateRange(r => ({ ...r, end: e.target.value }))}
+                    value={dateRange?.end || ""}
+                    onChange={(e) =>
+                      setDateRange((r) => ({ ...r, end: e.target.value }))
+                    }
                     className="border rounded px-2 py-1 text-sm"
                   />
                 </>
@@ -331,7 +346,7 @@ export function VersionTable({
                     const isNew =
                       version.created_at &&
                       new Date(version.created_at) >
-                      new Date(Date.now() - 24 * 60 * 60 * 1000);
+                        new Date(Date.now() - 24 * 60 * 60 * 1000);
 
                     return (
                       <TableRow
@@ -345,14 +360,25 @@ export function VersionTable({
                             onClick={() => {
                               onSelectVersion(version.version);
                             }}
-                            className={isSelected ? "bg-primary/20 hover:bg-primary/30" : ""}
+                            className={
+                              isSelected
+                                ? "bg-primary/20 hover:bg-primary/30"
+                                : ""
+                            }
                           >
                             {version.version}
                           </Button>
                         </TableCell>
                         <TableCell>
-                          {format(new Date(version.date_range.start), "dd.MM.yyyy")} -{" "}
-                          {format(new Date(version.date_range.end), "dd.MM.yyyy")}
+                          {format(
+                            new Date(version.date_range.start),
+                            "dd.MM.yyyy",
+                          )}{" "}
+                          -{" "}
+                          {format(
+                            new Date(version.date_range.end),
+                            "dd.MM.yyyy",
+                          )}
                         </TableCell>
                         <TableCell>{getStatusBadge(version.status)}</TableCell>
                         <TableCell className="max-w-[200px]">
@@ -384,7 +410,9 @@ export function VersionTable({
                               Basiert auf V{version.base_version}
                             </span>
                           ) : (
-                            <span className="text-sm text-muted-foreground">-</span>
+                            <span className="text-sm text-muted-foreground">
+                              -
+                            </span>
                           )}
                         </TableCell>
                         <TableCell>
@@ -402,7 +430,9 @@ export function VersionTable({
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => onPublishVersion(version.version)}
+                                      onClick={() =>
+                                        onPublishVersion(version.version)
+                                      }
                                       className="h-8 w-8 p-0"
                                     >
                                       <Check className="h-4 w-4" />
@@ -422,7 +452,9 @@ export function VersionTable({
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => onArchiveVersion(version.version)}
+                                      onClick={() =>
+                                        onArchiveVersion(version.version)
+                                      }
                                       className="h-8 w-8 p-0"
                                     >
                                       <Archive className="h-4 w-4" />
@@ -442,7 +474,9 @@ export function VersionTable({
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => onDuplicateVersion(version.version)}
+                                      onClick={() =>
+                                        onDuplicateVersion(version.version)
+                                      }
                                       className="h-8 w-8 p-0"
                                     >
                                       <Copy className="h-4 w-4" />
@@ -462,7 +496,9 @@ export function VersionTable({
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => onDeleteVersion(version.version)}
+                                      onClick={() =>
+                                        onDeleteVersion(version.version)
+                                      }
                                       className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                                     >
                                       <Trash className="h-4 w-4" />
@@ -499,13 +535,15 @@ export function VersionTable({
                       <SelectItem value="20">20</SelectItem>
                     </SelectContent>
                   </Select>
-                  <span className="text-sm text-muted-foreground">pro Seite</span>
+                  <span className="text-sm text-muted-foreground">
+                    pro Seite
+                  </span>
                 </div>
 
                 <div className="flex items-center">
                   <span className="text-sm text-muted-foreground mr-4">
-                    Seite {currentPage} von {totalPages} ({sortedVersions.length}{" "}
-                    Versionen)
+                    Seite {currentPage} von {totalPages} (
+                    {sortedVersions.length} Versionen)
                   </span>
 
                   <Pagination>

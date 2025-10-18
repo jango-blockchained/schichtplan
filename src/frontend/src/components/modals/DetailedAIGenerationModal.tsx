@@ -112,7 +112,7 @@ export function DetailedAIGenerationModal({
 
   const handlePriorityChange = (
     key: keyof DetailedAIOptions["prioritySettings"],
-    value: number[]
+    value: number[],
   ) => {
     setOptions((prev) => ({
       ...prev,
@@ -125,7 +125,7 @@ export function DetailedAIGenerationModal({
 
   const handleConstraintToggle = (
     key: keyof DetailedAIOptions["constraintOverrides"],
-    checked: boolean
+    checked: boolean,
   ) => {
     setOptions((prev) => ({
       ...prev,
@@ -138,7 +138,7 @@ export function DetailedAIGenerationModal({
 
   const handleEmployeeOptionToggle = (
     key: keyof DetailedAIOptions["employeeOptions"],
-    checked: boolean
+    checked: boolean,
   ) => {
     setOptions((prev) => ({
       ...prev,
@@ -151,7 +151,7 @@ export function DetailedAIGenerationModal({
 
   const handleAIParamChange = (
     key: keyof DetailedAIOptions["aiModelParams"],
-    value: number[]
+    value: number[],
   ) => {
     setOptions((prev) => ({
       ...prev,
@@ -169,13 +169,16 @@ export function DetailedAIGenerationModal({
   const handleExportConversationToOptions = () => {
     // TODO: Implement conversation -> options conversion
     setActiveTab("priorities");
-    conversation.addSystemMessage("Unterhaltung wurde in strukturierte Optionen übertragen.");
+    conversation.addSystemMessage(
+      "Unterhaltung wurde in strukturierte Optionen übertragen.",
+    );
   };
 
   const getImpactLevel = () => {
     const { onlyFixedPreferred } = options.employeeOptions;
-    const { ignoreNonCriticalAvailability, allowOvertime } = options.constraintOverrides;
-    
+    const { ignoreNonCriticalAvailability, allowOvertime } =
+      options.constraintOverrides;
+
     if (onlyFixedPreferred || ignoreNonCriticalAvailability) {
       return "high";
     }
@@ -196,7 +199,8 @@ export function DetailedAIGenerationModal({
             Erweiterte KI-Generierung
           </DialogTitle>
           <DialogDescription>
-            Konfigurieren Sie die detaillierten Optionen für die KI-gestützte Schichtplanerstellung.
+            Konfigurieren Sie die detaillierten Optionen für die KI-gestützte
+            Schichtplanerstellung.
           </DialogDescription>
         </DialogHeader>
 
@@ -206,7 +210,10 @@ export function DetailedAIGenerationModal({
               <Sliders className="h-4 w-4" />
               Prioritäten
             </TabsTrigger>
-            <TabsTrigger value="constraints" className="flex items-center gap-2">
+            <TabsTrigger
+              value="constraints"
+              className="flex items-center gap-2"
+            >
               <Settings className="h-4 w-4" />
               Einschränkungen
             </TabsTrigger>
@@ -218,7 +225,10 @@ export function DetailedAIGenerationModal({
               <Settings className="h-4 w-4" />
               KI-Parameter
             </TabsTrigger>
-            <TabsTrigger value="conversation" className="flex items-center gap-2">
+            <TabsTrigger
+              value="conversation"
+              className="flex items-center gap-2"
+            >
               <MessageCircle className="h-4 w-4" />
               Unterhaltung
             </TabsTrigger>
@@ -227,9 +237,12 @@ export function DetailedAIGenerationModal({
           <TabsContent value="priorities" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Optimierungsprioritäten</CardTitle>
+                <CardTitle className="text-lg">
+                  Optimierungsprioritäten
+                </CardTitle>
                 <CardDescription>
-                  Bestimmen Sie, welche Aspekte bei der Schichtplanung bevorzugt werden sollen.
+                  Bestimmen Sie, welche Aspekte bei der Schichtplanung bevorzugt
+                  werden sollen.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -240,14 +253,18 @@ export function DetailedAIGenerationModal({
                   <div className="px-2">
                     <Slider
                       value={[options.prioritySettings.employeeSatisfaction]}
-                      onValueChange={(value) => handlePriorityChange("employeeSatisfaction", value)}
+                      onValueChange={(value) =>
+                        handlePriorityChange("employeeSatisfaction", value)
+                      }
                       max={100}
                       step={1}
                       className="w-full"
                     />
                     <div className="flex justify-between text-xs text-muted-foreground mt-1">
                       <span>Abdeckung</span>
-                      <span>{options.prioritySettings.employeeSatisfaction}%</span>
+                      <span>
+                        {options.prioritySettings.employeeSatisfaction}%
+                      </span>
                       <span>Zufriedenheit</span>
                     </div>
                   </div>
@@ -260,7 +277,9 @@ export function DetailedAIGenerationModal({
                   <div className="px-2">
                     <Slider
                       value={[options.prioritySettings.fairness]}
-                      onValueChange={(value) => handlePriorityChange("fairness", value)}
+                      onValueChange={(value) =>
+                        handlePriorityChange("fairness", value)
+                      }
                       max={100}
                       step={1}
                       className="w-full"
@@ -280,7 +299,9 @@ export function DetailedAIGenerationModal({
                   <div className="px-2">
                     <Slider
                       value={[options.prioritySettings.consistency]}
-                      onValueChange={(value) => handlePriorityChange("consistency", value)}
+                      onValueChange={(value) =>
+                        handlePriorityChange("consistency", value)
+                      }
                       max={100}
                       step={1}
                       className="w-full"
@@ -300,7 +321,9 @@ export function DetailedAIGenerationModal({
                   <div className="px-2">
                     <Slider
                       value={[options.prioritySettings.workloadBalance]}
-                      onValueChange={(value) => handlePriorityChange("workloadBalance", value)}
+                      onValueChange={(value) =>
+                        handlePriorityChange("workloadBalance", value)
+                      }
                       max={100}
                       step={1}
                       className="w-full"
@@ -319,9 +342,12 @@ export function DetailedAIGenerationModal({
           <TabsContent value="constraints" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Einschränkungsübersteuerungen</CardTitle>
+                <CardTitle className="text-lg">
+                  Einschränkungsübersteuerungen
+                </CardTitle>
                 <CardDescription>
-                  Aktivieren Sie Optionen, um bestimmte Einschränkungen zu lockern oder zu verstärken.
+                  Aktivieren Sie Optionen, um bestimmte Einschränkungen zu
+                  lockern oder zu verstärken.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -331,13 +357,19 @@ export function DetailedAIGenerationModal({
                       Nicht-kritische Verfügbarkeitseinschränkungen ignorieren
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Erlaubt der KI, "bevorzugte" Verfügbarkeiten zu ignorieren, wenn nötig.
+                      Erlaubt der KI, "bevorzugte" Verfügbarkeiten zu
+                      ignorieren, wenn nötig.
                     </p>
                   </div>
                   <Switch
-                    checked={options.constraintOverrides.ignoreNonCriticalAvailability}
+                    checked={
+                      options.constraintOverrides.ignoreNonCriticalAvailability
+                    }
                     onCheckedChange={(checked) =>
-                      handleConstraintToggle("ignoreNonCriticalAvailability", checked)
+                      handleConstraintToggle(
+                        "ignoreNonCriticalAvailability",
+                        checked,
+                      )
                     }
                   />
                 </div>
@@ -350,7 +382,8 @@ export function DetailedAIGenerationModal({
                       Überstunden in Notfällen erlauben
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Ermöglicht die Zuweisung von Überstunden bei kritischem Personalmangel.
+                      Ermöglicht die Zuweisung von Überstunden bei kritischem
+                      Personalmangel.
                     </p>
                   </div>
                   <Switch
@@ -369,7 +402,8 @@ export function DetailedAIGenerationModal({
                       Strenge Schlüsselinhaber-Anforderungen
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Stellt sicher, dass immer ein Schlüsselinhaber anwesend ist.
+                      Stellt sicher, dass immer ein Schlüsselinhaber anwesend
+                      ist.
                     </p>
                   </div>
                   <Switch
@@ -388,7 +422,8 @@ export function DetailedAIGenerationModal({
                       Mindestpausen zwischen Schichten
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Respektiert die minimal erforderlichen Ruhezeiten zwischen Schichten.
+                      Respektiert die minimal erforderlichen Ruhezeiten zwischen
+                      Schichten.
                     </p>
                   </div>
                   <Switch
@@ -405,9 +440,12 @@ export function DetailedAIGenerationModal({
           <TabsContent value="employees" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Mitarbeiterspezifische Optionen</CardTitle>
+                <CardTitle className="text-lg">
+                  Mitarbeiterspezifische Optionen
+                </CardTitle>
                 <CardDescription>
-                  Konfigurieren Sie, wie Mitarbeiterpräferenzen und -verfügbarkeiten behandelt werden.
+                  Konfigurieren Sie, wie Mitarbeiterpräferenzen und
+                  -verfügbarkeiten behandelt werden.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -417,7 +455,8 @@ export function DetailedAIGenerationModal({
                       Nur feste/bevorzugte Verfügbarkeiten zuweisen
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Weist nur Schichten zu, wenn der Mitarbeiter als "fest" oder "bevorzugt" verfügbar ist.
+                      Weist nur Schichten zu, wenn der Mitarbeiter als "fest"
+                      oder "bevorzugt" verfügbar ist.
                     </p>
                   </div>
                   <Switch
@@ -436,13 +475,17 @@ export function DetailedAIGenerationModal({
                       Individuelle Präferenzgewichtungen respektieren
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Berücksichtigt individuelle Präferenzstärken bei der Zuweisung.
+                      Berücksichtigt individuelle Präferenzstärken bei der
+                      Zuweisung.
                     </p>
                   </div>
                   <Switch
                     checked={options.employeeOptions.respectPreferenceWeights}
                     onCheckedChange={(checked) =>
-                      handleEmployeeOptionToggle("respectPreferenceWeights", checked)
+                      handleEmployeeOptionToggle(
+                        "respectPreferenceWeights",
+                        checked,
+                      )
                     }
                   />
                 </div>
@@ -455,13 +498,17 @@ export function DetailedAIGenerationModal({
                       Historische Zuweisungsmuster berücksichtigen
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Verwendet vergangene Schichtzuweisungen zur Optimierung der Fairness.
+                      Verwendet vergangene Schichtzuweisungen zur Optimierung
+                      der Fairness.
                     </p>
                   </div>
                   <Switch
                     checked={options.employeeOptions.considerHistoricalPatterns}
                     onCheckedChange={(checked) =>
-                      handleEmployeeOptionToggle("considerHistoricalPatterns", checked)
+                      handleEmployeeOptionToggle(
+                        "considerHistoricalPatterns",
+                        checked,
+                      )
                     }
                   />
                 </div>
@@ -472,8 +519,10 @@ export function DetailedAIGenerationModal({
               <Alert>
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  <strong>Warnung:</strong> Diese Option kann die Planungsoptionen erheblich einschränken. 
-                  Stellen Sie sicher, dass genügend Mitarbeiter mit festen/bevorzugten Verfügbarkeiten vorhanden sind.
+                  <strong>Warnung:</strong> Diese Option kann die
+                  Planungsoptionen erheblich einschränken. Stellen Sie sicher,
+                  dass genügend Mitarbeiter mit festen/bevorzugten
+                  Verfügbarkeiten vorhanden sind.
                 </AlertDescription>
               </Alert>
             )}
@@ -484,7 +533,8 @@ export function DetailedAIGenerationModal({
               <CardHeader>
                 <CardTitle className="text-lg">KI-Modell Parameter</CardTitle>
                 <CardDescription>
-                  Stellen Sie das Verhalten des KI-Modells für die Schichtplanung ein.
+                  Stellen Sie das Verhalten des KI-Modells für die
+                  Schichtplanung ein.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -495,19 +545,24 @@ export function DetailedAIGenerationModal({
                   <div className="px-2">
                     <Slider
                       value={[options.aiModelParams.temperature * 100]}
-                      onValueChange={(value) => handleAIParamChange("temperature", [value[0] / 100])}
+                      onValueChange={(value) =>
+                        handleAIParamChange("temperature", [value[0] / 100])
+                      }
                       max={100}
                       step={1}
                       className="w-full"
                     />
                     <div className="flex justify-between text-xs text-muted-foreground mt-1">
                       <span>Deterministisch</span>
-                      <span>{Math.round(options.aiModelParams.temperature * 100)}%</span>
+                      <span>
+                        {Math.round(options.aiModelParams.temperature * 100)}%
+                      </span>
                       <span>Kreativ</span>
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Höhere Werte führen zu kreativeren, aber weniger vorhersagbaren Lösungen.
+                    Höhere Werte führen zu kreativeren, aber weniger
+                    vorhersagbaren Lösungen.
                   </p>
                 </div>
 
@@ -518,14 +573,18 @@ export function DetailedAIGenerationModal({
                   <div className="px-2">
                     <Slider
                       value={[options.aiModelParams.creativity * 100]}
-                      onValueChange={(value) => handleAIParamChange("creativity", [value[0] / 100])}
+                      onValueChange={(value) =>
+                        handleAIParamChange("creativity", [value[0] / 100])
+                      }
                       max={100}
                       step={1}
                       className="w-full"
                     />
                     <div className="flex justify-between text-xs text-muted-foreground mt-1">
                       <span>Konservativ</span>
-                      <span>{Math.round(options.aiModelParams.creativity * 100)}%</span>
+                      <span>
+                        {Math.round(options.aiModelParams.creativity * 100)}%
+                      </span>
                       <span>Innovativ</span>
                     </div>
                   </div>
@@ -544,7 +603,8 @@ export function DetailedAIGenerationModal({
                   <div>
                     <CardTitle className="text-lg">KI-Unterhaltung</CardTitle>
                     <CardDescription>
-                      Sprechen Sie direkt mit der KI über Ihre Schichtplanungsanforderungen.
+                      Sprechen Sie direkt mit der KI über Ihre
+                      Schichtplanungsanforderungen.
                     </CardDescription>
                   </div>
                   <Button
@@ -585,14 +645,29 @@ export function DetailedAIGenerationModal({
           </CardHeader>
           <CardContent className="pt-0">
             <div className="flex items-center gap-2">
-              <span className="text-sm">Erwartete Auswirkung auf die Planung:</span>
-              <Badge variant={impactLevel === "high" ? "destructive" : impactLevel === "medium" ? "outline" : "secondary"}>
-                {impactLevel === "high" ? "Hoch" : impactLevel === "medium" ? "Mittel" : "Niedrig"}
+              <span className="text-sm">
+                Erwartete Auswirkung auf die Planung:
+              </span>
+              <Badge
+                variant={
+                  impactLevel === "high"
+                    ? "destructive"
+                    : impactLevel === "medium"
+                      ? "outline"
+                      : "secondary"
+                }
+              >
+                {impactLevel === "high"
+                  ? "Hoch"
+                  : impactLevel === "medium"
+                    ? "Mittel"
+                    : "Niedrig"}
               </Badge>
             </div>
             {impactLevel === "high" && (
               <p className="text-xs text-muted-foreground mt-1">
-                Die gewählten Optionen können die verfügbaren Planungsoptionen erheblich einschränken.
+                Die gewählten Optionen können die verfügbaren Planungsoptionen
+                erheblich einschränken.
               </p>
             )}
           </CardContent>

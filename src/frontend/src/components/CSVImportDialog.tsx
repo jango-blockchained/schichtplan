@@ -20,10 +20,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  Textarea
-} from '@/components/ui';
-import { AlertCircle, CheckCircle, FileText, Upload } from 'lucide-react';
-import React, { useState } from 'react';
+  Textarea,
+} from "@/components/ui";
+import { AlertCircle, CheckCircle, FileText, Upload } from "lucide-react";
+import React, { useState } from "react";
 
 interface DataType {
   id: string;
@@ -63,13 +63,13 @@ const CSVImportDialog: React.FC<CSVImportDialogProps> = ({
   onImportComplete,
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [csvText, setCsvText] = useState<string>('');
-  const [inputMethod, setInputMethod] = useState<'file' | 'text'>('file');
-  const [selectedDataType, setSelectedDataType] = useState<string>('');
+  const [csvText, setCsvText] = useState<string>("");
+  const [inputMethod, setInputMethod] = useState<"file" | "text">("file");
+  const [selectedDataType, setSelectedDataType] = useState<string>("");
   const [dataTypes, setDataTypes] = useState<DataType[]>([]);
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [step, setStep] = useState<'select' | 'preview' | 'result'>('select');
+  const [step, setStep] = useState<"select" | "preview" | "result">("select");
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
   React.useEffect(() => {
@@ -80,11 +80,11 @@ const CSVImportDialog: React.FC<CSVImportDialogProps> = ({
 
   const loadDataTypes = async (): Promise<void> => {
     try {
-      const response = await fetch('/api/csv-import/data-types');
+      const response = await fetch("/api/csv-import/data-types");
       const data = await response.json();
       setDataTypes(data.data_types || []);
     } catch (error) {
-      console.error('Error loading data types:', error);
+      console.error("Error loading data types:", error);
     }
   };
 
@@ -98,29 +98,29 @@ const CSVImportDialog: React.FC<CSVImportDialogProps> = ({
 
   const handlePreview = async (): Promise<void> => {
     if (!selectedDataType) return;
-    if (inputMethod === 'file' && !selectedFile) return;
-    if (inputMethod === 'text' && !csvText.trim()) return;
+    if (inputMethod === "file" && !selectedFile) return;
+    if (inputMethod === "text" && !csvText.trim()) return;
 
     setIsLoading(true);
     try {
       let response;
-      
-      if (inputMethod === 'file' && selectedFile) {
+
+      if (inputMethod === "file" && selectedFile) {
         // File upload
         const formData = new FormData();
-        formData.append('file', selectedFile);
-        formData.append('data_type', selectedDataType);
+        formData.append("file", selectedFile);
+        formData.append("data_type", selectedDataType);
 
-        response = await fetch('/api/csv-import/preview', {
-          method: 'POST',
+        response = await fetch("/api/csv-import/preview", {
+          method: "POST",
           body: formData,
         });
       } else {
         // Text input
-        response = await fetch('/api/csv-import/preview', {
-          method: 'POST',
+        response = await fetch("/api/csv-import/preview", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             csv_text: csvText,
@@ -132,21 +132,21 @@ const CSVImportDialog: React.FC<CSVImportDialogProps> = ({
       const data = await response.json();
       if (response.ok) {
         setPreviewData(data);
-        setStep('preview');
+        setStep("preview");
       } else {
         setImportResult({
           success: false,
-          error: data.error || 'Failed to preview CSV',
+          error: data.error || "Failed to preview CSV",
         });
-        setStep('result');
+        setStep("result");
       }
     } catch (error) {
-      console.error('Error previewing CSV:', error);
+      console.error("Error previewing CSV:", error);
       setImportResult({
         success: false,
-        error: 'Failed to preview CSV',
+        error: "Failed to preview CSV",
       });
-      setStep('result');
+      setStep("result");
     } finally {
       setIsLoading(false);
     }
@@ -154,29 +154,29 @@ const CSVImportDialog: React.FC<CSVImportDialogProps> = ({
 
   const handleImport = async (): Promise<void> => {
     if (!selectedDataType) return;
-    if (inputMethod === 'file' && !selectedFile) return;
-    if (inputMethod === 'text' && !csvText.trim()) return;
+    if (inputMethod === "file" && !selectedFile) return;
+    if (inputMethod === "text" && !csvText.trim()) return;
 
     setIsLoading(true);
     try {
       let response;
-      
-      if (inputMethod === 'file' && selectedFile) {
+
+      if (inputMethod === "file" && selectedFile) {
         // File upload
         const formData = new FormData();
-        formData.append('file', selectedFile);
-        formData.append('data_type', selectedDataType);
+        formData.append("file", selectedFile);
+        formData.append("data_type", selectedDataType);
 
-        response = await fetch('/api/csv-import/import', {
-          method: 'POST',
+        response = await fetch("/api/csv-import/import", {
+          method: "POST",
           body: formData,
         });
       } else {
         // Text input
-        response = await fetch('/api/csv-import/import', {
-          method: 'POST',
+        response = await fetch("/api/csv-import/import", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             csv_text: csvText,
@@ -187,14 +187,14 @@ const CSVImportDialog: React.FC<CSVImportDialogProps> = ({
 
       const data = await response.json();
       setImportResult(data);
-      setStep('result');
+      setStep("result");
     } catch (error) {
-      console.error('Error importing CSV:', error);
+      console.error("Error importing CSV:", error);
       setImportResult({
         success: false,
-        error: 'Failed to import CSV',
+        error: "Failed to import CSV",
       });
-      setStep('result');
+      setStep("result");
     } finally {
       setIsLoading(false);
     }
@@ -205,12 +205,12 @@ const CSVImportDialog: React.FC<CSVImportDialogProps> = ({
       onImportComplete(importResult);
     }
     setSelectedFile(null);
-    setCsvText('');
-    setInputMethod('file');
-    setSelectedDataType('');
+    setCsvText("");
+    setInputMethod("file");
+    setSelectedDataType("");
     setPreviewData(null);
     setImportResult(null);
-    setStep('select');
+    setStep("select");
     onClose();
   };
 
@@ -236,28 +236,32 @@ const CSVImportDialog: React.FC<CSVImportDialogProps> = ({
         <div className="flex items-center justify-between">
           <Label>Input Method</Label>
           <div className="flex items-center space-x-2">
-            <span className={`text-sm ${inputMethod === 'file' ? 'font-medium' : 'text-gray-500'}`}>
+            <span
+              className={`text-sm ${inputMethod === "file" ? "font-medium" : "text-gray-500"}`}
+            >
               File Upload
             </span>
             <Switch
-              checked={inputMethod === 'text'}
+              checked={inputMethod === "text"}
               onCheckedChange={(checked) => {
-                setInputMethod(checked ? 'text' : 'file');
+                setInputMethod(checked ? "text" : "file");
                 // Clear the other input when switching
                 if (checked) {
                   setSelectedFile(null);
                 } else {
-                  setCsvText('');
+                  setCsvText("");
                 }
               }}
             />
-            <span className={`text-sm ${inputMethod === 'text' ? 'font-medium' : 'text-gray-500'}`}>
+            <span
+              className={`text-sm ${inputMethod === "text" ? "font-medium" : "text-gray-500"}`}
+            >
               Text Input
             </span>
           </div>
         </div>
 
-        {inputMethod === 'file' ? (
+        {inputMethod === "file" ? (
           <div className="space-y-2">
             <Label htmlFor="file">CSV File</Label>
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
@@ -266,10 +270,14 @@ const CSVImportDialog: React.FC<CSVImportDialogProps> = ({
                 {selectedFile ? (
                   <div className="flex items-center justify-center space-x-2">
                     <FileText size={16} />
-                    <span className="text-sm font-medium">{selectedFile.name}</span>
+                    <span className="text-sm font-medium">
+                      {selectedFile.name}
+                    </span>
                   </div>
                 ) : (
-                  <p className="text-gray-600">Drop CSV file here or click to select</p>
+                  <p className="text-gray-600">
+                    Drop CSV file here or click to select
+                  </p>
                 )}
               </div>
               <Input
@@ -281,7 +289,7 @@ const CSVImportDialog: React.FC<CSVImportDialogProps> = ({
               />
               <Button
                 variant="outline"
-                onClick={() => document.getElementById('file')?.click()}
+                onClick={() => document.getElementById("file")?.click()}
               >
                 Select File
               </Button>
@@ -312,7 +320,7 @@ const CSVImportDialog: React.FC<CSVImportDialogProps> = ({
         <h3 className="text-lg font-medium">Preview</h3>
         <Badge variant="secondary">{previewData?.row_count} rows</Badge>
       </div>
-      
+
       {previewData?.validation && !previewData.validation.valid && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="flex items-center space-x-2 mb-2">
@@ -327,19 +335,20 @@ const CSVImportDialog: React.FC<CSVImportDialogProps> = ({
         </div>
       )}
 
-      {previewData?.validation?.warnings && previewData.validation.warnings.length > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <div className="flex items-center space-x-2 mb-2">
-            <AlertCircle className="text-yellow-500" size={16} />
-            <span className="text-yellow-700 font-medium">Warnings</span>
+      {previewData?.validation?.warnings &&
+        previewData.validation.warnings.length > 0 && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-center space-x-2 mb-2">
+              <AlertCircle className="text-yellow-500" size={16} />
+              <span className="text-yellow-700 font-medium">Warnings</span>
+            </div>
+            <ul className="text-sm text-yellow-600 space-y-1">
+              {previewData.validation.warnings.map((warning, index) => (
+                <li key={index}>• {warning}</li>
+              ))}
+            </ul>
           </div>
-          <ul className="text-sm text-yellow-600 space-y-1">
-            {previewData.validation.warnings.map((warning, index) => (
-              <li key={index}>• {warning}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+        )}
 
       {previewData?.sample_rows && previewData.sample_rows.length > 0 && (
         <div className="border rounded-lg overflow-hidden">
@@ -355,7 +364,7 @@ const CSVImportDialog: React.FC<CSVImportDialogProps> = ({
               {previewData.sample_rows.map((row, index) => (
                 <TableRow key={index}>
                   {previewData.headers.map((header) => (
-                    <TableCell key={header}>{row[header] || '-'}</TableCell>
+                    <TableCell key={header}>{row[header] || "-"}</TableCell>
                   ))}
                 </TableRow>
               ))}
@@ -371,7 +380,9 @@ const CSVImportDialog: React.FC<CSVImportDialogProps> = ({
       {importResult?.success ? (
         <div className="space-y-2">
           <CheckCircle className="mx-auto text-green-500" size={48} />
-          <h3 className="text-lg font-medium text-green-700">Import Successful</h3>
+          <h3 className="text-lg font-medium text-green-700">
+            Import Successful
+          </h3>
           <p className="text-gray-600">
             Successfully imported {importResult.imported_count} records.
           </p>
@@ -381,7 +392,7 @@ const CSVImportDialog: React.FC<CSVImportDialogProps> = ({
           <AlertCircle className="mx-auto text-red-500" size={48} />
           <h3 className="text-lg font-medium text-red-700">Import Failed</h3>
           <p className="text-gray-600">
-            {importResult?.error || 'An error occurred during import.'}
+            {importResult?.error || "An error occurred during import."}
           </p>
         </div>
       )}
@@ -407,13 +418,13 @@ const CSVImportDialog: React.FC<CSVImportDialogProps> = ({
         </DialogHeader>
 
         <div className="py-4">
-          {step === 'select' && renderStepSelect()}
-          {step === 'preview' && renderStepPreview()}
-          {step === 'result' && renderStepResult()}
+          {step === "select" && renderStepSelect()}
+          {step === "preview" && renderStepPreview()}
+          {step === "result" && renderStepResult()}
         </div>
 
         <DialogFooter>
-          {step === 'select' && (
+          {step === "select" && (
             <>
               <Button variant="outline" onClick={handleClose}>
                 Cancel
@@ -421,34 +432,30 @@ const CSVImportDialog: React.FC<CSVImportDialogProps> = ({
               <Button
                 onClick={handlePreview}
                 disabled={
-                  !selectedDataType || 
-                  isLoading || 
-                  (inputMethod === 'file' && !selectedFile) ||
-                  (inputMethod === 'text' && !csvText.trim())
+                  !selectedDataType ||
+                  isLoading ||
+                  (inputMethod === "file" && !selectedFile) ||
+                  (inputMethod === "text" && !csvText.trim())
                 }
               >
-                {isLoading ? 'Loading...' : 'Preview'}
+                {isLoading ? "Loading..." : "Preview"}
               </Button>
             </>
           )}
-          {step === 'preview' && (
+          {step === "preview" && (
             <>
-              <Button variant="outline" onClick={() => setStep('select')}>
+              <Button variant="outline" onClick={() => setStep("select")}>
                 Back
               </Button>
               <Button
                 onClick={handleImport}
                 disabled={!previewData?.validation?.valid || isLoading}
               >
-                {isLoading ? 'Importing...' : 'Import'}
+                {isLoading ? "Importing..." : "Import"}
               </Button>
             </>
           )}
-          {step === 'result' && (
-            <Button onClick={handleClose}>
-              Close
-            </Button>
-          )}
+          {step === "result" && <Button onClick={handleClose}>Close</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

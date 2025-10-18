@@ -1,7 +1,13 @@
 import { GlobalAIAssistant } from "@/components/ai/GlobalAIAssistant";
 import { GlobalAIChat } from "@/components/ai/GlobalAIChat";
 import { UnifiedFloatingMenu } from "@/components/ui/UnifiedFloatingMenu";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Sidebar,
   SidebarContent,
@@ -30,7 +36,7 @@ import {
   LayoutDashboard,
   List,
   Settings as SettingsIcon,
-  Users
+  Users,
 } from "lucide-react";
 import React from "react";
 import { Outlet, Link as RouterLink, useLocation } from "react-router-dom";
@@ -66,61 +72,61 @@ export const MainLayout = () => {
         label: "Übersicht",
         path: "/overview",
         icon: Home,
-        description: "Home/Overview mit KPIs"
+        description: "Home/Overview mit KPIs",
       },
       {
         label: "Schichtplan",
         path: "/",
         icon: LayoutDashboard,
-        description: "Schichtplanung und -verwaltung"
+        description: "Schichtplanung und -verwaltung",
       },
       {
         label: "Kalender",
         path: "/calendar",
         icon: CalendarDays,
-        description: "Kalenderansicht der Schichten"
+        description: "Kalenderansicht der Schichten",
       },
       {
         label: "AI Dashboard",
         path: "/ai",
         icon: Bot,
-        description: "KI-gestütztes System für intelligente Schichtplanung"
+        description: "KI-gestütztes System für intelligente Schichtplanung",
       },
       {
         label: "Versionen",
         path: "/versions",
         icon: History,
-        description: "Versionen in Tabelle/Kalender"
+        description: "Versionen in Tabelle/Kalender",
       },
       {
         label: "Abwesenheiten",
         path: "/absences",
         icon: CalendarDays,
-        description: "Urlaub/Krankheit verwalten"
+        description: "Urlaub/Krankheit verwalten",
       },
       {
         label: "Mitarbeiter",
         path: "/employees",
         icon: Users,
-        description: "Mitarbeiterverwaltung"
+        description: "Mitarbeiterverwaltung",
       },
       {
         label: "Coverage",
         path: "/coverage",
         icon: BarChart,
-        description: "Besetzungsplanung"
+        description: "Besetzungsplanung",
       },
       {
         label: "Schichten",
         path: "/shifts",
         icon: FileText,
-        description: "Schichtvorlagen verwalten"
+        description: "Schichtvorlagen verwalten",
       },
       {
         label: "Formulars",
         path: "/formulars",
         icon: FileText,
-        description: "Dokumente und Formulare"
+        description: "Dokumente und Formulare",
       },
     ],
     [],
@@ -132,25 +138,25 @@ export const MainLayout = () => {
         label: "Design System",
         path: "/design-system",
         icon: Cog,
-        description: "Design System Dokumentation"
+        description: "Design System Dokumentation",
       },
       {
         label: "PDF Layout",
         path: "/pdf-layout",
         icon: FileText,
-        description: "PDF Layout Customizer mit Live-Vorschau"
+        description: "PDF Layout Customizer mit Live-Vorschau",
       },
       {
         label: "Logs",
         path: "/logs",
         icon: List,
-        description: "System-Protokolle"
+        description: "System-Protokolle",
       },
       {
         label: "Einstellungen",
         path: "/settings",
         icon: SettingsIcon,
-        description: "Anwendungseinstellungen"
+        description: "Anwendungseinstellungen",
       },
     ],
     [],
@@ -190,8 +196,15 @@ export const MainLayout = () => {
                 const isActive = location.pathname === item.path;
                 return (
                   <SidebarMenuItem key={item.path}>
-                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.description}>
-                      <RouterLink to={item.path} className="flex items-center gap-3">
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive}
+                      tooltip={item.description}
+                    >
+                      <RouterLink
+                        to={item.path}
+                        className="flex items-center gap-3"
+                      >
                         <item.icon className="size-4" />
                         <span>{item.label}</span>
                       </RouterLink>
@@ -212,8 +225,15 @@ export const MainLayout = () => {
                 const isActive = location.pathname === item.path;
                 return (
                   <SidebarMenuItem key={item.path}>
-                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.description}>
-                      <RouterLink to={item.path} className="flex items-center gap-3">
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive}
+                      tooltip={item.description}
+                    >
+                      <RouterLink
+                        to={item.path}
+                        className="flex items-center gap-3"
+                      >
                         <item.icon className="size-4" />
                         <span>{item.label}</span>
                       </RouterLink>
@@ -248,7 +268,10 @@ export const MainLayout = () => {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <Select value={pageWidth} onValueChange={(v) => setPageWidth(v as "default" | "full")}>
+                <Select
+                  value={pageWidth}
+                  onValueChange={(v) => setPageWidth(v as "default" | "full")}
+                >
                   <SelectTrigger className="h-8 w-[160px]">
                     <SelectValue placeholder="Page width" />
                   </SelectTrigger>
@@ -269,7 +292,10 @@ export const MainLayout = () => {
                 <SidebarTrigger className="-ml-1" />
               </div>
               <div className="flex items-center gap-2">
-                <Select value={pageWidth} onValueChange={(v) => setPageWidth(v as "default" | "full")}>
+                <Select
+                  value={pageWidth}
+                  onValueChange={(v) => setPageWidth(v as "default" | "full")}
+                >
                   <SelectTrigger className="h-8 w-[180px]">
                     <SelectValue placeholder="Page width" />
                   </SelectTrigger>
@@ -285,7 +311,13 @@ export const MainLayout = () => {
 
           {/* Page Content */}
           <main className="flex-1 overflow-auto">
-            <div className={pageWidth === "full" ? "w-full px-4 md:px-6 lg:px-8" : "container mx-auto p-4 md:p-6 lg:p-8 max-w-7xl"}>
+            <div
+              className={
+                pageWidth === "full"
+                  ? "w-full px-4 md:px-6 lg:px-8"
+                  : "container mx-auto p-4 md:p-6 lg:p-8 max-w-7xl"
+              }
+            >
               <Outlet />
             </div>
           </main>

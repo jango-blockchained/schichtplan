@@ -15,15 +15,17 @@ import React from "react";
 // Props that will be passed from UnifiedSettingsPage.tsx
 interface GeneralStoreSetupSectionProps {
   settings: Settings["general"];
-  onInputChange: (key: string, value: string | number | boolean, isNumeric?: boolean) => void;
+  onInputChange: (
+    key: string,
+    value: string | number | boolean,
+    isNumeric?: boolean,
+  ) => void;
   onOpeningDaysChange: (dayIndex: number, checked: boolean) => void;
 }
 
-export const GeneralStoreSetupSection: React.FC<GeneralStoreSetupSectionProps> = ({
-  settings,
-  onInputChange,
-  onOpeningDaysChange,
-}) => {
+export const GeneralStoreSetupSection: React.FC<
+  GeneralStoreSetupSectionProps
+> = ({ settings, onInputChange, onOpeningDaysChange }) => {
   // Special days handling moved to Holiday Management subpage.
 
   return (
@@ -82,31 +84,48 @@ export const GeneralStoreSetupSection: React.FC<GeneralStoreSetupSectionProps> =
       <Card>
         <CardHeader>
           <CardTitle>Opening Days</CardTitle>
-          <CardDescription>Choose which days your store is open</CardDescription>
+          <CardDescription>
+            Choose which days your store is open
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div>
             <Label>Opening Days</Label>
             <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mt-2">
-              {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, index) => (
-                <div key={day} className="flex flex-col items-center space-y-1">
-                  <Label
-                    htmlFor={`opening-day-${day}`}
-                    className="text-sm font-normal"
+              {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(
+                (day, index) => (
+                  <div
+                    key={day}
+                    className="flex flex-col items-center space-y-1"
                   >
-                    {day}
-                  </Label>
-                  <Switch
-                    id={`opening-day-${day}`}
-                    checked={
-                      (settings.opening_days || {})[
-                      ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"][index]
-                      ] || false
-                    }
-                    onCheckedChange={(checked) => onOpeningDaysChange(index, checked)}
-                  />
-                </div>
-              ))}
+                    <Label
+                      htmlFor={`opening-day-${day}`}
+                      className="text-sm font-normal"
+                    >
+                      {day}
+                    </Label>
+                    <Switch
+                      id={`opening-day-${day}`}
+                      checked={
+                        (settings.opening_days || {})[
+                          [
+                            "monday",
+                            "tuesday",
+                            "wednesday",
+                            "thursday",
+                            "friday",
+                            "saturday",
+                            "sunday",
+                          ][index]
+                        ] || false
+                      }
+                      onCheckedChange={(checked) =>
+                        onOpeningDaysChange(index, checked)
+                      }
+                    />
+                  </div>
+                ),
+              )}
             </div>
           </div>
 
@@ -139,7 +158,9 @@ export const GeneralStoreSetupSection: React.FC<GeneralStoreSetupSectionProps> =
           {/* Keyholder settings */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="keyholder-before">Keyholder Before Opening (minutes)</Label>
+              <Label htmlFor="keyholder-before">
+                Keyholder Before Opening (minutes)
+              </Label>
               <Input
                 id="keyholder-before"
                 type="number"
@@ -148,7 +169,11 @@ export const GeneralStoreSetupSection: React.FC<GeneralStoreSetupSectionProps> =
                 step="5"
                 value={settings.keyholder_before_minutes ?? 30}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  onInputChange("keyholder_before_minutes", e.target.value, true)
+                  onInputChange(
+                    "keyholder_before_minutes",
+                    e.target.value,
+                    true,
+                  )
                 }
               />
               <p className="text-xs text-muted-foreground">
@@ -156,7 +181,9 @@ export const GeneralStoreSetupSection: React.FC<GeneralStoreSetupSectionProps> =
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="keyholder-after">Keyholder After Closing (minutes)</Label>
+              <Label htmlFor="keyholder-after">
+                Keyholder After Closing (minutes)
+              </Label>
               <Input
                 id="keyholder-after"
                 type="number"

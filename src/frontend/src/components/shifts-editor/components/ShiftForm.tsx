@@ -54,7 +54,9 @@ const ALL_DAYS = [
 ]; // Mon=0, Sun=6
 
 // Helper function to convert active_days from various formats to object {[key: string]: boolean} with Mon=0 index
-const normalizeActiveDays = (activeDays: unknown): { [key: string]: boolean } => {
+const normalizeActiveDays = (
+  activeDays: unknown,
+): { [key: string]: boolean } => {
   const result: { [key: string]: boolean } = {};
   // Initialize all days to false (Mon=0 to Sun=6)
   for (let i = 0; i < 7; i++) {

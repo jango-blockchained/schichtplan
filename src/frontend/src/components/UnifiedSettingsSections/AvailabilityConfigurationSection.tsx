@@ -38,7 +38,7 @@ type AvailabilityTypeFromSettings = {
   color: string;
   priority?: number;
   is_available: boolean;
-  type?: 'availability_type';
+  type?: "availability_type";
 };
 
 // Frontend representation, similar to OptionsPage
@@ -89,9 +89,10 @@ const mapToBackend = (
             : ft.id === "AVAILABLE"
               ? 2
               : 3,
-    is_available: ft.originalIsAvailable !== undefined && ft.originalIsAvailable !== null
-      ? ft.originalIsAvailable
-      : ft.id !== "UNAVAILABLE",
+    is_available:
+      ft.originalIsAvailable !== undefined && ft.originalIsAvailable !== null
+        ? ft.originalIsAvailable
+        : ft.id !== "UNAVAILABLE",
   }));
 };
 
@@ -165,7 +166,8 @@ export const AvailabilityConfigurationSection: React.FC<
         <CardContent>
           {displayableTypes.length === 0 ? (
             <div className="text-center py-6 text-muted-foreground">
-              No availability types found. Default types will be created automatically.
+              No availability types found. Default types will be created
+              automatically.
             </div>
           ) : (
             <Table>

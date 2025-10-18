@@ -58,7 +58,8 @@ export const ShiftsPage: React.FC = () => {
 
     try {
       const defaultShiftTypeId =
-        settings.employee_groups.shift_types && settings.employee_groups.shift_types.length > 0
+        settings.employee_groups.shift_types &&
+        settings.employee_groups.shift_types.length > 0
           ? settings.employee_groups.shift_types[0].id
           : "EARLY";
 
@@ -69,8 +70,8 @@ export const ShiftsPage: React.FC = () => {
         end_time: generalSettings.store_closing || "17:00",
         requires_break: true,
         active_days: Object.keys(generalSettings.opening_days || {})
-          .filter(key => generalSettings.opening_days?.[key])
-          .map(key => parseInt(key)),
+          .filter((key) => generalSettings.opening_days?.[key])
+          .map((key) => parseInt(key)),
         shift_type_id: defaultShiftTypeId,
       };
 
@@ -112,7 +113,9 @@ export const ShiftsPage: React.FC = () => {
   };
 
   const handleDeleteShift = async (shift: Shift) => {
-    if (window.confirm(`Delete shift ${shift.start_time} - ${shift.end_time}?`)) {
+    if (
+      window.confirm(`Delete shift ${shift.start_time} - ${shift.end_time}?`)
+    ) {
       try {
         await deleteShift(shift.id);
         setShifts((prev) => prev.filter((s) => s.id !== shift.id));

@@ -3,9 +3,9 @@
  * Only logs in development environment
  */
 
-const isDevelopment = process.env.NODE_ENV === 'development';
+const isDevelopment = process.env.NODE_ENV === "development";
 
-type LogLevel = 'log' | 'info' | 'warn' | 'error' | 'debug';
+type LogLevel = "log" | "info" | "warn" | "error" | "debug";
 
 interface DebugLogger {
   log: (...args: unknown[]) => void;
@@ -32,11 +32,11 @@ export function createDebugger(namespace: string): DebugLogger {
   };
 
   return {
-    log: (...args: unknown[]) => log('log', ...args),
-    info: (...args: unknown[]) => log('info', ...args),
-    warn: (...args: unknown[]) => log('warn', ...args),
-    error: (...args: unknown[]) => log('error', ...args),
-    debug: (...args: unknown[]) => log('debug', ...args),
+    log: (...args: unknown[]) => log("log", ...args),
+    info: (...args: unknown[]) => log("info", ...args),
+    warn: (...args: unknown[]) => log("warn", ...args),
+    error: (...args: unknown[]) => log("error", ...args),
+    debug: (...args: unknown[]) => log("debug", ...args),
     group: (label: string) => {
       if (isDevelopment) {
         console.group(`${prefix} ${label}`);
@@ -53,7 +53,7 @@ export function createDebugger(namespace: string): DebugLogger {
 /**
  * Global debug logger for general use
  */
-export const debug = createDebugger('App');
+export const debug = createDebugger("App");
 
 /**
  * Utility to only run code in development
@@ -67,10 +67,7 @@ export function devOnly(fn: () => void): void {
 /**
  * Performance measurement utility (dev only)
  */
-export function measurePerformance<T>(
-  label: string,
-  fn: () => T
-): T {
+export function measurePerformance<T>(label: string, fn: () => T): T {
   if (isDevelopment) {
     const start = performance.now();
     const result = fn();
@@ -86,7 +83,7 @@ export function measurePerformance<T>(
  */
 export async function measurePerformanceAsync<T>(
   label: string,
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
 ): Promise<T> {
   if (isDevelopment) {
     const start = performance.now();

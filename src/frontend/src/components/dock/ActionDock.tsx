@@ -76,32 +76,36 @@ const QUICK_PROMPT_TEMPLATES = [
   {
     id: "optimize",
     label: "Aktuellen Plan optimieren",
-    prompt: "Optimiere den aktuellen Schichtplan für bessere Arbeitsbelastungsverteilung und Mitarbeiterzufriedenheit.",
+    prompt:
+      "Optimiere den aktuellen Schichtplan für bessere Arbeitsbelastungsverteilung und Mitarbeiterzufriedenheit.",
     icon: Sparkles,
   },
   {
     id: "fill-empty",
     label: "Leere Schichten füllen",
-    prompt: "Fülle alle leeren Schichten mit verfügbaren Mitarbeitern unter Berücksichtigung ihrer Präferenzen.",
+    prompt:
+      "Fülle alle leeren Schichten mit verfügbaren Mitarbeitern unter Berücksichtigung ihrer Präferenzen.",
     icon: Users,
   },
   {
     id: "balance-workload",
     label: "Arbeitsbelastung ausgleichen",
-    prompt: "Gleiche die Arbeitsbelastung zwischen allen Mitarbeitern aus, um faire Stundenverteilung zu gewährleisten.",
+    prompt:
+      "Gleiche die Arbeitsbelastung zwischen allen Mitarbeitern aus, um faire Stundenverteilung zu gewährleisten.",
     icon: RotateCcw,
   },
   {
     id: "respect-preferences",
     label: "Präferenzen respektieren",
-    prompt: "Reorganisiere den Plan um die Mitarbeiterpräferenzen bestmöglich zu respektieren, ohne kritische Abdeckung zu gefährden.",
+    prompt:
+      "Reorganisiere den Plan um die Mitarbeiterpräferenzen bestmöglich zu respektieren, ohne kritische Abdeckung zu gefährden.",
     icon: Users,
   },
 ];
 
 const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({
   employee,
-  selectedDate
+  selectedDate,
 }) => {
   const [{ isDragging }, drag] = useDrag({
     type: "SCHEDULE",
@@ -109,7 +113,9 @@ const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({
       type: "SCHEDULE",
       employeeId: employee.id,
       shiftId: null,
-      date: selectedDate ? format(selectedDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+      date: selectedDate
+        ? format(selectedDate, "yyyy-MM-dd")
+        : format(new Date(), "yyyy-MM-dd"),
       isDockItem: true,
     }),
     collect: (monitor) => ({
@@ -119,11 +125,16 @@ const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({
 
   const getEmployeeGroupColor = (group: string) => {
     switch (group) {
-      case "VZ": return "bg-blue-500/20 text-blue-300 border-blue-500/30";
-      case "TZ": return "bg-green-500/20 text-green-300 border-green-500/30";
-      case "GFB": return "bg-amber-500/20 text-amber-300 border-amber-500/30";
-      case "TL": return "bg-purple-500/20 text-purple-300 border-purple-500/30";
-      default: return "bg-slate-500/20 text-slate-300 border-slate-500/30";
+      case "VZ":
+        return "bg-blue-500/20 text-blue-300 border-blue-500/30";
+      case "TZ":
+        return "bg-green-500/20 text-green-300 border-green-500/30";
+      case "GFB":
+        return "bg-amber-500/20 text-amber-300 border-amber-500/30";
+      case "TL":
+        return "bg-purple-500/20 text-purple-300 border-purple-500/30";
+      default:
+        return "bg-slate-500/20 text-slate-300 border-slate-500/30";
     }
   };
 
@@ -133,7 +144,7 @@ const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({
       className={cn(
         "flex flex-col items-center p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-all cursor-move min-w-[120px] select-none",
         isDragging && "opacity-50 scale-95",
-        !isDragging && "hover:scale-105"
+        !isDragging && "hover:scale-105",
       )}
     >
       <GripVertical className="h-4 w-4 text-muted-foreground mb-1" />
@@ -143,7 +154,10 @@ const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({
       <div className="flex flex-col gap-1 items-center">
         <Badge
           variant="secondary"
-          className={cn("text-xs", getEmployeeGroupColor(employee.employee_group))}
+          className={cn(
+            "text-xs",
+            getEmployeeGroupColor(employee.employee_group),
+          )}
         >
           {employee.employee_group}
         </Badge>
@@ -162,7 +176,7 @@ const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({
 
 const DraggableShift: React.FC<DraggableShiftProps> = ({
   shift,
-  selectedDate
+  selectedDate,
 }) => {
   const [{ isDragging }, drag] = useDrag({
     type: "SCHEDULE",
@@ -170,11 +184,17 @@ const DraggableShift: React.FC<DraggableShiftProps> = ({
       type: "SCHEDULE",
       employeeId: 0,
       shiftId: shift.id,
-      date: selectedDate ? format(selectedDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+      date: selectedDate
+        ? format(selectedDate, "yyyy-MM-dd")
+        : format(new Date(), "yyyy-MM-dd"),
       shift_type_id: shift.shift_type_id,
       isDockItem: true,
-      start_time: (shift as ApiShift).start_time ?? (shift as AppShift).start_time ?? null,
-      end_time: (shift as ApiShift).end_time ?? (shift as AppShift).end_time ?? null,
+      start_time:
+        (shift as ApiShift).start_time ??
+        (shift as AppShift).start_time ??
+        null,
+      end_time:
+        (shift as ApiShift).end_time ?? (shift as AppShift).end_time ?? null,
     }),
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
@@ -183,21 +203,31 @@ const DraggableShift: React.FC<DraggableShiftProps> = ({
 
   const getShiftTypeColor = (shiftType?: string) => {
     switch (shiftType) {
-      case "EARLY": return "bg-blue-500/20 text-blue-300 border-blue-500/30";
-      case "MIDDLE": return "bg-green-500/20 text-green-300 border-green-500/30";
-      case "LATE": return "bg-amber-500/20 text-amber-300 border-amber-500/30";
-      default: return "bg-slate-500/20 text-slate-300 border-slate-500/30";
+      case "EARLY":
+        return "bg-blue-500/20 text-blue-300 border-blue-500/30";
+      case "MIDDLE":
+        return "bg-green-500/20 text-green-300 border-green-500/30";
+      case "LATE":
+        return "bg-amber-500/20 text-amber-300 border-amber-500/30";
+      default:
+        return "bg-slate-500/20 text-slate-300 border-slate-500/30";
     }
   };
 
   const getShiftTypeName = (shiftType?: string) => {
     switch (shiftType) {
-      case "EARLY": return "Früh";
-      case "MIDDLE": return "Mitte";
-      case "LATE": return "Spät";
-      case "NO_WORK": return "Kein Dienst";
-      case "UNAVAILABLE": return "Nicht verfügbar";
-      default: return "Schicht";
+      case "EARLY":
+        return "Früh";
+      case "MIDDLE":
+        return "Mitte";
+      case "LATE":
+        return "Spät";
+      case "NO_WORK":
+        return "Kein Dienst";
+      case "UNAVAILABLE":
+        return "Nicht verfügbar";
+      default:
+        return "Schicht";
     }
   };
 
@@ -207,7 +237,7 @@ const DraggableShift: React.FC<DraggableShiftProps> = ({
       className={cn(
         "flex flex-col items-center p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-all cursor-move min-w-[120px] select-none",
         isDragging && "opacity-50 scale-95",
-        !isDragging && "hover:scale-105"
+        !isDragging && "hover:scale-105",
       )}
     >
       <GripVertical className="h-4 w-4 text-muted-foreground mb-1" />
@@ -248,7 +278,7 @@ const timeToMinutes = (timeStr: string): number => {
 const minutesToTime = (minutes: number): string => {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
-  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+  return `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
 };
 
 // Add minutes to a time string
@@ -260,7 +290,9 @@ const addMinutes = (timeStr: string, minutes: number): string => {
 // Subtract minutes from a time string
 const subtractMinutes = (timeStr: string, minutes: number): string => {
   const totalMinutes = timeToMinutes(timeStr) - minutes;
-  return minutesToTime(totalMinutes >= 0 ? totalMinutes : totalMinutes + (24 * 60)); // Handle day underflow
+  return minutesToTime(
+    totalMinutes >= 0 ? totalMinutes : totalMinutes + 24 * 60,
+  ); // Handle day underflow
 };
 
 // Core duration calculation function
@@ -281,7 +313,18 @@ const calculateBaseDuration = (startTime: string, endTime: string): number => {
 };
 
 // Calculate break duration to mirror ScheduleTable logic (no auto 30min rule)
-const calculateBreakDuration = (schedule: Schedule, employee?: Employee, settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }): number => {
+const calculateBreakDuration = (
+  schedule: Schedule,
+  employee?: Employee,
+  settings?: {
+    general?: {
+      keyholder_before_minutes?: number;
+      keyholder_after_minutes?: number;
+      store_opening?: string;
+      store_closing?: string;
+    };
+  },
+): number => {
   try {
     // Priority 1: Manual break times
     if (schedule.break_start && schedule.break_end) {
@@ -294,8 +337,19 @@ const calculateBreakDuration = (schedule: Schedule, employee?: Employee, setting
     }
 
     // Priority 3: Keyholder extra minutes only when matching store open/close (mirror table logic)
-    if (employee && settings && employee.is_keyholder && schedule.shift_start && schedule.shift_end) {
-      const { store_opening, store_closing, keyholder_before_minutes = 5, keyholder_after_minutes = 10 } = settings.general || {};
+    if (
+      employee &&
+      settings &&
+      employee.is_keyholder &&
+      schedule.shift_start &&
+      schedule.shift_end
+    ) {
+      const {
+        store_opening,
+        store_closing,
+        keyholder_before_minutes = 5,
+        keyholder_after_minutes = 10,
+      } = settings.general || {};
       let extraMinutes = 0;
       if (store_opening && schedule.shift_start === store_opening) {
         extraMinutes += keyholder_before_minutes;
@@ -316,27 +370,53 @@ const calculateBreakDuration = (schedule: Schedule, employee?: Employee, setting
 const getKeyholderAdjustedTimes = (
   schedule: Schedule,
   employee: Employee | undefined,
-  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
-): { startTime: string, endTime: string } => {
-
-  if (!employee?.is_keyholder || !schedule.shift_start || !schedule.shift_end || !settings?.general) {
-    return { startTime: schedule.shift_start || "", endTime: schedule.shift_end || "" };
+  settings?: {
+    general?: {
+      keyholder_before_minutes?: number;
+      keyholder_after_minutes?: number;
+      store_opening?: string;
+      store_closing?: string;
+    };
+  },
+): { startTime: string; endTime: string } => {
+  if (
+    !employee?.is_keyholder ||
+    !schedule.shift_start ||
+    !schedule.shift_end ||
+    !settings?.general
+  ) {
+    return {
+      startTime: schedule.shift_start || "",
+      endTime: schedule.shift_end || "",
+    };
   }
 
-  const { keyholder_before_minutes = 5, keyholder_after_minutes = 10, store_opening, store_closing } = settings.general;
+  const {
+    keyholder_before_minutes = 5,
+    keyholder_after_minutes = 10,
+    store_opening,
+    store_closing,
+  } = settings.general;
 
   let adjustedStart = schedule.shift_start;
   let adjustedEnd = schedule.shift_end;
 
   // Early shift adjustment (EARLY type or starts at/before store opening)
-  if (schedule.shift_type_id === 'EARLY' ||
-    (store_opening && schedule.shift_start <= store_opening)) {
-    adjustedStart = subtractMinutes(schedule.shift_start, keyholder_before_minutes);
+  if (
+    schedule.shift_type_id === "EARLY" ||
+    (store_opening && schedule.shift_start <= store_opening)
+  ) {
+    adjustedStart = subtractMinutes(
+      schedule.shift_start,
+      keyholder_before_minutes,
+    );
   }
 
   // Late shift adjustment (LATE type or ends at/after store closing)
-  if (schedule.shift_type_id === 'LATE' ||
-    (store_closing && schedule.shift_end >= store_closing)) {
+  if (
+    schedule.shift_type_id === "LATE" ||
+    (store_closing && schedule.shift_end >= store_closing)
+  ) {
     adjustedEnd = addMinutes(schedule.shift_end, keyholder_after_minutes);
   }
 
@@ -347,14 +427,24 @@ const getKeyholderAdjustedTimes = (
 const calculateWorkingTimeForDock = (
   schedule: Schedule,
   employee: Employee | undefined,
-  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
-): { totalTime: number, breakTime: number, workingTime: number } => {
-
+  settings?: {
+    general?: {
+      keyholder_before_minutes?: number;
+      keyholder_after_minutes?: number;
+      store_opening?: string;
+      store_closing?: string;
+    };
+  },
+): { totalTime: number; breakTime: number; workingTime: number } => {
   if (!schedule.shift_start || !schedule.shift_end) {
     return { totalTime: 0, breakTime: 0, workingTime: 0 };
   }
 
-  const { startTime, endTime } = getKeyholderAdjustedTimes(schedule, employee, settings);
+  const { startTime, endTime } = getKeyholderAdjustedTimes(
+    schedule,
+    employee,
+    settings,
+  );
 
   const totalTime = calculateBaseDuration(startTime, endTime);
   const breakTime = calculateBreakDuration(schedule, employee, settings);
@@ -392,9 +482,9 @@ export const ActionDock: React.FC<ActionDockProps> = ({
     queryFn: getShifts,
   });
 
-  const activeEmployees = useMemo(() =>
-    employees.filter(emp => emp.is_active),
-    [employees]
+  const activeEmployees = useMemo(
+    () => employees.filter((emp) => emp.is_active),
+    [employees],
   );
 
   const availableShifts = useMemo(() => {
@@ -403,12 +493,12 @@ export const ActionDock: React.FC<ActionDockProps> = ({
     const dayOfWeek = selectedDate.getDay();
     const backendDayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
 
-    return shifts.filter(shift => {
+    return shifts.filter((shift) => {
       if (!shift.active_days) return true;
 
       if (Array.isArray(shift.active_days)) {
         return shift.active_days.includes(backendDayIndex);
-      } else if (typeof shift.active_days === 'object') {
+      } else if (typeof shift.active_days === "object") {
         return shift.active_days[backendDayIndex.toString()] === true;
       }
 
@@ -427,28 +517,37 @@ export const ActionDock: React.FC<ActionDockProps> = ({
 
   // Calculate total weekly hours with deduplication and placeholder filtering
   const totalWeeklyHours = useMemo(() => {
-    if (!schedules.length || !dateRange?.from || !dateRange?.to || !employees.length) return 0;
+    if (
+      !schedules.length ||
+      !dateRange?.from ||
+      !dateRange?.to ||
+      !employees.length
+    )
+      return 0;
 
-    console.log('DEBUG: Weekly hours calculation', {
+    console.log("DEBUG: Weekly hours calculation", {
       totalSchedules: schedules.length,
       dateRange: {
         from: dateRange.from?.toISOString(),
-        to: dateRange.to?.toISOString()
-      }
+        to: dateRange.to?.toISOString(),
+      },
     });
 
     // Log schedules by day to understand what we're getting
     const schedulesByDay: { [day: string]: number } = {};
-    schedules.forEach(s => {
+    schedules.forEach((s) => {
       try {
-        const d = typeof s.date === 'string' ? new Date(s.date) : (s.date as unknown as Date);
-        const dayName = d.toLocaleDateString('en', { weekday: 'long' });
+        const d =
+          typeof s.date === "string"
+            ? new Date(s.date)
+            : (s.date as unknown as Date);
+        const dayName = d.toLocaleDateString("en", { weekday: "long" });
         schedulesByDay[dayName] = (schedulesByDay[dayName] || 0) + 1;
       } catch {
         // ignore bad date parsing for debug log
       }
     });
-    console.log('DEBUG: Input schedules by day:', schedulesByDay);
+    console.log("DEBUG: Input schedules by day:", schedulesByDay);
 
     // Normalize range to local day boundaries to avoid timezone drift (e.g., dropping Mondays)
     const rangeStart = startOfDay(dateRange.from);
@@ -458,17 +557,21 @@ export const ActionDock: React.FC<ActionDockProps> = ({
     const inRangeAssigned = schedules.filter((s) => {
       if (s.is_empty || s.shift_id === null) return false;
       if (!s.shift_start || !s.shift_end) return false;
-      if (s.shift_start === '00:00' && s.shift_end === '00:00') return false;
+      if (s.shift_start === "00:00" && s.shift_end === "00:00") return false;
       try {
         // Parse schedule date in a timezone-safe way by constructing a local date from parts
         let scheduleDate: Date;
-        if (typeof s.date === 'string') {
-          const iso = s.date.includes('T') ? s.date.split('T')[0] : s.date;
-          const [y, m, d] = iso.split('-').map(Number);
+        if (typeof s.date === "string") {
+          const iso = s.date.includes("T") ? s.date.split("T")[0] : s.date;
+          const [y, m, d] = iso.split("-").map(Number);
           scheduleDate = new Date(y, (m || 1) - 1, d || 1);
         } else {
           const dObj = s.date as unknown as Date;
-          scheduleDate = new Date(dObj.getFullYear(), dObj.getMonth(), dObj.getDate());
+          scheduleDate = new Date(
+            dObj.getFullYear(),
+            dObj.getMonth(),
+            dObj.getDate(),
+          );
         }
 
         const inRange = scheduleDate >= rangeStart && scheduleDate <= rangeEnd;
@@ -477,26 +580,33 @@ export const ActionDock: React.FC<ActionDockProps> = ({
         // Debug logging for Monday schedules (dayOfWeek === 1)
         if (dayOfWeek === 1) {
           try {
-            console.log('DEBUG: Monday schedule', {
+            console.log("DEBUG: Monday schedule", {
               normalizedScheduleDate: scheduleDate.toISOString(),
               normalizedRangeStart: rangeStart.toISOString(),
               normalizedRangeEnd: rangeEnd.toISOString(),
               inRange,
               employee_id: s.employee_id,
               shift_start: s.shift_start,
-              shift_end: s.shift_end
+              shift_end: s.shift_end,
             });
-          } catch { /* noop for logging */ }
+          } catch {
+            /* noop for logging */
+          }
         }
 
         return inRange;
-      } catch { return false; }
+      } catch {
+        return false;
+      }
     });
 
     // Deduplicate by employee per day, prefer entries with real times (already filtered)
     const bestByEmployeeDate = new Map<string, Schedule>();
     inRangeAssigned.forEach((s) => {
-      const dateKey = (typeof s.date === 'string' ? s.date.split('T')[0] : format(s.date as unknown as Date, 'yyyy-MM-dd'));
+      const dateKey =
+        typeof s.date === "string"
+          ? s.date.split("T")[0]
+          : format(s.date as unknown as Date, "yyyy-MM-dd");
       const key = `${s.employee_id}:${dateKey}`;
       if (!bestByEmployeeDate.has(key)) bestByEmployeeDate.set(key, s);
       else {
@@ -509,26 +619,38 @@ export const ActionDock: React.FC<ActionDockProps> = ({
 
     bestByEmployeeDate.forEach((schedule) => {
       try {
-        const employee = employees.find(emp => emp.id === schedule.employee_id);
-        const timeCalc = calculateWorkingTimeForDock(schedule, employee, settings);
+        const employee = employees.find(
+          (emp) => emp.id === schedule.employee_id,
+        );
+        const timeCalc = calculateWorkingTimeForDock(
+          schedule,
+          employee,
+          settings,
+        );
         total += timeCalc.workingTime;
 
         // Track by day for debugging
-        const scheduleDate = typeof schedule.date === 'string' ? schedule.date.split('T')[0] : format(schedule.date as unknown as Date, 'yyyy-MM-dd');
-        const dayOfWeek = new Date(scheduleDate).toLocaleDateString('en', { weekday: 'long' });
-        dailyTotals[dayOfWeek] = (dailyTotals[dayOfWeek] || 0) + timeCalc.workingTime;
+        const scheduleDate =
+          typeof schedule.date === "string"
+            ? schedule.date.split("T")[0]
+            : format(schedule.date as unknown as Date, "yyyy-MM-dd");
+        const dayOfWeek = new Date(scheduleDate).toLocaleDateString("en", {
+          weekday: "long",
+        });
+        dailyTotals[dayOfWeek] =
+          (dailyTotals[dayOfWeek] || 0) + timeCalc.workingTime;
       } catch (error) {
-        console.error('Error calculating hours for schedule:', schedule, error);
+        console.error("Error calculating hours for schedule:", schedule, error);
       }
     });
 
-    console.log('DEBUG: Daily totals breakdown', dailyTotals);
-    console.log('DEBUG: Final weekly total', total);
+    console.log("DEBUG: Daily totals breakdown", dailyTotals);
+    console.log("DEBUG: Final weekly total", total);
 
     return total;
   }, [schedules, dateRange, employees, settings]);
 
-  const handleQuickPrompt = (template: typeof QUICK_PROMPT_TEMPLATES[0]) => {
+  const handleQuickPrompt = (template: (typeof QUICK_PROMPT_TEMPLATES)[0]) => {
     setAiPrompt(template.prompt);
     setActiveTab("ai-assistant");
   };
@@ -541,8 +663,8 @@ export const ActionDock: React.FC<ActionDockProps> = ({
       await onAIPrompt?.(aiPrompt);
 
       // Add to recent prompts (max 5)
-      setRecentPrompts(prev => {
-        const updated = [aiPrompt, ...prev.filter(p => p !== aiPrompt)];
+      setRecentPrompts((prev) => {
+        const updated = [aiPrompt, ...prev.filter((p) => p !== aiPrompt)];
         return updated.slice(0, 5);
       });
 
@@ -569,13 +691,18 @@ export const ActionDock: React.FC<ActionDockProps> = ({
             onClick={() => setIsExpanded(!isExpanded)}
             className="flex items-center gap-2"
           >
-            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            {isExpanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronUp className="h-4 w-4" />
+            )}
             <span className="font-medium">Action Dock</span>
             <Badge variant="secondary" className="ml-2">
               {activeTab === "drag-drop"
                 ? availableShifts.length
-                : activeTab === "ai-assistant" ? "AI" : "Tools"
-              }
+                : activeTab === "ai-assistant"
+                  ? "AI"
+                  : "Tools"}
             </Badge>
           </Button>
           {!isExpanded && (
@@ -587,27 +714,35 @@ export const ActionDock: React.FC<ActionDockProps> = ({
 
         <div className="flex items-center gap-2">
           {/* Enhanced Date Badge with Version, Date Range, and Status */}
-          {(selectedDate || dateRange || _currentVersion || versionStatus || totalWeeklyHours > 0) && (
+          {(selectedDate ||
+            dateRange ||
+            _currentVersion ||
+            versionStatus ||
+            totalWeeklyHours > 0) && (
             <div className="flex items-center gap-1">
               {/* Weekly Hours Counter Badge */}
               {totalWeeklyHours > 0 && (
-                <Badge variant="outline" className="text-xs bg-blue-500/20 text-blue-300 border-blue-500/30">
+                <Badge
+                  variant="outline"
+                  className="text-xs bg-blue-500/20 text-blue-300 border-blue-500/30"
+                >
                   <Clock className="h-3 w-3 mr-1" />
                   {totalWeeklyHours.toFixed(1)}h
                 </Badge>
               )}
 
               {/* Version Badge */}
-        {_currentVersion && (
+              {_currentVersion && (
                 <Badge variant="secondary" className="text-xs font-mono">
-          v{_currentVersion}
+                  v{_currentVersion}
                 </Badge>
               )}
 
               {/* Date Range Badge */}
               {dateRange?.from && dateRange?.to ? (
                 <Badge variant="outline" className="text-xs">
-                  {format(dateRange.from, "dd.MM")} - {format(dateRange.to, "dd.MM.yyyy")}
+                  {format(dateRange.from, "dd.MM")} -{" "}
+                  {format(dateRange.to, "dd.MM.yyyy")}
                 </Badge>
               ) : selectedDate ? (
                 <Badge variant="outline" className="text-xs">
@@ -621,9 +756,12 @@ export const ActionDock: React.FC<ActionDockProps> = ({
                   variant="outline"
                   className={cn(
                     "text-xs",
-                    (versionStatus || versionMeta?.status) === "PUBLISHED" && "bg-green-500/20 text-green-300 border-green-500/30",
-                    (versionStatus || versionMeta?.status) === "DRAFT" && "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
-                    (versionStatus || versionMeta?.status) === "ARCHIVED" && "bg-gray-500/20 text-gray-300 border-gray-500/30"
+                    (versionStatus || versionMeta?.status) === "PUBLISHED" &&
+                      "bg-green-500/20 text-green-300 border-green-500/30",
+                    (versionStatus || versionMeta?.status) === "DRAFT" &&
+                      "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+                    (versionStatus || versionMeta?.status) === "ARCHIVED" &&
+                      "bg-gray-500/20 text-gray-300 border-gray-500/30",
                   )}
                 >
                   {(versionStatus || versionMeta?.status)?.toLowerCase()}
@@ -647,18 +785,31 @@ export const ActionDock: React.FC<ActionDockProps> = ({
       {/* Dock Content */}
       {isExpanded && (
         <div className="max-h-80 overflow-hidden">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="w-full"
+          >
             <div className="px-4 py-2 border-b border-border">
               <TabsList className="grid w-fit grid-cols-3">
-                <TabsTrigger value="drag-drop" className="flex items-center gap-2">
+                <TabsTrigger
+                  value="drag-drop"
+                  className="flex items-center gap-2"
+                >
                   <GripVertical className="h-4 w-4" />
                   Drag & Drop
                 </TabsTrigger>
-                <TabsTrigger value="ai-assistant" className="flex items-center gap-2">
+                <TabsTrigger
+                  value="ai-assistant"
+                  className="flex items-center gap-2"
+                >
                   <MessageCircle className="h-4 w-4" />
                   KI-Assistent
                 </TabsTrigger>
-                <TabsTrigger value="quick-actions" className="flex items-center gap-2">
+                <TabsTrigger
+                  value="quick-actions"
+                  className="flex items-center gap-2"
+                >
                   <Zap className="h-4 w-4" />
                   Quick Actions
                 </TabsTrigger>
@@ -669,11 +820,17 @@ export const ActionDock: React.FC<ActionDockProps> = ({
               <Tabs defaultValue="employees" className="w-full">
                 <div className="px-4 py-2">
                   <TabsList className="grid w-fit grid-cols-2">
-                    <TabsTrigger value="employees" className="flex items-center gap-2">
+                    <TabsTrigger
+                      value="employees"
+                      className="flex items-center gap-2"
+                    >
                       <Users className="h-4 w-4" />
                       Mitarbeiter
                     </TabsTrigger>
-                    <TabsTrigger value="shifts" className="flex items-center gap-2">
+                    <TabsTrigger
+                      value="shifts"
+                      className="flex items-center gap-2"
+                    >
                       <Clock className="h-4 w-4" />
                       Schichten
                     </TabsTrigger>

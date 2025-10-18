@@ -91,13 +91,19 @@ export function ScheduleActions({
     <div>
       <div className="flex space-x-2">
         {/* Add Schedule Dropdown - always enabled */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+          }}
+        >
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
                 className="flex items-center gap-1"
-              // disabled={isLoading || !canAdd}
+                // disabled={isLoading || !canAdd}
               >
                 <Plus className="h-4 w-4" />
                 <span>Hinzufügen</span>
@@ -128,15 +134,21 @@ export function ScheduleActions({
         </div>
 
         {/* Generate Schedule Dropdown - always enabled */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+          }}
+        >
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
                 className="flex items-center gap-1"
-              // disabled={isLoading || !canGenerate || isGenerating || isAnyAiGenerating}
+                // disabled={isLoading || !canGenerate || isGenerating || isAnyAiGenerating}
               >
-                {(isGenerating || isAnyAiGenerating) ? (
+                {isGenerating || isAnyAiGenerating ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Play className="h-4 w-4" />
@@ -148,7 +160,7 @@ export function ScheduleActions({
             <DropdownMenuContent>
               <DropdownMenuItem
                 onClick={onGenerateStandardSchedule}
-              // disabled={isGenerating || isAnyAiGenerating}
+                // disabled={isGenerating || isAnyAiGenerating}
               >
                 <Play className="h-4 w-4 mr-2" />
                 Standard-Generierung
@@ -158,7 +170,7 @@ export function ScheduleActions({
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={onGenerateAiFastSchedule}
-                  // disabled={isGenerating || isAnyAiGenerating || isAiFastGenerating}
+                    // disabled={isGenerating || isAnyAiGenerating || isAiFastGenerating}
                   >
                     {isAiFastGenerating ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -169,7 +181,7 @@ export function ScheduleActions({
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={onGenerateAiDetailedSchedule}
-                  // disabled={isGenerating || isAnyAiGenerating || isAiDetailedGenerating}
+                    // disabled={isGenerating || isAnyAiGenerating || isAiDetailedGenerating}
                   >
                     {isAiDetailedGenerating ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -199,13 +211,19 @@ export function ScheduleActions({
         </div>
 
         {/* Delete Button - always enabled */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+          }}
+        >
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
                 variant="outline"
                 className="flex items-center gap-1"
-              // disabled={isLoading || !canDelete || isDeleting}
+                // disabled={isLoading || !canDelete || isDeleting}
               >
                 {isDeleting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -235,7 +253,13 @@ export function ScheduleActions({
         </div>
 
         {/* Statistics Button - always enabled */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+          }}
+        >
           <Button
             variant="outline"
             className="flex items-center gap-1"

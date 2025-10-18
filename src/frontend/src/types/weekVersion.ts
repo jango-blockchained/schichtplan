@@ -1,16 +1,16 @@
 /**
  * TypeScript type definitions for week-based versioning system.
- * 
+ *
  * This module defines all types related to week-based schedule versioning,
  * navigation state, and version management.
  */
 
-import { DateRange } from 'react-day-picker';
-import { MonthBoundaryMode, WeekendStart } from '../utils/weekUtils';
+import { DateRange } from "react-day-picker";
+import { MonthBoundaryMode, WeekendStart } from "../utils/weekUtils";
 
 // Re-export week utilities types for convenience
-export { MonthBoundaryMode, WeekendStart } from '../utils/weekUtils';
-export type { WeekInfo, WeekRange } from '../utils/weekUtils';
+export { MonthBoundaryMode, WeekendStart } from "../utils/weekUtils";
+export type { WeekInfo, WeekRange } from "../utils/weekUtils";
 
 // Week segment information for split weeks
 export interface WeekSegmentInfo {
@@ -32,7 +32,7 @@ export type VersionIdentifier = LegacyVersionIdentifier | WeekVersionIdentifier;
 
 // Parsed version information
 export interface ParsedVersionInfo {
-  type: 'legacy' | 'single_week' | 'week_range' | 'cross_year_range';
+  type: "legacy" | "single_week" | "week_range" | "cross_year_range";
   isWeekBased: boolean;
   version?: number; // For legacy versions
   year?: number;
@@ -48,13 +48,13 @@ export interface ParsedVersionInfo {
 export interface WeekVersionMeta {
   version: VersionIdentifier;
   weekIdentifier?: string;
-  weekVersion?: string;  // v1, v2, v3, etc.
+  weekVersion?: string; // v1, v2, v3, etc.
   dateRange: {
     start: string;
     end: string;
   };
   isWeekBased: boolean;
-  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   createdAt: string;
   updatedAt?: string;
   notes?: string;
@@ -77,7 +77,7 @@ export interface QuickNavigationOption {
   label: string;
   weekIdentifier: string;
   dateRange: DateRange;
-  type: 'current' | 'month_start' | 'month_end' | 'quarter_start' | 'custom';
+  type: "current" | "month_start" | "month_end" | "quarter_start" | "custom";
 }
 
 // Week navigation hooks return type
@@ -89,5 +89,9 @@ export interface WeekNavigationHookReturn {
   navigateToDate: (date: Date) => Promise<void>;
   quickNavigationOptions: QuickNavigationOption[];
   createVersionForWeek: (weekIdentifier: string) => Promise<void>;
-  updateSettings: (settings: Partial<Pick<WeekNavigationState, 'weekendStart' | 'monthBoundaryMode'>>) => void;
+  updateSettings: (
+    settings: Partial<
+      Pick<WeekNavigationState, "weekendStart" | "monthBoundaryMode">
+    >,
+  ) => void;
 }

@@ -40,7 +40,11 @@ export function DateRangePicker({
   const today = startOfToday();
   const [isOpen, setIsOpen] = React.useState(false);
 
-  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: getSettings, staleTime: 300_000 });
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+    staleTime: 300_000,
+  });
   const weekStartsOn = getWeekStartsOn(settings);
 
   const defaultPresets = [

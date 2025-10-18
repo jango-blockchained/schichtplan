@@ -43,14 +43,20 @@ export function useScheduleData(
   includeEmpty: boolean = true,
 ): UseScheduleDataResult {
   // Stabilize date strings to prevent query key from changing on every render
-  const startDateStr = React.useMemo(() => startDate.toISOString().split("T")[0], [startDate.getTime()]);
-  const endDateStr = React.useMemo(() => endDate.toISOString().split("T")[0], [endDate.getTime()]);
+  const startDateStr = React.useMemo(
+    () => startDate.toISOString().split("T")[0],
+    [startDate.getTime()],
+  );
+  const endDateStr = React.useMemo(
+    () => endDate.toISOString().split("T")[0],
+    [endDate.getTime()],
+  );
 
   const { data, isLoading, error, refetch } = useQuery<ScheduleResponse>({
     queryKey: [
       "schedules",
       startDateStr, // Use stable string instead of calling toISOString() in query key
-      endDateStr,   // Use stable string instead of calling toISOString() in query key
+      endDateStr, // Use stable string instead of calling toISOString() in query key
       version,
       includeEmpty,
     ] as const,

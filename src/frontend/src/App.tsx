@@ -51,7 +51,7 @@ const App: React.FC = () => {
     <ErrorBoundary
       onError={(error, errorInfo) => {
         // Log to console in development
-        console.error('Application Error:', error, errorInfo);
+        console.error("Application Error:", error, errorInfo);
         // TODO: Send to error reporting service in production
       }}
     >
@@ -71,7 +71,10 @@ const App: React.FC = () => {
                   <Route path="settings" element={<UnifiedSettingsPage />} />
                   <Route path="formulars" element={<FormularsPage />} />
                   <Route path="logs" element={<LogsPage />} />
-                  <Route path="pdf-layout" element={<PDFLayoutCustomizerPage />} />
+                  <Route
+                    path="pdf-layout"
+                    element={<PDFLayoutCustomizerPage />}
+                  />
                   <Route path="calendar" element={<CalendarPage />} />
                   <Route path="ai" element={<AIDashboardPage />} />
                   <Route path="design-system" element={<DesignSystemDemo />} />

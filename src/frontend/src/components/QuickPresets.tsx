@@ -1,7 +1,7 @@
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PRESET_TEMPLATES, PresetTemplate } from '@/types/SimplifiedPDFConfig';
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PRESET_TEMPLATES, PresetTemplate } from "@/types/SimplifiedPDFConfig";
 
 interface QuickPresetsProps {
   currentPreset: string;
@@ -9,7 +9,11 @@ interface QuickPresetsProps {
   className?: string;
 }
 
-export function QuickPresets({ currentPreset, onPresetSelect, className = '' }: QuickPresetsProps) {
+export function QuickPresets({
+  currentPreset,
+  onPresetSelect,
+  className = "",
+}: QuickPresetsProps) {
   const handlePresetClick = (preset: PresetTemplate) => {
     onPresetSelect(preset.id);
   };

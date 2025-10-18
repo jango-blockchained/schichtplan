@@ -18,7 +18,7 @@ mock.module("../../services/api", () => ({
 describe("UnifiedSettingsPage", () => {
   beforeEach(async () => {
     // Add a small delay to ensure DOM is ready
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     // Reset mocks before each test
     mockGetSettings.mockReset();
@@ -26,7 +26,7 @@ describe("UnifiedSettingsPage", () => {
 
     // Ensure getSettings mock returns the mock data
     mockGetSettings.mockReturnValue(Promise.resolve(mockSettings));
-    
+
     render(<UnifiedSettingsPage />);
   });
 
@@ -68,12 +68,16 @@ describe("UnifiedSettingsPage", () => {
     // Check if the store_name from mockSettings is displayed in an input field.
     // Assuming the input field for store name might have a label "Store Name" or similar,
     // or we can find it by its current value if reliably set.
-    const storeNameInput = await screen.findByDisplayValue("Test Store") as HTMLInputElement;
+    const storeNameInput = (await screen.findByDisplayValue(
+      "Test Store",
+    )) as HTMLInputElement;
     expect(storeNameInput).toBeDefined();
     expect(storeNameInput.value).toBe(mockSettings.general.store_name);
 
     // Optionally, check another field from the general section
-    const timezoneInput = await screen.findByDisplayValue(mockSettings.general.timezone) as HTMLInputElement;
+    const timezoneInput = (await screen.findByDisplayValue(
+      mockSettings.general.timezone,
+    )) as HTMLInputElement;
     expect(timezoneInput).toBeDefined();
     expect(timezoneInput.value).toBe(mockSettings.general.timezone);
   });
@@ -96,7 +100,9 @@ describe("UnifiedSettingsPage", () => {
 
   it("debounces settings updates on input change", async () => {
     // Ensure the page and initial settings are loaded
-    const storeNameInput = await screen.findByDisplayValue(mockSettings.general.store_name) as HTMLInputElement;
+    const storeNameInput = (await screen.findByDisplayValue(
+      mockSettings.general.store_name,
+    )) as HTMLInputElement;
 
     // Simulate changing the store name
     const newStoreName = "New Test Store Name";
@@ -108,9 +114,12 @@ describe("UnifiedSettingsPage", () => {
     expect(mockUpdateSettings).not.toHaveBeenCalled();
 
     // Use waitFor to wait for the debounced call to happen
-    await waitFor(() => {
-      expect(mockUpdateSettings).toHaveBeenCalledTimes(1);
-    }, { timeout: 3000 }); // Use a timeout slightly longer than the debounce delay
+    await waitFor(
+      () => {
+        expect(mockUpdateSettings).toHaveBeenCalledTimes(1);
+      },
+      { timeout: 3000 },
+    ); // Use a timeout slightly longer than the debounce delay
 
     // Check the payload of the updateSettings call after waiting
     const expectedPayload = {

@@ -9,7 +9,7 @@ import {
   PieChart as PieChartIcon,
   TrendingUp,
   UserCheck,
-  Users
+  Users,
 } from "lucide-react";
 import {
   Bar,
@@ -22,8 +22,8 @@ import {
   ResponsiveContainer,
   Tooltip,
   XAxis,
-  YAxis
-} from 'recharts';
+  YAxis,
+} from "recharts";
 
 interface WorkloadAnalysisProps {
   workloadStats: {
@@ -38,18 +38,18 @@ interface WorkloadAnalysisProps {
     avgHours: number;
     minHours: number;
     maxHours: number;
-    underWorked: Array<{ name: string; hours: number; }>;
-    overWorked: Array<{ name: string; hours: number; }>;
-    keyholders: Array<{ name: string; hours: number; shifts: number; }>;
+    underWorked: Array<{ name: string; hours: number }>;
+    overWorked: Array<{ name: string; hours: number }>;
+    keyholders: Array<{ name: string; hours: number; shifts: number }>;
     keyholderCoverage: number;
   };
 }
 
 const WORKLOAD_COLORS = {
-  normal: '#10b981',
-  under: '#f59e0b',
-  over: '#ef4444',
-  keyholder: '#3b82f6'
+  normal: "#10b981",
+  under: "#f59e0b",
+  over: "#ef4444",
+  keyholder: "#3b82f6",
 };
 
 export function WorkloadAnalysis({ workloadStats }: WorkloadAnalysisProps) {
@@ -68,31 +68,65 @@ export function WorkloadAnalysis({ workloadStats }: WorkloadAnalysisProps) {
   const sortedEmployees = [...employees].sort((a, b) => b.hours - a.hours);
 
   const getWorkloadStatus = (hours: number) => {
-    if (hours < avgHours * 0.8) return { variant: "secondary" as const, label: "Unter-arbeitet", color: WORKLOAD_COLORS.under };
-    if (hours > avgHours * 1.2) return { variant: "destructive" as const, label: "Über-arbeitet", color: WORKLOAD_COLORS.over };
-    return { variant: "default" as const, label: "Normal", color: WORKLOAD_COLORS.normal };
+    if (hours < avgHours * 0.8)
+      return {
+        variant: "secondary" as const,
+        label: "Unter-arbeitet",
+        color: WORKLOAD_COLORS.under,
+      };
+    if (hours > avgHours * 1.2)
+      return {
+        variant: "destructive" as const,
+        label: "Über-arbeitet",
+        color: WORKLOAD_COLORS.over,
+      };
+    return {
+      variant: "default" as const,
+      label: "Normal",
+      color: WORKLOAD_COLORS.normal,
+    };
   };
 
   // Prepare chart data
-  const workloadChartData = sortedEmployees.slice(0, 10).map(emp => ({
-    name: emp.name.split(' ')[0], // First name only for chart
+  const workloadChartData = sortedEmployees.slice(0, 10).map((emp) => ({
+    name: emp.name.split(" ")[0], // First name only for chart
     fullName: emp.name,
     hours: emp.hours,
     shifts: emp.shifts,
     status: getWorkloadStatus(emp.hours).label,
     color: getWorkloadStatus(emp.hours).color,
-    isKeyholder: emp.isKeyholder
+    isKeyholder: emp.isKeyholder,
   }));
 
   const workloadDistribution = [
-    { name: 'Unter-arbeitet', value: underWorked.length, color: WORKLOAD_COLORS.under },
-    { name: 'Normal', value: employees.length - underWorked.length - overWorked.length, color: WORKLOAD_COLORS.normal },
-    { name: 'Über-arbeitet', value: overWorked.length, color: WORKLOAD_COLORS.over }
+    {
+      name: "Unter-arbeitet",
+      value: underWorked.length,
+      color: WORKLOAD_COLORS.under,
+    },
+    {
+      name: "Normal",
+      value: employees.length - underWorked.length - overWorked.length,
+      color: WORKLOAD_COLORS.normal,
+    },
+    {
+      name: "Über-arbeitet",
+      value: overWorked.length,
+      color: WORKLOAD_COLORS.over,
+    },
   ];
 
   const keyholderData = [
-    { name: 'Schlüsselinhaber', value: keyholders.length, color: WORKLOAD_COLORS.keyholder },
-    { name: 'Andere', value: employees.length - keyholders.length, color: '#94a3b8' }
+    {
+      name: "Schlüsselinhaber",
+      value: keyholders.length,
+      color: WORKLOAD_COLORS.keyholder,
+    },
+    {
+      name: "Andere",
+      value: employees.length - keyholders.length,
+      color: "#94a3b8",
+    },
   ];
 
   return (
@@ -116,7 +150,9 @@ export function WorkloadAnalysis({ workloadStats }: WorkloadAnalysisProps) {
             <TrendingUp className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{maxHours.toFixed(1)}</div>
+            <div className="text-2xl font-bold text-green-600">
+              {maxHours.toFixed(1)}
+            </div>
             <p className="text-xs text-muted-foreground">Stunden</p>
           </CardContent>
         </Card>
@@ -127,7 +163,9 @@ export function WorkloadAnalysis({ workloadStats }: WorkloadAnalysisProps) {
             <AlertCircle className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{minHours.toFixed(1)}</div>
+            <div className="text-2xl font-bold text-orange-600">
+              {minHours.toFixed(1)}
+            </div>
             <p className="text-xs text-muted-foreground">Stunden</p>
           </CardContent>
         </Card>
@@ -173,8 +211,8 @@ export function WorkloadAnalysis({ workloadStats }: WorkloadAnalysisProps) {
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value: number) => [`${value} Mitarbeiter`, '']}
-                    labelFormatter={() => ''}
+                    formatter={(value: number) => [`${value} Mitarbeiter`, ""]}
+                    labelFormatter={() => ""}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -182,7 +220,10 @@ export function WorkloadAnalysis({ workloadStats }: WorkloadAnalysisProps) {
 
             <div className="space-y-4">
               {workloadDistribution.map((item, index) => (
-                <div key={index} className="flex items-center justify-between p-3 rounded-lg border">
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-3 rounded-lg border"
+                >
                   <div className="flex items-center gap-3">
                     <div
                       className="w-4 h-4 rounded"
@@ -209,7 +250,10 @@ export function WorkloadAnalysis({ workloadStats }: WorkloadAnalysisProps) {
         <CardContent>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={workloadChartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+              <ComposedChart
+                data={workloadChartData}
+                margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="name"
@@ -221,12 +265,14 @@ export function WorkloadAnalysis({ workloadStats }: WorkloadAnalysisProps) {
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip
                   formatter={(value: number, name: string) => {
-                    if (name === 'hours') return [`${value.toFixed(1)} Stunden`, 'Arbeitszeit'];
-                    if (name === 'shifts') return [`${value} Schichten`, 'Anzahl'];
+                    if (name === "hours")
+                      return [`${value.toFixed(1)} Stunden`, "Arbeitszeit"];
+                    if (name === "shifts")
+                      return [`${value} Schichten`, "Anzahl"];
                     return [value, name];
                   }}
                   labelFormatter={(label) => {
-                    const emp = workloadChartData.find(d => d.name === label);
+                    const emp = workloadChartData.find((d) => d.name === label);
                     return emp ? emp.fullName : label;
                   }}
                 />
@@ -265,9 +311,13 @@ export function WorkloadAnalysis({ workloadStats }: WorkloadAnalysisProps) {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <Key className="h-5 w-5 text-blue-600" />
-                    <span className="text-sm font-medium">Schlüsselinhaber-Abdeckung</span>
+                    <span className="text-sm font-medium">
+                      Schlüsselinhaber-Abdeckung
+                    </span>
                   </div>
-                  <span className="text-lg font-bold text-blue-600">{keyholderCoverage.toFixed(0)}%</span>
+                  <span className="text-lg font-bold text-blue-600">
+                    {keyholderCoverage.toFixed(0)}%
+                  </span>
                 </div>
                 <Progress value={keyholderCoverage} className="h-3 mb-2" />
                 <div className="text-xs text-muted-foreground">
@@ -294,8 +344,11 @@ export function WorkloadAnalysis({ workloadStats }: WorkloadAnalysisProps) {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value: number) => [`${value} Mitarbeiter`, '']}
-                      labelFormatter={() => ''}
+                      formatter={(value: number) => [
+                        `${value} Mitarbeiter`,
+                        "",
+                      ]}
+                      labelFormatter={() => ""}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -309,10 +362,16 @@ export function WorkloadAnalysis({ workloadStats }: WorkloadAnalysisProps) {
               </h4>
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {keyholders.map((keyholder, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 bg-blue-50/50 dark:bg-blue-950/10 rounded">
-                    <span className="text-sm font-medium">{keyholder.name}</span>
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-2 bg-blue-50/50 dark:bg-blue-950/10 rounded"
+                  >
+                    <span className="text-sm font-medium">
+                      {keyholder.name}
+                    </span>
                     <div className="text-xs text-muted-foreground">
-                      {keyholder.hours.toFixed(1)}h / {keyholder.shifts} Schichten
+                      {keyholder.hours.toFixed(1)}h / {keyholder.shifts}{" "}
+                      Schichten
                     </div>
                   </div>
                 ))}
@@ -341,7 +400,7 @@ export function WorkloadAnalysis({ workloadStats }: WorkloadAnalysisProps) {
                   </span>
                 </div>
                 <div className="text-xs text-red-600 dark:text-red-400 space-y-1">
-                  {overWorked.map(emp => (
+                  {overWorked.map((emp) => (
                     <div key={emp.name} className="flex justify-between">
                       <span>{emp.name}</span>
                       <span>{emp.hours.toFixed(1)}h</span>
@@ -360,7 +419,7 @@ export function WorkloadAnalysis({ workloadStats }: WorkloadAnalysisProps) {
                   </span>
                 </div>
                 <div className="text-xs text-orange-600 dark:text-orange-400 space-y-1">
-                  {underWorked.map(emp => (
+                  {underWorked.map((emp) => (
                     <div key={emp.name} className="flex justify-between">
                       <span>{emp.name}</span>
                       <span>{emp.hours.toFixed(1)}h</span>
@@ -385,13 +444,19 @@ export function WorkloadAnalysis({ workloadStats }: WorkloadAnalysisProps) {
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {sortedEmployees.map((employee) => {
               const status = getWorkloadStatus(employee.hours);
-              const hourPercentage = maxHours > 0 ? (employee.hours / maxHours) * 100 : 0;
+              const hourPercentage =
+                maxHours > 0 ? (employee.hours / maxHours) * 100 : 0;
 
               return (
-                <div key={employee.employeeId} className="p-3 border rounded-lg hover:shadow-sm transition-shadow">
+                <div
+                  key={employee.employeeId}
+                  className="p-3 border rounded-lg hover:shadow-sm transition-shadow"
+                >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{employee.name}</span>
+                      <span className="text-sm font-medium">
+                        {employee.name}
+                      </span>
                       {employee.isKeyholder && (
                         <Badge variant="outline" className="text-xs">
                           <Key className="h-3 w-3 mr-1" />
@@ -403,9 +468,7 @@ export function WorkloadAnalysis({ workloadStats }: WorkloadAnalysisProps) {
                       <span className="text-sm font-medium">
                         {employee.hours.toFixed(1)}h
                       </span>
-                      <Badge variant={status.variant}>
-                        {status.label}
-                      </Badge>
+                      <Badge variant={status.variant}>{status.label}</Badge>
                     </div>
                   </div>
 
@@ -417,9 +480,11 @@ export function WorkloadAnalysis({ workloadStats }: WorkloadAnalysisProps) {
                     <Progress
                       value={hourPercentage}
                       className="h-2"
-                      style={{
-                        '--progress-foreground': status.color
-                      } as React.CSSProperties}
+                      style={
+                        {
+                          "--progress-foreground": status.color,
+                        } as React.CSSProperties
+                      }
                     />
                   </div>
                 </div>

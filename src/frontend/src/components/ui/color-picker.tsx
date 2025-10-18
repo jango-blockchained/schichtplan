@@ -9,15 +9,15 @@ export interface ColorPickerProps {
   className?: string;
 }
 
-export function ColorPicker({ 
-  id, 
-  color, 
-  onChange, 
+export function ColorPicker({
+  id,
+  color,
+  onChange,
   onBlur,
-  className 
+  className,
 }: ColorPickerProps) {
   return (
-    <div className={`flex items-center gap-2 ${className || ''}`}>
+    <div className={`flex items-center gap-2 ${className || ""}`}>
       <input
         type="color"
         id={id}

@@ -1,42 +1,42 @@
 /**
  * Week Navigation Settings Overlay Component
- * 
+ *
  * A quick settings panel that can be toggled on the schedule page
  * to allow users to adjust week navigation preferences without going to the settings page.
  */
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetHeader,
-    SheetTitle,
-    SheetTrigger,
-} from '@/components/ui/sheet';
-import { useToast } from '@/components/ui/use-toast';
-import { getSettings, updateSettings } from '@/services/api';
-import { Settings } from '@/types';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Calendar, Settings as SettingsIcon, Split } from 'lucide-react';
-import { useState } from 'react';
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { useToast } from "@/components/ui/use-toast";
+import { getSettings, updateSettings } from "@/services/api";
+import { Settings } from "@/types";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Calendar, Settings as SettingsIcon, Split } from "lucide-react";
+import { useState } from "react";
 
 interface WeekNavigationSettingsOverlayProps {
   currentSettings?: {
-    weekendStart?: 'MONDAY' | 'SUNDAY';
-    monthBoundaryMode?: 'keep_intact' | 'split_by_month';
+    weekendStart?: "MONDAY" | "SUNDAY";
+    monthBoundaryMode?: "keep_intact" | "split_by_month";
   };
-  onSettingsChanged?: (settings: Settings['week_navigation']) => void;
+  onSettingsChanged?: (settings: Settings["week_navigation"]) => void;
   triggerClassName?: string;
 }
 
@@ -50,7 +50,7 @@ export function WeekNavigationSettingsOverlay({
 
   // Fetch current settings
   const { data: settings, isLoading } = useQuery<Settings>({
-    queryKey: ['settings'],
+    queryKey: ["settings"],
     queryFn: getSettings,
     staleTime: 5 * 60 * 1000,
   });
@@ -59,7 +59,7 @@ export function WeekNavigationSettingsOverlay({
   const updateSettingsMutation = useMutation({
     mutationFn: updateSettings,
     onSuccess: (updatedSettings) => {
-      queryClient.setQueryData(['settings'], updatedSettings);
+      queryClient.setQueryData(["settings"], updatedSettings);
       onSettingsChanged?.(updatedSettings.week_navigation);
       toast({
         title: "Settings Updated",
@@ -77,8 +77,8 @@ export function WeekNavigationSettingsOverlay({
 
   // Get effective settings (normalize the settings structure)
   const weekNavSettings = settings?.week_navigation || {
-    week_weekend_start: 'MONDAY' as const,
-    week_month_boundary_mode: 'keep_intact' as const,
+    week_weekend_start: "MONDAY" as const,
+    week_month_boundary_mode: "keep_intact" as const,
   };
 
   const handleSettingChange = (key: string, value: boolean | string) => {
@@ -97,19 +97,19 @@ export function WeekNavigationSettingsOverlay({
 
   const formatCurrentSettings = () => {
     const parts = [];
-    if (weekNavSettings.week_weekend_start === 'SUNDAY') {
-      parts.push('So-Start');
+    if (weekNavSettings.week_weekend_start === "SUNDAY") {
+      parts.push("So-Start");
     } else {
-      parts.push('Mo-Start');
+      parts.push("Mo-Start");
     }
-    
-    if (weekNavSettings.week_month_boundary_mode === 'split_by_month') {
-      parts.push('Teilen');
+
+    if (weekNavSettings.week_month_boundary_mode === "split_by_month") {
+      parts.push("Teilen");
     } else {
-      parts.push('Beibehalten');
+      parts.push("Beibehalten");
     }
-    
-    return parts.join(' • ');
+
+    return parts.join(" • ");
   };
 
   return (
@@ -127,7 +127,7 @@ export function WeekNavigationSettingsOverlay({
           </Badge>
         </Button>
       </SheetTrigger>
-      
+
       <SheetContent side="right" className="w-[400px] sm:w-[500px]">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
@@ -135,15 +135,17 @@ export function WeekNavigationSettingsOverlay({
             Wochennavigation Einstellungen
           </SheetTitle>
           <SheetDescription>
-            Passen Sie die Wochennavigation an Ihre Präferenzen an. 
-            Änderungen werden sofort gespeichert.
+            Passen Sie die Wochennavigation an Ihre Präferenzen an. Änderungen
+            werden sofort gespeichert.
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
           {isLoading && (
             <div className="text-center py-4">
-              <div className="text-sm text-muted-foreground">Einstellungen werden geladen...</div>
+              <div className="text-sm text-muted-foreground">
+                Einstellungen werden geladen...
+              </div>
             </div>
           )}
 
@@ -165,8 +167,8 @@ export function WeekNavigationSettingsOverlay({
                     </div>
                     <Select
                       value={weekNavSettings.week_weekend_start}
-                      onValueChange={(value) => 
-                        handleSettingChange('week_weekend_start', value)
+                      onValueChange={(value) =>
+                        handleSettingChange("week_weekend_start", value)
                       }
                       disabled={updateSettingsMutation.isPending}
                     >
@@ -174,7 +176,9 @@ export function WeekNavigationSettingsOverlay({
                         <SelectValue placeholder="Wochenbeginn wählen" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="MONDAY">Montag (ISO Standard)</SelectItem>
+                        <SelectItem value="MONDAY">
+                          Montag (ISO Standard)
+                        </SelectItem>
                         <SelectItem value="SUNDAY">Sonntag</SelectItem>
                       </SelectContent>
                     </Select>
@@ -194,12 +198,13 @@ export function WeekNavigationSettingsOverlay({
                   <div className="space-y-2">
                     <Label className="text-base">Monatsgrenze-Verhalten</Label>
                     <div className="text-sm text-muted-foreground mb-2">
-                      Wie sollen Wochen behandelt werden, die mehrere Monate umfassen?
+                      Wie sollen Wochen behandelt werden, die mehrere Monate
+                      umfassen?
                     </div>
                     <Select
                       value={weekNavSettings.week_month_boundary_mode}
-                      onValueChange={(value) => 
-                        handleSettingChange('week_month_boundary_mode', value)
+                      onValueChange={(value) =>
+                        handleSettingChange("week_month_boundary_mode", value)
                       }
                       disabled={updateSettingsMutation.isPending}
                     >
@@ -207,22 +212,28 @@ export function WeekNavigationSettingsOverlay({
                         <SelectValue placeholder="Monatsgrenze-Modus wählen" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="keep_intact">Woche beibehalten</SelectItem>
-                        <SelectItem value="split_by_month">An Monatsgrenze teilen</SelectItem>
+                        <SelectItem value="keep_intact">
+                          Woche beibehalten
+                        </SelectItem>
+                        <SelectItem value="split_by_month">
+                          An Monatsgrenze teilen
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="text-xs text-muted-foreground p-3 bg-muted/50 rounded-md">
                     <div className="font-medium mb-1">
-                      {weekNavSettings.week_month_boundary_mode === 'keep_intact' 
-                        ? 'Beibehalten:' 
-                        : 'Teilen:'}
+                      {weekNavSettings.week_month_boundary_mode ===
+                      "keep_intact"
+                        ? "Beibehalten:"
+                        : "Teilen:"}
                     </div>
                     <div>
-                      {weekNavSettings.week_month_boundary_mode === 'keep_intact'
-                        ? 'Wochen, die sich über Monate erstrecken, bleiben als komplette Wochen erhalten.'
-                        : 'Wochen werden am Monatsende geteilt und beginnen mit dem ersten Tag des neuen Monats.'}
+                      {weekNavSettings.week_month_boundary_mode ===
+                      "keep_intact"
+                        ? "Wochen, die sich über Monate erstrecken, bleiben als komplette Wochen erhalten."
+                        : "Wochen werden am Monatsende geteilt und beginnen mit dem ersten Tag des neuen Monats."}
                     </div>
                   </div>
                 </CardContent>
@@ -231,22 +242,27 @@ export function WeekNavigationSettingsOverlay({
               {/* Current Status */}
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Aktuelle Einstellungen</CardTitle>
+                  <CardTitle className="text-base">
+                    Aktuelle Einstellungen
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="text-sm">Wochenbeginn:</span>
                       <Badge variant="outline">
-                        {weekNavSettings.week_weekend_start === 'SUNDAY' ? 'Sonntag' : 'Montag'}
+                        {weekNavSettings.week_weekend_start === "SUNDAY"
+                          ? "Sonntag"
+                          : "Montag"}
                       </Badge>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm">Monatsgrenze:</span>
                       <Badge variant="outline">
-                        {weekNavSettings.week_month_boundary_mode === 'keep_intact' 
-                          ? 'Beibehalten' 
-                          : 'Teilen'}
+                        {weekNavSettings.week_month_boundary_mode ===
+                        "keep_intact"
+                          ? "Beibehalten"
+                          : "Teilen"}
                       </Badge>
                     </div>
                   </div>

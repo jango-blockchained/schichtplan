@@ -3,7 +3,10 @@ import ScheduleControls from "@/components/Schedule/ScheduleControls";
 
 interface SchedulePageHeaderProps {
   onRefresh: () => void;
-  onExport: (format: 'standard' | 'mep' | 'mep-html', filiale?: string) => void | Promise<void>;
+  onExport: (
+    format: "standard" | "mep" | "mep-html",
+    filiale?: string,
+  ) => void | Promise<void>;
   isExporting?: boolean;
 }
 

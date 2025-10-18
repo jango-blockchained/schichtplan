@@ -22,37 +22,43 @@ export function useInlineEdit<T extends { id: string | number }>({
   onUpdate,
   onError,
 }: UseInlineEditOptions<T>): InlineEditState<T> {
-  const [editingItems, setEditingItems] = useState<Map<string | number, Partial<T>>>(
-    new Map()
-  );
+  const [editingItems, setEditingItems] = useState<
+    Map<string | number, Partial<T>>
+  >(new Map());
 
-  const isEditing = useCallback((id: string | number) => {
-    return editingItems.has(id);
-  }, [editingItems]);
+  const isEditing = useCallback(
+    (id: string | number) => {
+      return editingItems.has(id);
+    },
+    [editingItems],
+  );
 
   const getEditValue = useCallback(
     (id: string | number, field: keyof T) => {
       const editData = editingItems.get(id);
       return editData?.[field];
     },
-    [editingItems]
+    [editingItems],
   );
 
   const startEdit = useCallback((id: string | number, item: T) => {
-    setEditingItems(prev => new Map(prev).set(id, { ...item }));
+    setEditingItems((prev) => new Map(prev).set(id, { ...item }));
   }, []);
 
-  const updateField = useCallback((id: string | number, field: keyof T, value: T[keyof T]) => {
-    setEditingItems(prev => {
-      const newMap = new Map(prev);
-      const existing = newMap.get(id) || {};
-      newMap.set(id, { ...existing, [field]: value });
-      return newMap;
-    });
-  }, []);
+  const updateField = useCallback(
+    (id: string | number, field: keyof T, value: T[keyof T]) => {
+      setEditingItems((prev) => {
+        const newMap = new Map(prev);
+        const existing = newMap.get(id) || {};
+        newMap.set(id, { ...existing, [field]: value });
+        return newMap;
+      });
+    },
+    [],
+  );
 
   const cancelEdit = useCallback((id: string | number) => {
-    setEditingItems(prev => {
+    setEditingItems((prev) => {
       const newMap = new Map(prev);
       newMap.delete(id);
       return newMap;
@@ -66,7 +72,7 @@ export function useInlineEdit<T extends { id: string | number }>({
 
       try {
         await onUpdate(id, changes);
-        setEditingItems(prev => {
+        setEditingItems((prev) => {
           const newMap = new Map(prev);
           newMap.delete(id);
           return newMap;
@@ -75,12 +81,12 @@ export function useInlineEdit<T extends { id: string | number }>({
         onError?.(error as Error);
       }
     },
-    [editingItems, onUpdate, onError]
+    [editingItems, onUpdate, onError],
   );
 
   const saveAll = useCallback(async () => {
     const promises = Array.from(editingItems.entries()).map(([id, changes]) =>
-      onUpdate(id, changes)
+      onUpdate(id, changes),
     );
 
     try {

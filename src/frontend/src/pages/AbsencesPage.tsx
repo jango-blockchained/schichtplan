@@ -1,7 +1,14 @@
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAbsencesByRange, getEmployees, getSettings } from "@/services/api";
 import { getWeekStartsOn } from "@/utils/weekStart";
@@ -11,7 +18,11 @@ import { useMemo } from "react";
 
 export default function AbsencesPage() {
   // Week boundaries per settings
-  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: getSettings, staleTime: 300_000 });
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+    staleTime: 300_000,
+  });
   const weekStartsOn = getWeekStartsOn(settings);
 
   const { startISO, endISO, label } = useMemo(() => {
@@ -30,12 +41,20 @@ export default function AbsencesPage() {
     queryFn: () => getAbsencesByRange(startISO, endISO),
   });
 
-  const { data: employees = [] } = useQuery({ queryKey: ["employees"], queryFn: getEmployees });
-  const employeeMap = useMemo(() => new Map(employees.map(e => [e.id, e])), [employees]);
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employees"],
+    queryFn: getEmployees,
+  });
+  const employeeMap = useMemo(
+    () => new Map(employees.map((e) => [e.id, e])),
+    [employees],
+  );
 
   const absenceTypeMap = useMemo(() => {
     if (!settings?.employee_groups?.absence_types) return new Map();
-    return new Map(settings.employee_groups.absence_types.map((type) => [type.id, type]));
+    return new Map(
+      settings.employee_groups.absence_types.map((type) => [type.id, type]),
+    );
   }, [settings?.employee_groups?.absence_types]);
 
   return (
@@ -64,12 +83,14 @@ export default function AbsencesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {absences.map(a => (
+                  {absences.map((a) => (
                     <TableRow key={a.id}>
                       <TableCell>
                         {(() => {
                           const emp = employeeMap.get(a.employee_id);
-                          return emp ? `${emp.first_name} ${emp.last_name}` : `#${a.employee_id}`;
+                          return emp
+                            ? `${emp.first_name} ${emp.last_name}`
+                            : `#${a.employee_id}`;
                         })()}
                       </TableCell>
                       <TableCell>
@@ -81,14 +102,20 @@ export default function AbsencesPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {format(new Date(a.start_date), "dd.MM.yyyy")} – {format(new Date(a.end_date), "dd.MM.yyyy")}
+                        {format(new Date(a.start_date), "dd.MM.yyyy")} –{" "}
+                        {format(new Date(a.end_date), "dd.MM.yyyy")}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{a.note || "–"}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {a.note || "–"}
+                      </TableCell>
                     </TableRow>
                   ))}
                   {absences.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                      <TableCell
+                        colSpan={4}
+                        className="text-center text-muted-foreground py-8"
+                      >
                         Keine Abwesenheiten in dieser Woche.
                       </TableCell>
                     </TableRow>
@@ -101,18 +128,22 @@ export default function AbsencesPage() {
 
         <TabsContent value="cards" className="mt-4">
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {absences.map(a => {
+            {absences.map((a) => {
               const emp = employeeMap.get(a.employee_id);
               return (
                 <Card key={a.id}>
                   <CardHeader>
                     <CardTitle className="text-base">
-                      {emp ? `${emp.first_name} ${emp.last_name}` : `#${a.employee_id}`}
+                      {emp
+                        ? `${emp.first_name} ${emp.last_name}`
+                        : `#${a.employee_id}`}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     <div>
-                      <span className="text-sm text-muted-foreground">Typ: </span>
+                      <span className="text-sm text-muted-foreground">
+                        Typ:{" "}
+                      </span>
                       <Badge variant="secondary">
                         {(() => {
                           const type = absenceTypeMap.get(a.absence_type_id);
@@ -121,9 +152,14 @@ export default function AbsencesPage() {
                       </Badge>
                     </div>
                     <div className="text-sm">
-                      {format(new Date(a.start_date), "dd.MM.yyyy")} – {format(new Date(a.end_date), "dd.MM.yyyy")}
+                      {format(new Date(a.start_date), "dd.MM.yyyy")} –{" "}
+                      {format(new Date(a.end_date), "dd.MM.yyyy")}
                     </div>
-                    {a.note && <div className="text-sm text-muted-foreground">{a.note}</div>}
+                    {a.note && (
+                      <div className="text-sm text-muted-foreground">
+                        {a.note}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               );

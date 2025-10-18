@@ -133,8 +133,10 @@ export const EmployeeAvailabilityModal: React.FC<
       const englishDayNameKey = indexToDayNameKey(frontendIndex);
       if (!englishDayNameKey) {
         // This case should ideally not be reached if ALL_DAYS is correct
-        console.warn(`No English day name key found for index: ${frontendIndex}`);
-        return false; 
+        console.warn(
+          `No English day name key found for index: ${frontendIndex}`,
+        );
+        return false;
       }
       return settings.general.opening_days[englishDayNameKey];
     });
@@ -313,7 +315,7 @@ export const EmployeeAvailabilityModal: React.FC<
         activeDays.forEach((day) => {
           const cellId = `${day}-${time}`;
           const frontendDayIndex = ALL_DAYS.indexOf(day);
-          
+
           // Skip invalid days
           if (frontendDayIndex === -1) return;
 
@@ -325,7 +327,7 @@ export const EmployeeAvailabilityModal: React.FC<
               day_of_week: frontendDayIndex,
               hour: hour,
               is_available: true,
-              availability_type: type
+              availability_type: type,
             });
           } else {
             // For unselected cells, mark as unavailable
@@ -334,15 +336,17 @@ export const EmployeeAvailabilityModal: React.FC<
               day_of_week: frontendDayIndex,
               hour: hour,
               is_available: false,
-              availability_type: "UNAVAILABLE"
+              availability_type: "UNAVAILABLE",
             });
           }
         });
       });
 
       // Log the payload for debugging
-      console.log(`Sending ${availabilityPayload.length} availability records for employee ${employeeId}`);
-      
+      console.log(
+        `Sending ${availabilityPayload.length} availability records for employee ${employeeId}`,
+      );
+
       // Make the API call
       await updateEmployeeAvailability(employeeId, availabilityPayload);
       await refetchAvailabilities();
@@ -370,16 +374,20 @@ export const EmployeeAvailabilityModal: React.FC<
     return stats;
   };
 
-  const calculateSequentialNumber = (day: string, currentHour: number, targetType: string) => {
+  const calculateSequentialNumber = (
+    day: string,
+    currentHour: number,
+    targetType: string,
+  ) => {
     // Sort time slots by hour to ensure correct sequential counting
     const sortedTimeSlots = [...timeSlots].sort((a, b) => a.hour - b.hour);
-    
+
     let sequentialNumber = 0;
-    
+
     for (const { time, hour } of sortedTimeSlots) {
       const cellId = `${day}-${time}`;
       const type = selectedCells.get(cellId);
-      
+
       if (type === targetType) {
         sequentialNumber++;
         if (hour === currentHour) {
@@ -387,7 +395,7 @@ export const EmployeeAvailabilityModal: React.FC<
         }
       }
     }
-    
+
     return 0;
   };
 
@@ -495,7 +503,9 @@ export const EmployeeAvailabilityModal: React.FC<
                           )?.color || "#ef4444";
 
                       // Get the sequential number for this specific cell type within this day
-                      const sequentialNumber = isSelected ? calculateSequentialNumber(day, hour, cellType) : 0;
+                      const sequentialNumber = isSelected
+                        ? calculateSequentialNumber(day, hour, cellType)
+                        : 0;
 
                       return (
                         <TableCell

@@ -39,46 +39,46 @@ export const WEEKDAY = {
  * Day names in German (indexed by WEEKDAY constants)
  */
 export const DAY_NAMES_DE = {
-  [WEEKDAY.SUNDAY]: 'Sonntag',
-  [WEEKDAY.MONDAY]: 'Montag',
-  [WEEKDAY.TUESDAY]: 'Dienstag',
-  [WEEKDAY.WEDNESDAY]: 'Mittwoch',
-  [WEEKDAY.THURSDAY]: 'Donnerstag',
-  [WEEKDAY.FRIDAY]: 'Freitag',
-  [WEEKDAY.SATURDAY]: 'Samstag',
+  [WEEKDAY.SUNDAY]: "Sonntag",
+  [WEEKDAY.MONDAY]: "Montag",
+  [WEEKDAY.TUESDAY]: "Dienstag",
+  [WEEKDAY.WEDNESDAY]: "Mittwoch",
+  [WEEKDAY.THURSDAY]: "Donnerstag",
+  [WEEKDAY.FRIDAY]: "Freitag",
+  [WEEKDAY.SATURDAY]: "Samstag",
 } as const;
 
 /**
  * Short day names in German
  */
 export const DAY_NAMES_SHORT_DE = {
-  [WEEKDAY.SUNDAY]: 'So',
-  [WEEKDAY.MONDAY]: 'Mo',
-  [WEEKDAY.TUESDAY]: 'Di',
-  [WEEKDAY.WEDNESDAY]: 'Mi',
-  [WEEKDAY.THURSDAY]: 'Do',
-  [WEEKDAY.FRIDAY]: 'Fr',
-  [WEEKDAY.SATURDAY]: 'Sa',
+  [WEEKDAY.SUNDAY]: "So",
+  [WEEKDAY.MONDAY]: "Mo",
+  [WEEKDAY.TUESDAY]: "Di",
+  [WEEKDAY.WEDNESDAY]: "Mi",
+  [WEEKDAY.THURSDAY]: "Do",
+  [WEEKDAY.FRIDAY]: "Fr",
+  [WEEKDAY.SATURDAY]: "Sa",
 } as const;
 
 /**
  * Map day name strings to weekday constants
  */
 export const DAY_NAME_TO_WEEKDAY: Record<string, number> = {
-  'sunday': WEEKDAY.SUNDAY,
-  'monday': WEEKDAY.MONDAY,
-  'tuesday': WEEKDAY.TUESDAY,
-  'wednesday': WEEKDAY.WEDNESDAY,
-  'thursday': WEEKDAY.THURSDAY,
-  'friday': WEEKDAY.FRIDAY,
-  'saturday': WEEKDAY.SATURDAY,
-  'sonntag': WEEKDAY.SUNDAY,
-  'montag': WEEKDAY.MONDAY,
-  'dienstag': WEEKDAY.TUESDAY,
-  'mittwoch': WEEKDAY.WEDNESDAY,
-  'donnerstag': WEEKDAY.THURSDAY,
-  'freitag': WEEKDAY.FRIDAY,
-  'samstag': WEEKDAY.SATURDAY,
+  sunday: WEEKDAY.SUNDAY,
+  monday: WEEKDAY.MONDAY,
+  tuesday: WEEKDAY.TUESDAY,
+  wednesday: WEEKDAY.WEDNESDAY,
+  thursday: WEEKDAY.THURSDAY,
+  friday: WEEKDAY.FRIDAY,
+  saturday: WEEKDAY.SATURDAY,
+  sonntag: WEEKDAY.SUNDAY,
+  montag: WEEKDAY.MONDAY,
+  dienstag: WEEKDAY.TUESDAY,
+  mittwoch: WEEKDAY.WEDNESDAY,
+  donnerstag: WEEKDAY.THURSDAY,
+  freitag: WEEKDAY.FRIDAY,
+  samstag: WEEKDAY.SATURDAY,
 } as const;
 
 /**
@@ -111,32 +111,34 @@ export const DEBOUNCE_DELAY = {
  * Version status constants
  */
 export const VERSION_STATUS = {
-  DRAFT: 'DRAFT',
-  PUBLISHED: 'PUBLISHED',
-  ARCHIVED: 'ARCHIVED',
+  DRAFT: "DRAFT",
+  PUBLISHED: "PUBLISHED",
+  ARCHIVED: "ARCHIVED",
 } as const;
 
-export type VersionStatus = typeof VERSION_STATUS[keyof typeof VERSION_STATUS];
+export type VersionStatus =
+  (typeof VERSION_STATUS)[keyof typeof VERSION_STATUS];
 
 /**
  * Month boundary modes for week navigation
  */
 export const MONTH_BOUNDARY_MODE = {
-  KEEP_INTACT: 'keep_intact',
-  SPLIT_BY_MONTH: 'split_by_month',
+  KEEP_INTACT: "keep_intact",
+  SPLIT_BY_MONTH: "split_by_month",
 } as const;
 
-export type MonthBoundaryMode = typeof MONTH_BOUNDARY_MODE[keyof typeof MONTH_BOUNDARY_MODE];
+export type MonthBoundaryMode =
+  (typeof MONTH_BOUNDARY_MODE)[keyof typeof MONTH_BOUNDARY_MODE];
 
 /**
  * Weekend start options
  */
 export const WEEKEND_START = {
-  SUNDAY: 'SUNDAY',
-  MONDAY: 'MONDAY',
+  SUNDAY: "SUNDAY",
+  MONDAY: "MONDAY",
 } as const;
 
-export type WeekendStart = typeof WEEKEND_START[keyof typeof WEEKEND_START];
+export type WeekendStart = (typeof WEEKEND_START)[keyof typeof WEEKEND_START];
 
 /**
  * Pagination defaults

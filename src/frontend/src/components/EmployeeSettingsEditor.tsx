@@ -54,23 +54,25 @@ const AbsenceTypeSchemaRaw = z.object({
   type: z.literal("absence_type" as const),
 });
 
-const GroupTypeSchema = z.discriminatedUnion("type", [
-  EmployeeTypeSchemaRaw,
-  AbsenceTypeSchemaRaw,
-]).superRefine((data, ctx) => {
-  if (data.type === "employee_type") {
-    // data is now inferred as the EmployeeType part of the union
-    if (typeof data.max_hours === 'number' && typeof data.min_hours === 'number') {
-      if (data.max_hours < data.min_hours) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Max hours cannot be less than min hours",
-          path: ["max_hours"],
-        });
+const GroupTypeSchema = z
+  .discriminatedUnion("type", [EmployeeTypeSchemaRaw, AbsenceTypeSchemaRaw])
+  .superRefine((data, ctx) => {
+    if (data.type === "employee_type") {
+      // data is now inferred as the EmployeeType part of the union
+      if (
+        typeof data.max_hours === "number" &&
+        typeof data.min_hours === "number"
+      ) {
+        if (data.max_hours < data.min_hours) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Max hours cannot be less than min hours",
+            path: ["max_hours"],
+          });
+        }
       }
     }
-  }
-});
+  });
 
 // Infer type from Zod schema for react-hook-form
 type InferredGroupType = z.infer<typeof GroupTypeSchema>;
@@ -95,11 +97,19 @@ export default function EmployeeSettingsEditor({
   const getTypedDefaultGroup = useCallback((): InferredGroupType => {
     if (type === "employee") {
       return {
-        id: "", name: "", min_hours: 0, max_hours: 40, type: "employee_type",
+        id: "",
+        name: "",
+        min_hours: 0,
+        max_hours: 40,
+        type: "employee_type",
       } as Extract<InferredGroupType, { type: "employee_type" }>;
-    } else { // type === "absence"
+    } else {
+      // type === "absence"
       return {
-        id: "", name: "", color: "#FF9800", type: "absence_type",
+        id: "",
+        name: "",
+        color: "#FF9800",
+        type: "absence_type",
       } as Extract<InferredGroupType, { type: "absence_type" }>;
     }
   }, [type]);
@@ -115,7 +125,11 @@ export default function EmployeeSettingsEditor({
 
   useEffect(() => {
     if (isModalOpen) {
-      form.reset(editingGroup ? (editingGroup as InferredGroupType) : getTypedDefaultGroup());
+      form.reset(
+        editingGroup
+          ? (editingGroup as InferredGroupType)
+          : getTypedDefaultGroup(),
+      );
     }
   }, [isModalOpen, editingGroup, form, getTypedDefaultGroup]);
 
@@ -143,20 +157,34 @@ export default function EmployeeSettingsEditor({
   const handleSaveGroup = (formData: InferredGroupType) => {
     const groupToSave = formData as GroupType; // Cast to imported GroupType for external state/prop
 
-    const existingGroupInLocalById = localGroups.find(g => g.id === groupToSave.id);
+    const existingGroupInLocalById = localGroups.find(
+      (g) => g.id === groupToSave.id,
+    );
 
-    if (editingGroup && editingGroup.id !== groupToSave.id && existingGroupInLocalById) {
-      form.setError("id", { type: "manual", message: "This ID is already in use by another group." });
+    if (
+      editingGroup &&
+      editingGroup.id !== groupToSave.id &&
+      existingGroupInLocalById
+    ) {
+      form.setError("id", {
+        type: "manual",
+        message: "This ID is already in use by another group.",
+      });
       return;
     } else if (!editingGroup && existingGroupInLocalById) {
-      form.setError("id", { type: "manual", message: "Group ID must be unique." });
+      form.setError("id", {
+        type: "manual",
+        message: "Group ID must be unique.",
+      });
       return;
     }
 
     let updatedGroups: GroupType[];
     // If editing, find by original ID (editingGroup.id) and replace with groupToSave (which might have a new ID)
-    if (editingGroup && localGroups.some(g => g.id === editingGroup.id)) {
-      updatedGroups = localGroups.map(g => g.id === editingGroup.id ? groupToSave : g);
+    if (editingGroup && localGroups.some((g) => g.id === editingGroup.id)) {
+      updatedGroups = localGroups.map((g) =>
+        g.id === editingGroup.id ? groupToSave : g,
+      );
     } else {
       // Adding new or handling case where original editingGroup ID wasn't found (should not happen if logic is correct)
       updatedGroups = [...localGroups, groupToSave];
@@ -180,15 +208,27 @@ export default function EmployeeSettingsEditor({
         <h3 className="text-lg font-semibold">
           {type === "employee" ? "Employee Types" : "Absence Types"}
         </h3>
-        <Button onClick={() => handleOpenModal()} size="sm" disabled={isLoading}> {/* Disable if loading */}
-          {isLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+        <Button
+          onClick={() => handleOpenModal()}
+          size="sm"
+          disabled={isLoading}
+        >
+          {" "}
+          {/* Disable if loading */}
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+          ) : (
+            <Plus className="h-4 w-4 mr-1" />
+          )}
           Add {type === "employee" ? "Employee Type" : "Absence Type"}
         </Button>
       </div>
 
       <Table>
         <caption className="sr-only">
-          {type === "employee" ? "Table of Employee Types" : "Table of Absence Types"}
+          {type === "employee"
+            ? "Table of Employee Types"
+            : "Table of Absence Types"}
         </caption>
         <TableHeader>
           <TableRow>
@@ -249,7 +289,9 @@ export default function EmployeeSettingsEditor({
         </TableBody>
       </Table>
 
-      <Dialog open={isModalOpen} onOpenChange={handleCloseModal}> {/* Use handleCloseModal for onOpenChange */}
+      <Dialog open={isModalOpen} onOpenChange={handleCloseModal}>
+        {" "}
+        {/* Use handleCloseModal for onOpenChange */}
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -268,7 +310,10 @@ export default function EmployeeSettingsEditor({
           {/* Use react-hook-form's Form component */}
           <Form {...form}>
             {/* Handle form submission with react-hook-form's handleSubmit */}
-            <form onSubmit={form.handleSubmit(handleSaveGroup)} className="space-y-4">
+            <form
+              onSubmit={form.handleSubmit(handleSaveGroup)}
+              className="space-y-4"
+            >
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -276,7 +321,9 @@ export default function EmployeeSettingsEditor({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>ID</FormLabel>
-                      <FormControl><Input {...field} /></FormControl>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -287,7 +334,9 @@ export default function EmployeeSettingsEditor({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Name</FormLabel>
-                      <FormControl><Input {...field} /></FormControl>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -303,7 +352,14 @@ export default function EmployeeSettingsEditor({
                       <FormItem>
                         <FormLabel>Min Hours</FormLabel>
                         <FormControl>
-                          <Input type="number" step="0.5" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                          <Input
+                            type="number"
+                            step="0.5"
+                            {...field}
+                            onChange={(e) =>
+                              field.onChange(Number(e.target.value))
+                            }
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -316,7 +372,14 @@ export default function EmployeeSettingsEditor({
                       <FormItem>
                         <FormLabel>Max Hours</FormLabel>
                         <FormControl>
-                          <Input type="number" step="0.5" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                          <Input
+                            type="number"
+                            step="0.5"
+                            {...field}
+                            onChange={(e) =>
+                              field.onChange(Number(e.target.value))
+                            }
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -333,7 +396,11 @@ export default function EmployeeSettingsEditor({
                     <FormItem>
                       <FormLabel>Color</FormLabel>
                       <FormControl>
-                        <ColorPicker color={(field.value as string) || ''} onChange={field.onChange} label={form.watch('name') || 'Selected Color'} />
+                        <ColorPicker
+                          color={(field.value as string) || ""}
+                          onChange={field.onChange}
+                          label={form.watch("name") || "Selected Color"}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -342,11 +409,26 @@ export default function EmployeeSettingsEditor({
               )}
 
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={handleCloseModal} disabled={isLoading}> {/* Disable if loading */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCloseModal}
+                  disabled={isLoading}
+                >
+                  {" "}
+                  {/* Disable if loading */}
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isLoading}> {/* Disable if loading */}
-                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingGroup?.id ? "Save" : "Create")}
+                <Button type="submit" disabled={isLoading}>
+                  {" "}
+                  {/* Disable if loading */}
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : editingGroup?.id ? (
+                    "Save"
+                  ) : (
+                    "Create"
+                  )}
                 </Button>
               </DialogFooter>
             </form>

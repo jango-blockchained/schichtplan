@@ -64,16 +64,14 @@ import {
   updateSettings,
 } from "@/services/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  format
-} from "date-fns";
+import { format } from "date-fns";
 import {
   AlertCircle,
   FileTextIcon,
   RefreshCw,
   Settings,
   Sliders,
-  Wand2
+  Wand2,
 } from "lucide-react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -101,7 +99,10 @@ import { ScheduleGenerationSettings } from "@/components/ScheduleGenerationSetti
 // import { type Schedule as APISchedule } from '@/services/api'; // Original, might be unused
 // import { type UseScheduleDataResult } from '@/hooks/useScheduleData'; // Original, might be unused
 // import { DateRangeSelector } from '@/components/DateRangeSelector'; // Original, might be unused
-import { AISearchInput, type SearchSuggestion } from "@/components/ai/AISearchInput";
+import {
+  AISearchInput,
+  type SearchSuggestion,
+} from "@/components/ai/AISearchInput";
 import { LiveScheduleOptimizer } from "@/components/ai/LiveScheduleOptimizer";
 import { RealTimeConflictDetector } from "@/components/ai/RealTimeConflictDetector";
 import GenerationLogs from "@/components/Schedule/GenerationLogs";
@@ -109,7 +110,9 @@ import { GenerationOverlay } from "@/components/Schedule/GenerationOverlay";
 import { ScheduleActions } from "@/components/Schedule/ScheduleActions";
 import ScheduleControls from "@/components/Schedule/ScheduleControls";
 import ScheduleErrors from "@/components/Schedule/ScheduleErrors";
-import useScheduleGeneration, { GenerationOptions } from "@/hooks/useScheduleGeneration";
+import useScheduleGeneration, {
+  GenerationOptions,
+} from "@/hooks/useScheduleGeneration";
 import { useVersionManager } from "@/hooks/useVersionManager";
 // import { ScheduleFixActions } from '@/components/Schedule/ScheduleFixActions'; // Original, might be unused
 
@@ -143,7 +146,9 @@ import { MEPDataService } from "@/services/mepDataService";
 import ReactDOM from "react-dom/client";
 
 // Utility function to convert CreateWeekVersionResponse to WeekVersionMeta
-function convertToWeekVersionMeta(versionResponse?: CreateWeekVersionResponse): WeekVersionMeta | undefined {
+function convertToWeekVersionMeta(
+  versionResponse?: CreateWeekVersionResponse,
+): WeekVersionMeta | undefined {
   if (!versionResponse) return undefined;
 
   return {
@@ -154,7 +159,7 @@ function convertToWeekVersionMeta(versionResponse?: CreateWeekVersionResponse): 
       end: versionResponse.date_range_end,
     },
     isWeekBased: versionResponse.is_week_based,
-    status: versionResponse.status as 'DRAFT' | 'PUBLISHED' | 'ARCHIVED',
+    status: versionResponse.status as "DRAFT" | "PUBLISHED" | "ARCHIVED",
     createdAt: versionResponse.created_at,
     notes: versionResponse.notes,
   };
@@ -171,32 +176,48 @@ export function SchedulePage() {
   // 1. All useState calls
   const [includeEmpty, setIncludeEmpty] = useState<boolean>(true);
   const [createEmptySchedules, setCreateEmptySchedules] = useState(true);
-  const [isGenerationSettingsOpen, setIsGenerationSettingsOpen] = useState(false);
+  const [isGenerationSettingsOpen, setIsGenerationSettingsOpen] =
+    useState(false);
   const [isAddScheduleDialogOpen, setIsAddScheduleDialogOpen] = useState(false);
-  const [isAddAvailabilityDialogOpen, setIsAddAvailabilityDialogOpen] = useState(false);
-  const [isEnhancedAvailabilityModalOpen, setIsEnhancedAvailabilityModalOpen] = useState(false);
-  const [selectedAvailabilityType, setSelectedAvailabilityType] = useState<"FIXED" | "PREFERRED">("FIXED");
+  const [isAddAvailabilityDialogOpen, setIsAddAvailabilityDialogOpen] =
+    useState(false);
+  const [isEnhancedAvailabilityModalOpen, setIsEnhancedAvailabilityModalOpen] =
+    useState(false);
+  const [selectedAvailabilityType, setSelectedAvailabilityType] = useState<
+    "FIXED" | "PREFERRED"
+  >("FIXED");
   const [isAbsenceModalOpen, setIsAbsenceModalOpen] = useState(false);
-  const [selectedEmployeeForAbsence, setSelectedEmployeeForAbsence] = useState<number | null>(null);
+  const [selectedEmployeeForAbsence, setSelectedEmployeeForAbsence] = useState<
+    number | null
+  >(null);
   const [isStatisticsModalOpen, setIsStatisticsModalOpen] = useState(false);
-  const [employeeAbsences, setEmployeeAbsences] = useState<Record<number, Absence[]>>({});
+  const [employeeAbsences, setEmployeeAbsences] = useState<
+    Record<number, Absence[]>
+  >({});
   const [enableDiagnostics, setEnableDiagnostics] = useState<boolean>(false);
 
   // Generation options state
-  const [generationOptions, setGenerationOptions] = useState<GenerationOptions>({
-    keepExistingAssignments: false,
-    usePhase1FixedAssignments: true,
-    usePhase2PreferredAvailability: true,
-    usePhase3StandardGeneration: true,
-  });
+  const [generationOptions, setGenerationOptions] = useState<GenerationOptions>(
+    {
+      keepExistingAssignments: false,
+      usePhase1FixedAssignments: true,
+      usePhase2PreferredAvailability: true,
+      usePhase3StandardGeneration: true,
+    },
+  );
 
   // AI generation states
   const [isAiGenerating, setIsAiGenerating] = useState<boolean>(false);
   const [isAiFastGenerating, setIsAiFastGenerating] = useState<boolean>(false);
-  const [isAiDetailedGenerating, setIsAiDetailedGenerating] = useState<boolean>(false);
-  const [isDetailedAiModalOpen, setIsDetailedAiModalOpen] = useState<boolean>(false);
-  const [aiDialogType, setAiDialogType] = useState<'classic' | 'modern'>('classic');
-  const [isClassicAiModalOpen, setIsClassicAiModalOpen] = useState<boolean>(false);
+  const [isAiDetailedGenerating, setIsAiDetailedGenerating] =
+    useState<boolean>(false);
+  const [isDetailedAiModalOpen, setIsDetailedAiModalOpen] =
+    useState<boolean>(false);
+  const [aiDialogType, setAiDialogType] = useState<"classic" | "modern">(
+    "classic",
+  );
+  const [isClassicAiModalOpen, setIsClassicAiModalOpen] =
+    useState<boolean>(false);
   const [confirmDeleteMessage, setConfirmDeleteMessage] = useState<{
     title: string;
     message: string;
@@ -204,16 +225,50 @@ export function SchedulePage() {
     onConfirm: () => void;
     onCancel: () => void;
   } | null>(null);
-  const [isAiDataPreviewOpen, setIsAiDataPreviewOpen] = useState<boolean>(false);
+  const [isAiDataPreviewOpen, setIsAiDataPreviewOpen] =
+    useState<boolean>(false);
   type AiPreviewData = {
     status: string;
     data_pack: {
-      employees?: Array<{ id: number; name: string; role: string; is_keyholder: boolean; max_weekly_hours: number }>;
-      shifts?: Array<{ id: number; start_time: string; end_time: string; active_days: number[]; requires_keyholder?: boolean }>;
-      coverage_rules?: Array<{ day_index: number; time_period: string; min_employees: number; max_employees: number; requires_keyholder: boolean }>;
-      schedule_period?: { start_date: string; end_date: string; target_weekdays: number[] };
-      availability?: Array<{ employee_id: number; day_index: number; fixed_time_range?: string; preferred_time_range?: string; available_time_range?: string }>;
-      absences?: Array<{ employee_id: number; start_date: string; end_date: string; reason: string }>;
+      employees?: Array<{
+        id: number;
+        name: string;
+        role: string;
+        is_keyholder: boolean;
+        max_weekly_hours: number;
+      }>;
+      shifts?: Array<{
+        id: number;
+        start_time: string;
+        end_time: string;
+        active_days: number[];
+        requires_keyholder?: boolean;
+      }>;
+      coverage_rules?: Array<{
+        day_index: number;
+        time_period: string;
+        min_employees: number;
+        max_employees: number;
+        requires_keyholder: boolean;
+      }>;
+      schedule_period?: {
+        start_date: string;
+        end_date: string;
+        target_weekdays: number[];
+      };
+      availability?: Array<{
+        employee_id: number;
+        day_index: number;
+        fixed_time_range?: string;
+        preferred_time_range?: string;
+        available_time_range?: string;
+      }>;
+      absences?: Array<{
+        employee_id: number;
+        start_date: string;
+        end_date: string;
+        reason: string;
+      }>;
     };
     metadata?: {
       start_date: string;
@@ -226,7 +281,9 @@ export function SchedulePage() {
     optimized_data?: Record<string, unknown>;
     system_prompt?: string;
   };
-  const [aiPreviewData, setAiPreviewData] = useState<AiPreviewData | null>(null);
+  const [aiPreviewData, setAiPreviewData] = useState<AiPreviewData | null>(
+    null,
+  );
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState<boolean>(false);
   // const [selectedAvailabilityType, setSelectedAvailabilityType] = useState<'FIXED' | 'PREFERRED' | 'UNAVAILABLE' | null>(null); // Removed - unused
 
@@ -265,17 +322,25 @@ export function SchedulePage() {
       .map(([dayName]) => {
         const lowerDayName = dayName.toLowerCase();
         switch (lowerDayName) {
-          case 'monday': return 0; // Monday=0
-          case 'tuesday': return 1;
-          case 'wednesday': return 2;
-          case 'thursday': return 3;
-          case 'friday': return 4;
-          case 'saturday': return 5;
-          case 'sunday': return 6; // Sunday=6
-          default: return -1; // Should not happen with valid data
+          case "monday":
+            return 0; // Monday=0
+          case "tuesday":
+            return 1;
+          case "wednesday":
+            return 2;
+          case "thursday":
+            return 3;
+          case "friday":
+            return 4;
+          case "saturday":
+            return 5;
+          case "sunday":
+            return 6; // Sunday=6
+          default:
+            return -1; // Should not happen with valid data
         }
       })
-      .filter(dayIndex => dayIndex !== -1) // Remove any invalid entries
+      .filter((dayIndex) => dayIndex !== -1) // Remove any invalid entries
       .sort((a, b) => a - b);
   }, [effectiveSettingsData]);
 
@@ -294,8 +359,13 @@ export function SchedulePage() {
     const year = today.getFullYear();
     // Simple week calculation (ISO week would be more accurate)
     const startOfYear = new Date(year, 0, 1);
-    const weekNumber = Math.ceil(((today.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7);
-    return `${year}-W${weekNumber.toString().padStart(2, '0')}`;
+    const weekNumber = Math.ceil(
+      ((today.getTime() - startOfYear.getTime()) / 86400000 +
+        startOfYear.getDay() +
+        1) /
+        7,
+    );
+    return `${year}-W${weekNumber.toString().padStart(2, "0")}`;
   });
 
   const [dateRange, setDateRange] = useState<DateRange>(() => {
@@ -308,7 +378,7 @@ export function SchedulePage() {
 
     return {
       from: startOfWeek,
-      to: endOfWeek
+      to: endOfWeek,
     };
   });
 
@@ -332,24 +402,35 @@ export function SchedulePage() {
       return [];
     }
 
-    const currentFrom = format(dateRange.from, 'yyyy-MM-dd');
-    const currentTo = format(dateRange.to, 'yyyy-MM-dd');
+    const currentFrom = format(dateRange.from, "yyyy-MM-dd");
+    const currentTo = format(dateRange.to, "yyyy-MM-dd");
 
-    console.log("📅 Filtering versions - looking for date range:", currentFrom, "to", currentTo);
+    console.log(
+      "📅 Filtering versions - looking for date range:",
+      currentFrom,
+      "to",
+      currentTo,
+    );
 
-    const filteredVersions = versionState.versions.filter(version => {
+    const filteredVersions = versionState.versions.filter((version) => {
       const versionStart = version.date_range.start;
       const versionEnd = version.date_range.end;
 
       // Strict date range matching - version must exactly match current date range
-      const exactMatch = versionStart === currentFrom && versionEnd === currentTo;
+      const exactMatch =
+        versionStart === currentFrom && versionEnd === currentTo;
 
-      console.log(`📅 Version ${version.version}: ${versionStart} - ${versionEnd} ${exactMatch ? "✅ MATCH" : "❌ NO MATCH"}`);
+      console.log(
+        `📅 Version ${version.version}: ${versionStart} - ${versionEnd} ${exactMatch ? "✅ MATCH" : "❌ NO MATCH"}`,
+      );
 
       return exactMatch;
     });
 
-    console.log("📅 Filtered versions:", filteredVersions.map(v => `v${v.version}`));
+    console.log(
+      "📅 Filtered versions:",
+      filteredVersions.map((v) => `v${v.version}`),
+    );
     return filteredVersions;
   }, [dateRange, versionState.versions]);
 
@@ -357,17 +438,31 @@ export function SchedulePage() {
   const validVersionsForCurrentRange = getVersionsForCurrentDateRange();
 
   // Only use selected version if it's actually valid for current date range
-  const effectiveSelectedVersionNumber = selectedVersion &&
-    validVersionsForCurrentRange.some(v => v.version === selectedVersion)
-    ? selectedVersion
-    : undefined;
+  const effectiveSelectedVersionNumber =
+    selectedVersion &&
+    validVersionsForCurrentRange.some((v) => v.version === selectedVersion)
+      ? selectedVersion
+      : undefined;
 
   // Debug logging for version state
   console.log("📅 SchedulePage Debug:");
   console.log("📅 Current week:", currentWeek);
-  console.log("📅 Date range:", dateRange?.from?.toDateString(), "to", dateRange?.to?.toDateString());
-  console.log("📅 All versions:", versionState.versions.map(v => `v${v.version} (${v.date_range.start} - ${v.date_range.end})`));
-  console.log("📅 Valid versions for current range:", validVersionsForCurrentRange.map(v => `v${v.version}`));
+  console.log(
+    "📅 Date range:",
+    dateRange?.from?.toDateString(),
+    "to",
+    dateRange?.to?.toDateString(),
+  );
+  console.log(
+    "📅 All versions:",
+    versionState.versions.map(
+      (v) => `v${v.version} (${v.date_range.start} - ${v.date_range.end})`,
+    ),
+  );
+  console.log(
+    "📅 Valid versions for current range:",
+    validVersionsForCurrentRange.map((v) => `v${v.version}`),
+  );
   console.log("📅 Selected version from manager:", selectedVersion);
   console.log("📅 Effective selected version:", effectiveSelectedVersionNumber);
 
@@ -383,68 +478,79 @@ export function SchedulePage() {
 
     // Calculate the ISO week number for December 28th
     const jan4WeekDay = jan4.getDay() || 7; // Convert Sunday (0) to 7
-    const dec28DayOfYear = Math.floor((dec28.getTime() - new Date(year, 0, 1).getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    const dec28DayOfYear =
+      Math.floor(
+        (dec28.getTime() - new Date(year, 0, 1).getTime()) /
+          (24 * 60 * 60 * 1000),
+      ) + 1;
     const dec28WeekNumber = Math.floor((dec28DayOfYear - jan4WeekDay + 10) / 7);
 
     return dec28WeekNumber;
   }, []);
 
   // Helper function to update week and date range together
-  const navigateToWeek = useCallback((weekIdentifier: string) => {
-    setCurrentWeek(weekIdentifier);
+  const navigateToWeek = useCallback(
+    (weekIdentifier: string) => {
+      setCurrentWeek(weekIdentifier);
 
-    try {
-      // Parse week identifier and update date range
-      const [year, week] = weekIdentifier.split('-W');
-      const yearNum = parseInt(year);
-      const weekNum = parseInt(week);
+      try {
+        // Parse week identifier and update date range
+        const [year, week] = weekIdentifier.split("-W");
+        const yearNum = parseInt(year);
+        const weekNum = parseInt(week);
 
-      // Validate inputs
-      if (isNaN(yearNum) || isNaN(weekNum) || weekNum < 1 || weekNum > 53) {
-        console.warn('Invalid week identifier:', weekIdentifier);
-        return;
+        // Validate inputs
+        if (isNaN(yearNum) || isNaN(weekNum) || weekNum < 1 || weekNum > 53) {
+          console.warn("Invalid week identifier:", weekIdentifier);
+          return;
+        }
+
+        // Calculate start of week using a more robust method
+        // Get January 4th of the year (this is always in week 1)
+        const jan4 = new Date(yearNum, 0, 4);
+        const startOfWeek = new Date(jan4);
+
+        // Calculate days from start of year to the target week
+        const daysToAdd = (weekNum - 1) * 7 - jan4.getDay() + 1;
+        startOfWeek.setDate(jan4.getDate() + daysToAdd);
+
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+        // Validate the calculated dates
+        if (isNaN(startOfWeek.getTime()) || isNaN(endOfWeek.getTime())) {
+          console.warn("Invalid dates calculated for week:", weekIdentifier);
+          return;
+        }
+
+        setDateRange({
+          from: startOfWeek,
+          to: endOfWeek,
+        });
+      } catch (error) {
+        console.error("Error navigating to week:", weekIdentifier, error);
       }
 
-      // Calculate start of week using a more robust method
-      // Get January 4th of the year (this is always in week 1)
-      const jan4 = new Date(yearNum, 0, 4);
-      const startOfWeek = new Date(jan4);
-
-      // Calculate days from start of year to the target week
-      const daysToAdd = (weekNum - 1) * 7 - jan4.getDay() + 1;
-      startOfWeek.setDate(jan4.getDate() + daysToAdd);
-
-      const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(startOfWeek.getDate() + 6);
-
-      // Validate the calculated dates
-      if (isNaN(startOfWeek.getTime()) || isNaN(endOfWeek.getTime())) {
-        console.warn('Invalid dates calculated for week:', weekIdentifier);
-        return;
-      }
-
-      setDateRange({
-        from: startOfWeek,
-        to: endOfWeek
-      });
-    } catch (error) {
-      console.error('Error navigating to week:', weekIdentifier, error);
-    }
-
-    // Reset version selection when navigating to new week
-    console.log("📅 Navigating to week:", weekIdentifier, "- resetting version selection");
-    versionActions.resetVersionSelection();
-  }, [versionActions]);
+      // Reset version selection when navigating to new week
+      console.log(
+        "📅 Navigating to week:",
+        weekIdentifier,
+        "- resetting version selection",
+      );
+      versionActions.resetVersionSelection();
+    },
+    [versionActions],
+  );
 
   // Week navigation functions
   const navigatePrevious = useCallback(() => {
     try {
-      const [year, week] = currentWeek.split('-W');
+      const [year, week] = currentWeek.split("-W");
       const yearNum = parseInt(year);
       const weekNum = parseInt(week);
 
       if (isNaN(yearNum) || isNaN(weekNum)) {
-        console.warn('Invalid current week:', currentWeek);
+        console.warn("Invalid current week:", currentWeek);
         return;
       }
 
@@ -458,21 +564,21 @@ export function SchedulePage() {
         newWeek = lastWeekOfPrevYear;
       }
 
-      const newWeekIdentifier = `${newYear}-W${newWeek.toString().padStart(2, '0')}`;
+      const newWeekIdentifier = `${newYear}-W${newWeek.toString().padStart(2, "0")}`;
       navigateToWeek(newWeekIdentifier);
     } catch (error) {
-      console.error('Error navigating to previous week:', error);
+      console.error("Error navigating to previous week:", error);
     }
   }, [currentWeek, navigateToWeek, getWeeksInYear]);
 
   const navigateNext = useCallback(() => {
     try {
-      const [year, week] = currentWeek.split('-W');
+      const [year, week] = currentWeek.split("-W");
       const yearNum = parseInt(year);
       const weekNum = parseInt(week);
 
       if (isNaN(yearNum) || isNaN(weekNum)) {
-        console.warn('Invalid current week:', currentWeek);
+        console.warn("Invalid current week:", currentWeek);
         return;
       }
 
@@ -485,10 +591,10 @@ export function SchedulePage() {
         newYear = yearNum + 1;
       }
 
-      const newWeekIdentifier = `${newYear}-W${newWeek.toString().padStart(2, '0')}`;
+      const newWeekIdentifier = `${newYear}-W${newWeek.toString().padStart(2, "0")}`;
       navigateToWeek(newWeekIdentifier);
     } catch (error) {
-      console.error('Error navigating to next week:', error);
+      console.error("Error navigating to next week:", error);
     }
   }, [currentWeek, navigateToWeek, getWeeksInYear]);
 
@@ -498,12 +604,14 @@ export function SchedulePage() {
   const effectiveDateRange = dateRange;
   // Ensure effectiveDateRange always has .from and .to as Date objects
   const safeEffectiveDateRange = {
-    from: effectiveDateRange?.from && !isNaN(effectiveDateRange.from.getTime())
-      ? new Date(effectiveDateRange.from)
-      : new Date(),
-    to: effectiveDateRange?.to && !isNaN(effectiveDateRange.to.getTime())
-      ? new Date(effectiveDateRange.to)
-      : new Date(),
+    from:
+      effectiveDateRange?.from && !isNaN(effectiveDateRange.from.getTime())
+        ? new Date(effectiveDateRange.from)
+        : new Date(),
+    to:
+      effectiveDateRange?.to && !isNaN(effectiveDateRange.to.getTime())
+        ? new Date(effectiveDateRange.to)
+        : new Date(),
   };
 
   // Create a compatibility object for components that expect the old week-based structure
@@ -512,28 +620,38 @@ export function SchedulePage() {
       currentWeek,
       dateRange,
       isLoading: isLoadingVersions,
-      hasVersions: !isLoadingVersions && !versionState.isError && getVersionsForCurrentDateRange().length > 0,
+      hasVersions:
+        !isLoadingVersions &&
+        !versionState.isError &&
+        getVersionsForCurrentDateRange().length > 0,
     },
     currentWeekInfo: (() => {
       try {
-        const [yearStr, weekStr] = currentWeek.split('-W');
+        const [yearStr, weekStr] = currentWeek.split("-W");
         const year = parseInt(yearStr);
         const weekNumber = parseInt(weekStr);
 
         // Validate parsed values
         if (isNaN(year) || isNaN(weekNumber)) {
-          console.warn('Invalid week identifier for currentWeekInfo:', currentWeek);
+          console.warn(
+            "Invalid week identifier for currentWeekInfo:",
+            currentWeek,
+          );
           // Fallback to current date info
           const now = new Date();
           const fallbackYear = now.getFullYear();
-          const fallbackWeek = Math.ceil((now.getDate() + 6 - now.getDay()) / 7);
+          const fallbackWeek = Math.ceil(
+            (now.getDate() + 6 - now.getDay()) / 7,
+          );
           return {
             year: fallbackYear,
             weekNumber: fallbackWeek,
             startDate: safeEffectiveDateRange.from,
             endDate: safeEffectiveDateRange.to,
-            spansMonths: safeEffectiveDateRange.from.getMonth() !== safeEffectiveDateRange.to.getMonth(),
-            months: [format(safeEffectiveDateRange.from, 'MMMM')]
+            spansMonths:
+              safeEffectiveDateRange.from.getMonth() !==
+              safeEffectiveDateRange.to.getMonth(),
+            months: [format(safeEffectiveDateRange.from, "MMMM")],
           };
         }
 
@@ -542,16 +660,19 @@ export function SchedulePage() {
           weekNumber,
           startDate: safeEffectiveDateRange.from,
           endDate: safeEffectiveDateRange.to,
-          spansMonths: safeEffectiveDateRange.from.getMonth() !== safeEffectiveDateRange.to.getMonth(),
+          spansMonths:
+            safeEffectiveDateRange.from.getMonth() !==
+            safeEffectiveDateRange.to.getMonth(),
           months: [
-            format(safeEffectiveDateRange.from, 'MMMM'),
-            ...(safeEffectiveDateRange.from.getMonth() !== safeEffectiveDateRange.to.getMonth()
-              ? [format(safeEffectiveDateRange.to, 'MMMM')]
-              : [])
-          ]
+            format(safeEffectiveDateRange.from, "MMMM"),
+            ...(safeEffectiveDateRange.from.getMonth() !==
+            safeEffectiveDateRange.to.getMonth()
+              ? [format(safeEffectiveDateRange.to, "MMMM")]
+              : []),
+          ],
         };
       } catch (error) {
-        console.error('Error constructing currentWeekInfo:', error);
+        console.error("Error constructing currentWeekInfo:", error);
         // Fallback to current date info
         const now = new Date();
         return {
@@ -560,7 +681,7 @@ export function SchedulePage() {
           startDate: safeEffectiveDateRange.from,
           endDate: safeEffectiveDateRange.to,
           spansMonths: false,
-          months: [format(safeEffectiveDateRange.from, 'MMMM')]
+          months: [format(safeEffectiveDateRange.from, "MMMM")],
         };
       }
     })(),
@@ -569,8 +690,13 @@ export function SchedulePage() {
     navigateNext,
     setSelectedVersion: versionActions.selectVersion,
     settings: {
-      weekendStart: effectiveSettingsData?.week_navigation?.week_weekend_start === 'SUNDAY' ? 0 : 1,
-      monthBoundaryMode: effectiveSettingsData?.week_navigation?.week_month_boundary_mode || 'keep_intact',
+      weekendStart:
+        effectiveSettingsData?.week_navigation?.week_weekend_start === "SUNDAY"
+          ? 0
+          : 1,
+      monthBoundaryMode:
+        effectiveSettingsData?.week_navigation?.week_month_boundary_mode ||
+        "keep_intact",
     },
     createVersionForWeek: async (weekIdentifier: string) => {
       // Use dedicated week-based API to receive created version payload
@@ -616,7 +742,7 @@ export function SchedulePage() {
         format(monthRange.from, "yyyy-MM-dd"),
         format(monthRange.to, "yyyy-MM-dd"),
         undefined, // No version filter - get all versions
-        false // Don't include empty schedules
+        false, // Don't include empty schedules
       );
       return response;
     },
@@ -630,16 +756,18 @@ export function SchedulePage() {
     // Get all published versions from the version metadata
     const publishedVersions = new Set<number>();
     if (monthlyScheduleResponse.version_statuses) {
-      Object.entries(monthlyScheduleResponse.version_statuses).forEach(([version, status]) => {
-        if (status === "PUBLISHED") {
-          publishedVersions.add(parseInt(version));
-        }
-      });
+      Object.entries(monthlyScheduleResponse.version_statuses).forEach(
+        ([version, status]) => {
+          if (status === "PUBLISHED") {
+            publishedVersions.add(parseInt(version));
+          }
+        },
+      );
     }
 
     // Filter schedules to only include those from published versions
-    return monthlyScheduleResponse.schedules.filter(
-      schedule => publishedVersions.has(schedule.version)
+    return monthlyScheduleResponse.schedules.filter((schedule) =>
+      publishedVersions.has(schedule.version),
     );
   }, [monthlyScheduleResponse]);
 
@@ -669,12 +797,16 @@ export function SchedulePage() {
   });
 
   // Mutations
-  const exportMutation = useMutation<Blob, Error, { format: 'standard' | 'mep' | 'mep-html', filiale?: string }>({
+  const exportMutation = useMutation<
+    Blob,
+    Error,
+    { format: "standard" | "mep" | "mep-html"; filiale?: string }
+  >({
     mutationFn: async ({ format: exportFormat, filiale }) => {
       if (!effectiveDateRange?.from || !effectiveDateRange?.to) {
         throw new Error("Bitte wählen Sie einen Zeitraum aus");
       }
-      const exportType = exportFormat === 'mep' ? 'MEP' : 'Standard';
+      const exportType = exportFormat === "mep" ? "MEP" : "Standard";
       addGenerationLog("info", `Starting ${exportType} PDF export`);
 
       const response = await exportSchedule(
@@ -682,7 +814,7 @@ export function SchedulePage() {
         format(safeEffectiveDateRange.to, "yyyy-MM-dd"),
         undefined, // layoutConfig
         exportFormat,
-        filiale
+        filiale,
       );
 
       addGenerationLog("info", `${exportType} PDF export completed`);
@@ -692,7 +824,7 @@ export function SchedulePage() {
       a.href = url;
 
       // Generate appropriate filename based on format
-      const prefix = exportFormat === 'mep' ? 'MEP' : 'Schichtplan';
+      const prefix = exportFormat === "mep" ? "MEP" : "Schichtplan";
       const dateStr = `${format(safeEffectiveDateRange.from, "yyyy-MM-dd")}_${format(safeEffectiveDateRange.to, "yyyy-MM-dd")}`;
       a.download = `${prefix}_${dateStr}.pdf`;
 
@@ -712,7 +844,11 @@ export function SchedulePage() {
     },
   });
 
-  const importAiResponseMutation = useMutation<AiImportResponse, Error, FormData>({
+  const importAiResponseMutation = useMutation<
+    AiImportResponse,
+    Error,
+    FormData
+  >({
     mutationFn: importAiScheduleResponse,
     onMutate: () => {
       toast({
@@ -725,12 +861,14 @@ export function SchedulePage() {
       // Batch the query invalidations to reduce rapid updates
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["schedules"] });
-        queryClient.invalidateQueries({ queryKey: ['versions'] });
+        queryClient.invalidateQueries({ queryKey: ["versions"] });
       }, 100);
 
       toast({
         title: "Import erfolgreich",
-        description: data.message || `Es wurden ${data.imported_count} Zuweisungen importiert.`, // Use message from backend if available
+        description:
+          data.message ||
+          `Es wurden ${data.imported_count} Zuweisungen importiert.`, // Use message from backend if available
         variant: "default", // Changed to default
       });
     },
@@ -748,7 +886,11 @@ export function SchedulePage() {
 
   // 6. Event Handlers and other functions (wrapped in useCallback)
   const handleImportAiResponse = useCallback(() => {
-    if (!effectiveSelectedVersionNumber || !effectiveDateRange?.from || !effectiveDateRange?.to) {
+    if (
+      !effectiveSelectedVersionNumber ||
+      !effectiveDateRange?.from ||
+      !effectiveDateRange?.to
+    ) {
       toast({
         title: "Import nicht möglich",
         description: "Bitte Zeitraum und Version wählen.",
@@ -758,10 +900,10 @@ export function SchedulePage() {
     }
 
     // Create a file input element programmatically
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = '.csv';
-    fileInput.style.display = 'none'; // Hide the input
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = ".csv";
+    fileInput.style.display = "none"; // Hide the input
     document.body.appendChild(fileInput); // Append to body temporarily
 
     fileInput.onchange = async (event) => {
@@ -770,10 +912,19 @@ export function SchedulePage() {
         const file = files[0];
 
         const formData = new FormData();
-        formData.append('file', file);
-        formData.append('version_id', effectiveSelectedVersionNumber?.toString() || '1');
-        formData.append('start_date', format(effectiveDateRange!.from!, 'yyyy-MM-dd'));
-        formData.append('end_date', format(effectiveDateRange!.to!, 'yyyy-MM-dd'));
+        formData.append("file", file);
+        formData.append(
+          "version_id",
+          effectiveSelectedVersionNumber?.toString() || "1",
+        );
+        formData.append(
+          "start_date",
+          format(effectiveDateRange!.from!, "yyyy-MM-dd"),
+        );
+        formData.append(
+          "end_date",
+          format(effectiveDateRange!.to!, "yyyy-MM-dd"),
+        );
 
         // Use a mutation hook for the import process
         importAiResponseMutation.mutate(formData);
@@ -785,7 +936,12 @@ export function SchedulePage() {
 
     // Trigger the file picker
     fileInput.click();
-  }, [effectiveSelectedVersionNumber, effectiveDateRange, toast, importAiResponseMutation]);
+  }, [
+    effectiveSelectedVersionNumber,
+    effectiveDateRange,
+    toast,
+    importAiResponseMutation,
+  ]);
 
   const handleRetryFetch = useCallback(() => {
     clearGenerationLogs();
@@ -793,34 +949,43 @@ export function SchedulePage() {
     queryClient.invalidateQueries({ queryKey: ["schedules"] });
   }, [clearGenerationLogs, queryClient]); // Removed refetchScheduleData dependency
 
-  const handleHTMLMEPExport = useCallback((filiale: string) => {
-    if (!effectiveDateRange?.from || !effectiveDateRange?.to || !scheduleData || !employees) {
-      toast({
-        title: "Export nicht möglich",
-        description: "Bitte stellen Sie sicher, dass Zeitraum und Daten geladen sind.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      // Process the data for MEP template
-      const mepData = MEPDataService.processSchedulesForMEP(
-        scheduleData,
-        employees,
-        effectiveDateRange!.from!,
-        effectiveDateRange!.to!,
-        filiale
-      );
-
-      // Create a new window/tab for the MEP template
-      const newWindow = window.open('', '_blank', 'width=1200,height=800');
-      if (!newWindow) {
-        throw new Error('Popup blockiert. Bitte erlauben Sie Popups für diese Seite.');
+  const handleHTMLMEPExport = useCallback(
+    (filiale: string) => {
+      if (
+        !effectiveDateRange?.from ||
+        !effectiveDateRange?.to ||
+        !scheduleData ||
+        !employees
+      ) {
+        toast({
+          title: "Export nicht möglich",
+          description:
+            "Bitte stellen Sie sicher, dass Zeitraum und Daten geladen sind.",
+          variant: "destructive",
+        });
+        return;
       }
 
-      // Write the HTML structure
-      newWindow.document.write(`
+      try {
+        // Process the data for MEP template
+        const mepData = MEPDataService.processSchedulesForMEP(
+          scheduleData,
+          employees,
+          effectiveDateRange!.from!,
+          effectiveDateRange!.to!,
+          filiale,
+        );
+
+        // Create a new window/tab for the MEP template
+        const newWindow = window.open("", "_blank", "width=1200,height=800");
+        if (!newWindow) {
+          throw new Error(
+            "Popup blockiert. Bitte erlauben Sie Popups für diese Seite.",
+          );
+        }
+
+        // Write the HTML structure
+        newWindow.document.write(`
         <!DOCTYPE html>
         <html lang="de">
         <head>
@@ -837,12 +1002,12 @@ export function SchedulePage() {
         </body>
         </html>
       `);
-      newWindow.document.close();
+        newWindow.document.close();
 
-      // Inline the CSS content directly instead of fetching
-      const addInlineCSS = () => {
-        const style = newWindow.document.createElement('style');
-        style.textContent = `
+        // Inline the CSS content directly instead of fetching
+        const addInlineCSS = () => {
+          const style = newWindow.document.createElement("style");
+          style.textContent = `
           /* MEP Template Styles - Landscape Format */
           .mep-container {
             width: 100%;
@@ -1161,68 +1326,84 @@ export function SchedulePage() {
             margin: 0;
           }
         `;
-        newWindow.document.head.appendChild(style);
+          newWindow.document.head.appendChild(style);
 
-        // Now render the MEP component
-        renderMEPComponent();
-      };
-
-      const renderMEPComponent = () => {
-        // Handle new version creation
-        const handleCreateNewVersion = (weekNumber: number, versionNumber: number) => {
-          // Close the MEP window
-          newWindow.close();
-
-          // Create new version with specified week and version number
-          toast({
-            title: "Neue Version erstellt",
-            description: `Version ${versionNumber} für Woche ${weekNumber} wurde erstellt.`,
-          });
-
-          // Here you can add logic to actually create the new version
-          // For example, navigate to the new week/version or update the state
-          console.log(`Creating new version: Week ${weekNumber}, Version ${versionNumber}`);
+          // Now render the MEP component
+          renderMEPComponent();
         };
 
-        // Create React element
-        const mepElement = React.createElement(MEPTemplate, {
-          data: mepData,
-          onPrint: () => newWindow.print(),
-          onCreateNewVersion: handleCreateNewVersion
+        const renderMEPComponent = () => {
+          // Handle new version creation
+          const handleCreateNewVersion = (
+            weekNumber: number,
+            versionNumber: number,
+          ) => {
+            // Close the MEP window
+            newWindow.close();
+
+            // Create new version with specified week and version number
+            toast({
+              title: "Neue Version erstellt",
+              description: `Version ${versionNumber} für Woche ${weekNumber} wurde erstellt.`,
+            });
+
+            // Here you can add logic to actually create the new version
+            // For example, navigate to the new week/version or update the state
+            console.log(
+              `Creating new version: Week ${weekNumber}, Version ${versionNumber}`,
+            );
+          };
+
+          // Create React element
+          const mepElement = React.createElement(MEPTemplate, {
+            data: mepData,
+            onPrint: () => newWindow.print(),
+            onCreateNewVersion: handleCreateNewVersion,
+          });
+
+          // Render it in the new window
+          const root = ReactDOM.createRoot(
+            newWindow.document.getElementById("mep-root")!,
+          );
+          root.render(mepElement);
+        };
+
+        // Load CSS and render
+        addInlineCSS();
+
+        addGenerationLog("info", "MEP Template in neuem Fenster geöffnet");
+        toast({
+          title: "MEP Export erfolgreich",
+          description:
+            "Das MEP-Template wurde in einem neuen Fenster geöffnet. Verwenden Sie Strg+P zum Drucken.",
         });
+      } catch (error) {
+        addGenerationLog(
+          "error",
+          "HTML MEP export failed",
+          getErrorMessage(error),
+        );
+        toast({
+          title: "Fehler beim MEP Export",
+          description: getErrorMessage(error),
+          variant: "destructive",
+        });
+      }
+    },
+    [effectiveDateRange, scheduleData, employees, addGenerationLog, toast],
+  );
 
-        // Render it in the new window
-        const root = ReactDOM.createRoot(newWindow.document.getElementById('mep-root')!);
-        root.render(mepElement);
-      };
-
-      // Load CSS and render
-      addInlineCSS();
-
-      addGenerationLog("info", "MEP Template in neuem Fenster geöffnet");
-      toast({
-        title: "MEP Export erfolgreich",
-        description: "Das MEP-Template wurde in einem neuen Fenster geöffnet. Verwenden Sie Strg+P zum Drucken.",
-      });
-
-    } catch (error) {
-      addGenerationLog("error", "HTML MEP export failed", getErrorMessage(error));
-      toast({
-        title: "Fehler beim MEP Export",
-        description: getErrorMessage(error),
-        variant: "destructive",
-      });
-    }
-  }, [effectiveDateRange, scheduleData, employees, addGenerationLog, toast]);
-
-  const handleExportSchedule = useCallback(async (format: 'standard' | 'mep' | 'mep-html', filiale?: string) => {
-    if (format === 'mep-html') {
-      // Handle HTML MEP export differently - open in new tab
-      handleHTMLMEPExport(filiale || '');
-    } else {
-      exportMutation.mutate({ format, filiale });
-    }
-  }, [exportMutation, handleHTMLMEPExport]);
+  const handleExportSchedule = useCallback(
+    async (format: "standard" | "mep" | "mep-html", filiale?: string) => {
+      if (format === "mep-html") {
+        // Handle HTML MEP export differently - open in new tab
+        handleHTMLMEPExport(filiale || "");
+      } else {
+        exportMutation.mutate({ format, filiale });
+      }
+    },
+    [exportMutation, handleHTMLMEPExport],
+  );
 
   const handlePreviewAiData = useCallback(async () => {
     if (!effectiveDateRange?.from || !effectiveDateRange?.to) {
@@ -1363,8 +1544,13 @@ export function SchedulePage() {
     if (!versionNumber) {
       // Auto-create a version for the current week
       try {
-        console.log("Auto-creating version for current week:", weekBasedVersionControl.navigationState.currentWeek);
-        const result = await weekBasedVersionControl.createVersionForWeek(weekBasedVersionControl.navigationState.currentWeek);
+        console.log(
+          "Auto-creating version for current week:",
+          weekBasedVersionControl.navigationState.currentWeek,
+        );
+        const result = await weekBasedVersionControl.createVersionForWeek(
+          weekBasedVersionControl.navigationState.currentWeek,
+        );
         versionNumber = result.version;
 
         toast({
@@ -1400,7 +1586,10 @@ export function SchedulePage() {
     } catch (error) {
       toast({
         title: "Generierung fehlgeschlagen",
-        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Ein unerwarteter Fehler ist aufgetreten",
         variant: "destructive",
       });
     }
@@ -1529,8 +1718,13 @@ export function SchedulePage() {
     if (!versionNumber) {
       // Auto-create a version for the current week
       try {
-        console.log("Auto-creating version for current week:", weekBasedVersionControl.navigationState.currentWeek);
-        const result = await weekBasedVersionControl.createVersionForWeek(weekBasedVersionControl.navigationState.currentWeek);
+        console.log(
+          "Auto-creating version for current week:",
+          weekBasedVersionControl.navigationState.currentWeek,
+        );
+        const result = await weekBasedVersionControl.createVersionForWeek(
+          weekBasedVersionControl.navigationState.currentWeek,
+        );
         versionNumber = result.version;
 
         toast({
@@ -1550,10 +1744,26 @@ export function SchedulePage() {
     setIsAiFastGenerating(true);
     clearGenerationLogs();
     const aiSteps = [
-      { id: "ai-fast-init", title: "Initialisiere schnelle KI-Generierung", status: "pending" as const },
-      { id: "ai-fast-analyze", title: "Schnelle Analyse der Verfügbarkeiten", status: "pending" as const },
-      { id: "ai-fast-generate", title: "Erstelle Schichtplan (schnell)", status: "pending" as const },
-      { id: "ai-fast-finalize", title: "Finalisiere schnellen Schichtplan", status: "pending" as const },
+      {
+        id: "ai-fast-init",
+        title: "Initialisiere schnelle KI-Generierung",
+        status: "pending" as const,
+      },
+      {
+        id: "ai-fast-analyze",
+        title: "Schnelle Analyse der Verfügbarkeiten",
+        status: "pending" as const,
+      },
+      {
+        id: "ai-fast-generate",
+        title: "Erstelle Schichtplan (schnell)",
+        status: "pending" as const,
+      },
+      {
+        id: "ai-fast-finalize",
+        title: "Finalisiere schnellen Schichtplan",
+        status: "pending" as const,
+      },
     ];
     // Overlay state is managed by useScheduleGeneration; add logs and update steps only
     addGenerationLog(
@@ -1569,15 +1779,14 @@ export function SchedulePage() {
       updateGenerationStep("ai-fast-init", "completed");
       updateGenerationStep("ai-fast-analyze", "in-progress");
       await new Promise((r) => setTimeout(r, 300));
-      const result = await generateAiSchedule(
-        fromStr,
-        toStr,
-        versionNumber,
-      );
+      const result = await generateAiSchedule(fromStr, toStr, versionNumber);
       updateGenerationStep("ai-fast-analyze", "completed");
       updateGenerationStep("ai-fast-generate", "in-progress");
       await new Promise((r) => setTimeout(r, 300));
-      addGenerationLog("info", "Fast AI schedule generation API call successful");
+      addGenerationLog(
+        "info",
+        "Fast AI schedule generation API call successful",
+      );
       if (result.generated_assignments_count)
         addGenerationLog(
           "info",
@@ -1594,7 +1803,11 @@ export function SchedulePage() {
         description: "Schichtplan wurde schnell generiert.",
       });
       if (result.diagnostic_log) {
-        addGenerationLog("info", "Diagnostic log available:", result.diagnostic_log);
+        addGenerationLog(
+          "info",
+          "Diagnostic log available:",
+          result.diagnostic_log,
+        );
       }
       setTimeout(() => setIsAiFastGenerating(false), 2000);
     } catch (err: unknown) {
@@ -1627,8 +1840,13 @@ export function SchedulePage() {
     if (!versionNumber) {
       // Auto-create a version for the current week
       try {
-        console.log("Auto-creating version for current week:", weekBasedVersionControl.navigationState.currentWeek);
-        const result = await weekBasedVersionControl.createVersionForWeek(weekBasedVersionControl.navigationState.currentWeek);
+        console.log(
+          "Auto-creating version for current week:",
+          weekBasedVersionControl.navigationState.currentWeek,
+        );
+        const result = await weekBasedVersionControl.createVersionForWeek(
+          weekBasedVersionControl.navigationState.currentWeek,
+        );
         versionNumber = result.version;
 
         toast({
@@ -1649,7 +1867,7 @@ export function SchedulePage() {
     }
 
     // Open the appropriate AI dialog based on user preference
-    if (aiDialogType === 'classic') {
+    if (aiDialogType === "classic") {
       setIsClassicAiModalOpen(true);
     } else {
       setIsDetailedAiModalOpen(true);
@@ -1662,8 +1880,13 @@ export function SchedulePage() {
     if (!effectiveSelectedVersion) {
       // Auto-create a version for the current week
       try {
-        console.log("Auto-creating version for current week:", weekBasedVersionControl.navigationState.currentWeek);
-        await weekBasedVersionControl.createVersionForWeek(weekBasedVersionControl.navigationState.currentWeek);
+        console.log(
+          "Auto-creating version for current week:",
+          weekBasedVersionControl.navigationState.currentWeek,
+        );
+        await weekBasedVersionControl.createVersionForWeek(
+          weekBasedVersionControl.navigationState.currentWeek,
+        );
         toast({
           title: "Version erstellt",
           description: "Eine neue Version wurde automatisch erstellt.",
@@ -1700,13 +1923,15 @@ export function SchedulePage() {
     } else {
       toast({
         title: "Fehler",
-        description: "Keine Mitarbeiter verfügbar. Bitte fügen Sie erst Mitarbeiter hinzu.",
+        description:
+          "Keine Mitarbeiter verfügbar. Bitte fügen Sie erst Mitarbeiter hinzu.",
         variant: "destructive",
       });
     }
   };
 
-  const handleAddAbsenceForEmployee = (employeeId: number, _date: Date) => { // eslint-disable-line @typescript-eslint/no-unused-vars
+  const handleAddAbsenceForEmployee = (employeeId: number, _date: Date) => {
+    // eslint-disable-line @typescript-eslint/no-unused-vars
     setSelectedEmployeeForAbsence(employeeId);
     setIsAbsenceModalOpen(true);
   };
@@ -1747,7 +1972,11 @@ export function SchedulePage() {
         employee_id: availabilityData.employee_id,
         start_date: availabilityData.date,
         end_date: availabilityData.date,
-        availability_type: availabilityData.availability_type as "AVAILABLE" | "FIXED" | "PREFERRED" | "UNAVAILABLE",
+        availability_type: availabilityData.availability_type as
+          | "AVAILABLE"
+          | "FIXED"
+          | "PREFERRED"
+          | "UNAVAILABLE",
         is_recurring: false,
       };
 
@@ -1909,66 +2138,84 @@ export function SchedulePage() {
     }
   };
 
-  const handleDockDrop = useCallback(async (employeeId: number, date: Date, shiftId: number) => {
-    if (!effectiveSelectedVersion) {
-      toast({
-        title: "Fehler",
-        description: "Keine Version ausgewählt.",
-        variant: "destructive",
-      });
-      return;
-    }
+  const handleDockDrop = useCallback(
+    async (employeeId: number, date: Date, shiftId: number) => {
+      if (!effectiveSelectedVersion) {
+        toast({
+          title: "Fehler",
+          description: "Keine Version ausgewählt.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    // Use the numeric version number directly
-    const versionNumber = effectiveSelectedVersionNumber || 1;
+      // Use the numeric version number directly
+      const versionNumber = effectiveSelectedVersionNumber || 1;
 
-    console.log("🔧 handleDockDrop:", {
-      employeeId,
-      date: format(date, "yyyy-MM-dd"),
-      shiftId,
-      effectiveSelectedVersion,
-      extractedVersionNumber: versionNumber
-    });
-
-    try {
-      await createSchedule({
-        employee_id: employeeId,
+      console.log("🔧 handleDockDrop:", {
+        employeeId,
         date: format(date, "yyyy-MM-dd"),
-        shift_id: shiftId,
-        version: versionNumber,
+        shiftId,
+        effectiveSelectedVersion,
+        extractedVersionNumber: versionNumber,
       });
-      // Use query invalidation instead of manual refetch to prevent loops
-      queryClient.invalidateQueries({ queryKey: ["schedules"] });
-      toast({
-        title: "Schicht hinzugefügt",
-        description: "Schicht erfolgreich aus dem Dock zugewiesen.",
-      });
-    } catch (error) {
-      console.error("🚨 Dock drop error:", error);
-      toast({
-        title: "Fehler beim Hinzufügen",
-        description: getErrorMessage(error),
-        variant: "destructive",
-      });
-    }
-  }, [effectiveSelectedVersion, effectiveSelectedVersionNumber, queryClient, toast]);
+
+      try {
+        await createSchedule({
+          employee_id: employeeId,
+          date: format(date, "yyyy-MM-dd"),
+          shift_id: shiftId,
+          version: versionNumber,
+        });
+        // Use query invalidation instead of manual refetch to prevent loops
+        queryClient.invalidateQueries({ queryKey: ["schedules"] });
+        toast({
+          title: "Schicht hinzugefügt",
+          description: "Schicht erfolgreich aus dem Dock zugewiesen.",
+        });
+      } catch (error) {
+        console.error("🚨 Dock drop error:", error);
+        toast({
+          title: "Fehler beim Hinzufügen",
+          description: getErrorMessage(error),
+          variant: "destructive",
+        });
+      }
+    },
+    [
+      effectiveSelectedVersion,
+      effectiveSelectedVersionNumber,
+      queryClient,
+      toast,
+    ],
+  );
 
   // Add event listener for dock drops from schedule cells
   useEffect(() => {
     const handleDockDropEvent = (event: CustomEvent) => {
       const { employeeId, date, shiftId } = event.detail;
-      console.log("🎯 Received dock drop event:", { employeeId, date, shiftId });
+      console.log("🎯 Received dock drop event:", {
+        employeeId,
+        date,
+        shiftId,
+      });
       handleDockDrop(employeeId, date, shiftId);
     };
 
-    window.addEventListener('dockDrop', handleDockDropEvent as EventListener);
+    window.addEventListener("dockDrop", handleDockDropEvent as EventListener);
 
     return () => {
-      window.removeEventListener('dockDrop', handleDockDropEvent as EventListener);
+      window.removeEventListener(
+        "dockDrop",
+        handleDockDropEvent as EventListener,
+      );
     };
   }, [handleDockDrop]);
 
-  const handleShiftUpdate = async (scheduleId: number, updates: ScheduleUpdate) => {
+  const handleShiftUpdate = async (
+    scheduleId: number,
+    updates: ScheduleUpdate,
+  ) => {
     if (scheduleId === undefined || scheduleId === null || scheduleId <= 0) {
       toast({
         title: "Fehler Aktualisieren",
@@ -1999,7 +2246,9 @@ export function SchedulePage() {
     }
   };
 
-  const handleGenerationRequirementsUpdate = (updatedRequirements: Record<string, boolean>) => {
+  const handleGenerationRequirementsUpdate = (
+    updatedRequirements: Record<string, boolean>,
+  ) => {
     if (!settingsQuery.data) return;
 
     const prev = settingsQuery.data.scheduling.generation_requirements || {
@@ -2019,21 +2268,46 @@ export function SchedulePage() {
       enforce_opening_hours: false,
     };
 
-    const nextReq: NonNullable<SettingsType["scheduling"]["generation_requirements"]> = {
-      enforce_minimum_coverage: updatedRequirements.enforce_minimum_coverage ?? prev.enforce_minimum_coverage,
-      enforce_contracted_hours: updatedRequirements.enforce_contracted_hours ?? prev.enforce_contracted_hours,
-      enforce_keyholder_coverage: updatedRequirements.enforce_keyholder_coverage ?? prev.enforce_keyholder_coverage,
-      enforce_rest_periods: updatedRequirements.enforce_rest_periods ?? prev.enforce_rest_periods,
-      enforce_early_late_rules: updatedRequirements.enforce_early_late_rules ?? prev.enforce_early_late_rules,
-      enforce_employee_group_rules: updatedRequirements.enforce_employee_group_rules ?? prev.enforce_employee_group_rules,
-      enforce_break_rules: updatedRequirements.enforce_break_rules ?? prev.enforce_break_rules,
-      enforce_max_hours: updatedRequirements.enforce_max_hours ?? prev.enforce_max_hours,
-      enforce_consecutive_days: updatedRequirements.enforce_consecutive_days ?? prev.enforce_consecutive_days,
-      enforce_weekend_distribution: updatedRequirements.enforce_weekend_distribution ?? prev.enforce_weekend_distribution,
-      enforce_shift_distribution: updatedRequirements.enforce_shift_distribution ?? prev.enforce_shift_distribution,
-      enforce_availability: updatedRequirements.enforce_availability ?? prev.enforce_availability,
-      enforce_qualifications: updatedRequirements.enforce_qualifications ?? prev.enforce_qualifications,
-      enforce_opening_hours: updatedRequirements.enforce_opening_hours ?? prev.enforce_opening_hours,
+    const nextReq: NonNullable<
+      SettingsType["scheduling"]["generation_requirements"]
+    > = {
+      enforce_minimum_coverage:
+        updatedRequirements.enforce_minimum_coverage ??
+        prev.enforce_minimum_coverage,
+      enforce_contracted_hours:
+        updatedRequirements.enforce_contracted_hours ??
+        prev.enforce_contracted_hours,
+      enforce_keyholder_coverage:
+        updatedRequirements.enforce_keyholder_coverage ??
+        prev.enforce_keyholder_coverage,
+      enforce_rest_periods:
+        updatedRequirements.enforce_rest_periods ?? prev.enforce_rest_periods,
+      enforce_early_late_rules:
+        updatedRequirements.enforce_early_late_rules ??
+        prev.enforce_early_late_rules,
+      enforce_employee_group_rules:
+        updatedRequirements.enforce_employee_group_rules ??
+        prev.enforce_employee_group_rules,
+      enforce_break_rules:
+        updatedRequirements.enforce_break_rules ?? prev.enforce_break_rules,
+      enforce_max_hours:
+        updatedRequirements.enforce_max_hours ?? prev.enforce_max_hours,
+      enforce_consecutive_days:
+        updatedRequirements.enforce_consecutive_days ??
+        prev.enforce_consecutive_days,
+      enforce_weekend_distribution:
+        updatedRequirements.enforce_weekend_distribution ??
+        prev.enforce_weekend_distribution,
+      enforce_shift_distribution:
+        updatedRequirements.enforce_shift_distribution ??
+        prev.enforce_shift_distribution,
+      enforce_availability:
+        updatedRequirements.enforce_availability ?? prev.enforce_availability,
+      enforce_qualifications:
+        updatedRequirements.enforce_qualifications ??
+        prev.enforce_qualifications,
+      enforce_opening_hours:
+        updatedRequirements.enforce_opening_hours ?? prev.enforce_opening_hours,
     };
 
     const updatedSettings: SettingsType = {
@@ -2041,7 +2315,7 @@ export function SchedulePage() {
       scheduling: {
         ...settingsQuery.data.scheduling,
         generation_requirements: nextReq,
-      }
+      },
     };
 
     handleSettingsUpdate(updatedSettings);
@@ -2084,7 +2358,7 @@ export function SchedulePage() {
     // In the future, this could be a separate conversation API
     toast({
       title: "KI-Anweisung verarbeitet",
-      description: `Anweisung: "${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}"`,
+      description: `Anweisung: "${prompt.slice(0, 100)}${prompt.length > 100 ? "..." : ""}"`,
     });
 
     // TODO: Implement conversation mode endpoint
@@ -2099,19 +2373,22 @@ export function SchedulePage() {
     isAiGenerating;
 
   // Handler for updating generation options
-  const handleGenerationOptionsUpdate = useCallback((options: GenerationOptions) => {
-    setGenerationOptions(options);
-  }, []);
+  const handleGenerationOptionsUpdate = useCallback(
+    (options: GenerationOptions) => {
+      setGenerationOptions(options);
+    },
+    [],
+  );
 
   // AI Search handlers
   const handleAISearch = (query: string, suggestions?: SearchSuggestion[]) => {
-    console.log('AI Search query:', query, 'Suggestions:', suggestions);
+    console.log("AI Search query:", query, "Suggestions:", suggestions);
     // TODO: Implement AI-powered search logic for schedules
     // This could search across schedules, employees, shifts, etc.
   };
 
   const handleAISuggestionSelect = (suggestion: SearchSuggestion) => {
-    console.log('AI Suggestion selected:', suggestion);
+    console.log("AI Suggestion selected:", suggestion);
     // TODO: Handle suggestion selection (e.g., filter schedules, navigate to specific date, etc.)
   };
 
@@ -2146,22 +2423,35 @@ export function SchedulePage() {
           hasVersion={weekBasedVersionControl.navigationState.hasVersions}
           weekNavigationSettings={{
             weekendStart: weekBasedVersionControl.settings.weekendStart,
-            monthBoundaryMode: weekBasedVersionControl.settings.monthBoundaryMode,
+            monthBoundaryMode:
+              weekBasedVersionControl.settings.monthBoundaryMode,
           }}
           onSegmentChange={async (seg) => {
             try {
-              const segments = await getWeekSegments(weekBasedVersionControl.navigationState.currentWeek);
+              const segments = await getWeekSegments(
+                weekBasedVersionControl.navigationState.currentWeek,
+              );
               if (segments?.isSplit) {
-                const chosen = segments.segments.find(s => s.segment_number === seg);
+                const chosen = segments.segments.find(
+                  (s) => s.segment_number === seg,
+                );
                 if (chosen) {
-                  setDateRange({ from: new Date(chosen.start_date), to: new Date(chosen.end_date) });
+                  setDateRange({
+                    from: new Date(chosen.start_date),
+                    to: new Date(chosen.end_date),
+                  });
                   versionActions.resetVersionSelection();
                   queryClient.invalidateQueries({ queryKey: ["schedules"] });
-                  queryClient.invalidateQueries({ queryKey: ["monthlyPublishedSchedules"] });
+                  queryClient.invalidateQueries({
+                    queryKey: ["monthlyPublishedSchedules"],
+                  });
                 }
               }
             } catch (err) {
-              console.error('Failed to fetch week segments for segment change', err);
+              console.error(
+                "Failed to fetch week segments for segment change",
+                err,
+              );
             }
           }}
         />
@@ -2181,13 +2471,14 @@ export function SchedulePage() {
           showCreateButton={true}
           weekNavigationSettings={{
             weekendStart: weekBasedVersionControl.settings.weekendStart,
-            monthBoundaryMode: weekBasedVersionControl.settings.monthBoundaryMode,
+            monthBoundaryMode:
+              weekBasedVersionControl.settings.monthBoundaryMode,
           }}
         />
 
         {/* Weekly KPI Cards */}
         <ScheduleMetricsCards
-          schedules={effectiveSelectedVersionNumber ? (scheduleData || []) : []}
+          schedules={effectiveSelectedVersionNumber ? scheduleData || [] : []}
           dateRange={effectiveDateRange}
           employees={employees}
           openingDays={openingDays}
@@ -2205,9 +2496,7 @@ export function SchedulePage() {
             isAiFastGenerating={isAiFastGenerating}
             isAiDetailedGenerating={isAiDetailedGenerating}
             canAdd={!!effectiveDateRange?.from && !!effectiveDateRange?.to}
-            canDelete={
-              scheduleData?.length > 0 && !!effectiveSelectedVersion
-            }
+            canDelete={scheduleData?.length > 0 && !!effectiveSelectedVersion}
             canGenerate={!!effectiveDateRange?.from && !!effectiveDateRange?.to}
             hasScheduleData={scheduleData?.length > 0}
             onAddSchedule={handleAddSchedule}
@@ -2233,18 +2522,18 @@ export function SchedulePage() {
             <span className="text-sm font-medium">KI-Dialog:</span>
             <div className="flex items-center gap-1">
               <Button
-                variant={aiDialogType === 'classic' ? 'default' : 'ghost'}
+                variant={aiDialogType === "classic" ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setAiDialogType('classic')}
+                onClick={() => setAiDialogType("classic")}
                 className="h-7 px-2 text-xs"
               >
                 <Sliders className="h-3 w-3 mr-1" />
                 Klassisch
               </Button>
               <Button
-                variant={aiDialogType === 'modern' ? 'default' : 'ghost'}
+                variant={aiDialogType === "modern" ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setAiDialogType('modern')}
+                onClick={() => setAiDialogType("modern")}
                 className="h-7 px-2 text-xs"
               >
                 <Wand2 className="h-3 w-3 mr-1" />
@@ -2256,7 +2545,6 @@ export function SchedulePage() {
       </div>
 
       <DndProvider backend={HTML5Backend}>
-
         {isLoadingSchedule ? (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -2345,9 +2633,14 @@ export function SchedulePage() {
           <>
             {errors.length > 0 && <ScheduleErrors errors={errors} />}
             <div className="relative">
-              <AvailabilityProvider dateRange={safeEffectiveDateRange} enabled={!isLoadingSchedule}>
+              <AvailabilityProvider
+                dateRange={safeEffectiveDateRange}
+                enabled={!isLoadingSchedule}
+              >
                 <ScheduleManager
-                  schedules={effectiveSelectedVersionNumber ? (scheduleData || []) : []} // Only show schedules when version is selected
+                  schedules={
+                    effectiveSelectedVersionNumber ? scheduleData || [] : []
+                  } // Only show schedules when version is selected
                   monthlyPublishedSchedules={monthlyPublishedSchedules}
                   dateRange={effectiveDateRange}
                   onDrop={handleShiftDrop}
@@ -2355,13 +2648,19 @@ export function SchedulePage() {
                   onAddAbsence={handleAddAbsenceForEmployee}
                   isLoading={isLoadingSchedule}
                   employeeAbsences={employeeAbsences}
-                  absenceTypes={
-                    (effectiveSettingsData?.employee_groups?.absence_types || [])
-                      .filter(type => type.type === "absence")
-                      .map(type => ({ ...type, type: "absence" as const }))
-                  }
+                  absenceTypes={(
+                    effectiveSettingsData?.employee_groups?.absence_types || []
+                  )
+                    .filter((type) => type.type === "absence")
+                    .map((type) => ({ ...type, type: "absence" as const }))}
                   currentVersion={effectiveSelectedVersionNumber || 1}
-                  versionStatus={versionState.versions[0]?.status as "DRAFT" | "PUBLISHED" | "ARCHIVED" | undefined}
+                  versionStatus={
+                    versionState.versions[0]?.status as
+                      | "DRAFT"
+                      | "PUBLISHED"
+                      | "ARCHIVED"
+                      | undefined
+                  }
                   openingDays={openingDays}
                   specialDays={specialDaysMap}
                   isEmptyState={
@@ -2379,7 +2678,8 @@ export function SchedulePage() {
                   onNavigateNext={weekBasedVersionControl.navigateNext}
                   weekNavigationSettings={{
                     weekendStart: weekBasedVersionControl.settings.weekendStart,
-                    monthBoundaryMode: weekBasedVersionControl.settings.monthBoundaryMode,
+                    monthBoundaryMode:
+                      weekBasedVersionControl.settings.monthBoundaryMode,
                   }}
                 />
               </AvailabilityProvider>
@@ -2388,45 +2688,65 @@ export function SchedulePage() {
         )}
 
         {/* Real-time AI Components */}
-        {effectiveSelectedVersionNumber && scheduleData && scheduleData.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-            <LiveScheduleOptimizer
-              onOptimizationComplete={(result) => {
-                console.log('Optimization completed:', result);
-                // Optionally refresh schedule data or show notification
-                queryClient.invalidateQueries({ queryKey: ["schedules"] });
-              }}
-            />
-            <RealTimeConflictDetector
-              onConflictDetected={(conflicts) => {
-                console.log('New conflicts detected:', conflicts);
-                // Optionally show notification or update UI
-              }}
-              onConflictResolved={(conflictId) => {
-                console.log('Conflict resolved:', conflictId);
-                // Optionally update conflict count or refresh data
-              }}
-            />
-          </div>
-        )}
+        {effectiveSelectedVersionNumber &&
+          scheduleData &&
+          scheduleData.length > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
+              <LiveScheduleOptimizer
+                onOptimizationComplete={(result) => {
+                  console.log("Optimization completed:", result);
+                  // Optionally refresh schedule data or show notification
+                  queryClient.invalidateQueries({ queryKey: ["schedules"] });
+                }}
+              />
+              <RealTimeConflictDetector
+                onConflictDetected={(conflicts) => {
+                  console.log("New conflicts detected:", conflicts);
+                  // Optionally show notification or update UI
+                }}
+                onConflictResolved={(conflictId) => {
+                  console.log("Conflict resolved:", conflictId);
+                  // Optionally update conflict count or refresh data
+                }}
+              />
+            </div>
+          )}
 
         {/* Schedule Dock - Sticky bottom dock for drag and drop */}
         <ActionDock
           currentVersion={effectiveSelectedVersionNumber}
           selectedDate={effectiveDateRange?.from}
           dateRange={effectiveDateRange}
-          versionMeta={validVersionsForCurrentRange.length > 0 ? convertToWeekVersionMeta({
-            version: validVersionsForCurrentRange[0].version,
-            week_identifier: currentWeek,
-            date_range_start: format(dateRange?.from || new Date(), "yyyy-MM-dd"),
-            date_range_end: format(dateRange?.to || new Date(), "yyyy-MM-dd"),
-            is_week_based: true,
-            status: validVersionsForCurrentRange[0].status,
-            created_at: validVersionsForCurrentRange[0].created_at || new Date().toISOString(),
-            notes: validVersionsForCurrentRange[0].notes || '',
-          }) : undefined}
-          versionStatus={validVersionsForCurrentRange[0]?.status as "DRAFT" | "PUBLISHED" | "ARCHIVED" | undefined}
-          schedules={effectiveSelectedVersionNumber ? (scheduleData || []) : []} // Only pass schedules when version is selected
+          versionMeta={
+            validVersionsForCurrentRange.length > 0
+              ? convertToWeekVersionMeta({
+                  version: validVersionsForCurrentRange[0].version,
+                  week_identifier: currentWeek,
+                  date_range_start: format(
+                    dateRange?.from || new Date(),
+                    "yyyy-MM-dd",
+                  ),
+                  date_range_end: format(
+                    dateRange?.to || new Date(),
+                    "yyyy-MM-dd",
+                  ),
+                  is_week_based: true,
+                  status: validVersionsForCurrentRange[0].status,
+                  created_at:
+                    validVersionsForCurrentRange[0].created_at ||
+                    new Date().toISOString(),
+                  notes: validVersionsForCurrentRange[0].notes || "",
+                })
+              : undefined
+          }
+          versionStatus={
+            validVersionsForCurrentRange[0]?.status as
+              | "DRAFT"
+              | "PUBLISHED"
+              | "ARCHIVED"
+              | undefined
+          }
+          schedules={effectiveSelectedVersionNumber ? scheduleData || [] : []} // Only pass schedules when version is selected
           onDrop={handleDockDrop}
           onAIPrompt={handleAIPrompt}
         />
@@ -2470,7 +2790,9 @@ export function SchedulePage() {
               <DialogDescription>Anpassen</DialogDescription>
             </DialogHeader>
             <ScheduleGenerationSettings
-              settings={settingsQuery.data?.scheduling?.generation_requirements || null}
+              settings={
+                settingsQuery.data?.scheduling?.generation_requirements || null
+              }
               onUpdate={handleGenerationRequirementsUpdate}
               generationOptions={generationOptions}
               onGenerationOptionsUpdate={handleGenerationOptionsUpdate}
@@ -2513,24 +2835,31 @@ export function SchedulePage() {
           isOpen={isAddAvailabilityDialogOpen}
           onClose={() => setIsAddAvailabilityDialogOpen(false)}
           onSubmit={handleCreateAvailability}
-          employees={employees?.map(emp => ({
-            id: emp.id,
-            name: emp.last_name,
-            vorname: emp.first_name
-          })) || []}
+          employees={
+            employees?.map((emp) => ({
+              id: emp.id,
+              name: emp.last_name,
+              vorname: emp.first_name,
+            })) || []
+          }
         />
       )}
 
       {/* Enhanced Availability Modal */}
-      {isEnhancedAvailabilityModalOpen && effectiveDateRange?.from && effectiveDateRange?.to && (
-        <EnhancedAvailabilityModal
-          isOpen={isEnhancedAvailabilityModalOpen}
-          onClose={() => setIsEnhancedAvailabilityModalOpen(false)}
-          dateRange={{ from: effectiveDateRange.from, to: effectiveDateRange.to }}
-          availabilityType={selectedAvailabilityType}
-          currentVersion={effectiveSelectedVersionNumber}
-        />
-      )}
+      {isEnhancedAvailabilityModalOpen &&
+        effectiveDateRange?.from &&
+        effectiveDateRange?.to && (
+          <EnhancedAvailabilityModal
+            isOpen={isEnhancedAvailabilityModalOpen}
+            onClose={() => setIsEnhancedAvailabilityModalOpen(false)}
+            dateRange={{
+              from: effectiveDateRange.from,
+              to: effectiveDateRange.to,
+            }}
+            availabilityType={selectedAvailabilityType}
+            currentVersion={effectiveSelectedVersionNumber}
+          />
+        )}
 
       {/* Absence Modal */}
       {isAbsenceModalOpen && selectedEmployeeForAbsence && (
@@ -2541,7 +2870,9 @@ export function SchedulePage() {
             setSelectedEmployeeForAbsence(null);
           }}
           employeeId={selectedEmployeeForAbsence}
-          absenceTypes={(effectiveSettingsData?.employee_groups?.absence_types || []).filter((t): t is AbsenceType => t.type === "absence_type")}
+          absenceTypes={(
+            effectiveSettingsData?.employee_groups?.absence_types || []
+          ).filter((t): t is AbsenceType => t.type === "absence_type")}
           employees={employees || []}
           allowEmployeeSelection={true}
         />
@@ -2551,7 +2882,7 @@ export function SchedulePage() {
       <ScheduleStatisticsModal
         isOpen={isStatisticsModalOpen}
         onClose={() => setIsStatisticsModalOpen(false)}
-        schedules={effectiveSelectedVersionNumber ? (scheduleData || []) : []} // Only show schedules when version is selected
+        schedules={effectiveSelectedVersionNumber ? scheduleData || [] : []} // Only show schedules when version is selected
         employees={employees || []}
         dateRange={effectiveDateRange}
         version={effectiveSelectedVersionNumber || 1}
@@ -2598,7 +2929,6 @@ export function SchedulePage() {
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 Endgültig löschen
-
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -2610,7 +2940,9 @@ export function SchedulePage() {
         <DialogContent className="sm:max-w-[900px]">
           <DialogHeader>
             <DialogTitle>Optimierte KI-Daten Vorschau</DialogTitle>
-            <DialogDescription>Vorschau der optimierten Daten, die an die KI gesendet werden</DialogDescription>
+            <DialogDescription>
+              Vorschau der optimierten Daten, die an die KI gesendet werden
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -2618,28 +2950,52 @@ export function SchedulePage() {
             {aiPreviewData?.metadata && (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                 <div className="text-center">
-                  <div className="font-semibold text-lg">{aiPreviewData.data_pack?.employees?.length || 0}</div>
-                  <div className="text-sm text-muted-foreground">Gefilterte Mitarbeiter</div>
+                  <div className="font-semibold text-lg">
+                    {aiPreviewData.data_pack?.employees?.length || 0}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Gefilterte Mitarbeiter
+                  </div>
                 </div>
                 <div className="text-center">
-                  <div className="font-semibold text-lg">{aiPreviewData.data_pack?.shifts?.length || 0}</div>
-                  <div className="text-sm text-muted-foreground">Relevante Schichten</div>
+                  <div className="font-semibold text-lg">
+                    {aiPreviewData.data_pack?.shifts?.length || 0}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Relevante Schichten
+                  </div>
                 </div>
                 <div className="text-center">
-                  <div className="font-semibold text-lg">{aiPreviewData.data_pack?.coverage_rules?.length || 0}</div>
-                  <div className="text-sm text-muted-foreground">Abdeckungsregeln</div>
+                  <div className="font-semibold text-lg">
+                    {aiPreviewData.data_pack?.coverage_rules?.length || 0}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Abdeckungsregeln
+                  </div>
                 </div>
                 <div className="text-center">
-                  <div className="font-semibold text-lg">{aiPreviewData.data_pack?.availability?.length || 0}</div>
-                  <div className="text-sm text-muted-foreground">Verfügbarkeitsfenster</div>
+                  <div className="font-semibold text-lg">
+                    {aiPreviewData.data_pack?.availability?.length || 0}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Verfügbarkeitsfenster
+                  </div>
                 </div>
                 <div className="text-center">
-                  <div className="font-semibold text-lg">{aiPreviewData.data_pack?.absences?.length || 0}</div>
-                  <div className="text-sm text-muted-foreground">Abwesenheiten</div>
+                  <div className="font-semibold text-lg">
+                    {aiPreviewData.data_pack?.absences?.length || 0}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Abwesenheiten
+                  </div>
                 </div>
                 <div className="text-center">
-                  <div className="font-semibold text-lg">{aiPreviewData.metadata.estimated_size_reduction}</div>
-                  <div className="text-sm text-muted-foreground">Datenreduktion</div>
+                  <div className="font-semibold text-lg">
+                    {aiPreviewData.metadata.estimated_size_reduction}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Datenreduktion
+                  </div>
                 </div>
               </div>
             )}
@@ -2647,19 +3003,28 @@ export function SchedulePage() {
             {/* Optimization Info */}
             {aiPreviewData?.metadata && (
               <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <h3 className="font-semibold mb-2 text-green-700 dark:text-green-400">✅ Optimierungsstatus:</h3>
+                <h3 className="font-semibold mb-2 text-green-700 dark:text-green-400">
+                  ✅ Optimierungsstatus:
+                </h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="font-medium">Optimierung aktiv:</span> {aiPreviewData.metadata.optimization_applied ? "Ja" : "Nein"}
+                    <span className="font-medium">Optimierung aktiv:</span>{" "}
+                    {aiPreviewData.metadata.optimization_applied
+                      ? "Ja"
+                      : "Nein"}
                   </div>
                   <div>
-                    <span className="font-medium">Datenstruktur:</span> {aiPreviewData.metadata.data_structure_version}
+                    <span className="font-medium">Datenstruktur:</span>{" "}
+                    {aiPreviewData.metadata.data_structure_version}
                   </div>
                   <div>
-                    <span className="font-medium">Zeitraum:</span> {aiPreviewData.metadata.start_date} bis {aiPreviewData.metadata.end_date}
+                    <span className="font-medium">Zeitraum:</span>{" "}
+                    {aiPreviewData.metadata.start_date} bis{" "}
+                    {aiPreviewData.metadata.end_date}
                   </div>
                   <div>
-                    <span className="font-medium">Abschnitte:</span> {aiPreviewData.metadata.total_sections}
+                    <span className="font-medium">Abschnitte:</span>{" "}
+                    {aiPreviewData.metadata.total_sections}
                   </div>
                 </div>
               </div>
@@ -2671,73 +3036,145 @@ export function SchedulePage() {
                 {/* Optimized Data */}
                 {aiPreviewData?.data_pack && (
                   <div>
-                    <h3 className="font-semibold mb-2 text-blue-700 dark:text-blue-400">📊 Optimierte KI-Daten:</h3>
+                    <h3 className="font-semibold mb-2 text-blue-700 dark:text-blue-400">
+                      📊 Optimierte KI-Daten:
+                    </h3>
 
                     {/* Schedule Period */}
                     {aiPreviewData.data_pack.schedule_period && (
                       <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-md">
-                        <h4 className="font-medium mb-2">📅 Planungszeitraum:</h4>
-                        <pre className="text-sm">{JSON.stringify(aiPreviewData.data_pack.schedule_period, null, 2)}</pre>
+                        <h4 className="font-medium mb-2">
+                          📅 Planungszeitraum:
+                        </h4>
+                        <pre className="text-sm">
+                          {JSON.stringify(
+                            aiPreviewData.data_pack.schedule_period,
+                            null,
+                            2,
+                          )}
+                        </pre>
                       </div>
                     )}
 
                     {/* Coverage Rules */}
-                    {aiPreviewData.data_pack.coverage_rules && aiPreviewData.data_pack.coverage_rules.length > 0 && (
-                      <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-md">
-                        <h4 className="font-medium mb-2">🎯 Abdeckungsregeln (Muster-basiert, {aiPreviewData.data_pack.coverage_rules.length}):</h4>
-                        <pre className="text-sm max-h-32 overflow-y-auto">{JSON.stringify(aiPreviewData.data_pack.coverage_rules, null, 2)}</pre>
-                        <div className="mt-2 text-xs text-purple-600 dark:text-purple-400">
-                          ✨ Optimiert: Regeln statt tägliche Expansion (90% weniger Daten)
+                    {aiPreviewData.data_pack.coverage_rules &&
+                      aiPreviewData.data_pack.coverage_rules.length > 0 && (
+                        <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-md">
+                          <h4 className="font-medium mb-2">
+                            🎯 Abdeckungsregeln (Muster-basiert,{" "}
+                            {aiPreviewData.data_pack.coverage_rules.length}):
+                          </h4>
+                          <pre className="text-sm max-h-32 overflow-y-auto">
+                            {JSON.stringify(
+                              aiPreviewData.data_pack.coverage_rules,
+                              null,
+                              2,
+                            )}
+                          </pre>
+                          <div className="mt-2 text-xs text-purple-600 dark:text-purple-400">
+                            ✨ Optimiert: Regeln statt tägliche Expansion (90%
+                            weniger Daten)
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
                     {/* Employees */}
-                    {aiPreviewData.data_pack.employees && aiPreviewData.data_pack.employees.length > 0 && (
-                      <div className="mb-4 p-3 bg-cyan-50 dark:bg-cyan-900/20 rounded-md">
-                        <h4 className="font-medium mb-2">👥 Gefilterte Mitarbeiter ({aiPreviewData.data_pack.employees.length}):</h4>
-                        <pre className="text-sm max-h-32 overflow-y-auto">{JSON.stringify(aiPreviewData.data_pack.employees.slice(0, 3), null, 2)}</pre>
-                        {aiPreviewData.data_pack.employees.length > 3 && (
-                          <p className="text-xs text-muted-foreground mt-2">... und {aiPreviewData.data_pack.employees.length - 3} weitere</p>
-                        )}
-                        <div className="mt-2 text-xs text-cyan-600 dark:text-cyan-400">
-                          ✨ Optimiert: Nur verfügbare Mitarbeiter, essenzielle Felder
+                    {aiPreviewData.data_pack.employees &&
+                      aiPreviewData.data_pack.employees.length > 0 && (
+                        <div className="mb-4 p-3 bg-cyan-50 dark:bg-cyan-900/20 rounded-md">
+                          <h4 className="font-medium mb-2">
+                            👥 Gefilterte Mitarbeiter (
+                            {aiPreviewData.data_pack.employees.length}):
+                          </h4>
+                          <pre className="text-sm max-h-32 overflow-y-auto">
+                            {JSON.stringify(
+                              aiPreviewData.data_pack.employees.slice(0, 3),
+                              null,
+                              2,
+                            )}
+                          </pre>
+                          {aiPreviewData.data_pack.employees.length > 3 && (
+                            <p className="text-xs text-muted-foreground mt-2">
+                              ... und{" "}
+                              {aiPreviewData.data_pack.employees.length - 3}{" "}
+                              weitere
+                            </p>
+                          )}
+                          <div className="mt-2 text-xs text-cyan-600 dark:text-cyan-400">
+                            ✨ Optimiert: Nur verfügbare Mitarbeiter,
+                            essenzielle Felder
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
                     {/* Shift Templates */}
-                    {aiPreviewData.data_pack.shifts && aiPreviewData.data_pack.shifts.length > 0 && (
-                      <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-md">
-                        <h4 className="font-medium mb-2">⏰ Relevante Schichtvorlagen ({aiPreviewData.data_pack.shifts.length}):</h4>
-                        <pre className="text-sm max-h-32 overflow-y-auto">{JSON.stringify(aiPreviewData.data_pack.shifts, null, 2)}</pre>
-                        <div className="mt-2 text-xs text-orange-600 dark:text-orange-400">
-                          ✨ Optimiert: Nur aktive Schichten, redundante Felder entfernt
+                    {aiPreviewData.data_pack.shifts &&
+                      aiPreviewData.data_pack.shifts.length > 0 && (
+                        <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-md">
+                          <h4 className="font-medium mb-2">
+                            ⏰ Relevante Schichtvorlagen (
+                            {aiPreviewData.data_pack.shifts.length}):
+                          </h4>
+                          <pre className="text-sm max-h-32 overflow-y-auto">
+                            {JSON.stringify(
+                              aiPreviewData.data_pack.shifts,
+                              null,
+                              2,
+                            )}
+                          </pre>
+                          <div className="mt-2 text-xs text-orange-600 dark:text-orange-400">
+                            ✨ Optimiert: Nur aktive Schichten, redundante
+                            Felder entfernt
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
                     {/* Availability Windows */}
-                    {aiPreviewData.data_pack.availability && aiPreviewData.data_pack.availability.length > 0 && (
-                      <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-md">
-                        <h4 className="font-medium mb-2">🕐 Verfügbarkeitsfenster ({aiPreviewData.data_pack.availability.length}):</h4>
-                        <pre className="text-sm max-h-32 overflow-y-auto">{JSON.stringify(aiPreviewData.data_pack.availability.slice(0, 5), null, 2)}</pre>
-                        {aiPreviewData.data_pack.availability.length > 5 && (
-                          <p className="text-xs text-muted-foreground mt-2">... und {aiPreviewData.data_pack.availability.length - 5} weitere</p>
-                        )}
-                        <div className="mt-2 text-xs text-green-600 dark:text-green-400">
-                          ✨ Optimiert: Zeitspannen statt stündliche Arrays (75% weniger Daten)
+                    {aiPreviewData.data_pack.availability &&
+                      aiPreviewData.data_pack.availability.length > 0 && (
+                        <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-md">
+                          <h4 className="font-medium mb-2">
+                            🕐 Verfügbarkeitsfenster (
+                            {aiPreviewData.data_pack.availability.length}):
+                          </h4>
+                          <pre className="text-sm max-h-32 overflow-y-auto">
+                            {JSON.stringify(
+                              aiPreviewData.data_pack.availability.slice(0, 5),
+                              null,
+                              2,
+                            )}
+                          </pre>
+                          {aiPreviewData.data_pack.availability.length > 5 && (
+                            <p className="text-xs text-muted-foreground mt-2">
+                              ... und{" "}
+                              {aiPreviewData.data_pack.availability.length - 5}{" "}
+                              weitere
+                            </p>
+                          )}
+                          <div className="mt-2 text-xs text-green-600 dark:text-green-400">
+                            ✨ Optimiert: Zeitspannen statt stündliche Arrays
+                            (75% weniger Daten)
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
                     {/* Absences */}
-                    {aiPreviewData.data_pack.absences && aiPreviewData.data_pack.absences.length > 0 && (
-                      <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-md">
-                        <h4 className="font-medium mb-2">🚫 Abwesenheiten ({aiPreviewData.data_pack.absences.length}):</h4>
-                        <pre className="text-sm max-h-32 overflow-y-auto">{JSON.stringify(aiPreviewData.data_pack.absences, null, 2)}</pre>
-                      </div>
-                    )}
+                    {aiPreviewData.data_pack.absences &&
+                      aiPreviewData.data_pack.absences.length > 0 && (
+                        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-md">
+                          <h4 className="font-medium mb-2">
+                            🚫 Abwesenheiten (
+                            {aiPreviewData.data_pack.absences.length}):
+                          </h4>
+                          <pre className="text-sm max-h-32 overflow-y-auto">
+                            {JSON.stringify(
+                              aiPreviewData.data_pack.absences,
+                              null,
+                              2,
+                            )}
+                          </pre>
+                        </div>
+                      )}
                   </div>
                 )}
               </div>
@@ -2749,7 +3186,9 @@ export function SchedulePage() {
               variant="outline"
               onClick={() => {
                 if (aiPreviewData?.data_pack) {
-                  navigator.clipboard.writeText(JSON.stringify(aiPreviewData.optimized_data, null, 2));
+                  navigator.clipboard.writeText(
+                    JSON.stringify(aiPreviewData.optimized_data, null, 2),
+                  );
                   toast({
                     title: "In Zwischenablage kopiert",
                     description: "Die optimierten KI-Daten wurden kopiert.",

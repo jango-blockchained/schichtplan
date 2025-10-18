@@ -478,6 +478,12 @@ stop_existing_services() {
             kill_port "$port"
         fi
     done
+
+    # 
+    if tmux has-session -t "$TMUX_SESSION" 2>/dev/null; then
+        log "INFO" "Killing existing tmux session $TMUX_SESSION"
+        tmux kill-session -t "$TMUX_SESSION"
+    fi
     
     # Kill frontend
     if check_port $FRONTEND_PORT; then

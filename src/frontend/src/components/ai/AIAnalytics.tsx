@@ -5,19 +5,19 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import {
-    Activity,
-    AlertTriangle,
-    BarChart3,
-    Calendar,
-    CheckCircle,
-    Clock,
-    Download,
-    RefreshCw,
-    Target,
-    TrendingDown,
-    TrendingUp,
-    Users,
-    Zap
+  Activity,
+  AlertTriangle,
+  BarChart3,
+  Calendar,
+  CheckCircle,
+  Clock,
+  Download,
+  RefreshCw,
+  Target,
+  TrendingDown,
+  TrendingUp,
+  Users,
+  Zap,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -61,7 +61,7 @@ export const AIAnalytics: React.FC = () => {
         change: -12.5,
         trend: "down",
         description: "Average response time for AI requests",
-        category: "performance"
+        category: "performance",
       },
       {
         id: "optimization_success_rate",
@@ -71,7 +71,7 @@ export const AIAnalytics: React.FC = () => {
         change: 4.2,
         trend: "up",
         description: "Percentage of successful schedule optimizations",
-        category: "quality"
+        category: "quality",
       },
       {
         id: "agent_utilization",
@@ -81,7 +81,7 @@ export const AIAnalytics: React.FC = () => {
         change: 8.3,
         trend: "up",
         description: "Average utilization across all AI agents",
-        category: "efficiency"
+        category: "efficiency",
       },
       {
         id: "workflow_completion_rate",
@@ -91,7 +91,7 @@ export const AIAnalytics: React.FC = () => {
         change: -2.1,
         trend: "down",
         description: "Percentage of workflows completed successfully",
-        category: "quality"
+        category: "quality",
       },
       {
         id: "user_satisfaction",
@@ -101,7 +101,7 @@ export const AIAnalytics: React.FC = () => {
         change: 6.8,
         trend: "up",
         description: "Average user satisfaction rating",
-        category: "quality"
+        category: "quality",
       },
       {
         id: "cost_per_optimization",
@@ -111,7 +111,7 @@ export const AIAnalytics: React.FC = () => {
         change: -15.2,
         trend: "down",
         description: "Average cost per schedule optimization",
-        category: "efficiency"
+        category: "efficiency",
       },
       {
         id: "conflicts_resolved",
@@ -121,7 +121,7 @@ export const AIAnalytics: React.FC = () => {
         change: 23.4,
         trend: "up",
         description: "Total conflicts resolved this period",
-        category: "performance"
+        category: "performance",
       },
       {
         id: "processing_accuracy",
@@ -131,67 +131,71 @@ export const AIAnalytics: React.FC = () => {
         change: 1.8,
         trend: "up",
         description: "Accuracy of AI processing and recommendations",
-        category: "quality"
-      }
+        category: "quality",
+      },
     ]);
 
     setInsights([
       {
         id: "insight_001",
         title: "Schedule Optimization Opportunity",
-        description: "Analysis shows 15% improvement potential in workload distribution for next week. Implementing recommended changes could reduce overtime costs by €320.",
+        description:
+          "Analysis shows 15% improvement potential in workload distribution for next week. Implementing recommended changes could reduce overtime costs by €320.",
         type: "optimization",
         confidence: 0.89,
         impact: "high",
         recommended_actions: [
           "Redistribute 8 shifts from high-workload employees",
           "Utilize cross-trained employees for better coverage",
-          "Implement suggested break time optimizations"
+          "Implement suggested break time optimizations",
         ],
-        generated_at: new Date(Date.now() - 2 * 60 * 60 * 1000)
+        generated_at: new Date(Date.now() - 2 * 60 * 60 * 1000),
       },
       {
         id: "insight_002",
         title: "Agent Performance Alert",
-        description: "ScheduleOptimizerAgent showing increased response times (avg 3.2s vs normal 2.1s). May indicate capacity limits or need for optimization.",
+        description:
+          "ScheduleOptimizerAgent showing increased response times (avg 3.2s vs normal 2.1s). May indicate capacity limits or need for optimization.",
         type: "warning",
         confidence: 0.76,
         impact: "medium",
         recommended_actions: [
           "Review agent workload distribution",
           "Consider scaling agent resources",
-          "Analyze recent complex requests"
+          "Analyze recent complex requests",
         ],
-        generated_at: new Date(Date.now() - 4 * 60 * 60 * 1000)
+        generated_at: new Date(Date.now() - 4 * 60 * 60 * 1000),
       },
       {
         id: "insight_003",
         title: "Employee Satisfaction Trend",
-        description: "Employee satisfaction with AI-generated schedules has increased by 12% this month. Positive feedback indicates effective preference matching.",
+        description:
+          "Employee satisfaction with AI-generated schedules has increased by 12% this month. Positive feedback indicates effective preference matching.",
         type: "success",
         confidence: 0.94,
         impact: "high",
         recommended_actions: [
           "Continue current optimization strategies",
           "Document successful patterns for replication",
-          "Consider expanding preference-based optimization"
+          "Consider expanding preference-based optimization",
         ],
-        generated_at: new Date(Date.now() - 6 * 60 * 60 * 1000)
+        generated_at: new Date(Date.now() - 6 * 60 * 60 * 1000),
       },
       {
         id: "insight_004",
         title: "Workflow Efficiency Improvement",
-        description: "Comprehensive optimization workflows are completing 18% faster due to recent agent coordination improvements.",
+        description:
+          "Comprehensive optimization workflows are completing 18% faster due to recent agent coordination improvements.",
         type: "info",
         confidence: 0.82,
         impact: "medium",
         recommended_actions: [
           "Monitor continued performance improvements",
           "Apply coordination patterns to other workflows",
-          "Update workflow templates with optimizations"
+          "Update workflow templates with optimizations",
         ],
-        generated_at: new Date(Date.now() - 8 * 60 * 60 * 1000)
-      }
+        generated_at: new Date(Date.now() - 8 * 60 * 60 * 1000),
+      },
     ]);
   }, []);
 
@@ -199,15 +203,17 @@ export const AIAnalytics: React.FC = () => {
     setIsLoading(true);
     try {
       // Simulate data refresh
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       // Update metrics with new values
-      setMetrics(prev => prev.map(metric => ({
-        ...metric,
-        value: metric.value + (Math.random() - 0.5) * metric.value * 0.1,
-        change: (Math.random() - 0.5) * 20
-      })));
-      
+      setMetrics((prev) =>
+        prev.map((metric) => ({
+          ...metric,
+          value: metric.value + (Math.random() - 0.5) * metric.value * 0.1,
+          change: (Math.random() - 0.5) * 20,
+        })),
+      );
+
       toast.success("Analytics data refreshed");
     } catch {
       toast.error("Failed to refresh data");
@@ -301,7 +307,7 @@ export const AIAnalytics: React.FC = () => {
     const now = new Date();
     const diff = now.getTime() - timestamp.getTime();
     const hours = Math.floor(diff / (1000 * 60 * 60));
-    
+
     if (hours < 1) {
       const minutes = Math.floor(diff / (1000 * 60));
       return `${minutes}m ago`;
@@ -318,25 +324,51 @@ export const AIAnalytics: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">AI Analytics & Insights</h2>
+          <h2 className="text-2xl font-bold tracking-tight">
+            AI Analytics & Insights
+          </h2>
           <p className="text-muted-foreground">
-            Real-time analytics and AI-generated insights for your scheduling system
+            Real-time analytics and AI-generated insights for your scheduling
+            system
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setTimeRange("24h")} 
-                  className={cn(timeRange === "24h" && "bg-primary text-primary-foreground")}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setTimeRange("24h")}
+            className={cn(
+              timeRange === "24h" && "bg-primary text-primary-foreground",
+            )}
+          >
             24h
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setTimeRange("7d")}
-                  className={cn(timeRange === "7d" && "bg-primary text-primary-foreground")}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setTimeRange("7d")}
+            className={cn(
+              timeRange === "7d" && "bg-primary text-primary-foreground",
+            )}
+          >
             7d
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setTimeRange("30d")}
-                  className={cn(timeRange === "30d" && "bg-primary text-primary-foreground")}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setTimeRange("30d")}
+            className={cn(
+              timeRange === "30d" && "bg-primary text-primary-foreground",
+            )}
+          >
             30d
           </Button>
-          <Button variant="outline" size="sm" onClick={handleRefreshData} disabled={isLoading}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefreshData}
+            disabled={isLoading}
+          >
             <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
           </Button>
           <Button variant="outline" size="sm">
@@ -364,7 +396,9 @@ export const AIAnalytics: React.FC = () => {
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         {getCategoryIcon(metric.category)}
-                        <span className="text-sm font-medium">{metric.name}</span>
+                        <span className="text-sm font-medium">
+                          {metric.name}
+                        </span>
                       </div>
                       {getTrendIcon(metric.trend)}
                     </div>
@@ -373,12 +407,21 @@ export const AIAnalytics: React.FC = () => {
                         {formatValue(metric.value, metric.unit)} {metric.unit}
                       </p>
                       <div className="flex items-center gap-1 text-sm">
-                        <span className={cn(
-                          metric.change > 0 ? "text-green-500" : metric.change < 0 ? "text-red-500" : "text-gray-500"
-                        )}>
-                          {metric.change > 0 ? "+" : ""}{metric.change.toFixed(1)}%
+                        <span
+                          className={cn(
+                            metric.change > 0
+                              ? "text-green-500"
+                              : metric.change < 0
+                                ? "text-red-500"
+                                : "text-gray-500",
+                          )}
+                        >
+                          {metric.change > 0 ? "+" : ""}
+                          {metric.change.toFixed(1)}%
                         </span>
-                        <span className="text-muted-foreground">vs last period</span>
+                        <span className="text-muted-foreground">
+                          vs last period
+                        </span>
                       </div>
                     </div>
                   </CardContent>
@@ -397,23 +440,35 @@ export const AIAnalytics: React.FC = () => {
               <CardContent>
                 <div className="space-y-4">
                   {insights.slice(0, 3).map((insight) => (
-                    <div key={insight.id} className="flex items-start gap-3 p-3 rounded-lg border">
+                    <div
+                      key={insight.id}
+                      className="flex items-start gap-3 p-3 rounded-lg border"
+                    >
                       {getInsightIcon(insight.type)}
                       <div className="flex-1 space-y-2">
                         <div className="flex items-center justify-between">
                           <h4 className="font-medium">{insight.title}</h4>
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline" className={getImpactColor(insight.impact)}>
+                            <Badge
+                              variant="outline"
+                              className={getImpactColor(insight.impact)}
+                            >
                               {insight.impact} impact
                             </Badge>
-                            <Badge variant={getInsightBadgeVariant(insight.type)}>
+                            <Badge
+                              variant={getInsightBadgeVariant(insight.type)}
+                            >
                               {insight.type}
                             </Badge>
                           </div>
                         </div>
-                        <p className="text-sm text-muted-foreground">{insight.description}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {insight.description}
+                        </p>
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span>Confidence: {Math.round(insight.confidence * 100)}%</span>
+                          <span>
+                            Confidence: {Math.round(insight.confidence * 100)}%
+                          </span>
                           <span>{formatTimestamp(insight.generated_at)}</span>
                         </div>
                       </div>
@@ -433,21 +488,28 @@ export const AIAnalytics: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {metrics.filter(m => m.category === "performance").map((metric) => (
-                      <div key={metric.id} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">{metric.name}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm">
-                              {formatValue(metric.value, metric.unit)} {metric.unit}
+                    {metrics
+                      .filter((m) => m.category === "performance")
+                      .map((metric) => (
+                        <div key={metric.id} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">
+                              {metric.name}
                             </span>
-                            {getTrendIcon(metric.trend)}
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">
+                                {formatValue(metric.value, metric.unit)}{" "}
+                                {metric.unit}
+                              </span>
+                              {getTrendIcon(metric.trend)}
+                            </div>
                           </div>
+                          <Progress value={metric.value} className="h-2" />
+                          <p className="text-xs text-muted-foreground">
+                            {metric.description}
+                          </p>
                         </div>
-                        <Progress value={metric.value} className="h-2" />
-                        <p className="text-xs text-muted-foreground">{metric.description}</p>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 </CardContent>
               </Card>
@@ -459,21 +521,28 @@ export const AIAnalytics: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {metrics.filter(m => m.category === "quality").map((metric) => (
-                      <div key={metric.id} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">{metric.name}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm">
-                              {formatValue(metric.value, metric.unit)} {metric.unit}
+                    {metrics
+                      .filter((m) => m.category === "quality")
+                      .map((metric) => (
+                        <div key={metric.id} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">
+                              {metric.name}
                             </span>
-                            {getTrendIcon(metric.trend)}
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">
+                                {formatValue(metric.value, metric.unit)}{" "}
+                                {metric.unit}
+                              </span>
+                              {getTrendIcon(metric.trend)}
+                            </div>
                           </div>
+                          <Progress value={metric.value} className="h-2" />
+                          <p className="text-xs text-muted-foreground">
+                            {metric.description}
+                          </p>
                         </div>
-                        <Progress value={metric.value} className="h-2" />
-                        <p className="text-xs text-muted-foreground">{metric.description}</p>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 </CardContent>
               </Card>
@@ -485,21 +554,28 @@ export const AIAnalytics: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {metrics.filter(m => m.category === "efficiency").map((metric) => (
-                      <div key={metric.id} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">{metric.name}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm">
-                              {formatValue(metric.value, metric.unit)} {metric.unit}
+                    {metrics
+                      .filter((m) => m.category === "efficiency")
+                      .map((metric) => (
+                        <div key={metric.id} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">
+                              {metric.name}
                             </span>
-                            {getTrendIcon(metric.trend)}
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">
+                                {formatValue(metric.value, metric.unit)}{" "}
+                                {metric.unit}
+                              </span>
+                              {getTrendIcon(metric.trend)}
+                            </div>
                           </div>
+                          <Progress value={metric.value} className="h-2" />
+                          <p className="text-xs text-muted-foreground">
+                            {metric.description}
+                          </p>
                         </div>
-                        <Progress value={metric.value} className="h-2" />
-                        <p className="text-xs text-muted-foreground">{metric.description}</p>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 </CardContent>
               </Card>
@@ -514,10 +590,15 @@ export const AIAnalytics: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         {getInsightIcon(insight.type)}
-                        <CardTitle className="text-lg">{insight.title}</CardTitle>
+                        <CardTitle className="text-lg">
+                          {insight.title}
+                        </CardTitle>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className={getImpactColor(insight.impact)}>
+                        <Badge
+                          variant="outline"
+                          className={getImpactColor(insight.impact)}
+                        >
                           {insight.impact} impact
                         </Badge>
                         <Badge variant={getInsightBadgeVariant(insight.type)}>
@@ -530,13 +611,18 @@ export const AIAnalytics: React.FC = () => {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <p className="text-muted-foreground">{insight.description}</p>
-                    
+                    <p className="text-muted-foreground">
+                      {insight.description}
+                    </p>
+
                     <div>
                       <h4 className="font-medium mb-2">Recommended Actions:</h4>
                       <ul className="space-y-1">
                         {insight.recommended_actions.map((action, index) => (
-                          <li key={index} className="flex items-center gap-2 text-sm">
+                          <li
+                            key={index}
+                            className="flex items-center gap-2 text-sm"
+                          >
                             <CheckCircle className="h-3 w-3 text-green-500" />
                             <span>{action}</span>
                           </li>
@@ -545,14 +631,14 @@ export const AIAnalytics: React.FC = () => {
                     </div>
 
                     <div className="flex items-center justify-between text-sm text-muted-foreground pt-3 border-t">
-                      <span>Generated {formatTimestamp(insight.generated_at)}</span>
+                      <span>
+                        Generated {formatTimestamp(insight.generated_at)}
+                      </span>
                       <div className="flex gap-2">
                         <Button size="sm" variant="outline">
                           View Details
                         </Button>
-                        <Button size="sm">
-                          Apply Recommendations
-                        </Button>
+                        <Button size="sm">Apply Recommendations</Button>
                       </div>
                     </div>
                   </CardContent>
@@ -575,7 +661,9 @@ export const AIAnalytics: React.FC = () => {
                     <div className="text-center py-8 text-muted-foreground">
                       <BarChart3 className="h-12 w-12 mx-auto mb-2" />
                       <p>Performance trend chart would be displayed here</p>
-                      <p className="text-sm">Integration with chart library needed</p>
+                      <p className="text-sm">
+                        Integration with chart library needed
+                      </p>
                     </div>
                   </div>
                 </CardContent>
@@ -593,7 +681,9 @@ export const AIAnalytics: React.FC = () => {
                     <div className="text-center py-8 text-muted-foreground">
                       <Calendar className="h-12 w-12 mx-auto mb-2" />
                       <p>Usage pattern chart would be displayed here</p>
-                      <p className="text-sm">Integration with chart library needed</p>
+                      <p className="text-sm">
+                        Integration with chart library needed
+                      </p>
                     </div>
                   </div>
                 </CardContent>
@@ -611,7 +701,9 @@ export const AIAnalytics: React.FC = () => {
                     <div className="text-center py-8 text-muted-foreground">
                       <Activity className="h-12 w-12 mx-auto mb-2" />
                       <p>Response time trend chart would be displayed here</p>
-                      <p className="text-sm">Integration with chart library needed</p>
+                      <p className="text-sm">
+                        Integration with chart library needed
+                      </p>
                     </div>
                   </div>
                 </CardContent>

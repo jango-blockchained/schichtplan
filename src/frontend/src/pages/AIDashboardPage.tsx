@@ -16,7 +16,7 @@ import {
   TrendingUp,
   Users,
   Workflow,
-  Zap
+  Zap,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
@@ -51,7 +51,7 @@ const AIDashboardPage: React.FC = () => {
     agents: 3,
     activeWorkflows: 2,
     conversations: 12,
-    uptime: "99.9%"
+    uptime: "99.9%",
   });
 
   useEffect(() => {
@@ -63,7 +63,7 @@ const AIDashboardPage: React.FC = () => {
         description: "Multi-turn conversations with state persistence",
         status: "active",
         icon: <MessageSquare className="h-4 w-4" />,
-        stats: { usage: 89, success_rate: 96, avg_response_time: 1.2 }
+        stats: { usage: 89, success_rate: 96, avg_response_time: 1.2 },
       },
       {
         id: "agent_system",
@@ -71,7 +71,7 @@ const AIDashboardPage: React.FC = () => {
         description: "Specialized agents for different scheduling tasks",
         status: "active",
         icon: <Bot className="h-4 w-4" />,
-        stats: { usage: 76, success_rate: 94, avg_response_time: 2.1 }
+        stats: { usage: 76, success_rate: 94, avg_response_time: 2.1 },
       },
       {
         id: "workflow_orchestration",
@@ -79,7 +79,7 @@ const AIDashboardPage: React.FC = () => {
         description: "Multi-step workflow automation",
         status: "active",
         icon: <Workflow className="h-4 w-4" />,
-        stats: { usage: 65, success_rate: 98, avg_response_time: 3.4 }
+        stats: { usage: 65, success_rate: 98, avg_response_time: 3.4 },
       },
       {
         id: "schedule_optimization",
@@ -87,7 +87,7 @@ const AIDashboardPage: React.FC = () => {
         description: "AI-powered schedule optimization and conflict resolution",
         status: "active",
         icon: <Calendar className="h-4 w-4" />,
-        stats: { usage: 92, success_rate: 97, avg_response_time: 2.8 }
+        stats: { usage: 92, success_rate: 97, avg_response_time: 2.8 },
       },
       {
         id: "employee_management",
@@ -95,7 +95,7 @@ const AIDashboardPage: React.FC = () => {
         description: "Intelligent employee assignment and workload analysis",
         status: "active",
         icon: <Users className="h-4 w-4" />,
-        stats: { usage: 71, success_rate: 95, avg_response_time: 1.8 }
+        stats: { usage: 71, success_rate: 95, avg_response_time: 1.8 },
       },
       {
         id: "analytics_insights",
@@ -103,8 +103,8 @@ const AIDashboardPage: React.FC = () => {
         description: "AI-driven analytics and business intelligence",
         status: "processing",
         icon: <BarChart3 className="h-4 w-4" />,
-        stats: { usage: 58, success_rate: 92, avg_response_time: 4.2 }
-      }
+        stats: { usage: 58, success_rate: 92, avg_response_time: 4.2 },
+      },
     ]);
   }, []);
 
@@ -144,11 +144,17 @@ const AIDashboardPage: React.FC = () => {
             AI Dashboard
           </h1>
           <p className="text-muted-foreground">
-            Advanced AI-powered scheduling system with conversational interface and intelligent automation
+            Advanced AI-powered scheduling system with conversational interface
+            and intelligent automation
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={systemHealth.status === "healthy" ? "default" : "destructive"} className="flex items-center gap-1">
+          <Badge
+            variant={
+              systemHealth.status === "healthy" ? "default" : "destructive"
+            }
+            className="flex items-center gap-1"
+          >
             <Activity className="h-3 w-3" />
             System {systemHealth.status === "healthy" ? "Healthy" : "Issues"}
           </Badge>
@@ -178,7 +184,9 @@ const AIDashboardPage: React.FC = () => {
               <Workflow className="h-5 w-5 text-primary" />
               <div>
                 <p className="text-sm font-medium">Running Workflows</p>
-                <p className="text-2xl font-bold">{systemHealth.activeWorkflows}</p>
+                <p className="text-2xl font-bold">
+                  {systemHealth.activeWorkflows}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -189,7 +197,9 @@ const AIDashboardPage: React.FC = () => {
               <MessageSquare className="h-5 w-5 text-primary" />
               <div>
                 <p className="text-sm font-medium">Active Conversations</p>
-                <p className="text-2xl font-bold">{systemHealth.conversations}</p>
+                <p className="text-2xl font-bold">
+                  {systemHealth.conversations}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -247,7 +257,8 @@ const AIDashboardPage: React.FC = () => {
                   variant={getStatusBadgeVariant(capability.status)}
                   className="mt-2 w-full justify-center"
                 >
-                  {capability.status.charAt(0).toUpperCase() + capability.status.slice(1)}
+                  {capability.status.charAt(0).toUpperCase() +
+                    capability.status.slice(1)}
                 </Badge>
               </Card>
             ))}
@@ -320,22 +331,34 @@ const AIDashboardPage: React.FC = () => {
                     <div className="flex items-center gap-3 p-2 rounded-md bg-muted/50">
                       <Bot className="h-4 w-4 text-primary" />
                       <div className="flex-1">
-                        <p className="text-sm font-medium">Schedule optimization completed</p>
-                        <p className="text-xs text-muted-foreground">2 minutes ago</p>
+                        <p className="text-sm font-medium">
+                          Schedule optimization completed
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          2 minutes ago
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 p-2 rounded-md bg-muted/50">
                       <MessageSquare className="h-4 w-4 text-primary" />
                       <div className="flex-1">
-                        <p className="text-sm font-medium">New conversation started</p>
-                        <p className="text-xs text-muted-foreground">5 minutes ago</p>
+                        <p className="text-sm font-medium">
+                          New conversation started
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          5 minutes ago
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 p-2 rounded-md bg-muted/50">
                       <Workflow className="h-4 w-4 text-primary" />
                       <div className="flex-1">
-                        <p className="text-sm font-medium">Workflow execution finished</p>
-                        <p className="text-xs text-muted-foreground">12 minutes ago</p>
+                        <p className="text-sm font-medium">
+                          Workflow execution finished
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          12 minutes ago
+                        </p>
                       </div>
                     </div>
                   </div>

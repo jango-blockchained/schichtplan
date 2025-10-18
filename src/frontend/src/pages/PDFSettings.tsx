@@ -161,9 +161,12 @@ export default function PDFSettings() {
 
   const handleApplyPreset = async (name: string) => {
     try {
-      const response = await fetch(`/api/v2/pdf-settings/presets/${name}/apply`, {
-        method: "POST",
-      });
+      const response = await fetch(
+        `/api/v2/pdf-settings/presets/${name}/apply`,
+        {
+          method: "POST",
+        },
+      );
       if (!response.ok) throw new Error("Failed to apply preset");
       await fetchCurrentConfig();
       toast({
@@ -180,7 +183,7 @@ export default function PDFSettings() {
   return (
     <div className="container mx-auto py-6">
       {/* Added PageHeader */}
-      <PageHeader 
+      <PageHeader
         title="PDF Layout Settings"
         description="Customize the layout and appearance of generated PDF schedules. Manage presets for quick configurations."
         className="mb-6"

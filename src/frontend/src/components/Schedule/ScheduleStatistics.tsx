@@ -60,7 +60,9 @@ export function ScheduleStatistics({
       <Card>
         <CardContent className="p-6">
           <div className="flex items-center justify-center">
-            <div className="text-sm text-muted-foreground">Lade Statistiken...</div>
+            <div className="text-sm text-muted-foreground">
+              Lade Statistiken...
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -102,7 +104,9 @@ export function ScheduleStatistics({
                     variant="ghost"
                     className="flex items-center justify-between w-full p-2 hover:bg-muted/50"
                   >
-                    <h4 className="text-sm font-medium text-foreground">Übersicht</h4>
+                    <h4 className="text-sm font-medium text-foreground">
+                      Übersicht
+                    </h4>
                     {overviewOpen ? (
                       <ChevronDown className="h-4 w-4 text-foreground" />
                     ) : (
@@ -118,13 +122,18 @@ export function ScheduleStatistics({
               </Collapsible>
 
               {/* Shift Distribution Section */}
-              <Collapsible open={shiftDistributionOpen} onOpenChange={setShiftDistributionOpen}>
+              <Collapsible
+                open={shiftDistributionOpen}
+                onOpenChange={setShiftDistributionOpen}
+              >
                 <CollapsibleTrigger asChild>
                   <Button
                     variant="ghost"
                     className="flex items-center justify-between w-full p-2 hover:bg-muted/50 border-t"
                   >
-                    <h4 className="text-sm font-medium text-foreground">Schichtverteilung</h4>
+                    <h4 className="text-sm font-medium text-foreground">
+                      Schichtverteilung
+                    </h4>
                     {shiftDistributionOpen ? (
                       <ChevronDown className="h-4 w-4 text-foreground" />
                     ) : (
@@ -149,7 +158,9 @@ export function ScheduleStatistics({
                     variant="ghost"
                     className="flex items-center justify-between w-full p-2 hover:bg-muted/50 border-t"
                   >
-                    <h4 className="text-sm font-medium text-foreground">Abdeckungsanalyse</h4>
+                    <h4 className="text-sm font-medium text-foreground">
+                      Abdeckungsanalyse
+                    </h4>
                     {coverageOpen ? (
                       <ChevronDown className="h-4 w-4 text-foreground" />
                     ) : (
@@ -171,7 +182,9 @@ export function ScheduleStatistics({
                     variant="ghost"
                     className="flex items-center justify-between w-full p-2 hover:bg-muted/50 border-t"
                   >
-                    <h4 className="text-sm font-medium text-foreground">Arbeitsbelastung</h4>
+                    <h4 className="text-sm font-medium text-foreground">
+                      Arbeitsbelastung
+                    </h4>
                     {workloadOpen ? (
                       <ChevronDown className="h-4 w-4 text-foreground" />
                     ) : (
@@ -193,7 +206,9 @@ export function ScheduleStatistics({
                     variant="ghost"
                     className="flex items-center justify-between w-full p-2 hover:bg-muted/50 border-t"
                   >
-                    <h4 className="text-sm font-medium text-foreground">Wöchentliche Aufschlüsselung</h4>
+                    <h4 className="text-sm font-medium text-foreground">
+                      Wöchentliche Aufschlüsselung
+                    </h4>
                     {weeklyOpen ? (
                       <ChevronDown className="h-4 w-4 text-foreground" />
                     ) : (
@@ -210,13 +225,18 @@ export function ScheduleStatistics({
 
               {/* Recommendations Section */}
               {hasRecommendations && (
-                <Collapsible open={recommendationsOpen} onOpenChange={setRecommendationsOpen}>
+                <Collapsible
+                  open={recommendationsOpen}
+                  onOpenChange={setRecommendationsOpen}
+                >
                   <CollapsibleTrigger asChild>
                     <Button
                       variant="ghost"
                       className="flex items-center justify-between w-full p-2 hover:bg-muted/50 border-t"
                     >
-                      <h4 className="text-sm font-medium text-foreground">Empfehlungen</h4>
+                      <h4 className="text-sm font-medium text-foreground">
+                        Empfehlungen
+                      </h4>
                       {recommendationsOpen ? (
                         <ChevronDown className="h-4 w-4 text-foreground" />
                       ) : (

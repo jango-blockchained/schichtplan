@@ -43,7 +43,9 @@ export const PageLayout: React.FC<PageLayoutProps> = ({
                   {crumb.isCurrentPage ? (
                     <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
                   ) : (
-                    <BreadcrumbLink href={crumb.href}>{crumb.label}</BreadcrumbLink>
+                    <BreadcrumbLink href={crumb.href}>
+                      {crumb.label}
+                    </BreadcrumbLink>
                   )}
                 </BreadcrumbItem>
                 {index < breadcrumbs.length - 1 && <BreadcrumbSeparator />}
@@ -66,18 +68,14 @@ export const PageLayout: React.FC<PageLayoutProps> = ({
           )}
         </div>
         {headerActions && (
-          <div className="flex items-center gap-2">
-            {headerActions}
-          </div>
+          <div className="flex items-center gap-2">{headerActions}</div>
         )}
       </div>
 
       <Separator />
 
       {/* Page Content */}
-      <div className="space-y-6">
-        {children}
-      </div>
+      <div className="space-y-6">{children}</div>
     </div>
   );
-}; 
+};

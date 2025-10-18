@@ -4,7 +4,7 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle
+  CardTitle,
 } from "@/components/ui/card";
 import {
   HoverCard,
@@ -27,34 +27,45 @@ import React from "react";
 
 interface SchedulingEngineSectionProps {
   settings: Partial<Settings["scheduling"]>;
-  onInputChange: (key: string, value: string | number | boolean, isNumeric?: boolean) => void;
+  onInputChange: (
+    key: string,
+    value: string | number | boolean,
+    isNumeric?: boolean,
+  ) => void;
   onDiagnosticsChange: (checked: boolean) => void;
-  onGenerationSettingsUpdate: (updates: Partial<NonNullable<Settings["scheduling"]>["generation_requirements"]>) => void;
+  onGenerationSettingsUpdate: (
+    updates: Partial<
+      NonNullable<Settings["scheduling"]>["generation_requirements"]
+    >,
+  ) => void;
 }
 
-export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = ({
+export const SchedulingEngineSection: React.FC<
+  SchedulingEngineSectionProps
+> = ({
   settings,
   onInputChange,
   onDiagnosticsChange,
   onGenerationSettingsUpdate,
 }) => {
-  const generationRequirements: NonNullable<Settings["scheduling"]>["generation_requirements"] =
-    settings.generation_requirements || {
-      enforce_minimum_coverage: true,
-      enforce_contracted_hours: true,
-      enforce_keyholder_coverage: true,
-      enforce_rest_periods: true,
-      enforce_early_late_rules: true,
-      enforce_employee_group_rules: true,
-      enforce_break_rules: true,
-      enforce_max_hours: true,
-      enforce_consecutive_days: true,
-      enforce_weekend_distribution: true,
-      enforce_shift_distribution: true,
-      enforce_availability: true,
-      enforce_qualifications: true,
-      enforce_opening_hours: true,
-    };
+  const generationRequirements: NonNullable<
+    Settings["scheduling"]
+  >["generation_requirements"] = settings.generation_requirements || {
+    enforce_minimum_coverage: true,
+    enforce_contracted_hours: true,
+    enforce_keyholder_coverage: true,
+    enforce_rest_periods: true,
+    enforce_early_late_rules: true,
+    enforce_employee_group_rules: true,
+    enforce_break_rules: true,
+    enforce_max_hours: true,
+    enforce_consecutive_days: true,
+    enforce_weekend_distribution: true,
+    enforce_shift_distribution: true,
+    enforce_availability: true,
+    enforce_qualifications: true,
+    enforce_opening_hours: true,
+  };
 
   return (
     <div className="space-y-6">
@@ -187,7 +198,9 @@ export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = (
                 </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="total_weekly_working_hours">Total Weekly Working Hours</Label>
+                <Label htmlFor="total_weekly_working_hours">
+                  Total Weekly Working Hours
+                </Label>
                 <Input
                   id="total_weekly_working_hours"
                   type="number"
@@ -196,11 +209,16 @@ export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = (
                   step="1"
                   value={settings.total_weekly_working_hours ?? 165}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    onInputChange("total_weekly_working_hours", e.target.value, true)
+                    onInputChange(
+                      "total_weekly_working_hours",
+                      e.target.value,
+                      true,
+                    )
                   }
                 />
                 <p className="text-xs text-muted-foreground">
-                  Total weekly working hours constraint for all employees combined
+                  Total weekly working hours constraint for all employees
+                  combined
                 </p>
               </div>
               <div className="space-y-2">
@@ -227,7 +245,9 @@ export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = (
                 </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="scheduling_algorithm">Scheduling Algorithm</Label>
+                <Label htmlFor="scheduling_algorithm">
+                  Scheduling Algorithm
+                </Label>
                 <Select
                   value={settings.scheduling_algorithm || "standard"}
                   onValueChange={(value: "standard" | "optimized") =>

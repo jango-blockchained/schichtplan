@@ -25,11 +25,11 @@ export const DEFAULT_SETTINGS: Settings = {
       thursday: true,
       friday: true,
       saturday: true,
-      sunday: false
+      sunday: false,
     },
     special_days: {},
   },
-  availability_types: { 
+  availability_types: {
     types: [
       {
         id: "UNAVAILABLE",
@@ -66,8 +66,8 @@ export const DEFAULT_SETTINGS: Settings = {
         priority: 1,
         is_available: true,
         type: "availability_type" as const,
-      }
-    ] 
+      },
+    ],
   },
   scheduling: {
     scheduling_resource_type: "shifts",
@@ -152,21 +152,84 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   employee_groups: {
     employee_types: [
-      { id: "VZ", name: "Vollzeit", min_hours: 35, max_hours: 40, type: "employee_type" as const },
-      { id: "TZ", name: "Teilzeit", min_hours: 20, max_hours: 30, type: "employee_type" as const },
-      { id: "GFB", name: "Geringfügig", min_hours: 10, max_hours: 15, type: "employee_type" as const },
+      {
+        id: "VZ",
+        name: "Vollzeit",
+        min_hours: 35,
+        max_hours: 40,
+        type: "employee_type" as const,
+      },
+      {
+        id: "TZ",
+        name: "Teilzeit",
+        min_hours: 20,
+        max_hours: 30,
+        type: "employee_type" as const,
+      },
+      {
+        id: "GFB",
+        name: "Geringfügig",
+        min_hours: 10,
+        max_hours: 15,
+        type: "employee_type" as const,
+      },
     ],
     shift_types: [
-      { id: "EARLY", name: "Frühschicht", color: "#4CAF50", type: "shift_type" as const, autoAssignOnly: false },
-      { id: "MID", name: "Mittelschicht", color: "#2196F3", type: "shift_type" as const, autoAssignOnly: false },
-      { id: "LATE", name: "Spätschicht", color: "#FFC107", type: "shift_type" as const, autoAssignOnly: false },
-      { id: "NO_WORK", name: "Kein Dienst", color: "#9E9E9E", type: "shift_type" as const, autoAssignOnly: true },
-      { id: "UNAVAILABLE", name: "Nicht verfügbar", color: "#ef4444", type: "shift_type" as const, autoAssignOnly: true },
+      {
+        id: "EARLY",
+        name: "Frühschicht",
+        color: "#4CAF50",
+        type: "shift_type" as const,
+        autoAssignOnly: false,
+      },
+      {
+        id: "MID",
+        name: "Mittelschicht",
+        color: "#2196F3",
+        type: "shift_type" as const,
+        autoAssignOnly: false,
+      },
+      {
+        id: "LATE",
+        name: "Spätschicht",
+        color: "#FFC107",
+        type: "shift_type" as const,
+        autoAssignOnly: false,
+      },
+      {
+        id: "NO_WORK",
+        name: "Kein Dienst",
+        color: "#9E9E9E",
+        type: "shift_type" as const,
+        autoAssignOnly: true,
+      },
+      {
+        id: "UNAVAILABLE",
+        name: "Nicht verfügbar",
+        color: "#ef4444",
+        type: "shift_type" as const,
+        autoAssignOnly: true,
+      },
     ],
     absence_types: [
-      { id: "URL", name: "Urlaub", color: "#FF9800", type: "absence_type" as const },
-      { id: "KRK", name: "Krank", color: "#F44336", type: "absence_type" as const },
-      { id: "SCH", name: "Schule", color: "#00BCD4", type: "absence_type" as const },
+      {
+        id: "URL",
+        name: "Urlaub",
+        color: "#FF9800",
+        type: "absence_type" as const,
+      },
+      {
+        id: "KRK",
+        name: "Krank",
+        color: "#F44336",
+        type: "absence_type" as const,
+      },
+      {
+        id: "SCH",
+        name: "Schule",
+        color: "#00BCD4",
+        type: "absence_type" as const,
+      },
     ],
   },
   actions: {
@@ -198,13 +261,13 @@ const NUM_KEY_TO_DAY_NAME: { [key: string]: string } = {
 
 // Add the reverse mapping
 const DAY_NAME_TO_NUM_KEY: { [key: string]: string } = {
-  "monday": "0",
-  "tuesday": "1", 
-  "wednesday": "2", 
-  "thursday": "3",
-  "friday": "4", 
-  "saturday": "5", 
-  "sunday": "6"
+  monday: "0",
+  tuesday: "1",
+  wednesday: "2",
+  thursday: "3",
+  friday: "4",
+  saturday: "5",
+  sunday: "6",
 };
 
 export function useSettings() {
@@ -220,13 +283,16 @@ export function useSettings() {
     try {
       setIsLoading(true);
       const response = await axios.get<Settings>("/api/v2/settings");
-      
+
       // Transform numeric opening_days keys to day names if needed
       const data = response.data;
       if (data.general && data.general.opening_days) {
-        const currentOpeningDays = data.general.opening_days as Record<string, boolean>;
+        const currentOpeningDays = data.general.opening_days as Record<
+          string,
+          boolean
+        >;
         const transformedOpeningDays: Record<string, boolean> = {};
-        
+
         // Check if we need to transform
         let needsTransformation = false;
         for (const key in currentOpeningDays) {
@@ -237,7 +303,7 @@ export function useSettings() {
             }
           }
         }
-        
+
         if (needsTransformation) {
           for (const key in currentOpeningDays) {
             if (Object.prototype.hasOwnProperty.call(currentOpeningDays, key)) {
@@ -252,7 +318,7 @@ export function useSettings() {
           data.general.opening_days = transformedOpeningDays;
         }
       }
-      
+
       setSettings(data);
       setError(null);
     } catch (err) {
@@ -264,13 +330,19 @@ export function useSettings() {
     }
   };
 
-  const formatSettingsUpdate = (currentFullSettings: Settings, changes: Partial<Settings>) => {
+  const formatSettingsUpdate = (
+    currentFullSettings: Settings,
+    changes: Partial<Settings>,
+  ) => {
     const payload = JSON.parse(JSON.stringify(currentFullSettings));
 
-    (Object.keys(changes) as Array<keyof Settings>).forEach(categoryKey => {
-      if (changes[categoryKey] && typeof changes[categoryKey] === 'object') {
-        if (payload[categoryKey] && typeof payload[categoryKey] === 'object') {
-          payload[categoryKey] = { ...payload[categoryKey], ...changes[categoryKey] };
+    (Object.keys(changes) as Array<keyof Settings>).forEach((categoryKey) => {
+      if (changes[categoryKey] && typeof changes[categoryKey] === "object") {
+        if (payload[categoryKey] && typeof payload[categoryKey] === "object") {
+          payload[categoryKey] = {
+            ...payload[categoryKey],
+            ...changes[categoryKey],
+          };
         } else {
           payload[categoryKey] = changes[categoryKey];
         }
@@ -280,9 +352,16 @@ export function useSettings() {
     });
 
     // Transform day-name keys back to numeric keys for the backend
-    if (payload.general && payload.general.opening_days && typeof payload.general.opening_days === 'object') {
-      const currentOpeningDays = payload.general.opening_days as Record<string, boolean>;
-      
+    if (
+      payload.general &&
+      payload.general.opening_days &&
+      typeof payload.general.opening_days === "object"
+    ) {
+      const currentOpeningDays = payload.general.opening_days as Record<
+        string,
+        boolean
+      >;
+
       // First check if we need to transform
       let needsTransformation = false;
       for (const key in currentOpeningDays) {
@@ -320,8 +399,8 @@ export function useSettings() {
         payload.scheduling.scheduling_algorithm = "standard";
       }
     }
-    
-    return payload; 
+
+    return payload;
   };
 
   const updateSettings = async (updatedFields: Partial<Settings>) => {
@@ -333,7 +412,7 @@ export function useSettings() {
       setIsLoading(true);
       // Merge updatedFields into the current settings to form the complete payload
       const payload = formatSettingsUpdate(settings, updatedFields);
-      
+
       const response = await axios.put<Settings>(
         "/api/v2/settings",
         payload, // Send the merged, complete settings object

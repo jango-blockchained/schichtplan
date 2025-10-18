@@ -6,7 +6,10 @@ import { ExportDialog } from "./ExportDialog";
 
 interface ScheduleControlsProps {
   onRefresh: () => void;
-  onExport: (format: 'standard' | 'mep' | 'mep-html', filiale?: string) => void | Promise<void>;
+  onExport: (
+    format: "standard" | "mep" | "mep-html",
+    filiale?: string,
+  ) => void | Promise<void>;
   isExporting?: boolean;
 }
 
@@ -27,7 +30,10 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
     setIsExportDialogOpen(true);
   };
 
-  const handleExportFromDialog = async (format: 'standard' | 'mep' | 'mep-html', filiale?: string) => {
+  const handleExportFromDialog = async (
+    format: "standard" | "mep" | "mep-html",
+    filiale?: string,
+  ) => {
     await onExport(format, filiale);
   };
 
@@ -38,7 +44,11 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
           <RefreshCw className="h-4 w-4 mr-2" />
           Aktualisieren
         </Button>
-        <Button variant="outline" size="sm" onClick={handleOpenLayoutCustomizer}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleOpenLayoutCustomizer}
+        >
           <Settings2 className="h-4 w-4 mr-2" />
           Layout
         </Button>

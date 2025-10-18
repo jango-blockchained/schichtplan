@@ -39,7 +39,7 @@ export const ShiftEditor: React.FC<ShiftEditorProps> = ({
     // Days ordered to match the Python/backend convention where Monday=0 through Sunday=6
     const days = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
     if (Array.isArray(activeDays)) {
-      return activeDays.map(idx => days[idx]).join(", ");
+      return activeDays.map((idx) => days[idx]).join(", ");
     }
     return Object.entries(activeDays)
       .filter(([, isActive]) => isActive)
@@ -151,8 +151,8 @@ export const ShiftEditor: React.FC<ShiftEditorProps> = ({
                     const activeDays = Array.isArray(data.active_days)
                       ? data.active_days
                       : Object.entries(data.active_days || {})
-                        .filter(([, v]) => v)
-                        .map(([k]) => parseInt(k, 10));
+                          .filter(([, v]) => v)
+                          .map(([k]) => parseInt(k, 10));
 
                     onUpdateShift({
                       ...editingShift,

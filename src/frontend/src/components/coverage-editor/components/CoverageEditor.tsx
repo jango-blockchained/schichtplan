@@ -5,7 +5,14 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, PencilIcon, CheckSquare, Square, Edit3 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { CoverageEditorProps, DailyCoverage, StoreConfigProps, CoverageTimeSlot, BlockIdentifier, BulkEditData } from "../types";
+import {
+  CoverageEditorProps,
+  DailyCoverage,
+  StoreConfigProps,
+  CoverageTimeSlot,
+  BlockIdentifier,
+  BulkEditData,
+} from "../types";
 import { DAYS_SHORT, GRID_CONSTANTS } from "../utils/constants";
 import { DayRow } from "./DayRow";
 import { BulkEditDialog } from "./BulkEditDialog";
@@ -106,7 +113,7 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [gridWidth, setGridWidth] = useState(0);
-  
+
   // Selection state
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedBlocks, setSelectedBlocks] = useState<Set<string>>(new Set());
@@ -128,28 +135,37 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
   const openingDays = React.useMemo(() => {
     return Object.entries(storeConfig.opening_days)
       .filter(([dayName, isOpen]) => isOpen) // Filter for days that are open
-      .map(([dayName]) => { // Map day names to numeric indices (Monday=0, Sunday=6)
+      .map(([dayName]) => {
+        // Map day names to numeric indices (Monday=0, Sunday=6)
         const lowerDayName = dayName.toLowerCase();
         switch (lowerDayName) {
-          case 'monday': return 0;
-          case 'tuesday': return 1;
-          case 'wednesday': return 2;
-          case 'thursday': return 3;
-          case 'friday': return 4;
-          case 'saturday': return 5;
-          case 'sunday': return 6;
-          default: return -1; // Should not happen with valid data
+          case "monday":
+            return 0;
+          case "tuesday":
+            return 1;
+          case "wednesday":
+            return 2;
+          case "thursday":
+            return 3;
+          case "friday":
+            return 4;
+          case "saturday":
+            return 5;
+          case "sunday":
+            return 6;
+          default:
+            return -1; // Should not happen with valid data
         }
       })
-      .filter(dayIndex => dayIndex !== -1) // Remove any invalid entries
+      .filter((dayIndex) => dayIndex !== -1) // Remove any invalid entries
       .sort((a, b) => a - b);
   }, [storeConfig.opening_days]);
 
   useEffect(() => {
     // Log storeConfig.opening_days and openingDays after storeConfig is available
     if (storeConfig) {
-      console.log('DEBUG: storeConfig.opening_days', storeConfig.opening_days);
-      console.log('DEBUG: calculated openingDays', openingDays);
+      console.log("DEBUG: storeConfig.opening_days", storeConfig.opening_days);
+      console.log("DEBUG: calculated openingDays", openingDays);
     }
   }, [storeConfig, openingDays]); // Depend on storeConfig and openingDays
 
@@ -195,7 +211,7 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
     const coverageMap = new Map<number, DailyCoverage>();
     if (initialCoverage) {
       // Use initialCoverage directly (assuming it's DailyCoverage[])
-      initialCoverage.forEach(item => coverageMap.set(item.dayIndex, item));
+      initialCoverage.forEach((item) => coverageMap.set(item.dayIndex, item));
     }
     // Ensure all 7 days are in the map, adding default if missing
     for (let i = 0; i < 7; i++) {
@@ -204,7 +220,9 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
       }
     }
     // Sort by dayIndex to maintain consistent order
-    return Array.from(coverageMap.values()).sort((a, b) => a.dayIndex - b.dayIndex);
+    return Array.from(coverageMap.values()).sort(
+      (a, b) => a.dayIndex - b.dayIndex,
+    );
   });
 
   useEffect(() => {
@@ -291,7 +309,10 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
     updates: Partial<CoverageTimeSlot>,
   ) => {
     const newCoverage = [...coverage];
-    newCoverage[dayIndex].timeSlots[slotIndex] = { ...newCoverage[dayIndex].timeSlots[slotIndex], ...updates };
+    newCoverage[dayIndex].timeSlots[slotIndex] = {
+      ...newCoverage[dayIndex].timeSlots[slotIndex],
+      ...updates,
+    };
     setCoverage(newCoverage);
     if (onChange) {
       onChange(newCoverage);
@@ -308,16 +329,20 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
   };
 
   // Selection management functions
-  const handleBlockSelect = (dayIndex: number, slotIndex: number, selected: boolean) => {
+  const handleBlockSelect = (
+    dayIndex: number,
+    slotIndex: number,
+    selected: boolean,
+  ) => {
     const blockKey = `${dayIndex}-${slotIndex}`;
     const newSelected = new Set(selectedBlocks);
-    
+
     if (selected) {
       newSelected.add(blockKey);
     } else {
       newSelected.delete(blockKey);
     }
-    
+
     setSelectedBlocks(newSelected);
   };
 
@@ -357,16 +382,18 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
 
   const handleBulkUpdate = (updates: BulkEditData) => {
     const newCoverage = [...coverage];
-    const selectedBlockIds: BlockIdentifier[] = Array.from(selectedBlocks).map(blockKey => {
-      const [dayIndex, slotIndex] = blockKey.split('-').map(Number);
-      return { dayIndex, slotIndex };
-    });
+    const selectedBlockIds: BlockIdentifier[] = Array.from(selectedBlocks).map(
+      (blockKey) => {
+        const [dayIndex, slotIndex] = blockKey.split("-").map(Number);
+        return { dayIndex, slotIndex };
+      },
+    );
 
     selectedBlockIds.forEach(({ dayIndex, slotIndex }) => {
-      const dayData = newCoverage.find(d => d.dayIndex === dayIndex);
+      const dayData = newCoverage.find((d) => d.dayIndex === dayIndex);
       if (dayData && dayData.timeSlots[slotIndex]) {
         const slot = dayData.timeSlots[slotIndex];
-        
+
         if (updates.minEmployees !== undefined) {
           slot.minEmployees = updates.minEmployees;
         }
@@ -441,7 +468,7 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
   };
 
   const handleAddDefaultSlots = () => {
-    let newCoverage = [...coverage];
+    const newCoverage = [...coverage];
     // Logic to add default slots based on store hours and min/max employees
     // This is a simplified example; actual logic might be more complex
     for (const day of newCoverage) {
@@ -485,14 +512,18 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
                 <PencilIcon className="h-4 w-4" />
                 {isEditing ? "Done" : "Edit"}
               </Button>
-              
+
               <Button
                 variant={selectionMode ? "secondary" : "outline"}
                 size="sm"
                 className="gap-2"
                 onClick={toggleSelectionMode}
               >
-                {selectionMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                {selectionMode ? (
+                  <CheckSquare className="h-4 w-4" />
+                ) : (
+                  <Square className="h-4 w-4" />
+                )}
                 {selectionMode ? "Exit Select" : "Select"}
               </Button>
 
@@ -502,7 +533,13 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
                     variant="outline"
                     size="sm"
                     onClick={handleSelectAll}
-                    disabled={selectedBlocks.size === coverage.reduce((total, day) => total + day.timeSlots.length, 0)}
+                    disabled={
+                      selectedBlocks.size ===
+                      coverage.reduce(
+                        (total, day) => total + day.timeSlots.length,
+                        0,
+                      )
+                    }
                   >
                     Select All
                   </Button>
@@ -649,8 +686,8 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
         <BulkEditDialog
           isOpen={showBulkEditDialog}
           onClose={() => setShowBulkEditDialog(false)}
-          selectedBlocks={Array.from(selectedBlocks).map(blockKey => {
-            const [dayIndex, slotIndex] = blockKey.split('-').map(Number);
+          selectedBlocks={Array.from(selectedBlocks).map((blockKey) => {
+            const [dayIndex, slotIndex] = blockKey.split("-").map(Number);
             return { dayIndex, slotIndex };
           })}
           coverage={coverage}

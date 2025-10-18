@@ -1,6 +1,6 @@
 /**
  * Unified Version Manager Component
- * 
+ *
  * This component brings together all version management functionality
  * in a clean, unified interface using the new refactored components.
  */
@@ -39,9 +39,12 @@ const getStatusBadge = (status: string | undefined) => {
       variant="outline"
       className={cn(
         "text-xs",
-        status === "PUBLISHED" && "bg-green-500/20 text-green-300 border-green-500/30",
-        status === "DRAFT" && "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
-        status === "ARCHIVED" && "bg-gray-500/20 text-gray-300 border-gray-500/30"
+        status === "PUBLISHED" &&
+          "bg-green-500/20 text-green-300 border-green-500/30",
+        status === "DRAFT" &&
+          "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+        status === "ARCHIVED" &&
+          "bg-gray-500/20 text-gray-300 border-gray-500/30",
       )}
     >
       {status.toLowerCase()}
@@ -97,51 +100,71 @@ export function VersionManager({
   });
 
   // Use external versions and selectedVersion if provided, otherwise use internal state
-  const effectiveVersions = useMemo(() =>
-    externalVersions || versionManagerResult?.state.versions || [],
-    [externalVersions, versionManagerResult?.state.versions]
+  const effectiveVersions = useMemo(
+    () => externalVersions || versionManagerResult?.state.versions || [],
+    [externalVersions, versionManagerResult?.state.versions],
   );
-  const effectiveSelectedVersion = externalSelectedVersion !== undefined ? externalSelectedVersion : versionManagerResult?.state.selectedVersion;
+  const effectiveSelectedVersion =
+    externalSelectedVersion !== undefined
+      ? externalSelectedVersion
+      : versionManagerResult?.state.selectedVersion;
 
   // Provide fallback actions when using external versions
-  const effectiveActions = useMemo(() => externalVersions ? {
-    selectVersion: () => { },
-    resetVersionSelection: () => { },
-    createVersion: () => Promise.resolve(),
-    updateVersionStatus: () => Promise.resolve(),
-    updateVersionNotes: () => Promise.resolve(),
-    deleteVersion: () => Promise.resolve(),
-    duplicateVersion: () => Promise.resolve(),
-    refetch: () => { },
-  } : versionManagerResult?.actions || {
-    selectVersion: () => { },
-    resetVersionSelection: () => { },
-    createVersion: () => Promise.resolve(),
-    updateVersionStatus: () => Promise.resolve(),
-    updateVersionNotes: () => Promise.resolve(),
-    deleteVersion: () => Promise.resolve(),
-    duplicateVersion: () => Promise.resolve(),
-    refetch: () => { },
-  }, [externalVersions, versionManagerResult?.actions]);
+  const effectiveActions = useMemo(
+    () =>
+      externalVersions
+        ? {
+            selectVersion: () => {},
+            resetVersionSelection: () => {},
+            createVersion: () => Promise.resolve(),
+            updateVersionStatus: () => Promise.resolve(),
+            updateVersionNotes: () => Promise.resolve(),
+            deleteVersion: () => Promise.resolve(),
+            duplicateVersion: () => Promise.resolve(),
+            refetch: () => {},
+          }
+        : versionManagerResult?.actions || {
+            selectVersion: () => {},
+            resetVersionSelection: () => {},
+            createVersion: () => Promise.resolve(),
+            updateVersionStatus: () => Promise.resolve(),
+            updateVersionNotes: () => Promise.resolve(),
+            deleteVersion: () => Promise.resolve(),
+            duplicateVersion: () => Promise.resolve(),
+            refetch: () => {},
+          },
+    [externalVersions, versionManagerResult?.actions],
+  );
 
   // Provide fallback state when using external versions
-  const effectiveState = useMemo(() => externalVersions ? {
-    versions: effectiveVersions,
-    selectedVersion: effectiveSelectedVersion,
-    isLoading: false,
-    isError: false,
-    error: null,
-  } : versionManagerResult?.state || {
-    versions: effectiveVersions,
-    selectedVersion: effectiveSelectedVersion,
-    isLoading: false,
-    isError: false,
-    error: null,
-  }, [externalVersions, effectiveVersions, effectiveSelectedVersion, versionManagerResult?.state]);
+  const effectiveState = useMemo(
+    () =>
+      externalVersions
+        ? {
+            versions: effectiveVersions,
+            selectedVersion: effectiveSelectedVersion,
+            isLoading: false,
+            isError: false,
+            error: null,
+          }
+        : versionManagerResult?.state || {
+            versions: effectiveVersions,
+            selectedVersion: effectiveSelectedVersion,
+            isLoading: false,
+            isError: false,
+            error: null,
+          },
+    [
+      externalVersions,
+      effectiveVersions,
+      effectiveSelectedVersion,
+      versionManagerResult?.state,
+    ],
+  );
 
   // Fetch settings if not provided
   const { data: settings } = useQuery<Settings>({
-    queryKey: ['settings'],
+    queryKey: ["settings"],
     queryFn: getSettings,
     staleTime: 5 * 60 * 1000,
     enabled: !weekNavigationSettings, // Only fetch if settings not provided
@@ -149,20 +172,25 @@ export function VersionManager({
 
   // Use provided settings or fall back to fetched settings
   const effectiveSettings = weekNavigationSettings || {
-    weekendStart: settings?.week_navigation?.week_weekend_start === 'SUNDAY' ? 0 : 1,
-    monthBoundaryMode: settings?.week_navigation?.week_month_boundary_mode ?? 'keep_intact',
+    weekendStart:
+      settings?.week_navigation?.week_weekend_start === "SUNDAY" ? 0 : 1,
+    monthBoundaryMode:
+      settings?.week_navigation?.week_month_boundary_mode ?? "keep_intact",
   };
 
-  const [selectedVersionStats, setSelectedVersionStats] = useState<VersionStatistics | null>(null);
+  const [selectedVersionStats, setSelectedVersionStats] =
+    useState<VersionStatistics | null>(null);
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
-  const [versionToDuplicate, setVersionToDuplicate] = useState<number | null>(null);
+  const [versionToDuplicate, setVersionToDuplicate] = useState<number | null>(
+    null,
+  );
   const [isCollapsed, setIsCollapsed] = useState(initiallyCollapsed);
   // Removed extra checkbox UI for filtering by date; always filter to current range
   const [filterByDate] = useState(true);
 
   // Get selected version metadata
   const selectedVersionMeta = effectiveSelectedVersion
-    ? effectiveVersions.find(v => v.version === effectiveSelectedVersion)
+    ? effectiveVersions.find((v) => v.version === effectiveSelectedVersion)
     : undefined;
 
   // Helper function to get week number and date range info
@@ -176,7 +204,8 @@ export function VersionManager({
     const year = dateRange.from.getFullYear();
 
     const weekInfo = {
-      weekRange: weekFrom === weekTo ? `KW ${weekFrom}` : `KW ${weekFrom}-${weekTo}`,
+      weekRange:
+        weekFrom === weekTo ? `KW ${weekFrom}` : `KW ${weekFrom}-${weekTo}`,
       dateRange: `${format(dateRange.from, "dd.MM")} - ${format(dateRange.to, "dd.MM.yyyy", { locale: de })}`,
       year,
       weekendStart: effectiveSettings.weekendStart,
@@ -195,7 +224,11 @@ export function VersionManager({
       <div className="flex items-center justify-between w-full">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            {isCollapsed ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronUp className="h-4 w-4" />
+            )}
             <CardTitle>Versionsverwaltung</CardTitle>
           </div>
 
@@ -212,7 +245,7 @@ export function VersionManager({
 
               {/* Version Count */}
               <Badge variant="secondary">
-                {totalVersions} Version{totalVersions !== 1 ? 'en' : ''}
+                {totalVersions} Version{totalVersions !== 1 ? "en" : ""}
               </Badge>
 
               {/* Selected Version with enhanced info */}
@@ -250,13 +283,14 @@ export function VersionManager({
   };
 
   // Filter versions by selected week date range if enabled
-  const filteredVersions = filterByDate && dateRange?.from && dateRange?.to
-    ? effectiveVersions.filter(v => {
-      const vStart = new Date(v.date_range.start);
-      const vEnd = new Date(v.date_range.end);
-      return vStart >= dateRange.from && vEnd <= dateRange.to;
-    })
-    : effectiveVersions;
+  const filteredVersions =
+    filterByDate && dateRange?.from && dateRange?.to
+      ? effectiveVersions.filter((v) => {
+          const vStart = new Date(v.date_range.start);
+          const vEnd = new Date(v.date_range.end);
+          return vStart >= dateRange.from && vEnd <= dateRange.to;
+        })
+      : effectiveVersions;
 
   // Render the layout content (extracted from the switch statement)
   const renderLayoutContent = () => {
@@ -268,8 +302,12 @@ export function VersionManager({
               versions={filteredVersions}
               selectedVersion={effectiveSelectedVersion}
               onSelectVersion={handleVersionSelection}
-              onPublishVersion={(version) => effectiveActions.updateVersionStatus(version, "PUBLISHED")}
-              onArchiveVersion={(version) => effectiveActions.updateVersionStatus(version, "ARCHIVED")}
+              onPublishVersion={(version) =>
+                effectiveActions.updateVersionStatus(version, "PUBLISHED")
+              }
+              onArchiveVersion={(version) =>
+                effectiveActions.updateVersionStatus(version, "ARCHIVED")
+              }
               onDeleteVersion={effectiveActions.deleteVersion}
               onDuplicateVersion={handleDuplicateVersion}
               isLoading={effectiveState.isLoading}
@@ -285,8 +323,12 @@ export function VersionManager({
               version={selectedVersionMeta}
               statistics={selectedVersionStats}
               onUpdateNotes={effectiveActions.updateVersionNotes}
-              onPublish={(version) => effectiveActions.updateVersionStatus(version, "PUBLISHED")}
-              onArchive={(version) => effectiveActions.updateVersionStatus(version, "ARCHIVED")}
+              onPublish={(version) =>
+                effectiveActions.updateVersionStatus(version, "PUBLISHED")
+              }
+              onArchive={(version) =>
+                effectiveActions.updateVersionStatus(version, "ARCHIVED")
+              }
               onDuplicate={handleDuplicateVersion}
               isLoading={effectiveState.isLoading}
             />
@@ -301,8 +343,12 @@ export function VersionManager({
               versions={filteredVersions}
               selectedVersion={effectiveSelectedVersion}
               onSelectVersion={handleVersionSelection}
-              onPublishVersion={(version) => effectiveActions.updateVersionStatus(version, "PUBLISHED")}
-              onArchiveVersion={(version) => effectiveActions.updateVersionStatus(version, "ARCHIVED")}
+              onPublishVersion={(version) =>
+                effectiveActions.updateVersionStatus(version, "PUBLISHED")
+              }
+              onArchiveVersion={(version) =>
+                effectiveActions.updateVersionStatus(version, "ARCHIVED")
+              }
               onDeleteVersion={effectiveActions.deleteVersion}
               onDuplicateVersion={handleDuplicateVersion}
               isLoading={effectiveState.isLoading}
@@ -315,8 +361,12 @@ export function VersionManager({
               version={selectedVersionMeta}
               statistics={selectedVersionStats}
               onUpdateNotes={effectiveActions.updateVersionNotes}
-              onPublish={(version) => effectiveActions.updateVersionStatus(version, "PUBLISHED")}
-              onArchive={(version) => effectiveActions.updateVersionStatus(version, "ARCHIVED")}
+              onPublish={(version) =>
+                effectiveActions.updateVersionStatus(version, "PUBLISHED")
+              }
+              onArchive={(version) =>
+                effectiveActions.updateVersionStatus(version, "ARCHIVED")
+              }
               onDuplicate={handleDuplicateVersion}
               isLoading={effectiveState.isLoading}
             />
@@ -333,8 +383,12 @@ export function VersionManager({
                 versions={filteredVersions}
                 selectedVersion={effectiveSelectedVersion}
                 onSelectVersion={handleVersionSelection}
-                onPublishVersion={(version) => effectiveActions.updateVersionStatus(version, "PUBLISHED")}
-                onArchiveVersion={(version) => effectiveActions.updateVersionStatus(version, "ARCHIVED")}
+                onPublishVersion={(version) =>
+                  effectiveActions.updateVersionStatus(version, "PUBLISHED")
+                }
+                onArchiveVersion={(version) =>
+                  effectiveActions.updateVersionStatus(version, "ARCHIVED")
+                }
                 onDeleteVersion={effectiveActions.deleteVersion}
                 onDuplicateVersion={handleDuplicateVersion}
                 isLoading={effectiveState.isLoading}
@@ -350,8 +404,12 @@ export function VersionManager({
                 version={selectedVersionMeta}
                 statistics={selectedVersionStats}
                 onUpdateNotes={effectiveActions.updateVersionNotes}
-                onPublish={(version) => effectiveActions.updateVersionStatus(version, "PUBLISHED")}
-                onArchive={(version) => effectiveActions.updateVersionStatus(version, "ARCHIVED")}
+                onPublish={(version) =>
+                  effectiveActions.updateVersionStatus(version, "PUBLISHED")
+                }
+                onArchive={(version) =>
+                  effectiveActions.updateVersionStatus(version, "ARCHIVED")
+                }
                 onDuplicate={handleDuplicateVersion}
                 isLoading={effectiveState.isLoading}
               />
@@ -362,61 +420,69 @@ export function VersionManager({
   };
 
   // Handle version selection
-  const handleVersionSelection = useCallback((version: number) => {
-    effectiveActions.selectVersion(version);
-    onVersionSelected?.(version); // Also call external callback if provided
-    // Load real statistics for the selected version
-    setSelectedVersionStats(null);
-    const meta = effectiveVersions.find(v => v.version === version);
-    const start = meta?.date_range.start;
-    const end = meta?.date_range.end;
-    (async () => {
-      try {
-        const details = await getVersionDetails(version);
-        // Derive filled/empty/coverage from schedules
-        let total = 0;
-        let filled = 0;
-        if (start && end) {
-          const resp = await getSchedules(start, end, version, true);
-          // Prefer API-provided aggregates if available
-          if (typeof resp.total_schedules === 'number' && typeof resp.filled_shifts_count === 'number') {
-            total = resp.total_schedules;
-            filled = resp.filled_shifts_count;
-          } else {
-            const schedules = resp.schedules || [];
-            total = schedules.length;
-            filled = schedules.filter(s => (s.shift_id != null) && s.is_empty !== true).length;
-          }
-        }
-        const empty = Math.max(0, total - filled);
-        const coverage = total > 0 ? (filled / total) * 100 : 0;
-        setSelectedVersionStats({
-          total_schedules: total || details.schedule_count,
-          filled_schedules: filled,
-          empty_schedules: empty,
-          coverage_percentage: coverage,
-          unique_employees: details.employees_count,
-          unique_dates: details.days_count,
-        });
-      } catch (e) {
-        console.error("Failed to load version statistics", e);
-        // Fallback to minimal counts if details are available
+  const handleVersionSelection = useCallback(
+    (version: number) => {
+      effectiveActions.selectVersion(version);
+      onVersionSelected?.(version); // Also call external callback if provided
+      // Load real statistics for the selected version
+      setSelectedVersionStats(null);
+      const meta = effectiveVersions.find((v) => v.version === version);
+      const start = meta?.date_range.start;
+      const end = meta?.date_range.end;
+      (async () => {
         try {
           const details = await getVersionDetails(version);
+          // Derive filled/empty/coverage from schedules
+          let total = 0;
+          let filled = 0;
+          if (start && end) {
+            const resp = await getSchedules(start, end, version, true);
+            // Prefer API-provided aggregates if available
+            if (
+              typeof resp.total_schedules === "number" &&
+              typeof resp.filled_shifts_count === "number"
+            ) {
+              total = resp.total_schedules;
+              filled = resp.filled_shifts_count;
+            } else {
+              const schedules = resp.schedules || [];
+              total = schedules.length;
+              filled = schedules.filter(
+                (s) => s.shift_id != null && s.is_empty !== true,
+              ).length;
+            }
+          }
+          const empty = Math.max(0, total - filled);
+          const coverage = total > 0 ? (filled / total) * 100 : 0;
           setSelectedVersionStats({
-            total_schedules: details.schedule_count,
-            filled_schedules: 0,
-            empty_schedules: details.schedule_count,
-            coverage_percentage: 0,
+            total_schedules: total || details.schedule_count,
+            filled_schedules: filled,
+            empty_schedules: empty,
+            coverage_percentage: coverage,
             unique_employees: details.employees_count,
             unique_dates: details.days_count,
           });
-        } catch {
-          setSelectedVersionStats(null);
+        } catch (e) {
+          console.error("Failed to load version statistics", e);
+          // Fallback to minimal counts if details are available
+          try {
+            const details = await getVersionDetails(version);
+            setSelectedVersionStats({
+              total_schedules: details.schedule_count,
+              filled_schedules: 0,
+              empty_schedules: details.schedule_count,
+              coverage_percentage: 0,
+              unique_employees: details.employees_count,
+              unique_dates: details.days_count,
+            });
+          } catch {
+            setSelectedVersionStats(null);
+          }
         }
-      }
-    })();
-  }, [effectiveActions, effectiveVersions, onVersionSelected]);
+      })();
+    },
+    [effectiveActions, effectiveVersions, onVersionSelected],
+  );
 
   // Handle creating new version
   const handleCreateNewVersion = () => {
@@ -447,7 +513,10 @@ export function VersionManager({
   if (isCollapsible) {
     return (
       <Card className={className}>
-        <Collapsible open={!isCollapsed} onOpenChange={(open) => setIsCollapsed(!open)}>
+        <Collapsible
+          open={!isCollapsed}
+          onOpenChange={(open) => setIsCollapsed(!open)}
+        >
           <CollapsibleTrigger asChild>
             <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
               {renderCollapsibleHeader()}
@@ -480,22 +549,31 @@ export function VersionManager({
               ) : !dateRange?.from || !dateRange?.to ? (
                 /* No date range state */
                 <div className="text-center py-8">
-                  <div className="text-lg font-medium mb-2">Kein Zeitraum ausgewählt</div>
+                  <div className="text-lg font-medium mb-2">
+                    Kein Zeitraum ausgewählt
+                  </div>
                   <div className="text-sm text-muted-foreground">
-                    Bitte wählen Sie einen Zeitraum aus, um Versionen anzuzeigen.
+                    Bitte wählen Sie einen Zeitraum aus, um Versionen
+                    anzuzeigen.
                   </div>
                 </div>
               ) : effectiveVersions.length === 0 ? (
                 /* Empty state */
                 <div className="text-center py-8">
-                  <div className="text-lg font-medium mb-2">Keine Versionen vorhanden</div>
+                  <div className="text-lg font-medium mb-2">
+                    Keine Versionen vorhanden
+                  </div>
                   <div className="text-sm text-muted-foreground mb-4">
                     Erstellen Sie eine Version für den ausgewählten Zeitraum.
                   </div>
                   {showCreateButton && (
                     <Button
                       onClick={handleCreateNewVersion}
-                      disabled={effectiveState.isLoading || !dateRange?.from || !dateRange?.to}
+                      disabled={
+                        effectiveState.isLoading ||
+                        !dateRange?.from ||
+                        !dateRange?.to
+                      }
                     >
                       <Plus className="h-4 w-4 mr-2" />
                       Erste Version erstellen
@@ -516,7 +594,9 @@ export function VersionManager({
             open={duplicateModalOpen}
             onOpenChange={setDuplicateModalOpen}
             sourceVersion={versionToDuplicate}
-            sourceVersionMeta={effectiveVersions.find(v => v.version === versionToDuplicate)}
+            sourceVersionMeta={effectiveVersions.find(
+              (v) => v.version === versionToDuplicate,
+            )}
             onDuplicate={handleDuplicateConfirm}
             isLoading={effectiveState.isLoading}
           />
@@ -557,7 +637,9 @@ export function VersionManager({
         /* No date range state */
         <Card>
           <CardContent className="p-8 text-center">
-            <div className="text-lg font-medium mb-2">Kein Zeitraum ausgewählt</div>
+            <div className="text-lg font-medium mb-2">
+              Kein Zeitraum ausgewählt
+            </div>
             <div className="text-sm text-muted-foreground">
               Bitte wählen Sie einen Zeitraum aus, um Versionen anzuzeigen.
             </div>
@@ -582,14 +664,18 @@ export function VersionManager({
             </CardTitle>
           </CardHeader>
           <CardContent className="text-center py-8">
-            <div className="text-lg font-medium mb-2">Keine Versionen vorhanden</div>
+            <div className="text-lg font-medium mb-2">
+              Keine Versionen vorhanden
+            </div>
             <div className="text-sm text-muted-foreground mb-4">
               Erstellen Sie eine Version für den ausgewählten Zeitraum.
             </div>
             {showCreateButton && (
               <Button
                 onClick={handleCreateNewVersion}
-                disabled={effectiveState.isLoading || !dateRange?.from || !dateRange?.to}
+                disabled={
+                  effectiveState.isLoading || !dateRange?.from || !dateRange?.to
+                }
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Erste Version erstellen

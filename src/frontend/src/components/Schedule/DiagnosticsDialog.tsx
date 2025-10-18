@@ -9,7 +9,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { getScheduleDiagnostics } from "@/services/api";
-import { Loader2, AlertCircle, Info, AlertTriangle, CheckCircle, FileTextIcon, Download } from "lucide-react";
+import {
+  Loader2,
+  AlertCircle,
+  Info,
+  AlertTriangle,
+  CheckCircle,
+  FileTextIcon,
+  Download,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DiagnosticsDialogProps {
@@ -19,12 +27,16 @@ interface DiagnosticsDialogProps {
 }
 
 interface DiagnosticLog {
-  type: 'info' | 'warning' | 'error' | 'success';
+  type: "info" | "warning" | "error" | "success";
   message: string;
   timestamp: string;
 }
 
-export function DiagnosticsDialog({ sessionId, isOpen, onClose }: DiagnosticsDialogProps) {
+export function DiagnosticsDialog({
+  sessionId,
+  isOpen,
+  onClose,
+}: DiagnosticsDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [diagnosticLogs, setDiagnosticLogs] = useState<DiagnosticLog[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -43,13 +55,14 @@ export function DiagnosticsDialog({ sessionId, isOpen, onClose }: DiagnosticsDia
     setError(null);
     try {
       const response = await getScheduleDiagnostics(sessionId);
-      if (response.status === 'success') {
+      if (response.status === "success") {
         setDiagnosticLogs(response.diagnostic_logs);
       } else {
-        setError('Failed to load diagnostics');
+        setError("Failed to load diagnostics");
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      const errorMessage =
+        err instanceof Error ? err.message : "Unknown error occurred";
       setError(errorMessage);
       toast({
         title: "Error Loading Diagnostics",
@@ -63,12 +76,12 @@ export function DiagnosticsDialog({ sessionId, isOpen, onClose }: DiagnosticsDia
 
   const downloadLogs = () => {
     const logText = diagnosticLogs
-      .map(log => `[${log.type.toUpperCase()}] ${log.message}`)
-      .join('\n');
-    
-    const blob = new Blob([logText], { type: 'text/plain' });
+      .map((log) => `[${log.type.toUpperCase()}] ${log.message}`)
+      .join("\n");
+
+    const blob = new Blob([logText], { type: "text/plain" });
     const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
     a.download = `diagnostics_${sessionId}.log`;
     document.body.appendChild(a);
@@ -77,26 +90,26 @@ export function DiagnosticsDialog({ sessionId, isOpen, onClose }: DiagnosticsDia
     document.body.removeChild(a);
   };
 
-  const getLogIcon = (type: DiagnosticLog['type']) => {
+  const getLogIcon = (type: DiagnosticLog["type"]) => {
     switch (type) {
-      case 'error':
+      case "error":
         return <AlertCircle className="h-4 w-4" />;
-      case 'warning':
+      case "warning":
         return <AlertTriangle className="h-4 w-4" />;
-      case 'success':
+      case "success":
         return <CheckCircle className="h-4 w-4" />;
       default:
         return <Info className="h-4 w-4" />;
     }
   };
 
-  const getLogClassName = (type: DiagnosticLog['type']) => {
+  const getLogClassName = (type: DiagnosticLog["type"]) => {
     switch (type) {
-      case 'error':
+      case "error":
         return "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400";
-      case 'warning':
+      case "warning":
         return "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400";
-      case 'success':
+      case "success":
         return "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-400";
       default:
         return "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400";
@@ -137,7 +150,9 @@ export function DiagnosticsDialog({ sessionId, isOpen, onClose }: DiagnosticsDia
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
                 <FileTextIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-sm text-muted-foreground">No diagnostic logs available</p>
+                <p className="text-sm text-muted-foreground">
+                  No diagnostic logs available
+                </p>
               </div>
             </div>
           ) : (
@@ -147,12 +162,14 @@ export function DiagnosticsDialog({ sessionId, isOpen, onClose }: DiagnosticsDia
                   key={index}
                   className={cn(
                     "p-3 rounded-md border flex items-start gap-2 text-sm",
-                    getLogClassName(log.type)
+                    getLogClassName(log.type),
                   )}
                 >
                   <div className="mt-0.5">{getLogIcon(log.type)}</div>
                   <div className="flex-1">
-                    <p className="whitespace-pre-wrap break-words">{log.message}</p>
+                    <p className="whitespace-pre-wrap break-words">
+                      {log.message}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -164,9 +181,10 @@ export function DiagnosticsDialog({ sessionId, isOpen, onClose }: DiagnosticsDia
           <div className="text-sm text-muted-foreground">
             {diagnosticLogs.length > 0 && (
               <span>
-                {diagnosticLogs.length} log entries • 
-                {diagnosticLogs.filter(l => l.type === 'error').length} errors • 
-                {diagnosticLogs.filter(l => l.type === 'warning').length} warnings
+                {diagnosticLogs.length} log entries •
+                {diagnosticLogs.filter((l) => l.type === "error").length} errors
+                •{diagnosticLogs.filter((l) => l.type === "warning").length}{" "}
+                warnings
               </span>
             )}
           </div>
@@ -188,4 +206,4 @@ export function DiagnosticsDialog({ sessionId, isOpen, onClose }: DiagnosticsDia
       </DialogContent>
     </Dialog>
   );
-} 
+}

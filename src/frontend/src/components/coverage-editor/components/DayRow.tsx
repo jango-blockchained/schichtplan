@@ -121,7 +121,7 @@ export const DayRow: React.FC<DayRowProps> = ({
       {slots.map((slot, index) => {
         const blockKey = `${dayIndex}-${index}`;
         const isSelected = selectedBlocks.has(blockKey);
-        
+
         return (
           <CoverageBlock
             key={`${dayIndex}-${slot.startTime}-${slot.endTime}-${index}`}

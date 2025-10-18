@@ -1,15 +1,24 @@
-import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { DatePicker } from '@/components/ui/date-picker';
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Label } from "@/components/ui/label";
+import React from "react";
 
 /**
  * @interface AIGenerationControlsProps
  * @description Props for the AIGenerationControls component. Currently, it takes no props.
  * Future props might include callbacks for initiating generation or default values.
  */
-interface AIGenerationControlsProps {}
+interface AIGenerationControlsProps {
+  onGenerate?: () => void;
+  // Add other props as needed in the future
+}
 
 /**
  * @component AIGenerationControls
@@ -24,7 +33,9 @@ const AIGenerationControls: React.FC<AIGenerationControlsProps> = () => {
     <Card>
       <CardHeader>
         <CardTitle>Generate Schedule</CardTitle>
-        <CardDescription>Select period and options for AI generation.</CardDescription>
+        <CardDescription>
+          Select period and options for AI generation.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -34,7 +45,7 @@ const AIGenerationControls: React.FC<AIGenerationControlsProps> = () => {
             {/* Assuming DatePicker is a custom component that might not take placeholder directly */}
             {/* If it's a simple input wrapper, it might need different props or be used differently */}
             {/* For now, removing the problematic prop. Functionality might need review. */}
-            <DatePicker /> 
+            <DatePicker />
           </div>
           <div className="space-y-1">
             <Label htmlFor="aiProfile">AI Profile</Label>

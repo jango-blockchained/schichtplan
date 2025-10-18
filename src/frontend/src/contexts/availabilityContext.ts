@@ -1,5 +1,5 @@
-import { EmployeeAvailabilityStatus } from '@/types';
-import { createContext } from 'react';
+import { EmployeeAvailabilityStatus } from "@/types";
+import { createContext } from "react";
 
 interface AbsenceInfo {
   absence_type_id: string;
@@ -10,17 +10,22 @@ interface AbsenceInfo {
   note?: string;
 }
 
-interface ExtendedEmployeeAvailabilityStatus extends EmployeeAvailabilityStatus {
+interface ExtendedEmployeeAvailabilityStatus
+  extends EmployeeAvailabilityStatus {
   is_available?: boolean;
   absence_info?: AbsenceInfo | null;
 }
 
 export interface AvailabilityContextType {
-  getEmployeeAvailability: (employeeId: number, date: Date) => ExtendedEmployeeAvailabilityStatus | null;
+  getEmployeeAvailability: (
+    employeeId: number,
+    date: Date,
+  ) => ExtendedEmployeeAvailabilityStatus | null;
   isLoading: boolean;
   error: Error | null;
   hasError: boolean;
   refetch: () => void;
 }
 
-export const AvailabilityContext = createContext<AvailabilityContextType | null>(null);
+export const AvailabilityContext =
+  createContext<AvailabilityContextType | null>(null);

@@ -60,7 +60,10 @@ export const EmployeeShiftDefinitionsSection: React.FC<
   const handleEmployeeTypesChange = (
     updatedEmployeeTypes: EditorEmployeeType[], // Assuming editor provides its own type
   ) => {
-    const patched = updatedEmployeeTypes.map((et) => ({ ...et, type: "employee_type" as const }));
+    const patched = updatedEmployeeTypes.map((et) => ({
+      ...et,
+      type: "employee_type" as const,
+    }));
     onUpdate("employee_groups", {
       employee_types: patched as unknown as EmployeeType[], // Cast back to main type
       absence_types: absence_types_data,
@@ -71,7 +74,10 @@ export const EmployeeShiftDefinitionsSection: React.FC<
   const handleAbsenceTypesChange = (
     updatedAbsenceTypes: EditorAbsenceType[], // Assuming editor provides its own type
   ) => {
-    const patched = updatedAbsenceTypes.map((at) => ({ ...at, type: "absence_type" as const }));
+    const patched = updatedAbsenceTypes.map((at) => ({
+      ...at,
+      type: "absence_type" as const,
+    }));
     onUpdate("employee_groups", {
       employee_types: employee_types_data,
       absence_types: patched as unknown as AbsenceType[], // Cast back to main type
@@ -79,8 +85,12 @@ export const EmployeeShiftDefinitionsSection: React.FC<
     });
   };
 
-  const handleShiftTypesChange = (updatedShiftTypes: EditorShiftType[]) => { // Assuming editor provides its own type
-    const patched = updatedShiftTypes.map((st) => ({ ...st, type: "shift_type" as const }));
+  const handleShiftTypesChange = (updatedShiftTypes: EditorShiftType[]) => {
+    // Assuming editor provides its own type
+    const patched = updatedShiftTypes.map((st) => ({
+      ...st,
+      type: "shift_type" as const,
+    }));
     onUpdate("employee_groups", {
       employee_types: employee_types_data,
       absence_types: absence_types_data,

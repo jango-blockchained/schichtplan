@@ -1,74 +1,87 @@
 import {
-    DEFAULT_CONFIG,
-    LayoutAction,
-    LayoutState,
-    PRESET_TEMPLATES,
-    PresetTemplate,
-    SimplifiedPDFConfig,
-    deepMerge,
-    validateConfig
-} from '@/types/SimplifiedPDFConfig';
-import { useCallback, useEffect, useReducer, useRef } from 'react';
+  DEFAULT_CONFIG,
+  LayoutAction,
+  LayoutState,
+  PRESET_TEMPLATES,
+  PresetTemplate,
+  SimplifiedPDFConfig,
+  deepMerge,
+  validateConfig,
+} from "@/types/SimplifiedPDFConfig";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 
 // API integration for saving MEP config
-const saveMEPConfigToBackend = async (config: SimplifiedPDFConfig): Promise<void> => {
-  const response = await fetch('/api/v2/settings/', {
-    method: 'PUT',
+const saveMEPConfigToBackend = async (
+  config: SimplifiedPDFConfig,
+): Promise<void> => {
+  const response = await fetch("/api/v2/settings/", {
+    method: "PUT",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      pdf_layout: config
+      pdf_layout: config,
     }),
   });
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.message || `Failed to save MEP config: ${response.status}`);
+    throw new Error(
+      error.message || `Failed to save MEP config: ${response.status}`,
+    );
   }
 };
 
 // Load MEP config from backend
-const loadMEPConfigFromBackend = async (): Promise<SimplifiedPDFConfig | null> => {
-  try {
-    const response = await fetch('/api/v2/settings/');
-    if (!response.ok) {
-      console.warn('Failed to load MEP config from backend');
+const loadMEPConfigFromBackend =
+  async (): Promise<SimplifiedPDFConfig | null> => {
+    try {
+      const response = await fetch("/api/v2/settings/");
+      if (!response.ok) {
+        console.warn("Failed to load MEP config from backend");
+        return null;
+      }
+
+      const settings = await response.json();
+      const pdfLayout = settings.pdf_layout;
+
+      // Check if this is the new MEP structure (has header, table, footer, styling)
+      if (
+        pdfLayout &&
+        typeof pdfLayout === "object" &&
+        ("header" in pdfLayout ||
+          "table" in pdfLayout ||
+          "footer" in pdfLayout ||
+          "styling" in pdfLayout)
+      ) {
+        return pdfLayout as SimplifiedPDFConfig;
+      }
+
+      return null;
+    } catch (error) {
+      console.warn("Error loading MEP config from backend:", error);
       return null;
     }
-
-    const settings = await response.json();
-    const pdfLayout = settings.pdf_layout;
-    
-    // Check if this is the new MEP structure (has header, table, footer, styling)
-    if (pdfLayout && 
-        typeof pdfLayout === 'object' && 
-        ('header' in pdfLayout || 'table' in pdfLayout || 'footer' in pdfLayout || 'styling' in pdfLayout)) {
-      return pdfLayout as SimplifiedPDFConfig;
-    }
-    
-    return null;
-  } catch (error) {
-    console.warn('Error loading MEP config from backend:', error);
-    return null;
-  }
-};
+  };
 
 const MAX_HISTORY_SIZE = 50;
 const DEBOUNCE_DELAY = 300;
 
 function layoutReducer(state: LayoutState, action: LayoutAction): LayoutState {
   switch (action.type) {
-    case 'UPDATE_CONFIG': {
-      const newConfig = deepMerge(state.config, action.payload as Partial<SimplifiedPDFConfig>);
+    case "UPDATE_CONFIG": {
+      const newConfig = deepMerge(
+        state.config,
+        action.payload as Partial<SimplifiedPDFConfig>,
+      );
       const newHistory = state.history.slice(0, state.historyIndex + 1);
       newHistory.push(newConfig);
-      
+
       // Limit history size
       if (newHistory.length > MAX_HISTORY_SIZE) {
         newHistory.shift();
       }
-      
+
       return {
         ...state,
         config: newConfig,
@@ -80,17 +93,17 @@ function layoutReducer(state: LayoutState, action: LayoutAction): LayoutState {
         lastSaved: undefined,
       };
     }
-    
-    case 'APPLY_PRESET': {
+
+    case "APPLY_PRESET": {
       const preset = action.payload as PresetTemplate;
       const newConfig = deepMerge(DEFAULT_CONFIG, preset.config);
       const newHistory = state.history.slice(0, state.historyIndex + 1);
       newHistory.push(newConfig);
-      
+
       if (newHistory.length > MAX_HISTORY_SIZE) {
         newHistory.shift();
       }
-      
+
       return {
         ...state,
         config: newConfig,
@@ -102,8 +115,8 @@ function layoutReducer(state: LayoutState, action: LayoutAction): LayoutState {
         lastSaved: undefined,
       };
     }
-    
-    case 'UNDO': {
+
+    case "UNDO": {
       if (state.canUndo && state.historyIndex > 0) {
         const newIndex = state.historyIndex - 1;
         return {
@@ -117,8 +130,8 @@ function layoutReducer(state: LayoutState, action: LayoutAction): LayoutState {
       }
       return state;
     }
-    
-    case 'REDO': {
+
+    case "REDO": {
       if (state.canRedo && state.historyIndex < state.history.length - 1) {
         const newIndex = state.historyIndex + 1;
         return {
@@ -132,8 +145,8 @@ function layoutReducer(state: LayoutState, action: LayoutAction): LayoutState {
       }
       return state;
     }
-    
-    case 'RESET': {
+
+    case "RESET": {
       const newHistory = [DEFAULT_CONFIG];
       return {
         ...state,
@@ -146,14 +159,18 @@ function layoutReducer(state: LayoutState, action: LayoutAction): LayoutState {
         lastSaved: new Date(),
       };
     }
-    
+
     default:
       return state;
   }
 }
 
-function createInitialState(initialConfig?: Partial<SimplifiedPDFConfig>): LayoutState {
-  const config = initialConfig ? deepMerge(DEFAULT_CONFIG, initialConfig) : DEFAULT_CONFIG;
+function createInitialState(
+  initialConfig?: Partial<SimplifiedPDFConfig>,
+): LayoutState {
+  const config = initialConfig
+    ? deepMerge(DEFAULT_CONFIG, initialConfig)
+    : DEFAULT_CONFIG;
   return {
     config,
     history: [config],
@@ -177,12 +194,15 @@ export function usePDFLayoutState(options: UsePDFLayoutStateOptions = {}) {
   const {
     initialConfig,
     autoSave = true,
-    autoSaveKey = 'pdf-layout-config',
+    autoSaveKey = "pdf-layout-config",
     onConfigChange,
     onSave,
   } = options;
 
-  const [state, dispatch] = useReducer(layoutReducer, createInitialState(initialConfig));
+  const [state, dispatch] = useReducer(
+    layoutReducer,
+    createInitialState(initialConfig),
+  );
   const saveTimeoutRef = useRef<NodeJS.Timeout>();
   const configChangeTimeoutRef = useRef<NodeJS.Timeout>();
 
@@ -194,7 +214,7 @@ export function usePDFLayoutState(options: UsePDFLayoutStateOptions = {}) {
       if (backendConfig) {
         const errors = validateConfig(backendConfig);
         if (errors.length === 0) {
-          dispatch({ type: 'UPDATE_CONFIG', payload: backendConfig });
+          dispatch({ type: "UPDATE_CONFIG", payload: backendConfig });
           return;
         }
       }
@@ -207,11 +227,11 @@ export function usePDFLayoutState(options: UsePDFLayoutStateOptions = {}) {
             const savedConfig = JSON.parse(saved) as SimplifiedPDFConfig;
             const errors = validateConfig(savedConfig);
             if (errors.length === 0) {
-              dispatch({ type: 'UPDATE_CONFIG', payload: savedConfig });
+              dispatch({ type: "UPDATE_CONFIG", payload: savedConfig });
             }
           }
         } catch (error) {
-          console.warn('Failed to load saved PDF layout config:', error);
+          console.warn("Failed to load saved PDF layout config:", error);
         }
       }
     };
@@ -225,12 +245,12 @@ export function usePDFLayoutState(options: UsePDFLayoutStateOptions = {}) {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
-      
+
       saveTimeoutRef.current = setTimeout(() => {
         try {
           localStorage.setItem(autoSaveKey, JSON.stringify(state.config));
         } catch (error) {
-          console.warn('Failed to auto-save PDF layout config:', error);
+          console.warn("Failed to auto-save PDF layout config:", error);
         }
       }, DEBOUNCE_DELAY);
     }
@@ -242,7 +262,7 @@ export function usePDFLayoutState(options: UsePDFLayoutStateOptions = {}) {
       if (configChangeTimeoutRef.current) {
         clearTimeout(configChangeTimeoutRef.current);
       }
-      
+
       configChangeTimeoutRef.current = setTimeout(() => {
         onConfigChange(state.config);
       }, DEBOUNCE_DELAY);
@@ -264,33 +284,33 @@ export function usePDFLayoutState(options: UsePDFLayoutStateOptions = {}) {
   const updateConfig = useCallback((updates: Partial<SimplifiedPDFConfig>) => {
     const errors = validateConfig(updates);
     if (errors.length > 0) {
-      console.warn('Config validation errors:', errors);
+      console.warn("Config validation errors:", errors);
       return false;
     }
-    
-    dispatch({ type: 'UPDATE_CONFIG', payload: updates });
+
+    dispatch({ type: "UPDATE_CONFIG", payload: updates });
     return true;
   }, []);
 
   const applyPreset = useCallback((presetId: string) => {
-    const preset = PRESET_TEMPLATES.find(p => p.id === presetId);
+    const preset = PRESET_TEMPLATES.find((p) => p.id === presetId);
     if (preset) {
-      dispatch({ type: 'APPLY_PRESET', payload: preset });
+      dispatch({ type: "APPLY_PRESET", payload: preset });
       return true;
     }
     return false;
   }, []);
 
   const undo = useCallback(() => {
-    dispatch({ type: 'UNDO' });
+    dispatch({ type: "UNDO" });
   }, []);
 
   const redo = useCallback(() => {
-    dispatch({ type: 'REDO' });
+    dispatch({ type: "REDO" });
   }, []);
 
   const reset = useCallback(() => {
-    dispatch({ type: 'RESET' });
+    dispatch({ type: "RESET" });
   }, []);
 
   const save = useCallback(async () => {
@@ -299,7 +319,7 @@ export function usePDFLayoutState(options: UsePDFLayoutStateOptions = {}) {
         await onSave(state.config);
         return true;
       } catch (error) {
-        console.error('Failed to save config:', error);
+        console.error("Failed to save config:", error);
         return false;
       }
     } else {
@@ -308,7 +328,7 @@ export function usePDFLayoutState(options: UsePDFLayoutStateOptions = {}) {
         await saveMEPConfigToBackend(state.config);
         return true;
       } catch (error) {
-        console.error('Failed to save MEP config to backend:', error);
+        console.error("Failed to save MEP config to backend:", error);
         return false;
       }
     }
@@ -317,17 +337,21 @@ export function usePDFLayoutState(options: UsePDFLayoutStateOptions = {}) {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey) {
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        !event.altKey &&
+        !event.shiftKey
+      ) {
         switch (event.key) {
-          case 'z':
+          case "z":
             event.preventDefault();
             undo();
             break;
-          case 'y':
+          case "y":
             event.preventDefault();
             redo();
             break;
-          case 's':
+          case "s":
             event.preventDefault();
             save();
             break;
@@ -335,8 +359,8 @@ export function usePDFLayoutState(options: UsePDFLayoutStateOptions = {}) {
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [undo, redo, save]);
 
   return {
@@ -346,7 +370,7 @@ export function usePDFLayoutState(options: UsePDFLayoutStateOptions = {}) {
     canRedo: state.canRedo,
     isDirty: state.isDirty,
     lastSaved: state.lastSaved,
-    
+
     // Actions
     updateConfig,
     applyPreset,
@@ -354,8 +378,9 @@ export function usePDFLayoutState(options: UsePDFLayoutStateOptions = {}) {
     redo,
     reset,
     save,
-    
+
     // Validation
-    validateConfig: (config: Partial<SimplifiedPDFConfig>) => validateConfig(config),
+    validateConfig: (config: Partial<SimplifiedPDFConfig>) =>
+      validateConfig(config),
   };
 }

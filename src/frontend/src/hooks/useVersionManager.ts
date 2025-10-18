@@ -1,6 +1,6 @@
 /**
  * Unified version management hook for the Schichtplan application.
- * 
+ *
  * This hook provides a clean, simplified interface for managing versions,
  * replacing the complex logic in useVersionControl and useWeekBasedVersionControl.
  */
@@ -39,10 +39,16 @@ interface VersionActions {
   selectVersion: (version: number | undefined) => void;
   resetVersionSelection: () => void;
   createVersion: (options?: CreateVersionOptions) => void;
-  updateVersionStatus: (version: number, status: "DRAFT" | "PUBLISHED" | "ARCHIVED") => void;
+  updateVersionStatus: (
+    version: number,
+    status: "DRAFT" | "PUBLISHED" | "ARCHIVED",
+  ) => void;
   updateVersionNotes: (version: number, notes: string) => void;
   deleteVersion: (version: number) => void;
-  duplicateVersion: (version: number, options?: DuplicateVersionOptions) => void;
+  duplicateVersion: (
+    version: number,
+    options?: DuplicateVersionOptions,
+  ) => void;
   refetch: () => void;
 }
 
@@ -78,7 +84,8 @@ export function useVersionManager({
 
   // Track previous date range to detect changes
   const prevDateRangeRef = useRef<string | null>(null);
-  const currentDateRangeKey = dateRange?.from?.toISOString() + "-" + dateRange?.to?.toISOString();
+  const currentDateRangeKey =
+    dateRange?.from?.toISOString() + "-" + dateRange?.to?.toISOString();
 
   // Use ref to store onVersionSelected to avoid dependency issues
   const onVersionSelectedRef = useRef(onVersionSelected);
@@ -113,15 +120,16 @@ export function useVersionManager({
     }
 
     const versions = versionsQuery.data?.versions || [];
-    const dateRangeChanged = prevDateRangeRef.current !== null && 
-                             prevDateRangeRef.current !== currentDateRangeKey;
+    const dateRangeChanged =
+      prevDateRangeRef.current !== null &&
+      prevDateRangeRef.current !== currentDateRangeKey;
 
     // Update the previous date range reference
     prevDateRangeRef.current = currentDateRangeKey;
 
     // If date range changed, clear selection immediately
     if (dateRangeChanged) {
-      if (process.env.NODE_ENV === 'development') {
+      if (process.env.NODE_ENV === "development") {
         console.log("📅 Date range changed, clearing version selection");
       }
       setSelectedVersion(undefined);
@@ -138,7 +146,7 @@ export function useVersionManager({
     if (versions.length === 0) {
       // No versions available - ensure selection is cleared
       if (selectedVersion !== undefined) {
-        if (process.env.NODE_ENV === 'development') {
+        if (process.env.NODE_ENV === "development") {
           console.log("📅 No versions available, clearing selection");
         }
         setSelectedVersion(undefined);
@@ -148,21 +156,22 @@ export function useVersionManager({
     }
 
     // Check if currently selected version is valid for current date range
-    const isSelectedVersionValid = selectedVersion !== undefined && 
-      versions.some(v => v.version === selectedVersion);
+    const isSelectedVersionValid =
+      selectedVersion !== undefined &&
+      versions.some((v) => v.version === selectedVersion);
 
     if (!isSelectedVersionValid) {
       // Invalid or no selection - auto-select latest if enabled
       if (autoSelectLatest) {
-        const latestVersion = Math.max(...versions.map(v => v.version));
-        if (process.env.NODE_ENV === 'development') {
+        const latestVersion = Math.max(...versions.map((v) => v.version));
+        if (process.env.NODE_ENV === "development") {
           console.log("📅 Auto-selecting latest version:", latestVersion);
         }
         setSelectedVersion(latestVersion);
         onVersionSelectedRef.current?.(latestVersion);
       } else if (selectedVersion !== undefined) {
         // Clear invalid selection when auto-select is disabled
-        if (process.env.NODE_ENV === 'development') {
+        if (process.env.NODE_ENV === "development") {
           console.log("📅 Clearing invalid version selection");
         }
         setSelectedVersion(undefined);
@@ -170,22 +179,24 @@ export function useVersionManager({
       }
     }
   }, [
-    currentDateRangeKey, 
-    dateRange?.from, 
-    dateRange?.to, 
-    versionsQuery.data, 
-    versionsQuery.isLoading, 
-    versionsQuery.isError, 
+    currentDateRangeKey,
+    dateRange?.from,
+    dateRange?.to,
+    versionsQuery.data,
+    versionsQuery.isLoading,
+    versionsQuery.isError,
     autoSelectLatest,
-    selectedVersion
+    selectedVersion,
   ]);
 
   // Create version mutation
   const createVersionMutation = useMutation({
     mutationFn: async (options: CreateVersionOptions = {}) => {
-      const startDate = options.startDate ||
+      const startDate =
+        options.startDate ||
         (dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined);
-      const endDate = options.endDate ||
+      const endDate =
+        options.endDate ||
         (dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined);
 
       if (!startDate || !endDate) {
@@ -215,7 +226,8 @@ export function useVersionManager({
     onError: (error) => {
       toast({
         title: "Fehler beim Erstellen der Version",
-        description: error instanceof Error ? error.message : "Unbekannter Fehler",
+        description:
+          error instanceof Error ? error.message : "Unbekannter Fehler",
         variant: "destructive",
       });
     },
@@ -223,8 +235,16 @@ export function useVersionManager({
 
   // Update version status mutation
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ version, status }: { version: number; status: string }) => {
-      return await updateVersionStatus(version, { status: status as "DRAFT" | "PUBLISHED" | "ARCHIVED" });
+    mutationFn: async ({
+      version,
+      status,
+    }: {
+      version: number;
+      status: string;
+    }) => {
+      return await updateVersionStatus(version, {
+        status: status as "DRAFT" | "PUBLISHED" | "ARCHIVED",
+      });
     },
     onSuccess: (data) => {
       toast({
@@ -236,7 +256,8 @@ export function useVersionManager({
     onError: (error) => {
       toast({
         title: "Fehler beim Aktualisieren der Version",
-        description: error instanceof Error ? error.message : "Unbekannter Fehler",
+        description:
+          error instanceof Error ? error.message : "Unbekannter Fehler",
         variant: "destructive",
       });
     },
@@ -244,7 +265,13 @@ export function useVersionManager({
 
   // Update version notes mutation
   const updateNotesMutation = useMutation({
-    mutationFn: async ({ version, notes }: { version: number; notes: string }) => {
+    mutationFn: async ({
+      version,
+      notes,
+    }: {
+      version: number;
+      notes: string;
+    }) => {
       return await updateVersionNotes(version, { notes });
     },
     onSuccess: (data) => {
@@ -257,7 +284,8 @@ export function useVersionManager({
     onError: (error) => {
       toast({
         title: "Fehler beim Aktualisieren der Notizen",
-        description: error instanceof Error ? error.message : "Unbekannter Fehler",
+        description:
+          error instanceof Error ? error.message : "Unbekannter Fehler",
         variant: "destructive",
       });
     },
@@ -285,7 +313,8 @@ export function useVersionManager({
     onError: (error) => {
       toast({
         title: "Fehler beim Löschen der Version",
-        description: error instanceof Error ? error.message : "Unbekannter Fehler",
+        description:
+          error instanceof Error ? error.message : "Unbekannter Fehler",
         variant: "destructive",
       });
     },
@@ -295,14 +324,16 @@ export function useVersionManager({
   const duplicateVersionMutation = useMutation({
     mutationFn: async ({
       sourceVersion,
-      options
+      options,
     }: {
       sourceVersion: number;
-      options: DuplicateVersionOptions
+      options: DuplicateVersionOptions;
     }) => {
-      const startDate = options.startDate ||
+      const startDate =
+        options.startDate ||
         (dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined);
-      const endDate = options.endDate ||
+      const endDate =
+        options.endDate ||
         (dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined);
 
       if (!startDate || !endDate) {
@@ -332,7 +363,8 @@ export function useVersionManager({
     onError: (error) => {
       toast({
         title: "Fehler beim Duplizieren der Version",
-        description: error instanceof Error ? error.message : "Unbekannter Fehler",
+        description:
+          error instanceof Error ? error.message : "Unbekannter Fehler",
         variant: "destructive",
       });
     },
@@ -349,25 +381,40 @@ export function useVersionManager({
     onVersionSelectedRef.current?.(undefined);
   }, []);
 
-  const createVersion = useCallback((options: CreateVersionOptions = {}) => {
-    createVersionMutation.mutate(options);
-  }, [createVersionMutation]);
+  const createVersion = useCallback(
+    (options: CreateVersionOptions = {}) => {
+      createVersionMutation.mutate(options);
+    },
+    [createVersionMutation],
+  );
 
-  const updateVersionStatusAction = useCallback((version: number, status: "DRAFT" | "PUBLISHED" | "ARCHIVED") => {
-    updateStatusMutation.mutate({ version, status });
-  }, [updateStatusMutation]);
+  const updateVersionStatusAction = useCallback(
+    (version: number, status: "DRAFT" | "PUBLISHED" | "ARCHIVED") => {
+      updateStatusMutation.mutate({ version, status });
+    },
+    [updateStatusMutation],
+  );
 
-  const updateVersionNotesAction = useCallback((version: number, notes: string) => {
-    updateNotesMutation.mutate({ version, notes });
-  }, [updateNotesMutation]);
+  const updateVersionNotesAction = useCallback(
+    (version: number, notes: string) => {
+      updateNotesMutation.mutate({ version, notes });
+    },
+    [updateNotesMutation],
+  );
 
-  const deleteVersionAction = useCallback((version: number) => {
-    deleteVersionMutation.mutate(version);
-  }, [deleteVersionMutation]);
+  const deleteVersionAction = useCallback(
+    (version: number) => {
+      deleteVersionMutation.mutate(version);
+    },
+    [deleteVersionMutation],
+  );
 
-  const duplicateVersionAction = useCallback((version: number, options: DuplicateVersionOptions = {}) => {
-    duplicateVersionMutation.mutate({ sourceVersion: version, options });
-  }, [duplicateVersionMutation]);
+  const duplicateVersionAction = useCallback(
+    (version: number, options: DuplicateVersionOptions = {}) => {
+      duplicateVersionMutation.mutate({ sourceVersion: version, options });
+    },
+    [duplicateVersionMutation],
+  );
 
   // Compute loading state
   const isLoading =

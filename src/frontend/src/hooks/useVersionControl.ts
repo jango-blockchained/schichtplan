@@ -6,7 +6,7 @@ import {
   getAllVersions,
   updateVersionNotes,
   updateVersionStatus,
-  type VersionResponse
+  type VersionResponse,
 } from "@/services/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";

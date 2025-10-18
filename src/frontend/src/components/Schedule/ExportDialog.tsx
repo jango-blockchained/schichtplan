@@ -11,28 +11,44 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { FileDown, Building, FileText, Loader2, Printer } from "lucide-react";
 
 interface ExportDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: (format: 'standard' | 'mep' | 'mep-html', filiale?: string) => Promise<void>;
+  onExport: (
+    format: "standard" | "mep" | "mep-html",
+    filiale?: string,
+  ) => Promise<void>;
   isExporting?: boolean;
 }
 
-export function ExportDialog({ 
-  isOpen, 
-  onClose, 
-  onExport, 
-  isExporting = false 
+export function ExportDialog({
+  isOpen,
+  onClose,
+  onExport,
+  isExporting = false,
 }: ExportDialogProps) {
-  const [exportFormat, setExportFormat] = useState<'standard' | 'mep' | 'mep-html'>('mep-html');
-  const [filiale, setFiliale] = useState('');
+  const [exportFormat, setExportFormat] = useState<
+    "standard" | "mep" | "mep-html"
+  >("mep-html");
+  const [filiale, setFiliale] = useState("");
 
   const handleExport = async () => {
     try {
-      await onExport(exportFormat, (exportFormat === 'mep' || exportFormat === 'mep-html') ? filiale : undefined);
+      await onExport(
+        exportFormat,
+        exportFormat === "mep" || exportFormat === "mep-html"
+          ? filiale
+          : undefined,
+      );
       onClose();
     } catch (error) {
       // Error handling is done in the parent component
@@ -63,13 +79,17 @@ export function ExportDialog({
             <Label className="text-sm font-medium">Export-Format</Label>
             <RadioGroup
               value={exportFormat}
-              onValueChange={(value) => setExportFormat(value as 'standard' | 'mep' | 'mep-html')}
+              onValueChange={(value) =>
+                setExportFormat(value as "standard" | "mep" | "mep-html")
+              }
               className="space-y-3"
             >
               <div className="space-y-3">
-                <Card className={`cursor-pointer transition-colors ${
-                  exportFormat === 'standard' ? 'ring-2 ring-primary' : ''
-                }`}>
+                <Card
+                  className={`cursor-pointer transition-colors ${
+                    exportFormat === "standard" ? "ring-2 ring-primary" : ""
+                  }`}
+                >
                   <CardHeader className="pb-3">
                     <div className="flex items-center space-x-3">
                       <RadioGroupItem value="standard" id="standard" />
@@ -84,32 +104,41 @@ export function ExportDialog({
                   </CardHeader>
                 </Card>
 
-                <Card className={`cursor-pointer transition-colors ${
-                  exportFormat === 'mep-html' ? 'ring-2 ring-primary' : ''
-                }`}>
+                <Card
+                  className={`cursor-pointer transition-colors ${
+                    exportFormat === "mep-html" ? "ring-2 ring-primary" : ""
+                  }`}
+                >
                   <CardHeader className="pb-3">
                     <div className="flex items-center space-x-3">
                       <RadioGroupItem value="mep-html" id="mep-html" />
                       <div className="flex items-center gap-2">
                         <Printer className="h-4 w-4" />
-                        <CardTitle className="text-sm">MEP Format (HTML)</CardTitle>
+                        <CardTitle className="text-sm">
+                          MEP Format (HTML)
+                        </CardTitle>
                       </div>
                     </div>
                     <CardDescription className="text-xs ml-6">
-                      Präzises MEP-Format zum Drucken/Speichern als PDF im Browser
+                      Präzises MEP-Format zum Drucken/Speichern als PDF im
+                      Browser
                     </CardDescription>
                   </CardHeader>
                 </Card>
 
-                <Card className={`cursor-pointer transition-colors ${
-                  exportFormat === 'mep' ? 'ring-2 ring-primary' : ''
-                }`}>
+                <Card
+                  className={`cursor-pointer transition-colors ${
+                    exportFormat === "mep" ? "ring-2 ring-primary" : ""
+                  }`}
+                >
                   <CardHeader className="pb-3">
                     <div className="flex items-center space-x-3">
                       <RadioGroupItem value="mep" id="mep" />
                       <div className="flex items-center gap-2">
                         <Building className="h-4 w-4" />
-                        <CardTitle className="text-sm">MEP Format (PDF)</CardTitle>
+                        <CardTitle className="text-sm">
+                          MEP Format (PDF)
+                        </CardTitle>
                       </div>
                     </div>
                     <CardDescription className="text-xs ml-6">
@@ -121,7 +150,7 @@ export function ExportDialog({
             </RadioGroup>
           </div>
 
-          {(exportFormat === 'mep' || exportFormat === 'mep-html') && (
+          {(exportFormat === "mep" || exportFormat === "mep-html") && (
             <div className="space-y-2">
               <Label htmlFor="filiale" className="text-sm font-medium">
                 Filiale / Geschäft
@@ -141,7 +170,11 @@ export function ExportDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose} disabled={isExporting}>
+          <Button
+            variant="outline"
+            onClick={handleClose}
+            disabled={isExporting}
+          >
             Abbrechen
           </Button>
           <Button onClick={handleExport} disabled={isExporting}>
@@ -161,4 +194,4 @@ export function ExportDialog({
       </DialogContent>
     </Dialog>
   );
-} 
+}

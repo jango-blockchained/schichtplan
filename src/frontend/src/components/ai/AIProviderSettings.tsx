@@ -1,8 +1,20 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { aiService } from "@/services/aiService";
@@ -21,8 +33,8 @@ interface ProviderStatus {
   error?: string;
 }
 
-export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ 
-  onSettingsChange 
+export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
+  onSettingsChange,
 }) => {
   const [settings, setSettings] = useState({
     providers: {
@@ -52,7 +64,9 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
     gemini: false,
   });
 
-  const [providerStatus, setProviderStatus] = useState<Record<string, ProviderStatus>>({});
+  const [providerStatus, setProviderStatus] = useState<
+    Record<string, ProviderStatus>
+  >({});
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
 
@@ -96,7 +110,7 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
       for (const [provider, key] of Object.entries(settings.providers)) {
         if (key) {
           try {
-            const providerName = provider.replace('_api_key', '');
+            const providerName = provider.replace("_api_key", "");
             // Simple health check - could be enhanced with actual API calls
             status[providerName] = {
               available: true,
@@ -104,13 +118,14 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
               latency: Math.random() * 200 + 100, // Simulated latency
             };
           } catch (error) {
-            status[provider.replace('_api_key', '')] = {
+            status[provider.replace("_api_key", "")] = {
               available: false,
-              error: error instanceof Error ? error.message : "Connection failed",
+              error:
+                error instanceof Error ? error.message : "Connection failed",
             };
           }
         } else {
-          status[provider.replace('_api_key', '')] = {
+          status[provider.replace("_api_key", "")] = {
             available: false,
             error: "No API key provided",
           };
@@ -129,28 +144,32 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
 
   const getDefaultModel = (provider: string): string => {
     switch (provider) {
-      case 'openai':
-        return 'gpt-4';
-      case 'anthropic':
-        return 'claude-3-sonnet';
-      case 'gemini':
-        return 'gemini-1.5-pro';
+      case "openai":
+        return "gpt-4";
+      case "anthropic":
+        return "claude-3-sonnet";
+      case "gemini":
+        return "gemini-1.5-pro";
       default:
-        return 'unknown';
+        return "unknown";
     }
   };
 
   const toggleKeyVisibility = (provider: keyof typeof showKeys) => {
-    setShowKeys(prev => ({
+    setShowKeys((prev) => ({
       ...prev,
-      [provider]: !prev[provider]
+      [provider]: !prev[provider],
     }));
   };
 
   const maskApiKey = (key: string): string => {
     if (!key) return "";
     if (key.length <= 8) return "•".repeat(key.length);
-    return key.substring(0, 4) + "•".repeat(Math.max(key.length - 8, 4)) + key.substring(key.length - 4);
+    return (
+      key.substring(0, 4) +
+      "•".repeat(Math.max(key.length - 8, 4)) +
+      key.substring(key.length - 4)
+    );
   };
 
   return (
@@ -165,11 +184,12 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
                 AI Provider Configuration
               </CardTitle>
               <CardDescription>
-                Configure API keys for AI providers to enable advanced conversational features
+                Configure API keys for AI providers to enable advanced
+                conversational features
               </CardDescription>
             </div>
-            <Button 
-              onClick={testProviders} 
+            <Button
+              onClick={testProviders}
               disabled={isTesting}
               variant="outline"
               size="sm"
@@ -190,15 +210,18 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
               <Label htmlFor="openai-key">OpenAI API Key</Label>
               <div className="flex items-center gap-2">
                 {providerStatus.openai && (
-                  <div className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
-                    providerStatus.openai.available 
-                      ? 'bg-green-100 text-green-700' 
-                      : 'bg-red-100 text-red-700'
-                  }`}>
+                  <div
+                    className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
+                      providerStatus.openai.available
+                        ? "bg-green-100 text-green-700"
+                        : "bg-red-100 text-red-700"
+                    }`}
+                  >
                     {providerStatus.openai.available ? (
                       <>
                         <Check className="h-3 w-3" />
-                        Connected ({providerStatus.openai.latency?.toFixed(0)}ms)
+                        Connected ({providerStatus.openai.latency?.toFixed(0)}
+                        ms)
                       </>
                     ) : (
                       <>
@@ -212,9 +235,13 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => toggleKeyVisibility('openai')}
+                  onClick={() => toggleKeyVisibility("openai")}
                 >
-                  {showKeys.openai ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showKeys.openai ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </Button>
               </div>
             </div>
@@ -222,11 +249,20 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
               id="openai-key"
               type={showKeys.openai ? "text" : "password"}
               value={settings.providers.openai_api_key}
-              onChange={(e) => setSettings(prev => ({
-                ...prev,
-                providers: { ...prev.providers, openai_api_key: e.target.value }
-              }))}
-              placeholder={showKeys.openai ? "sk-..." : maskApiKey(settings.providers.openai_api_key)}
+              onChange={(e) =>
+                setSettings((prev) => ({
+                  ...prev,
+                  providers: {
+                    ...prev.providers,
+                    openai_api_key: e.target.value,
+                  },
+                }))
+              }
+              placeholder={
+                showKeys.openai
+                  ? "sk-..."
+                  : maskApiKey(settings.providers.openai_api_key)
+              }
             />
           </div>
 
@@ -236,15 +272,18 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
               <Label htmlFor="anthropic-key">Anthropic API Key</Label>
               <div className="flex items-center gap-2">
                 {providerStatus.anthropic && (
-                  <div className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
-                    providerStatus.anthropic.available 
-                      ? 'bg-green-100 text-green-700' 
-                      : 'bg-red-100 text-red-700'
-                  }`}>
+                  <div
+                    className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
+                      providerStatus.anthropic.available
+                        ? "bg-green-100 text-green-700"
+                        : "bg-red-100 text-red-700"
+                    }`}
+                  >
                     {providerStatus.anthropic.available ? (
                       <>
                         <Check className="h-3 w-3" />
-                        Connected ({providerStatus.anthropic.latency?.toFixed(0)}ms)
+                        Connected (
+                        {providerStatus.anthropic.latency?.toFixed(0)}ms)
                       </>
                     ) : (
                       <>
@@ -258,9 +297,13 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => toggleKeyVisibility('anthropic')}
+                  onClick={() => toggleKeyVisibility("anthropic")}
                 >
-                  {showKeys.anthropic ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showKeys.anthropic ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </Button>
               </div>
             </div>
@@ -268,11 +311,20 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
               id="anthropic-key"
               type={showKeys.anthropic ? "text" : "password"}
               value={settings.providers.anthropic_api_key}
-              onChange={(e) => setSettings(prev => ({
-                ...prev,
-                providers: { ...prev.providers, anthropic_api_key: e.target.value }
-              }))}
-              placeholder={showKeys.anthropic ? "sk-ant-..." : maskApiKey(settings.providers.anthropic_api_key)}
+              onChange={(e) =>
+                setSettings((prev) => ({
+                  ...prev,
+                  providers: {
+                    ...prev.providers,
+                    anthropic_api_key: e.target.value,
+                  },
+                }))
+              }
+              placeholder={
+                showKeys.anthropic
+                  ? "sk-ant-..."
+                  : maskApiKey(settings.providers.anthropic_api_key)
+              }
             />
           </div>
 
@@ -282,15 +334,18 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
               <Label htmlFor="gemini-key">Google Gemini API Key</Label>
               <div className="flex items-center gap-2">
                 {providerStatus.gemini && (
-                  <div className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
-                    providerStatus.gemini.available 
-                      ? 'bg-green-100 text-green-700' 
-                      : 'bg-red-100 text-red-700'
-                  }`}>
+                  <div
+                    className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
+                      providerStatus.gemini.available
+                        ? "bg-green-100 text-green-700"
+                        : "bg-red-100 text-red-700"
+                    }`}
+                  >
                     {providerStatus.gemini.available ? (
                       <>
                         <Check className="h-3 w-3" />
-                        Connected ({providerStatus.gemini.latency?.toFixed(0)}ms)
+                        Connected ({providerStatus.gemini.latency?.toFixed(0)}
+                        ms)
                       </>
                     ) : (
                       <>
@@ -304,9 +359,13 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => toggleKeyVisibility('gemini')}
+                  onClick={() => toggleKeyVisibility("gemini")}
                 >
-                  {showKeys.gemini ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showKeys.gemini ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </Button>
               </div>
             </div>
@@ -314,11 +373,20 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
               id="gemini-key"
               type={showKeys.gemini ? "text" : "password"}
               value={settings.providers.gemini_api_key}
-              onChange={(e) => setSettings(prev => ({
-                ...prev,
-                providers: { ...prev.providers, gemini_api_key: e.target.value }
-              }))}
-              placeholder={showKeys.gemini ? "AIza..." : maskApiKey(settings.providers.gemini_api_key)}
+              onChange={(e) =>
+                setSettings((prev) => ({
+                  ...prev,
+                  providers: {
+                    ...prev.providers,
+                    gemini_api_key: e.target.value,
+                  },
+                }))
+              }
+              placeholder={
+                showKeys.gemini
+                  ? "AIza..."
+                  : maskApiKey(settings.providers.gemini_api_key)
+              }
             />
           </div>
         </CardContent>
@@ -337,7 +405,9 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <Label htmlFor="schedule-agent">Schedule Optimization Agent</Label>
+              <Label htmlFor="schedule-agent">
+                Schedule Optimization Agent
+              </Label>
               <p className="text-sm text-muted-foreground">
                 Automatically optimize schedules and resolve conflicts
               </p>
@@ -345,10 +415,12 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
             <Switch
               id="schedule-agent"
               checked={settings.agents.schedule_agent_enabled}
-              onCheckedChange={(checked) => setSettings(prev => ({
-                ...prev,
-                agents: { ...prev.agents, schedule_agent_enabled: checked }
-              }))}
+              onCheckedChange={(checked) =>
+                setSettings((prev) => ({
+                  ...prev,
+                  agents: { ...prev.agents, schedule_agent_enabled: checked },
+                }))
+              }
             />
           </div>
 
@@ -362,10 +434,12 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
             <Switch
               id="analytics-agent"
               checked={settings.agents.analytics_agent_enabled}
-              onCheckedChange={(checked) => setSettings(prev => ({
-                ...prev,
-                agents: { ...prev.agents, analytics_agent_enabled: checked }
-              }))}
+              onCheckedChange={(checked) =>
+                setSettings((prev) => ({
+                  ...prev,
+                  agents: { ...prev.agents, analytics_agent_enabled: checked },
+                }))
+              }
             />
           </div>
 
@@ -379,10 +453,15 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
             <Switch
               id="notification-agent"
               checked={settings.agents.notification_agent_enabled}
-              onCheckedChange={(checked) => setSettings(prev => ({
-                ...prev,
-                agents: { ...prev.agents, notification_agent_enabled: checked }
-              }))}
+              onCheckedChange={(checked) =>
+                setSettings((prev) => ({
+                  ...prev,
+                  agents: {
+                    ...prev.agents,
+                    notification_agent_enabled: checked,
+                  },
+                }))
+              }
             />
           </div>
         </CardContent>
@@ -409,10 +488,15 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
             <Switch
               id="auto-approval"
               checked={settings.workflow.auto_approval_enabled}
-              onCheckedChange={(checked) => setSettings(prev => ({
-                ...prev,
-                workflow: { ...prev.workflow, auto_approval_enabled: checked }
-              }))}
+              onCheckedChange={(checked) =>
+                setSettings((prev) => ({
+                  ...prev,
+                  workflow: {
+                    ...prev.workflow,
+                    auto_approval_enabled: checked,
+                  },
+                }))
+              }
             />
           </div>
 
@@ -420,10 +504,15 @@ export const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({
             <Label htmlFor="max-workflows">Max Concurrent Workflows</Label>
             <Select
               value={settings.workflow.max_concurrent_workflows.toString()}
-              onValueChange={(value) => setSettings(prev => ({
-                ...prev,
-                workflow: { ...prev.workflow, max_concurrent_workflows: parseInt(value) }
-              }))}
+              onValueChange={(value) =>
+                setSettings((prev) => ({
+                  ...prev,
+                  workflow: {
+                    ...prev.workflow,
+                    max_concurrent_workflows: parseInt(value),
+                  },
+                }))
+              }
             >
               <SelectTrigger>
                 <SelectValue />

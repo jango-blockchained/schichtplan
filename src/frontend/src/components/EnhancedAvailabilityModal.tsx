@@ -2,16 +2,27 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { Availability, createAvailability, createSchedule, createShift, getEmployeeAvailabilities, getEmployees, getSchedules, getShifts, Shift, updateSchedule } from "@/services/api";
+import {
+  Availability,
+  createAvailability,
+  createSchedule,
+  createShift,
+  getEmployeeAvailabilities,
+  getEmployees,
+  getSchedules,
+  getShifts,
+  Shift,
+  updateSchedule,
+} from "@/services/api";
 import { Employee } from "@/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { eachDayOfInterval, format, isSameDay } from "date-fns";
@@ -20,967 +31,1103 @@ import { CalendarDays, Clock, Users } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
 interface EnhancedAvailabilityModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    dateRange: { from: Date; to: Date } | undefined;
-    availabilityType: "FIXED" | "PREFERRED";
-    currentVersion?: number; // Add current version prop
+  isOpen: boolean;
+  onClose: () => void;
+  dateRange: { from: Date; to: Date } | undefined;
+  availabilityType: "FIXED" | "PREFERRED";
+  currentVersion?: number; // Add current version prop
 }
 
 interface SelectedEmployees {
-    all: boolean;
-    individual: number[];
+  all: boolean;
+  individual: number[];
 }
 
 interface SelectedDates {
-    all: boolean;
-    individual: Date[];
+  all: boolean;
+  individual: Date[];
 }
 
 interface FixedAvailabilityOptions {
-    useExistingPattern: boolean;
-    matchOnlyStart: boolean;
-    matchOnlyEnd: boolean;
-    adjustTimes: boolean;
-    overwriteExisting: boolean; // Add option to overwrite existing assignments
-    cleanupFirst: boolean; // Add option to clean up existing assignments first
+  useExistingPattern: boolean;
+  matchOnlyStart: boolean;
+  matchOnlyEnd: boolean;
+  adjustTimes: boolean;
+  overwriteExisting: boolean; // Add option to overwrite existing assignments
+  cleanupFirst: boolean; // Add option to clean up existing assignments first
 }
 
 interface PreferredAvailabilityOptions {
-    useExistingPattern: boolean;
-    createTimeRangeEntries: boolean;
-    overwriteExisting: boolean;
+  useExistingPattern: boolean;
+  createTimeRangeEntries: boolean;
+  overwriteExisting: boolean;
 }
 
 interface AvailabilityOptions {
-    createCompleteEntries: boolean; // Create explicit entries for all dates in range
+  createCompleteEntries: boolean; // Create explicit entries for all dates in range
 }
 
 export function EnhancedAvailabilityModal({
-    isOpen,
-    onClose,
-    dateRange,
-    availabilityType,
-    currentVersion,
+  isOpen,
+  onClose,
+  dateRange,
+  availabilityType,
+  currentVersion,
 }: EnhancedAvailabilityModalProps) {
-    const { toast } = useToast();
-    const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-    const [selectedEmployees, setSelectedEmployees] = useState<SelectedEmployees>({
-        all: true,
-        individual: [],
+  const [selectedEmployees, setSelectedEmployees] = useState<SelectedEmployees>(
+    {
+      all: true,
+      individual: [],
+    },
+  );
+
+  const [selectedDates, setSelectedDates] = useState<SelectedDates>({
+    all: true,
+    individual: [],
+  });
+
+  const [fixedOptions, setFixedOptions] = useState<FixedAvailabilityOptions>({
+    useExistingPattern: true,
+    matchOnlyStart: false,
+    matchOnlyEnd: false,
+    adjustTimes: true,
+    overwriteExisting: false,
+    cleanupFirst: false,
+  });
+
+  const [preferredOptions, setPreferredOptions] =
+    useState<PreferredAvailabilityOptions>({
+      useExistingPattern: true,
+      createTimeRangeEntries: true,
+      overwriteExisting: false,
     });
 
-    const [selectedDates, setSelectedDates] = useState<SelectedDates>({
-        all: true,
-        individual: [],
+  const [availabilityOptions, setAvailabilityOptions] =
+    useState<AvailabilityOptions>({
+      createCompleteEntries: true, // Default to creating complete entries
     });
 
-    const [fixedOptions, setFixedOptions] = useState<FixedAvailabilityOptions>({
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Fetch employees and shifts
+  const { data: employees } = useQuery({
+    queryKey: ["employees"],
+    queryFn: getEmployees,
+  });
+
+  const { data: shifts } = useQuery({
+    queryKey: ["shifts"],
+    queryFn: getShifts,
+  });
+
+  // Generate date list from range
+  const dateList = React.useMemo(() => {
+    if (!dateRange?.from || !dateRange?.to) return [];
+    return eachDayOfInterval({
+      start: dateRange.from,
+      end: dateRange.to,
+    });
+  }, [dateRange]);
+
+  // Reset state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedEmployees({ all: true, individual: [] });
+      setSelectedDates({ all: true, individual: [] });
+      setFixedOptions({
         useExistingPattern: true,
         matchOnlyStart: false,
         matchOnlyEnd: false,
         adjustTimes: true,
         overwriteExisting: false,
         cleanupFirst: false,
-    });
-
-    const [preferredOptions, setPreferredOptions] = useState<PreferredAvailabilityOptions>({
+      });
+      setPreferredOptions({
         useExistingPattern: true,
         createTimeRangeEntries: true,
         overwriteExisting: false,
-    });
+      });
+      setAvailabilityOptions({
+        createCompleteEntries: true,
+      });
+    }
+  }, [isOpen]);
 
-    const [availabilityOptions, setAvailabilityOptions] = useState<AvailabilityOptions>({
-        createCompleteEntries: true, // Default to creating complete entries
-    });
+  const handleEmployeeSelectionChange = (
+    type: "all" | "individual",
+    value?: number,
+  ) => {
+    if (type === "all") {
+      setSelectedEmployees((prev) => ({
+        all: !prev.all,
+        individual: !prev.all ? [] : prev.individual,
+      }));
+    } else if (value !== undefined) {
+      setSelectedEmployees((prev) => ({
+        all: false,
+        individual: prev.individual.includes(value)
+          ? prev.individual.filter((id) => id !== value)
+          : [...prev.individual, value],
+      }));
+    }
+  };
 
-    const [isProcessing, setIsProcessing] = useState(false);
+  const handleDateSelectionChange = (
+    type: "all" | "individual",
+    value?: Date,
+  ) => {
+    if (type === "all") {
+      setSelectedDates((prev) => ({
+        all: !prev.all,
+        individual: !prev.all ? [] : prev.individual,
+      }));
+    } else if (value !== undefined) {
+      setSelectedDates((prev) => ({
+        all: false,
+        individual: prev.individual.some((date) => isSameDay(date, value))
+          ? prev.individual.filter((date) => !isSameDay(date, value))
+          : [...prev.individual, value],
+      }));
+    }
+  };
 
-    // Fetch employees and shifts
-    const { data: employees } = useQuery({
-        queryKey: ["employees"],
-        queryFn: getEmployees,
-    });
+  const getTargetEmployees = (): Employee[] => {
+    if (!employees) return [];
 
-    const { data: shifts } = useQuery({
-        queryKey: ["shifts"],
-        queryFn: getShifts,
-    });
+    if (selectedEmployees.all) {
+      return employees;
+    }
 
-    // Generate date list from range
-    const dateList = React.useMemo(() => {
-        if (!dateRange?.from || !dateRange?.to) return [];
-        return eachDayOfInterval({
-            start: dateRange.from,
-            end: dateRange.to,
-        });
-    }, [dateRange]);
+    return employees.filter((emp) =>
+      selectedEmployees.individual.includes(emp.id),
+    );
+  };
 
-    // Reset state when modal opens
-    useEffect(() => {
-        if (isOpen) {
-            setSelectedEmployees({ all: true, individual: [] });
-            setSelectedDates({ all: true, individual: [] });
-            setFixedOptions({
-                useExistingPattern: true,
-                matchOnlyStart: false,
-                matchOnlyEnd: false,
-                adjustTimes: true,
-                overwriteExisting: false,
-                cleanupFirst: false,
-            });
-            setPreferredOptions({
-                useExistingPattern: true,
-                createTimeRangeEntries: true,
-                overwriteExisting: false,
-            });
-            setAvailabilityOptions({
-                createCompleteEntries: true,
-            });
+  const getTargetDates = (): Date[] => {
+    if (selectedDates.all) {
+      return dateList;
+    }
+
+    return selectedDates.individual;
+  };
+
+  const findMatchingShift = async (
+    employee: Employee,
+    date: Date,
+  ): Promise<Shift | null> => {
+    if (!shifts || availabilityType !== "FIXED") return null;
+
+    try {
+      // 1. Query employee's availability entries for this date/weekday
+      const availabilities = await getEmployeeAvailabilities(employee.id);
+
+      // Get the day of week for the target date (Monday=0, Sunday=6)
+      const dayOfWeek = date.getDay() === 0 ? 6 : date.getDay() - 1; // Convert JS day (Sunday=0) to backend day (Monday=0)
+
+      // Filter for FIXED availability entries for this day of week
+      const fixedAvailabilities = availabilities.filter(
+        (avail) =>
+          avail.day_of_week === dayOfWeek &&
+          avail.availability_type === "FIXED" &&
+          avail.is_available,
+      );
+
+      if (fixedAvailabilities.length === 0) {
+        console.log(
+          `No fixed availability found for employee ${employee.id} on ${format(date, "yyyy-MM-dd")}`,
+        );
+        return null; // No fixed availability for this employee/date
+      }
+
+      // 2. Group consecutive available hours into time ranges
+      const availableHours = fixedAvailabilities
+        .map((avail) => avail.hour)
+        .sort((a, b) => a - b);
+
+      // Group consecutive hours into ranges
+      const timeRanges: { start: number; end: number }[] = [];
+      let currentStart = availableHours[0];
+      let currentEnd = availableHours[0];
+
+      for (let i = 1; i < availableHours.length; i++) {
+        if (availableHours[i] === currentEnd + 1) {
+          // Consecutive hour, extend current range
+          currentEnd = availableHours[i];
+        } else {
+          // Gap found, save current range and start new one
+          timeRanges.push({ start: currentStart, end: currentEnd + 1 }); // end is exclusive
+          currentStart = availableHours[i];
+          currentEnd = availableHours[i];
         }
-    }, [isOpen]);
+      }
+      // Add the last range
+      timeRanges.push({ start: currentStart, end: currentEnd + 1 });
 
-    const handleEmployeeSelectionChange = (type: 'all' | 'individual', value?: number) => {
-        if (type === 'all') {
-            setSelectedEmployees(prev => ({
-                all: !prev.all,
-                individual: !prev.all ? [] : prev.individual
-            }));
-        } else if (value !== undefined) {
-            setSelectedEmployees(prev => ({
-                all: false,
-                individual: prev.individual.includes(value)
-                    ? prev.individual.filter(id => id !== value)
-                    : [...prev.individual, value]
-            }));
+      // 3. Find matching shift templates for each time range
+      for (const timeRange of timeRanges) {
+        const startTimeStr = `${timeRange.start.toString().padStart(2, "0")}:00`;
+        const endTimeStr = `${timeRange.end.toString().padStart(2, "0")}:00`;
+
+        // Look for existing shift templates that match this time range
+        const matchingShift = findShiftTemplateByTimes(
+          startTimeStr,
+          endTimeStr,
+          shifts,
+        );
+
+        if (matchingShift) {
+          console.log(
+            `Found matching shift template: ${matchingShift.id} for employee ${employee.id}`,
+          );
+          return matchingShift;
         }
-    };
+      }
 
-    const handleDateSelectionChange = (type: 'all' | 'individual', value?: Date) => {
-        if (type === 'all') {
-            setSelectedDates(prev => ({
-                all: !prev.all,
-                individual: !prev.all ? [] : prev.individual
-            }));
-        } else if (value !== undefined) {
-            setSelectedDates(prev => ({
-                all: false,
-                individual: prev.individual.some(date => isSameDay(date, value))
-                    ? prev.individual.filter(date => !isSameDay(date, value))
-                    : [...prev.individual, value]
-            }));
-        }
-    };
+      // 4. Create new shift template if no match found and we have a valid time range
+      if (timeRanges.length > 0) {
+        const firstRange = timeRanges[0]; // Use the first time range
+        const startTimeStr = `${firstRange.start.toString().padStart(2, "0")}:00`;
+        const endTimeStr = `${firstRange.end.toString().padStart(2, "0")}:00`;
 
-    const getTargetEmployees = (): Employee[] => {
-        if (!employees) return [];
+        console.log(
+          `Creating new shift template ${startTimeStr}-${endTimeStr} for employee ${employee.id}`,
+        );
 
-        if (selectedEmployees.all) {
-            return employees;
-        }
-
-        return employees.filter(emp => selectedEmployees.individual.includes(emp.id));
-    };
-
-    const getTargetDates = (): Date[] => {
-        if (selectedDates.all) {
-            return dateList;
-        }
-
-        return selectedDates.individual;
-    };
-
-    const findMatchingShift = async (employee: Employee, date: Date): Promise<Shift | null> => {
-        if (!shifts || availabilityType !== 'FIXED') return null;
-
-        try {
-            // 1. Query employee's availability entries for this date/weekday
-            const availabilities = await getEmployeeAvailabilities(employee.id);
-
-            // Get the day of week for the target date (Monday=0, Sunday=6)
-            const dayOfWeek = date.getDay() === 0 ? 6 : date.getDay() - 1; // Convert JS day (Sunday=0) to backend day (Monday=0)
-
-            // Filter for FIXED availability entries for this day of week
-            const fixedAvailabilities = availabilities.filter(
-                (avail) => avail.day_of_week === dayOfWeek &&
-                    avail.availability_type === "FIXED" &&
-                    avail.is_available
-            );
-
-            if (fixedAvailabilities.length === 0) {
-                console.log(`No fixed availability found for employee ${employee.id} on ${format(date, 'yyyy-MM-dd')}`);
-                return null; // No fixed availability for this employee/date
-            }
-
-            // 2. Group consecutive available hours into time ranges
-            const availableHours = fixedAvailabilities
-                .map(avail => avail.hour)
-                .sort((a, b) => a - b);
-
-            // Group consecutive hours into ranges
-            const timeRanges: { start: number; end: number }[] = [];
-            let currentStart = availableHours[0];
-            let currentEnd = availableHours[0];
-
-            for (let i = 1; i < availableHours.length; i++) {
-                if (availableHours[i] === currentEnd + 1) {
-                    // Consecutive hour, extend current range
-                    currentEnd = availableHours[i];
-                } else {
-                    // Gap found, save current range and start new one
-                    timeRanges.push({ start: currentStart, end: currentEnd + 1 }); // end is exclusive
-                    currentStart = availableHours[i];
-                    currentEnd = availableHours[i];
-                }
-            }
-            // Add the last range
-            timeRanges.push({ start: currentStart, end: currentEnd + 1 });
-
-            // 3. Find matching shift templates for each time range
-            for (const timeRange of timeRanges) {
-                const startTimeStr = `${timeRange.start.toString().padStart(2, '0')}:00`;
-                const endTimeStr = `${timeRange.end.toString().padStart(2, '0')}:00`;
-
-                // Look for existing shift templates that match this time range
-                const matchingShift = findShiftTemplateByTimes(startTimeStr, endTimeStr, shifts);
-
-                if (matchingShift) {
-                    console.log(`Found matching shift template: ${matchingShift.id} for employee ${employee.id}`);
-                    return matchingShift;
-                }
-            }
-
-            // 4. Create new shift template if no match found and we have a valid time range
-            if (timeRanges.length > 0) {
-                const firstRange = timeRanges[0]; // Use the first time range
-                const startTimeStr = `${firstRange.start.toString().padStart(2, '0')}:00`;
-                const endTimeStr = `${firstRange.end.toString().padStart(2, '0')}:00`;
-
-                console.log(`Creating new shift template ${startTimeStr}-${endTimeStr} for employee ${employee.id}`);
-
-                // Create active_days for all days of the week for now
-                const activeDays = { "0": true, "1": true, "2": true, "3": true, "4": true, "5": true, "6": true };
-
-                const newShift = await createShift({
-                    start_time: startTimeStr,
-                    end_time: endTimeStr,
-                    requires_break: (firstRange.end - firstRange.start) > 6, // Require break for shifts longer than 6 hours
-                    active_days: activeDays,
-                    shift_type_id: `FIXED_${startTimeStr.replace(':', '')}_${endTimeStr.replace(':', '')}`
-                });
-
-                console.log(`Created new shift template: ${newShift.id}`);
-                return newShift;
-            }
-
-            return null;
-        } catch (error) {
-            console.error(`Error finding matching shift for employee ${employee.id}:`, error);
-            return null;
-        }
-    };
-
-    // Helper function to find shift template by times
-    const findShiftTemplateByTimes = (startTime: string, endTime: string, shifts: Shift[]): Shift | null => {
-        return shifts.find(shift => {
-            if (fixedOptions.matchOnlyStart) {
-                return shift.start_time === startTime;
-            } else if (fixedOptions.matchOnlyEnd) {
-                return shift.end_time === endTime;
-            } else {
-                // Match both start and end times
-                return shift.start_time === startTime && shift.end_time === endTime;
-            }
-        }) || null;
-    };
-
-    const calculateShiftTimes = (originalShift: Shift, _targetDate: Date): { start_time: string; end_time: string } => {
-        // _targetDate is intentionally unused for now
-
-        if (!fixedOptions.adjustTimes) {
-            return {
-                start_time: originalShift.start_time,
-                end_time: originalShift.end_time,
-            };
-        }
-
-        // TODO: Implement time adjustment logic based on:
-        // - Store opening/closing hours for the specific date
-        // - Employee's preferences
-        // - Other constraints
-
-        return {
-            start_time: originalShift.start_time,
-            end_time: originalShift.end_time,
+        // Create active_days for all days of the week for now
+        const activeDays = {
+          "0": true,
+          "1": true,
+          "2": true,
+          "3": true,
+          "4": true,
+          "5": true,
+          "6": true,
         };
+
+        const newShift = await createShift({
+          start_time: startTimeStr,
+          end_time: endTimeStr,
+          requires_break: firstRange.end - firstRange.start > 6, // Require break for shifts longer than 6 hours
+          active_days: activeDays,
+          shift_type_id: `FIXED_${startTimeStr.replace(":", "")}_${endTimeStr.replace(":", "")}`,
+        });
+
+        console.log(`Created new shift template: ${newShift.id}`);
+        return newShift;
+      }
+
+      return null;
+    } catch (error) {
+      console.error(
+        `Error finding matching shift for employee ${employee.id}:`,
+        error,
+      );
+      return null;
+    }
+  };
+
+  // Helper function to find shift template by times
+  const findShiftTemplateByTimes = (
+    startTime: string,
+    endTime: string,
+    shifts: Shift[],
+  ): Shift | null => {
+    return (
+      shifts.find((shift) => {
+        if (fixedOptions.matchOnlyStart) {
+          return shift.start_time === startTime;
+        } else if (fixedOptions.matchOnlyEnd) {
+          return shift.end_time === endTime;
+        } else {
+          // Match both start and end times
+          return shift.start_time === startTime && shift.end_time === endTime;
+        }
+      }) || null
+    );
+  };
+
+  const calculateShiftTimes = (
+    originalShift: Shift,
+    _targetDate: Date,
+  ): { start_time: string; end_time: string } => {
+    // _targetDate is intentionally unused for now
+
+    if (!fixedOptions.adjustTimes) {
+      return {
+        start_time: originalShift.start_time,
+        end_time: originalShift.end_time,
+      };
+    }
+
+    // TODO: Implement time adjustment logic based on:
+    // - Store opening/closing hours for the specific date
+    // - Employee's preferences
+    // - Other constraints
+
+    return {
+      start_time: originalShift.start_time,
+      end_time: originalShift.end_time,
     };
+  };
 
-    const findPreferredAvailability = async (employee: Employee, date: Date): Promise<{ start_time: string; end_time: string }[] | null> => {
-        if (availabilityType !== 'PREFERRED') return null;
+  const findPreferredAvailability = async (
+    employee: Employee,
+    date: Date,
+  ): Promise<{ start_time: string; end_time: string }[] | null> => {
+    if (availabilityType !== "PREFERRED") return null;
 
-        try {
-            // 1. Query employee's availability entries for this date/weekday
-            const availabilities = await getEmployeeAvailabilities(employee.id);
+    try {
+      // 1. Query employee's availability entries for this date/weekday
+      const availabilities = await getEmployeeAvailabilities(employee.id);
 
-            // Get the day of week for the target date (Monday=0, Sunday=6)
-            const dayOfWeek = date.getDay() === 0 ? 6 : date.getDay() - 1; // Convert JS day (Sunday=0) to backend day (Monday=0)
+      // Get the day of week for the target date (Monday=0, Sunday=6)
+      const dayOfWeek = date.getDay() === 0 ? 6 : date.getDay() - 1; // Convert JS day (Sunday=0) to backend day (Monday=0)
 
-            // Filter for PREFERRED availability entries for this day of week
-            const preferredAvailabilities = availabilities.filter(
-                (avail) => avail.day_of_week === dayOfWeek &&
-                    avail.availability_type === "PREFERRED" &&
-                    avail.is_available
+      // Filter for PREFERRED availability entries for this day of week
+      const preferredAvailabilities = availabilities.filter(
+        (avail) =>
+          avail.day_of_week === dayOfWeek &&
+          avail.availability_type === "PREFERRED" &&
+          avail.is_available,
+      );
+
+      if (preferredAvailabilities.length === 0) {
+        console.log(
+          `No preferred availability found for employee ${employee.id} on ${format(date, "yyyy-MM-dd")}`,
+        );
+        return null; // No preferred availability for this employee/date
+      }
+
+      // 2. Group consecutive available hours into time ranges
+      const availableHours = preferredAvailabilities
+        .map((avail) => avail.hour)
+        .sort((a, b) => a - b);
+
+      // Group consecutive hours into ranges
+      const timeRanges: { start_time: string; end_time: string }[] = [];
+      let currentStart = availableHours[0];
+      let currentEnd = availableHours[0];
+
+      for (let i = 1; i < availableHours.length; i++) {
+        if (availableHours[i] === currentEnd + 1) {
+          // Consecutive hour, extend current range
+          currentEnd = availableHours[i];
+        } else {
+          // Gap found, save current range and start new one
+          timeRanges.push({
+            start_time: `${currentStart.toString().padStart(2, "0")}:00`,
+            end_time: `${(currentEnd + 1).toString().padStart(2, "0")}:00`,
+          });
+          currentStart = availableHours[i];
+          currentEnd = availableHours[i];
+        }
+      }
+      // Add the last range
+      timeRanges.push({
+        start_time: `${currentStart.toString().padStart(2, "0")}:00`,
+        end_time: `${(currentEnd + 1).toString().padStart(2, "0")}:00`,
+      });
+
+      console.log(
+        `Found preferred time ranges for employee ${employee.id}:`,
+        timeRanges,
+      );
+      return timeRanges;
+    } catch (error) {
+      console.error(
+        `Error finding preferred availability for employee ${employee.id}:`,
+        error,
+      );
+      return null;
+    }
+  };
+
+  const handleSubmit = async () => {
+    const targetEmployees = getTargetEmployees();
+    const targetDates = getTargetDates();
+
+    if (targetEmployees.length === 0) {
+      toast({
+        title: "Fehler",
+        description: "Bitte wählen Sie mindestens einen Mitarbeiter aus.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (targetDates.length === 0) {
+      toast({
+        title: "Fehler",
+        description: "Bitte wählen Sie mindestens ein Datum aus.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate that all dates are valid Date objects
+    const invalidDates = targetDates.filter(
+      (date) => !(date instanceof Date) || isNaN(date.getTime()),
+    );
+    if (invalidDates.length > 0) {
+      toast({
+        title: "Fehler",
+        description: "Ungültige Datumswerte ausgewählt.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (availabilityType === "FIXED" && !currentVersion) {
+      toast({
+        title: "Fehler",
+        description:
+          "Keine Version ausgewählt. Bitte wählen Sie eine Version für die Schichtzuweisungen.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      if (availabilityType === "FIXED") {
+        // Step 1: Handle cleanup/overwrite if requested
+        if (fixedOptions.cleanupFirst || fixedOptions.overwriteExisting) {
+          // Sort target dates and get date range
+          const sortedDates = [...targetDates].sort(
+            (a, b) => a.getTime() - b.getTime(),
+          );
+
+          if (sortedDates.length === 0) {
+            throw new Error("No valid dates selected");
+          }
+
+          const startDateStr = format(sortedDates[0], "yyyy-MM-dd");
+          const endDateStr = format(
+            sortedDates[sortedDates.length - 1],
+            "yyyy-MM-dd",
+          );
+
+          // Validate date strings
+          if (!startDateStr || !endDateStr) {
+            throw new Error("Invalid date format");
+          }
+
+          try {
+            const existingSchedules = await getSchedules(
+              startDateStr,
+              endDateStr,
+              currentVersion!,
+              true, // include empty schedules
             );
 
-            if (preferredAvailabilities.length === 0) {
-                console.log(`No preferred availability found for employee ${employee.id} on ${format(date, 'yyyy-MM-dd')}`);
-                return null; // No preferred availability for this employee/date
-            }
+            // Filter to only the target employees and dates
+            const targetEmployeeIds = targetEmployees.map((emp) => emp.id);
+            const targetDateStrings = targetDates.map((date) =>
+              format(date, "yyyy-MM-dd"),
+            );
 
-            // 2. Group consecutive available hours into time ranges
-            const availableHours = preferredAvailabilities
-                .map(avail => avail.hour)
-                .sort((a, b) => a - b);
+            const schedulesToClear = existingSchedules.schedules.filter(
+              (schedule) =>
+                targetEmployeeIds.includes(schedule.employee_id) &&
+                targetDateStrings.includes(schedule.date) &&
+                schedule.shift_id !== null, // Only clear schedules that have assignments
+            );
 
-            // Group consecutive hours into ranges
-            const timeRanges: { start_time: string; end_time: string }[] = [];
-            let currentStart = availableHours[0];
-            let currentEnd = availableHours[0];
-
-            for (let i = 1; i < availableHours.length; i++) {
-                if (availableHours[i] === currentEnd + 1) {
-                    // Consecutive hour, extend current range
-                    currentEnd = availableHours[i];
-                } else {
-                    // Gap found, save current range and start new one
-                    timeRanges.push({
-                        start_time: `${currentStart.toString().padStart(2, '0')}:00`,
-                        end_time: `${(currentEnd + 1).toString().padStart(2, '0')}:00`
-                    });
-                    currentStart = availableHours[i];
-                    currentEnd = availableHours[i];
-                }
-            }
-            // Add the last range
-            timeRanges.push({
-                start_time: `${currentStart.toString().padStart(2, '0')}:00`,
-                end_time: `${(currentEnd + 1).toString().padStart(2, '0')}:00`
-            });
-
-            console.log(`Found preferred time ranges for employee ${employee.id}:`, timeRanges);
-            return timeRanges;
-
-        } catch (error) {
-            console.error(`Error finding preferred availability for employee ${employee.id}:`, error);
-            return null;
-        }
-    };
-
-    const handleSubmit = async () => {
-        const targetEmployees = getTargetEmployees();
-        const targetDates = getTargetDates();
-
-        if (targetEmployees.length === 0) {
-            toast({
-                title: "Fehler",
-                description: "Bitte wählen Sie mindestens einen Mitarbeiter aus.",
-                variant: "destructive",
-            });
-            return;
-        }
-
-        if (targetDates.length === 0) {
-            toast({
-                title: "Fehler",
-                description: "Bitte wählen Sie mindestens ein Datum aus.",
-                variant: "destructive",
-            });
-            return;
-        }
-
-        // Validate that all dates are valid Date objects
-        const invalidDates = targetDates.filter(date => !(date instanceof Date) || isNaN(date.getTime()));
-        if (invalidDates.length > 0) {
-            toast({
-                title: "Fehler",
-                description: "Ungültige Datumswerte ausgewählt.",
-                variant: "destructive",
-            });
-            return;
-        }
-
-        if (availabilityType === 'FIXED' && !currentVersion) {
-            toast({
-                title: "Fehler",
-                description: "Keine Version ausgewählt. Bitte wählen Sie eine Version für die Schichtzuweisungen.",
-                variant: "destructive",
-            });
-            return;
-        }
-
-        setIsProcessing(true);
-
-        try {
-            if (availabilityType === 'FIXED') {
-                // Step 1: Handle cleanup/overwrite if requested
-                if (fixedOptions.cleanupFirst || fixedOptions.overwriteExisting) {
-                    // Sort target dates and get date range
-                    const sortedDates = [...targetDates].sort((a, b) => a.getTime() - b.getTime());
-
-                    if (sortedDates.length === 0) {
-                        throw new Error("No valid dates selected");
-                    }
-
-                    const startDateStr = format(sortedDates[0], "yyyy-MM-dd");
-                    const endDateStr = format(sortedDates[sortedDates.length - 1], "yyyy-MM-dd");
-
-                    // Validate date strings
-                    if (!startDateStr || !endDateStr) {
-                        throw new Error("Invalid date format");
-                    }
-
-                    try {
-                        const existingSchedules = await getSchedules(
-                            startDateStr,
-                            endDateStr,
-                            currentVersion!,
-                            true // include empty schedules
-                        );
-
-                        // Filter to only the target employees and dates
-                        const targetEmployeeIds = targetEmployees.map(emp => emp.id);
-                        const targetDateStrings = targetDates.map(date => format(date, "yyyy-MM-dd"));
-
-                        const schedulesToClear = existingSchedules.schedules.filter(schedule =>
-                            targetEmployeeIds.includes(schedule.employee_id) &&
-                            targetDateStrings.includes(schedule.date) &&
-                            schedule.shift_id !== null // Only clear schedules that have assignments
-                        );
-
-                        // Clear existing assignments (set shift_id to null)
-                        let clearedCount = 0;
-                        for (const schedule of schedulesToClear) {
-                            try {
-                                await updateSchedule(schedule.id, {
-                                    shift_id: null,
-                                    version: currentVersion!,
-                                });
-                                clearedCount++;
-                            } catch (error) {
-                                console.error("Error clearing schedule assignment:", error);
-                                // Continue with other schedules even if one fails
-                            }
-                        }
-
-                        if (clearedCount > 0) {
-                            toast({
-                                title: "Bestehende Zuweisungen entfernt",
-                                description: `${clearedCount} bestehende Schichtzuweisungen wurden entfernt.`,
-                                variant: "default",
-                            });
-                        }
-                    } catch (error) {
-                        console.error("Error during cleanup phase:", error);
-                        console.error("Date range:", startDateStr, "to", endDateStr);
-                        console.error("Current version:", currentVersion);
-
-                        toast({
-                            title: "Warnung",
-                            description: "Fehler beim Aufräumen bestehender Zuweisungen. Fortfahren mit neuen Zuweisungen.",
-                            variant: "destructive",
-                        });
-                    }
-                }
-
-                // Step 2: Create new schedule assignments
-                const scheduleEntries = [];
-
-                for (const employee of targetEmployees) {
-                    for (const date of targetDates) {
-                        // Find a matching shift template for this employee/date
-                        const matchingShift = await findMatchingShift(employee, date);
-
-                        if (matchingShift) {
-                            const adjustedTimes = calculateShiftTimes(matchingShift, date);
-
-                            const scheduleData = {
-                                employee_id: employee.id,
-                                date: format(date, "yyyy-MM-dd"),
-                                shift_id: matchingShift.id,
-                                version: currentVersion!,
-                                // Include adjusted times if needed
-                                ...(adjustedTimes.start_time !== matchingShift.start_time || adjustedTimes.end_time !== matchingShift.end_time ? {
-                                    // Store custom times in notes for now, since backend might not support custom times directly
-                                    notes: `Angepasste Zeiten: ${adjustedTimes.start_time} - ${adjustedTimes.end_time}`
-                                } : {})
-                            };
-
-                            scheduleEntries.push(scheduleData);
-                        }
-                    }
-                }
-
-                // Create schedule entries
-                let createdCount = 0;
-                for (const entry of scheduleEntries) {
-                    try {
-                        await createSchedule(entry);
-                        createdCount++;
-                    } catch (error) {
-                        console.error("Error creating schedule entry:", error);
-                        // Continue with other entries even if one fails
-                    }
-                }
-
-                // Invalidate schedules query to refresh the view
-                queryClient.invalidateQueries({ queryKey: ["schedules"] });
-
-                toast({
-                    title: "Schichtzuweisungen erstellt",
-                    description: `${createdCount} von ${scheduleEntries.length} Schichtzuweisungen wurden erfolgreich erstellt.`,
-                    variant: "default",
+            // Clear existing assignments (set shift_id to null)
+            let clearedCount = 0;
+            for (const schedule of schedulesToClear) {
+              try {
+                await updateSchedule(schedule.id, {
+                  shift_id: null,
+                  version: currentVersion!,
                 });
-
-            } else {
-                // For PREFERRED, create preferred availability entries based on existing patterns
-                if (availabilityType === 'PREFERRED' && preferredOptions.useExistingPattern) {
-                    const preferredAvailabilityEntries = [];
-
-                    for (const employee of targetEmployees) {
-                        for (const date of targetDates) {
-                            // Find preferred availability patterns for this employee/date
-                            const preferredTimeRanges = await findPreferredAvailability(employee, date);
-
-                            if (preferredTimeRanges && preferredTimeRanges.length > 0) {
-                                // Create availability entries for each time range found
-                                for (const timeRange of preferredTimeRanges) {
-                                    const preferredAvailabilityData: Omit<Availability, "id"> = {
-                                        employee_id: employee.id,
-                                        start_date: format(date, "yyyy-MM-dd"),
-                                        end_date: format(date, "yyyy-MM-dd"),
-                                        availability_type: "PREFERRED",
-                                        is_recurring: false,
-                                        // Note: The backend Availability model may need to be extended to support time ranges
-                                        // For now, we create a basic entry. Future enhancement: add start_time and end_time fields
-                                    };
-
-                                    preferredAvailabilityEntries.push(preferredAvailabilityData);
-                                }
-                            } else if (!preferredOptions.useExistingPattern || preferredTimeRanges === null) {
-                                // If no existing pattern found or not using patterns, create a basic entry
-                                const preferredAvailabilityData: Omit<Availability, "id"> = {
-                                    employee_id: employee.id,
-                                    start_date: format(date, "yyyy-MM-dd"),
-                                    end_date: format(date, "yyyy-MM-dd"),
-                                    availability_type: "PREFERRED",
-                                    is_recurring: false,
-                                };
-
-                                preferredAvailabilityEntries.push(preferredAvailabilityData);
-                            }
-                        }
-                    }
-
-                    // Create preferred availability entries
-                    let createdCount = 0;
-                    for (const entry of preferredAvailabilityEntries) {
-                        try {
-                            await createAvailability(entry);
-                            createdCount++;
-                        } catch (error) {
-                            console.error("Error creating preferred availability entry:", error);
-                            // Continue with other entries even if one fails
-                        }
-                    }
-
-                    toast({
-                        title: "Bevorzugte Verfügbarkeit erstellt",
-                        description: `${createdCount} von ${preferredAvailabilityEntries.length} bevorzugte Verfügbarkeitseinträge wurden erfolgreich erstellt.`,
-                        variant: "default",
-                    });
-
-                } else {
-                    // Simple PREFERRED entries without pattern matching
-                    const preferredAvailabilityEntries = [];
-
-                    for (const employee of targetEmployees) {
-                        for (const date of targetDates) {
-                            const preferredAvailabilityData: Omit<Availability, "id"> = {
-                                employee_id: employee.id,
-                                start_date: format(date, "yyyy-MM-dd"),
-                                end_date: format(date, "yyyy-MM-dd"),
-                                availability_type: "PREFERRED",
-                                is_recurring: false,
-                            };
-
-                            preferredAvailabilityEntries.push(preferredAvailabilityData);
-                        }
-                    }
-
-                    // Create preferred availability entries
-                    for (const entry of preferredAvailabilityEntries) {
-                        await createAvailability(entry);
-                    }
-
-                    toast({
-                        title: "Bevorzugte Verfügbarkeit erstellt",
-                        description: `${preferredAvailabilityEntries.length} bevorzugte Verfügbarkeitseinträge wurden erfolgreich erstellt.`,
-                        variant: "default",
-                    });
-                }
+                clearedCount++;
+              } catch (error) {
+                console.error("Error clearing schedule assignment:", error);
+                // Continue with other schedules even if one fails
+              }
             }
 
-            onClose();
-
-        } catch (error) {
-            console.error("Error in handleSubmit:", error);
-
-            // Provide more specific error messages
-            let errorMessage = "Ein unerwarteter Fehler ist aufgetreten.";
-            if (error instanceof Error) {
-                if (error.message.includes("Failed to create schedule")) {
-                    errorMessage = "Fehler beim Erstellen der Schichtzuweisungen. Möglicherweise existieren bereits Zuweisungen für diese Termine.";
-                } else if (error.message.includes("Failed to update schedule")) {
-                    errorMessage = "Fehler beim Aktualisieren bestehender Schichtzuweisungen.";
-                } else if (error.message.includes("Failed to fetch schedules")) {
-                    errorMessage = "Fehler beim Abrufen bestehender Schichtpläne für das Aufräumen.";
-                } else {
-                    errorMessage = error.message;
-                }
+            if (clearedCount > 0) {
+              toast({
+                title: "Bestehende Zuweisungen entfernt",
+                description: `${clearedCount} bestehende Schichtzuweisungen wurden entfernt.`,
+                variant: "default",
+              });
             }
+          } catch (error) {
+            console.error("Error during cleanup phase:", error);
+            console.error("Date range:", startDateStr, "to", endDateStr);
+            console.error("Current version:", currentVersion);
 
             toast({
-                title: "Fehler beim Erstellen",
-                description: availabilityType === 'FIXED'
-                    ? errorMessage
-                    : "Die bevorzugte Verfügbarkeit konnte nicht erstellt werden.",
-                variant: "destructive",
+              title: "Warnung",
+              description:
+                "Fehler beim Aufräumen bestehender Zuweisungen. Fortfahren mit neuen Zuweisungen.",
+              variant: "destructive",
             });
-        } finally {
-            setIsProcessing(false);
+          }
         }
-    };
 
-    const getModalTitle = () => {
-        switch (availabilityType) {
-            case 'FIXED':
-                return 'Feste Schichtzuweisungen erstellen';
-            case 'PREFERRED':
-                return 'Bevorzugte Verfügbarkeit hinzufügen';
-            default:
-                return 'Verfügbarkeit hinzufügen';
+        // Step 2: Create new schedule assignments
+        const scheduleEntries = [];
+
+        for (const employee of targetEmployees) {
+          for (const date of targetDates) {
+            // Find a matching shift template for this employee/date
+            const matchingShift = await findMatchingShift(employee, date);
+
+            if (matchingShift) {
+              const adjustedTimes = calculateShiftTimes(matchingShift, date);
+
+              const scheduleData = {
+                employee_id: employee.id,
+                date: format(date, "yyyy-MM-dd"),
+                shift_id: matchingShift.id,
+                version: currentVersion!,
+                // Include adjusted times if needed
+                ...(adjustedTimes.start_time !== matchingShift.start_time ||
+                adjustedTimes.end_time !== matchingShift.end_time
+                  ? {
+                      // Store custom times in notes for now, since backend might not support custom times directly
+                      notes: `Angepasste Zeiten: ${adjustedTimes.start_time} - ${adjustedTimes.end_time}`,
+                    }
+                  : {}),
+              };
+
+              scheduleEntries.push(scheduleData);
+            }
+          }
         }
-    };
 
-    const getModalDescription = () => {
-        switch (availabilityType) {
-            case 'FIXED':
-                return 'Erstellen Sie feste Schichtzuweisungen basierend auf vorhandenen Verfügbarkeitsmustern. Dies erstellt direkte Schichtpläne für die ausgewählten Mitarbeiter und Termine.';
-            case 'PREFERRED':
-                return 'Markieren Sie bevorzugte Arbeitszeiten für Mitarbeiter. Diese werden bei der Planung berücksichtigt, sind aber nicht zwingend.';
-            default:
-                return 'Verwalten Sie die Verfügbarkeit von Mitarbeitern.';
+        // Create schedule entries
+        let createdCount = 0;
+        for (const entry of scheduleEntries) {
+          try {
+            await createSchedule(entry);
+            createdCount++;
+          } catch (error) {
+            console.error("Error creating schedule entry:", error);
+            // Continue with other entries even if one fails
+          }
         }
-    };
 
-    if (!isOpen) return null;
+        // Invalidate schedules query to refresh the view
+        queryClient.invalidateQueries({ queryKey: ["schedules"] });
 
-    return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        {availabilityType === 'FIXED' && <Clock className="h-5 w-5" />}
-                        {availabilityType === 'PREFERRED' && <CalendarDays className="h-5 w-5" />}
-                        {getModalTitle()}
-                    </DialogTitle>
-                    <DialogDescription>
-                        {getModalDescription()}
-                    </DialogDescription>
-                </DialogHeader>
+        toast({
+          title: "Schichtzuweisungen erstellt",
+          description: `${createdCount} von ${scheduleEntries.length} Schichtzuweisungen wurden erfolgreich erstellt.`,
+          variant: "default",
+        });
+      } else {
+        // For PREFERRED, create preferred availability entries based on existing patterns
+        if (
+          availabilityType === "PREFERRED" &&
+          preferredOptions.useExistingPattern
+        ) {
+          const preferredAvailabilityEntries = [];
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Employee Selection */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <Users className="h-4 w-4" />
-                                Mitarbeiter auswählen
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id="all-employees"
-                                    checked={selectedEmployees.all}
-                                    onCheckedChange={() => handleEmployeeSelectionChange('all')}
-                                />
-                                <Label htmlFor="all-employees" className="font-medium">
-                                    Alle Mitarbeiter
-                                </Label>
-                            </div>
+          for (const employee of targetEmployees) {
+            for (const date of targetDates) {
+              // Find preferred availability patterns for this employee/date
+              const preferredTimeRanges = await findPreferredAvailability(
+                employee,
+                date,
+              );
 
-                            {!selectedEmployees.all && (
-                                <div className="space-y-2 max-h-48 overflow-y-auto">
-                                    {employees?.map((employee) => (
-                                        <div key={employee.id} className="flex items-center space-x-2">
-                                            <Checkbox
-                                                id={`employee-${employee.id}`}
-                                                checked={selectedEmployees.individual.includes(employee.id)}
-                                                onCheckedChange={() => handleEmployeeSelectionChange('individual', employee.id)}
-                                            />
-                                            <Label htmlFor={`employee-${employee.id}`} className="text-sm">
-                                                {employee.first_name} {employee.last_name}
-                                            </Label>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+              if (preferredTimeRanges && preferredTimeRanges.length > 0) {
+                // Create availability entries for each time range found
+                for (const timeRange of preferredTimeRanges) {
+                  const preferredAvailabilityData: Omit<Availability, "id"> = {
+                    employee_id: employee.id,
+                    start_date: format(date, "yyyy-MM-dd"),
+                    end_date: format(date, "yyyy-MM-dd"),
+                    availability_type: "PREFERRED",
+                    is_recurring: false,
+                    // Note: The backend Availability model may need to be extended to support time ranges
+                    // For now, we create a basic entry. Future enhancement: add start_time and end_time fields
+                  };
 
-                    {/* Date Selection */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <CalendarDays className="h-4 w-4" />
-                                Datum auswählen
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id="all-dates"
-                                    checked={selectedDates.all}
-                                    onCheckedChange={() => handleDateSelectionChange('all')}
-                                />
-                                <Label htmlFor="all-dates" className="font-medium">
-                                    Alle Tage im Zeitraum
-                                </Label>
-                            </div>
+                  preferredAvailabilityEntries.push(preferredAvailabilityData);
+                }
+              } else if (
+                !preferredOptions.useExistingPattern ||
+                preferredTimeRanges === null
+              ) {
+                // If no existing pattern found or not using patterns, create a basic entry
+                const preferredAvailabilityData: Omit<Availability, "id"> = {
+                  employee_id: employee.id,
+                  start_date: format(date, "yyyy-MM-dd"),
+                  end_date: format(date, "yyyy-MM-dd"),
+                  availability_type: "PREFERRED",
+                  is_recurring: false,
+                };
 
-                            {!selectedDates.all && (
-                                <div className="space-y-2 max-h-48 overflow-y-auto">
-                                    {dateList.map((date) => (
-                                        <div key={date.toISOString()} className="flex items-center space-x-2">
-                                            <Checkbox
-                                                id={`date-${date.toISOString()}`}
-                                                checked={selectedDates.individual.some(d => isSameDay(d, date))}
-                                                onCheckedChange={() => handleDateSelectionChange('individual', date)}
-                                            />
-                                            <Label htmlFor={`date-${date.toISOString()}`} className="text-sm">
-                                                {format(date, "dd.MM.yyyy (eeee)", { locale: de })}
-                                            </Label>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                preferredAvailabilityEntries.push(preferredAvailabilityData);
+              }
+            }
+          }
+
+          // Create preferred availability entries
+          let createdCount = 0;
+          for (const entry of preferredAvailabilityEntries) {
+            try {
+              await createAvailability(entry);
+              createdCount++;
+            } catch (error) {
+              console.error(
+                "Error creating preferred availability entry:",
+                error,
+              );
+              // Continue with other entries even if one fails
+            }
+          }
+
+          toast({
+            title: "Bevorzugte Verfügbarkeit erstellt",
+            description: `${createdCount} von ${preferredAvailabilityEntries.length} bevorzugte Verfügbarkeitseinträge wurden erfolgreich erstellt.`,
+            variant: "default",
+          });
+        } else {
+          // Simple PREFERRED entries without pattern matching
+          const preferredAvailabilityEntries = [];
+
+          for (const employee of targetEmployees) {
+            for (const date of targetDates) {
+              const preferredAvailabilityData: Omit<Availability, "id"> = {
+                employee_id: employee.id,
+                start_date: format(date, "yyyy-MM-dd"),
+                end_date: format(date, "yyyy-MM-dd"),
+                availability_type: "PREFERRED",
+                is_recurring: false,
+              };
+
+              preferredAvailabilityEntries.push(preferredAvailabilityData);
+            }
+          }
+
+          // Create preferred availability entries
+          for (const entry of preferredAvailabilityEntries) {
+            await createAvailability(entry);
+          }
+
+          toast({
+            title: "Bevorzugte Verfügbarkeit erstellt",
+            description: `${preferredAvailabilityEntries.length} bevorzugte Verfügbarkeitseinträge wurden erfolgreich erstellt.`,
+            variant: "default",
+          });
+        }
+      }
+
+      onClose();
+    } catch (error) {
+      console.error("Error in handleSubmit:", error);
+
+      // Provide more specific error messages
+      let errorMessage = "Ein unerwarteter Fehler ist aufgetreten.";
+      if (error instanceof Error) {
+        if (error.message.includes("Failed to create schedule")) {
+          errorMessage =
+            "Fehler beim Erstellen der Schichtzuweisungen. Möglicherweise existieren bereits Zuweisungen für diese Termine.";
+        } else if (error.message.includes("Failed to update schedule")) {
+          errorMessage =
+            "Fehler beim Aktualisieren bestehender Schichtzuweisungen.";
+        } else if (error.message.includes("Failed to fetch schedules")) {
+          errorMessage =
+            "Fehler beim Abrufen bestehender Schichtpläne für das Aufräumen.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
+      toast({
+        title: "Fehler beim Erstellen",
+        description:
+          availabilityType === "FIXED"
+            ? errorMessage
+            : "Die bevorzugte Verfügbarkeit konnte nicht erstellt werden.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const getModalTitle = () => {
+    switch (availabilityType) {
+      case "FIXED":
+        return "Feste Schichtzuweisungen erstellen";
+      case "PREFERRED":
+        return "Bevorzugte Verfügbarkeit hinzufügen";
+      default:
+        return "Verfügbarkeit hinzufügen";
+    }
+  };
+
+  const getModalDescription = () => {
+    switch (availabilityType) {
+      case "FIXED":
+        return "Erstellen Sie feste Schichtzuweisungen basierend auf vorhandenen Verfügbarkeitsmustern. Dies erstellt direkte Schichtpläne für die ausgewählten Mitarbeiter und Termine.";
+      case "PREFERRED":
+        return "Markieren Sie bevorzugte Arbeitszeiten für Mitarbeiter. Diese werden bei der Planung berücksichtigt, sind aber nicht zwingend.";
+      default:
+        return "Verwalten Sie die Verfügbarkeit von Mitarbeitern.";
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {availabilityType === "FIXED" && <Clock className="h-5 w-5" />}
+            {availabilityType === "PREFERRED" && (
+              <CalendarDays className="h-5 w-5" />
+            )}
+            {getModalTitle()}
+          </DialogTitle>
+          <DialogDescription>{getModalDescription()}</DialogDescription>
+        </DialogHeader>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Employee Selection */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Mitarbeiter auswählen
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="all-employees"
+                  checked={selectedEmployees.all}
+                  onCheckedChange={() => handleEmployeeSelectionChange("all")}
+                />
+                <Label htmlFor="all-employees" className="font-medium">
+                  Alle Mitarbeiter
+                </Label>
+              </div>
+
+              {!selectedEmployees.all && (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {employees?.map((employee) => (
+                    <div
+                      key={employee.id}
+                      className="flex items-center space-x-2"
+                    >
+                      <Checkbox
+                        id={`employee-${employee.id}`}
+                        checked={selectedEmployees.individual.includes(
+                          employee.id,
+                        )}
+                        onCheckedChange={() =>
+                          handleEmployeeSelectionChange(
+                            "individual",
+                            employee.id,
+                          )
+                        }
+                      />
+                      <Label
+                        htmlFor={`employee-${employee.id}`}
+                        className="text-sm"
+                      >
+                        {employee.first_name} {employee.last_name}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Date Selection */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <CalendarDays className="h-4 w-4" />
+                Datum auswählen
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="all-dates"
+                  checked={selectedDates.all}
+                  onCheckedChange={() => handleDateSelectionChange("all")}
+                />
+                <Label htmlFor="all-dates" className="font-medium">
+                  Alle Tage im Zeitraum
+                </Label>
+              </div>
+
+              {!selectedDates.all && (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {dateList.map((date) => (
+                    <div
+                      key={date.toISOString()}
+                      className="flex items-center space-x-2"
+                    >
+                      <Checkbox
+                        id={`date-${date.toISOString()}`}
+                        checked={selectedDates.individual.some((d) =>
+                          isSameDay(d, date),
+                        )}
+                        onCheckedChange={() =>
+                          handleDateSelectionChange("individual", date)
+                        }
+                      />
+                      <Label
+                        htmlFor={`date-${date.toISOString()}`}
+                        className="text-sm"
+                      >
+                        {format(date, "dd.MM.yyyy (eeee)", { locale: de })}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Fixed Availability Options */}
+        {availabilityType === "FIXED" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Optionen für Schichtzuweisungen
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="use-existing-pattern"
+                  checked={fixedOptions.useExistingPattern}
+                  onCheckedChange={(checked) =>
+                    setFixedOptions((prev) => ({
+                      ...prev,
+                      useExistingPattern: !!checked,
+                    }))
+                  }
+                />
+                <Label htmlFor="use-existing-pattern">
+                  Bestehende feste Zeiten als Vorlage verwenden
+                </Label>
+              </div>
+
+              {fixedOptions.useExistingPattern && (
+                <div className="ml-6 space-y-3 border-l-2 border-gray-200 pl-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="match-only-start"
+                      checked={fixedOptions.matchOnlyStart}
+                      onCheckedChange={(checked) =>
+                        setFixedOptions((prev) => ({
+                          ...prev,
+                          matchOnlyStart: !!checked,
+                          matchOnlyEnd: checked ? false : prev.matchOnlyEnd,
+                        }))
+                      }
+                    />
+                    <Label htmlFor="match-only-start" className="text-sm">
+                      Nur Startzeit abgleichen
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="match-only-end"
+                      checked={fixedOptions.matchOnlyEnd}
+                      onCheckedChange={(checked) =>
+                        setFixedOptions((prev) => ({
+                          ...prev,
+                          matchOnlyEnd: !!checked,
+                          matchOnlyStart: checked ? false : prev.matchOnlyStart,
+                        }))
+                      }
+                    />
+                    <Label htmlFor="match-only-end" className="text-sm">
+                      Nur Endzeit abgleichen
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="adjust-times"
+                      checked={fixedOptions.adjustTimes}
+                      onCheckedChange={(checked) =>
+                        setFixedOptions((prev) => ({
+                          ...prev,
+                          adjustTimes: !!checked,
+                        }))
+                      }
+                    />
+                    <Label htmlFor="adjust-times" className="text-sm">
+                      Zeiten an Öffnungszeiten anpassen
+                    </Label>
+                  </div>
+                </div>
+              )}
+
+              {/* Overwrite and cleanup options */}
+              <div className="space-y-3 border-t pt-4">
+                <div className="text-sm text-muted-foreground mb-2">
+                  Bestehende Zuweisungen verwalten:
                 </div>
 
-                {/* Fixed Availability Options */}
-                {availabilityType === 'FIXED' && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <Clock className="h-4 w-4" />
-                                Optionen für Schichtzuweisungen
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id="use-existing-pattern"
-                                    checked={fixedOptions.useExistingPattern}
-                                    onCheckedChange={(checked) =>
-                                        setFixedOptions(prev => ({ ...prev, useExistingPattern: !!checked }))
-                                    }
-                                />
-                                <Label htmlFor="use-existing-pattern">
-                                    Bestehende feste Zeiten als Vorlage verwenden
-                                </Label>
-                            </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="overwrite-existing"
+                    checked={fixedOptions.overwriteExisting}
+                    onCheckedChange={(checked) =>
+                      setFixedOptions((prev) => ({
+                        ...prev,
+                        overwriteExisting: !!checked,
+                        cleanupFirst: checked ? false : prev.cleanupFirst,
+                      }))
+                    }
+                  />
+                  <Label htmlFor="overwrite-existing" className="text-sm">
+                    Bestehende Zuweisungen überschreiben
+                  </Label>
+                </div>
+                <div className="text-xs text-muted-foreground ml-6">
+                  Entfernt nur vorhandene Zuweisungen an den gleichen Terminen
+                  vor dem Erstellen neuer Zuweisungen.
+                </div>
 
-                            {fixedOptions.useExistingPattern && (
-                                <div className="ml-6 space-y-3 border-l-2 border-gray-200 pl-4">
-                                    <div className="flex items-center space-x-2">
-                                        <Checkbox
-                                            id="match-only-start"
-                                            checked={fixedOptions.matchOnlyStart}
-                                            onCheckedChange={(checked) =>
-                                                setFixedOptions(prev => ({
-                                                    ...prev,
-                                                    matchOnlyStart: !!checked,
-                                                    matchOnlyEnd: checked ? false : prev.matchOnlyEnd
-                                                }))
-                                            }
-                                        />
-                                        <Label htmlFor="match-only-start" className="text-sm">
-                                            Nur Startzeit abgleichen
-                                        </Label>
-                                    </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="cleanup-first"
+                    checked={fixedOptions.cleanupFirst}
+                    onCheckedChange={(checked) =>
+                      setFixedOptions((prev) => ({
+                        ...prev,
+                        cleanupFirst: !!checked,
+                        overwriteExisting: checked
+                          ? false
+                          : prev.overwriteExisting,
+                      }))
+                    }
+                  />
+                  <Label htmlFor="cleanup-first" className="text-sm">
+                    Vorher alle Zuweisungen im Zeitraum löschen
+                  </Label>
+                </div>
+                <div className="text-xs text-muted-foreground ml-6">
+                  Entfernt alle vorhandenen Zuweisungen für die ausgewählten
+                  Mitarbeiter im gesamten Zeitraum.
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-                                    <div className="flex items-center space-x-2">
-                                        <Checkbox
-                                            id="match-only-end"
-                                            checked={fixedOptions.matchOnlyEnd}
-                                            onCheckedChange={(checked) =>
-                                                setFixedOptions(prev => ({
-                                                    ...prev,
-                                                    matchOnlyEnd: !!checked,
-                                                    matchOnlyStart: checked ? false : prev.matchOnlyStart
-                                                }))
-                                            }
-                                        />
-                                        <Label htmlFor="match-only-end" className="text-sm">
-                                            Nur Endzeit abgleichen
-                                        </Label>
-                                    </div>
+        {/* Preferred Availability Options */}
+        {availabilityType === "PREFERRED" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <CalendarDays className="h-4 w-4" />
+                Optionen für bevorzugte Verfügbarkeit
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="use-existing-preferred-pattern"
+                  checked={preferredOptions.useExistingPattern}
+                  onCheckedChange={(checked) =>
+                    setPreferredOptions((prev) => ({
+                      ...prev,
+                      useExistingPattern: !!checked,
+                    }))
+                  }
+                />
+                <Label htmlFor="use-existing-preferred-pattern">
+                  Bestehende bevorzugte Zeiten als Vorlage verwenden
+                </Label>
+              </div>
 
-                                    <div className="flex items-center space-x-2">
-                                        <Checkbox
-                                            id="adjust-times"
-                                            checked={fixedOptions.adjustTimes}
-                                            onCheckedChange={(checked) =>
-                                                setFixedOptions(prev => ({ ...prev, adjustTimes: !!checked }))
-                                            }
-                                        />
-                                        <Label htmlFor="adjust-times" className="text-sm">
-                                            Zeiten an Öffnungszeiten anpassen
-                                        </Label>
-                                    </div>
-                                </div>
-                            )}
+              {preferredOptions.useExistingPattern && (
+                <div className="ml-6 space-y-3 border-l-2 border-gray-200 pl-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="create-time-range-entries"
+                      checked={preferredOptions.createTimeRangeEntries}
+                      onCheckedChange={(checked) =>
+                        setPreferredOptions((prev) => ({
+                          ...prev,
+                          createTimeRangeEntries: !!checked,
+                        }))
+                      }
+                    />
+                    <Label
+                      htmlFor="create-time-range-entries"
+                      className="text-sm"
+                    >
+                      Zeitbereiche als getrennte Einträge erstellen
+                    </Label>
+                  </div>
+                </div>
+              )}
 
-                            {/* Overwrite and cleanup options */}
-                            <div className="space-y-3 border-t pt-4">
-                                <div className="text-sm text-muted-foreground mb-2">
-                                    Bestehende Zuweisungen verwalten:
-                                </div>
+              {/* Overwrite options */}
+              <div className="space-y-3 border-t pt-4">
+                <div className="text-sm text-muted-foreground mb-2">
+                  Bestehende bevorzugte Verfügbarkeiten verwalten:
+                </div>
 
-                                <div className="flex items-center space-x-2">
-                                    <Checkbox
-                                        id="overwrite-existing"
-                                        checked={fixedOptions.overwriteExisting}
-                                        onCheckedChange={(checked) =>
-                                            setFixedOptions(prev => ({
-                                                ...prev,
-                                                overwriteExisting: !!checked,
-                                                cleanupFirst: checked ? false : prev.cleanupFirst
-                                            }))
-                                        }
-                                    />
-                                    <Label htmlFor="overwrite-existing" className="text-sm">
-                                        Bestehende Zuweisungen überschreiben
-                                    </Label>
-                                </div>
-                                <div className="text-xs text-muted-foreground ml-6">
-                                    Entfernt nur vorhandene Zuweisungen an den gleichen Terminen vor dem Erstellen neuer Zuweisungen.
-                                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="overwrite-existing-preferred"
+                    checked={preferredOptions.overwriteExisting}
+                    onCheckedChange={(checked) =>
+                      setPreferredOptions((prev) => ({
+                        ...prev,
+                        overwriteExisting: !!checked,
+                      }))
+                    }
+                  />
+                  <Label
+                    htmlFor="overwrite-existing-preferred"
+                    className="text-sm"
+                  >
+                    Bestehende bevorzugte Verfügbarkeiten überschreiben
+                  </Label>
+                </div>
+                <div className="text-xs text-muted-foreground ml-6">
+                  Entfernt vorhandene bevorzugte Verfügbarkeiten an den gleichen
+                  Terminen vor dem Erstellen neuer Einträge.
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-                                <div className="flex items-center space-x-2">
-                                    <Checkbox
-                                        id="cleanup-first"
-                                        checked={fixedOptions.cleanupFirst}
-                                        onCheckedChange={(checked) =>
-                                            setFixedOptions(prev => ({
-                                                ...prev,
-                                                cleanupFirst: !!checked,
-                                                overwriteExisting: checked ? false : prev.overwriteExisting
-                                            }))
-                                        }
-                                    />
-                                    <Label htmlFor="cleanup-first" className="text-sm">
-                                        Vorher alle Zuweisungen im Zeitraum löschen
-                                    </Label>
-                                </div>
-                                <div className="text-xs text-muted-foreground ml-6">
-                                    Entfernt alle vorhandenen Zuweisungen für die ausgewählten Mitarbeiter im gesamten Zeitraum.
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* Preferred Availability Options */}
-                {availabilityType === 'PREFERRED' && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <CalendarDays className="h-4 w-4" />
-                                Optionen für bevorzugte Verfügbarkeit
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id="use-existing-preferred-pattern"
-                                    checked={preferredOptions.useExistingPattern}
-                                    onCheckedChange={(checked) =>
-                                        setPreferredOptions(prev => ({ ...prev, useExistingPattern: !!checked }))
-                                    }
-                                />
-                                <Label htmlFor="use-existing-preferred-pattern">
-                                    Bestehende bevorzugte Zeiten als Vorlage verwenden
-                                </Label>
-                            </div>
-
-                            {preferredOptions.useExistingPattern && (
-                                <div className="ml-6 space-y-3 border-l-2 border-gray-200 pl-4">
-                                    <div className="flex items-center space-x-2">
-                                        <Checkbox
-                                            id="create-time-range-entries"
-                                            checked={preferredOptions.createTimeRangeEntries}
-                                            onCheckedChange={(checked) =>
-                                                setPreferredOptions(prev => ({ ...prev, createTimeRangeEntries: !!checked }))
-                                            }
-                                        />
-                                        <Label htmlFor="create-time-range-entries" className="text-sm">
-                                            Zeitbereiche als getrennte Einträge erstellen
-                                        </Label>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Overwrite options */}
-                            <div className="space-y-3 border-t pt-4">
-                                <div className="text-sm text-muted-foreground mb-2">
-                                    Bestehende bevorzugte Verfügbarkeiten verwalten:
-                                </div>
-
-                                <div className="flex items-center space-x-2">
-                                    <Checkbox
-                                        id="overwrite-existing-preferred"
-                                        checked={preferredOptions.overwriteExisting}
-                                        onCheckedChange={(checked) =>
-                                            setPreferredOptions(prev => ({ ...prev, overwriteExisting: !!checked }))
-                                        }
-                                    />
-                                    <Label htmlFor="overwrite-existing-preferred" className="text-sm">
-                                        Bestehende bevorzugte Verfügbarkeiten überschreiben
-                                    </Label>
-                                </div>
-                                <div className="text-xs text-muted-foreground ml-6">
-                                    Entfernt vorhandene bevorzugte Verfügbarkeiten an den gleichen Terminen vor dem Erstellen neuer Einträge.
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
-
-                <DialogFooter>
-                    <Button variant="outline" onClick={onClose} disabled={isProcessing}>
-                        Abbrechen
-                    </Button>
-                    <Button onClick={handleSubmit} disabled={isProcessing}>
-                        {isProcessing ? "Erstelle..." :
-                            availabilityType === 'FIXED' ? "Schichtzuweisungen erstellen" : "Bevorzugte Verfügbarkeit hinzufügen"
-                        }
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    );
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isProcessing}>
+            Abbrechen
+          </Button>
+          <Button onClick={handleSubmit} disabled={isProcessing}>
+            {isProcessing
+              ? "Erstelle..."
+              : availabilityType === "FIXED"
+                ? "Schichtzuweisungen erstellen"
+                : "Bevorzugte Verfügbarkeit hinzufügen"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }

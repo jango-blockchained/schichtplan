@@ -7,25 +7,24 @@ import React from "react";
 import { DateRange } from "react-day-picker";
 import { ScheduleStatistics } from "./ScheduleStatistics";
 
-
 interface SchedulePageContentProps {
   // Data props
   scheduleData: Schedule[];
   employees: Employee[];
   effectiveDateRange: DateRange | undefined;
-  
+
   // Loading states
   isLoadingSchedules: boolean;
   isLoadingEmployees: boolean;
-  
+
   // Error states
   scheduleError: Error | null;
   employeeError: Error | null;
-  
+
   // Settings
   openingDays: number[];
   version?: number;
-  
+
   // Children for flexible content composition
   children?: React.ReactNode;
 }
@@ -73,7 +72,8 @@ export function SchedulePageContent({
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Fehler beim Laden der Schichtdaten</AlertTitle>
             <AlertDescription>
-              {scheduleError.message || "Ein unbekannter Fehler ist aufgetreten."}
+              {scheduleError.message ||
+                "Ein unbekannter Fehler ist aufgetreten."}
             </AlertDescription>
           </Alert>
         )}
@@ -82,7 +82,8 @@ export function SchedulePageContent({
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Fehler beim Laden der Mitarbeiterdaten</AlertTitle>
             <AlertDescription>
-              {employeeError.message || "Ein unbekannter Fehler ist aufgetreten."}
+              {employeeError.message ||
+                "Ein unbekannter Fehler ist aufgetreten."}
             </AlertDescription>
           </Alert>
         )}
@@ -98,11 +99,11 @@ export function SchedulePageContent({
           <Info className="h-4 w-4" />
           <AlertTitle>Keine Schichtdaten vorhanden</AlertTitle>
           <AlertDescription>
-            Für den gewählten Zeitraum sind keine Schichtdaten verfügbar. 
+            Für den gewählten Zeitraum sind keine Schichtdaten verfügbar.
             Möglicherweise müssen Sie zuerst einen Schichtplan generieren.
           </AlertDescription>
         </Alert>
-        
+
         {/* Show statistics even with no schedule data */}
         <ScheduleStatistics
           schedules={scheduleData}

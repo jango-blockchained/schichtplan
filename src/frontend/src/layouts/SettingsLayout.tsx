@@ -1,7 +1,13 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 
@@ -54,9 +60,7 @@ export const SettingsLayout: React.FC<SettingsLayoutProps> = ({
           )}
         </div>
         {headerActions && (
-          <div className="flex items-center gap-2">
-            {headerActions}
-          </div>
+          <div className="flex items-center gap-2">{headerActions}</div>
         )}
       </div>
 
@@ -64,7 +68,10 @@ export const SettingsLayout: React.FC<SettingsLayoutProps> = ({
 
       {/* Settings Tabs */}
       <Tabs defaultValue={defaultTab || tabs[0]?.id} className="space-y-6">
-        <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
+        <TabsList
+          className="grid w-full"
+          style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}
+        >
           {tabs.map((tab) => (
             <TabsTrigger
               key={tab.id}
@@ -98,16 +105,12 @@ export const SettingsLayout: React.FC<SettingsLayoutProps> = ({
                         )}
                       </CardTitle>
                       {section.description && (
-                        <CardDescription>
-                          {section.description}
-                        </CardDescription>
+                        <CardDescription>{section.description}</CardDescription>
                       )}
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  {section.children}
-                </CardContent>
+                <CardContent>{section.children}</CardContent>
               </Card>
             ))}
           </TabsContent>
@@ -128,14 +131,10 @@ export const SettingsSection: React.FC<{
     <div className="space-y-1">
       <h3 className="text-lg font-medium">{title}</h3>
       {description && (
-        <p className="text-sm text-muted-foreground">
-          {description}
-        </p>
+        <p className="text-sm text-muted-foreground">{description}</p>
       )}
     </div>
-    <div className="space-y-4">
-      {children}
-    </div>
+    <div className="space-y-4">{children}</div>
   </div>
 );
 
@@ -144,9 +143,7 @@ export const SettingsField: React.FC<{
   children: React.ReactNode;
   className?: string;
 }> = ({ children, className }) => (
-  <div className={cn("space-y-2", className)}>
-    {children}
-  </div>
+  <div className={cn("space-y-2", className)}>{children}</div>
 );
 
 // Settings group for related fields
@@ -154,7 +151,5 @@ export const SettingsGroup: React.FC<{
   children: React.ReactNode;
   className?: string;
 }> = ({ children, className }) => (
-  <div className={cn("space-y-6", className)}>
-    {children}
-  </div>
-); 
+  <div className={cn("space-y-6", className)}>{children}</div>
+);

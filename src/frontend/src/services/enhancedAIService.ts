@@ -1,6 +1,6 @@
 /**
  * Enhanced AI Service with Streaming and Context-Aware Features
- * 
+ *
  * Extends the base AI service with:
  * - Server-Sent Events (SSE) streaming
  * - Context-aware requests
@@ -8,14 +8,14 @@
  * - Proactive suggestions
  */
 
-import { aiService } from './aiService';
+import { aiService } from "./aiService";
 
 // ============================================================================
 // Types
 // ============================================================================
 
 export interface StreamChunk {
-  type: 'content' | 'metadata' | 'error' | 'done';
+  type: "content" | "metadata" | "error" | "done";
   content?: string;
   metadata?: Record<string, unknown>;
   error?: string;
@@ -49,7 +49,7 @@ export interface PageContextSummary {
 export interface BackgroundTask {
   id: string;
   type: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: "pending" | "running" | "completed" | "failed";
   progress: number;
   result?: unknown;
   error?: string;
@@ -59,7 +59,7 @@ export interface BackgroundTask {
 
 export interface ProactiveSuggestion {
   id: string;
-  type: 'warning' | 'info' | 'action' | 'insight';
+  type: "warning" | "info" | "action" | "insight";
   title: string;
   description: string;
   action?: {
@@ -67,7 +67,7 @@ export interface ProactiveSuggestion {
     endpoint: string;
     parameters?: Record<string, unknown>;
   };
-  priority: 'low' | 'medium' | 'high';
+  priority: "low" | "medium" | "high";
   context: PageContextSummary;
   created_at: string;
 }
@@ -94,15 +94,15 @@ class EnhancedAIService {
   private baseService = aiService;
   private activeStreams: Map<string, AbortController> = new Map();
   private taskPollingIntervals: Map<string, NodeJS.Timeout> = new Map();
-  
+
   // Access base URL and headers via private methods
   private get baseURL(): string {
-    return '/api/v2';
+    return "/api/v2";
   }
-  
+
   private get headers(): Record<string, string> {
     return {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     };
   }
 
@@ -113,21 +113,23 @@ class EnhancedAIService {
   /**
    * Stream chat responses using Server-Sent Events
    */
-  async *streamChat(request: ContextualChatRequest): AsyncGenerator<StreamChunk, void, unknown> {
+  async *streamChat(
+    request: ContextualChatRequest,
+  ): AsyncGenerator<StreamChunk, void, unknown> {
     const streamId = `stream-${Date.now()}`;
     const controller = new AbortController();
     this.activeStreams.set(streamId, controller);
 
     try {
       const response = await fetch(`${this.baseURL}/chat/stream`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           ...this.headers,
         },
         body: JSON.stringify(request),
         signal: controller.signal,
-        credentials: 'include',
+        credentials: "include",
       });
 
       if (!response.ok) {
@@ -136,30 +138,30 @@ class EnhancedAIService {
 
       const reader = response.body?.getReader();
       if (!reader) {
-        throw new Error('Response body not readable');
+        throw new Error("Response body not readable");
       }
 
       const decoder = new TextDecoder();
-      let buffer = '';
+      let buffer = "";
 
       while (true) {
         const { done, value } = await reader.read();
-        
+
         if (done) {
-          yield { type: 'done' };
+          yield { type: "done" };
           break;
         }
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
+          if (line.startsWith("data: ")) {
             const data = line.slice(6);
-            
-            if (data === '[DONE]') {
-              yield { type: 'done' };
+
+            if (data === "[DONE]") {
+              yield { type: "done" };
               break;
             }
 
@@ -167,16 +169,16 @@ class EnhancedAIService {
               const chunk = JSON.parse(data);
               yield chunk as StreamChunk;
             } catch {
-              console.warn('Failed to parse SSE data:', data);
+              console.warn("Failed to parse SSE data:", data);
             }
           }
         }
       }
     } catch (error) {
-      if (error instanceof Error && error.name !== 'AbortError') {
+      if (error instanceof Error && error.name !== "AbortError") {
         yield {
-          type: 'error',
-          error: error.message || 'Streaming failed'
+          type: "error",
+          error: error.message || "Streaming failed",
         };
       }
     } finally {
@@ -216,7 +218,7 @@ class EnhancedAIService {
   async sendContextualMessage(request: ContextualChatRequest) {
     // Enrich message with context if provided
     let enrichedMessage = request.message;
-    
+
     if (request.context) {
       const contextStr = this.formatContextForAI(request.context);
       enrichedMessage = `${contextStr}\n\nUser: ${request.message}`;
@@ -232,9 +234,7 @@ class EnhancedAIService {
    * Format context for AI consumption
    */
   private formatContextForAI(context: PageContextSummary): string {
-    const parts = [
-      `Context: ${context.page_name}`,
-    ];
+    const parts = [`Context: ${context.page_name}`];
 
     if (context.current_view) {
       parts.push(`View: ${context.current_view}`);
@@ -243,13 +243,14 @@ class EnhancedAIService {
     if (context.selected_items.length > 0) {
       parts.push(
         `Selected: ${context.selected_items
-          .map(item => `${item.type}=${item.label}`)
-          .join(', ')}`
+          .map((item) => `${item.type}=${item.label}`)
+          .join(", ")}`,
       );
     }
 
     if (context.recent_actions.length > 0) {
-      const recentAction = context.recent_actions[context.recent_actions.length - 1];
+      const recentAction =
+        context.recent_actions[context.recent_actions.length - 1];
       parts.push(`Recent action: ${recentAction.description}`);
     }
 
@@ -257,7 +258,7 @@ class EnhancedAIService {
       parts.push(`Intent: ${context.user_intent}`);
     }
 
-    return parts.join(' | ');
+    return parts.join(" | ");
   }
 
   // ==========================================================================
@@ -269,16 +270,16 @@ class EnhancedAIService {
    */
   async startBackgroundTask(
     taskType: string,
-    parameters: Record<string, unknown>
+    parameters: Record<string, unknown>,
   ): Promise<BackgroundTask> {
     const response = await fetch(`${this.baseURL}/tasks/background`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...this.headers,
       },
       body: JSON.stringify({ task_type: taskType, parameters }),
-      credentials: 'include',
+      credentials: "include",
     });
 
     if (!response.ok) {
@@ -294,8 +295,8 @@ class EnhancedAIService {
   async getTaskProgress(taskId: string): Promise<BackgroundTask> {
     return fetch(`${this.baseURL}/tasks/${taskId}/progress`, {
       headers: this.headers,
-      credentials: 'include',
-    }).then(r => r.json());
+      credentials: "include",
+    }).then((r) => r.json());
   }
 
   /**
@@ -304,25 +305,25 @@ class EnhancedAIService {
   async waitForTask(
     taskId: string,
     onProgress?: (task: BackgroundTask) => void,
-    pollInterval: number = 1000
+    pollInterval: number = 1000,
   ): Promise<BackgroundTask> {
     return new Promise((resolve, reject) => {
       const interval = setInterval(async () => {
         try {
           const task = await this.getTaskProgress(taskId);
-          
+
           if (onProgress) {
             onProgress(task);
           }
 
-          if (task.status === 'completed') {
+          if (task.status === "completed") {
             clearInterval(interval);
             this.taskPollingIntervals.delete(taskId);
             resolve(task);
-          } else if (task.status === 'failed') {
+          } else if (task.status === "failed") {
             clearInterval(interval);
             this.taskPollingIntervals.delete(taskId);
-            reject(new Error(task.error || 'Task failed'));
+            reject(new Error(task.error || "Task failed"));
           }
         } catch (error) {
           clearInterval(interval);
@@ -346,9 +347,9 @@ class EnhancedAIService {
     }
 
     await fetch(`${this.baseURL}/tasks/${taskId}/cancel`, {
-      method: 'POST',
+      method: "POST",
       headers: this.headers,
-      credentials: 'include',
+      credentials: "include",
     });
   }
 
@@ -360,20 +361,20 @@ class EnhancedAIService {
    * Get proactive AI suggestions based on current context
    */
   async getProactiveSuggestions(
-    context: PageContextSummary
+    context: PageContextSummary,
   ): Promise<ProactiveSuggestion[]> {
     const response = await fetch(`${this.baseURL}/suggestions/proactive`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...this.headers,
       },
       body: JSON.stringify({ context }),
-      credentials: 'include',
+      credentials: "include",
     });
 
     if (!response.ok) {
-      console.warn('Failed to get proactive suggestions:', response.statusText);
+      console.warn("Failed to get proactive suggestions:", response.statusText);
       return [];
     }
 
@@ -385,9 +386,9 @@ class EnhancedAIService {
    */
   async dismissSuggestion(suggestionId: string): Promise<void> {
     await fetch(`${this.baseURL}/suggestions/${suggestionId}/dismiss`, {
-      method: 'POST',
+      method: "POST",
       headers: this.headers,
-      credentials: 'include',
+      credentials: "include",
     });
   }
 
@@ -398,22 +399,32 @@ class EnhancedAIService {
   /**
    * Optimize schedule using AI
    */
-  async optimizeSchedule(request: OptimizationRequest): Promise<BackgroundTask> {
-    return this.startBackgroundTask('optimize_schedule', request as Record<string, unknown>);
+  async optimizeSchedule(
+    request: OptimizationRequest,
+  ): Promise<BackgroundTask> {
+    return this.startBackgroundTask(
+      "optimize_schedule",
+      request as Record<string, unknown>,
+    );
   }
 
   /**
    * Fix scheduling conflicts
    */
-  async resolveConflicts(request: ConflictResolutionRequest): Promise<BackgroundTask> {
-    return this.startBackgroundTask('resolve_conflicts', request as Record<string, unknown>);
+  async resolveConflicts(
+    request: ConflictResolutionRequest,
+  ): Promise<BackgroundTask> {
+    return this.startBackgroundTask(
+      "resolve_conflicts",
+      request as Record<string, unknown>,
+    );
   }
 
   /**
    * Balance employee workload
    */
   async balanceWorkload(context: PageContextSummary): Promise<BackgroundTask> {
-    return this.startBackgroundTask('balance_workload', { context });
+    return this.startBackgroundTask("balance_workload", { context });
   }
 
   /**
@@ -421,7 +432,7 @@ class EnhancedAIService {
    */
   async getAssignmentSuggestions(context: PageContextSummary) {
     return this.sendContextualMessage({
-      message: 'Suggest optimal employee assignments for the current schedule',
+      message: "Suggest optimal employee assignments for the current schedule",
       context,
     });
   }
@@ -431,7 +442,7 @@ class EnhancedAIService {
    */
   async analyzeWorkload(context: PageContextSummary) {
     return this.sendContextualMessage({
-      message: 'Analyze employee workload and identify any issues',
+      message: "Analyze employee workload and identify any issues",
       context,
     });
   }
@@ -441,7 +452,7 @@ class EnhancedAIService {
    */
   async suggestAvailability(context: PageContextSummary) {
     return this.sendContextualMessage({
-      message: 'Suggest optimal availability patterns for selected employees',
+      message: "Suggest optimal availability patterns for selected employees",
       context,
     });
   }
@@ -454,7 +465,10 @@ class EnhancedAIService {
    * Check if streaming is supported
    */
   isStreamingSupported(): boolean {
-    return typeof ReadableStream !== 'undefined' && typeof TextDecoder !== 'undefined';
+    return (
+      typeof ReadableStream !== "undefined" &&
+      typeof TextDecoder !== "undefined"
+    );
   }
 
   /**
@@ -476,7 +490,7 @@ class EnhancedAIService {
    */
   cleanup(): void {
     this.cancelAllStreams();
-    
+
     for (const [, interval] of this.taskPollingIntervals) {
       clearInterval(interval);
     }
@@ -491,8 +505,8 @@ class EnhancedAIService {
 export const enhancedAIService = new EnhancedAIService();
 
 // Cleanup on page unload
-if (typeof window !== 'undefined') {
-  window.addEventListener('beforeunload', () => {
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", () => {
     enhancedAIService.cleanup();
   });
 }

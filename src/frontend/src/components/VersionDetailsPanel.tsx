@@ -1,6 +1,6 @@
 /**
  * Version Details Panel Component
- * 
+ *
  * Displays detailed information about a selected version,
  * including metadata, statistics, and quick actions.
  */
@@ -88,7 +88,9 @@ export function VersionDetailsPanel({
       <Card className={className}>
         <CardContent className="p-8 text-center text-muted-foreground">
           <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-          <div className="text-lg font-medium mb-2">Keine Version ausgewählt</div>
+          <div className="text-lg font-medium mb-2">
+            Keine Version ausgewählt
+          </div>
           <div className="text-sm">
             Wählen Sie eine Version aus, um Details anzuzeigen.
           </div>
@@ -102,19 +104,28 @@ export function VersionDetailsPanel({
     switch (status) {
       case "DRAFT":
         return (
-          <Badge variant="outline" className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30">
+          <Badge
+            variant="outline"
+            className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
+          >
             draft
           </Badge>
         );
       case "PUBLISHED":
         return (
-          <Badge variant="outline" className="text-xs bg-green-500/20 text-green-300 border-green-500/30">
+          <Badge
+            variant="outline"
+            className="text-xs bg-green-500/20 text-green-300 border-green-500/30"
+          >
             published
           </Badge>
         );
       case "ARCHIVED":
         return (
-          <Badge variant="outline" className="text-xs bg-gray-500/20 text-gray-300 border-gray-500/30">
+          <Badge
+            variant="outline"
+            className="text-xs bg-gray-500/20 text-gray-300 border-gray-500/30"
+          >
             archived
           </Badge>
         );
@@ -245,7 +256,9 @@ export function VersionDetailsPanel({
                 <div className="text-sm text-muted-foreground">Mitarbeiter</div>
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">{statistics.unique_employees}</span>
+                  <span className="font-medium">
+                    {statistics.unique_employees}
+                  </span>
                 </div>
               </div>
 
@@ -258,7 +271,9 @@ export function VersionDetailsPanel({
               </div>
 
               <div className="space-y-1">
-                <div className="text-sm text-muted-foreground">Schichten gesamt</div>
+                <div className="text-sm text-muted-foreground">
+                  Schichten gesamt
+                </div>
                 <div className="font-medium">{statistics.total_schedules}</div>
               </div>
 

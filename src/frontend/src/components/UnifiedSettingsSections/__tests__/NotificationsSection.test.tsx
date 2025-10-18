@@ -1,7 +1,7 @@
 import { describe, it, expect, mock, beforeEach } from "bun:test";
-import { render, screen, fireEvent } from "../../../test-utils/test-utils"; 
+import { render, screen, fireEvent } from "../../../test-utils/test-utils";
 import NotificationsSection from "../NotificationsSection";
-import type { Settings } from "../../../types"; 
+import type { Settings } from "../../../types";
 
 describe("NotificationsSection", () => {
   let mockOnDisplaySettingChange: ReturnType<typeof mock>; // Simpler type for the mock object
@@ -36,7 +36,7 @@ describe("NotificationsSection", () => {
       <NotificationsSection
         settings={initialDisplaySettings}
         onDisplaySettingChange={mockOnDisplaySettingChange}
-      />
+      />,
     );
 
     expect(screen.getByText("Email Notifications")).toBeDefined();
@@ -48,7 +48,7 @@ describe("NotificationsSection", () => {
     // For Switch, role is 'switch'. The label is associated via htmlFor.
     const emailSwitch = screen.getByLabelText("Email Notifications");
     expect(emailSwitch.getAttribute("aria-checked")).toBe("true");
-    
+
     const schedulePublishedSwitch = screen.getByLabelText("Schedule Published");
     expect(schedulePublishedSwitch.getAttribute("aria-checked")).toBe("false");
 
@@ -64,7 +64,7 @@ describe("NotificationsSection", () => {
       <NotificationsSection
         settings={undefined}
         onDisplaySettingChange={mockOnDisplaySettingChange}
-      />
+      />,
     );
     expect(screen.getByText("Loading notification settings...")).toBeDefined();
   });
@@ -74,23 +74,32 @@ describe("NotificationsSection", () => {
       <NotificationsSection
         settings={{ ...initialDisplaySettings, email_notifications: false }}
         onDisplaySettingChange={mockOnDisplaySettingChange}
-      />
+      />,
     );
     const emailSwitch = screen.getByLabelText("Email Notifications");
     fireEvent.click(emailSwitch);
-    expect(mockOnDisplaySettingChange).toHaveBeenCalledWith("email_notifications", true);
+    expect(mockOnDisplaySettingChange).toHaveBeenCalledWith(
+      "email_notifications",
+      true,
+    );
   });
 
   it("calls onDisplaySettingChange for schedule_published_notify", () => {
     render(
       <NotificationsSection
-        settings={{ ...initialDisplaySettings, schedule_published_notify: false }}
+        settings={{
+          ...initialDisplaySettings,
+          schedule_published_notify: false,
+        }}
         onDisplaySettingChange={mockOnDisplaySettingChange}
-      />
+      />,
     );
     const scheduleSwitch = screen.getByLabelText("Schedule Published");
     fireEvent.click(scheduleSwitch);
-    expect(mockOnDisplaySettingChange).toHaveBeenCalledWith("schedule_published_notify", true);
+    expect(mockOnDisplaySettingChange).toHaveBeenCalledWith(
+      "schedule_published_notify",
+      true,
+    );
   });
 
   it("calls onDisplaySettingChange for shift_changes_notify", () => {
@@ -98,22 +107,31 @@ describe("NotificationsSection", () => {
       <NotificationsSection
         settings={{ ...initialDisplaySettings, shift_changes_notify: false }}
         onDisplaySettingChange={mockOnDisplaySettingChange}
-      />
+      />,
     );
     const shiftSwitch = screen.getByLabelText("Shift Changes");
     fireEvent.click(shiftSwitch);
-    expect(mockOnDisplaySettingChange).toHaveBeenCalledWith("shift_changes_notify", true);
+    expect(mockOnDisplaySettingChange).toHaveBeenCalledWith(
+      "shift_changes_notify",
+      true,
+    );
   });
 
   it("calls onDisplaySettingChange for time_off_requests_notify", () => {
     render(
       <NotificationsSection
-        settings={{ ...initialDisplaySettings, time_off_requests_notify: false }}
+        settings={{
+          ...initialDisplaySettings,
+          time_off_requests_notify: false,
+        }}
         onDisplaySettingChange={mockOnDisplaySettingChange}
-      />
+      />,
     );
     const timeOffSwitch = screen.getByLabelText("Time Off Requests");
     fireEvent.click(timeOffSwitch);
-    expect(mockOnDisplaySettingChange).toHaveBeenCalledWith("time_off_requests_notify", true);
+    expect(mockOnDisplaySettingChange).toHaveBeenCalledWith(
+      "time_off_requests_notify",
+      true,
+    );
   });
 });

@@ -1,6 +1,6 @@
 /**
  * Unified Version Manager Component
- * 
+ *
  * This component brings together all version management functionality
  * in a clean, unified interface using the new refactored components.
  */
@@ -62,14 +62,17 @@ export function VersionManager({
     autoSelectLatest,
   });
 
-  const [selectedVersionStats, setSelectedVersionStats] = useState<VersionStatistics | null>(null);
+  const [selectedVersionStats, setSelectedVersionStats] =
+    useState<VersionStatistics | null>(null);
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
-  const [versionToDuplicate, setVersionToDuplicate] = useState<number | null>(null);
+  const [versionToDuplicate, setVersionToDuplicate] = useState<number | null>(
+    null,
+  );
   const [isCollapsed, setIsCollapsed] = useState(initiallyCollapsed);
 
   // Get selected version metadata
   const selectedVersionMeta = state.selectedVersion
-    ? state.versions.find(v => v.version === state.selectedVersion)
+    ? state.versions.find((v) => v.version === state.selectedVersion)
     : undefined;
 
   // Helper function to get week number and date range info
@@ -81,7 +84,8 @@ export function VersionManager({
     const year = dateRange.from.getFullYear();
 
     return {
-      weekRange: weekFrom === weekTo ? `KW ${weekFrom}` : `KW ${weekFrom}-${weekTo}`,
+      weekRange:
+        weekFrom === weekTo ? `KW ${weekFrom}` : `KW ${weekFrom}-${weekTo}`,
       dateRange: `${format(dateRange.from, "dd.MM")} - ${format(dateRange.to, "dd.MM.yyyy", { locale: de })}`,
       year,
     };
@@ -94,13 +98,17 @@ export function VersionManager({
     const totalVersions = state.versions.length;
     const selectedVersionInfo = selectedVersionMeta
       ? `v${selectedVersionMeta.version} (${selectedVersionMeta.status})`
-      : 'Keine Version ausgewählt';
+      : "Keine Version ausgewählt";
 
     return (
       <div className="flex items-center justify-between w-full">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            {isCollapsed ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronUp className="h-4 w-4" />
+            )}
             <CardTitle>Versionsverwaltung</CardTitle>
           </div>
 
@@ -115,14 +123,12 @@ export function VersionManager({
 
               {/* Version Count */}
               <Badge variant="secondary">
-                {totalVersions} Version{totalVersions !== 1 ? 'en' : ''}
+                {totalVersions} Version{totalVersions !== 1 ? "en" : ""}
               </Badge>
 
               {/* Selected Version */}
               {selectedVersionMeta && (
-                <Badge variant="default">
-                  {selectedVersionInfo}
-                </Badge>
+                <Badge variant="default">{selectedVersionInfo}</Badge>
               )}
             </div>
           )}
@@ -154,8 +160,12 @@ export function VersionManager({
               versions={state.versions}
               selectedVersion={state.selectedVersion}
               onSelectVersion={handleVersionSelection}
-              onPublishVersion={(version) => actions.updateVersionStatus(version, "PUBLISHED")}
-              onArchiveVersion={(version) => actions.updateVersionStatus(version, "ARCHIVED")}
+              onPublishVersion={(version) =>
+                actions.updateVersionStatus(version, "PUBLISHED")
+              }
+              onArchiveVersion={(version) =>
+                actions.updateVersionStatus(version, "ARCHIVED")
+              }
               onDeleteVersion={actions.deleteVersion}
               onDuplicateVersion={handleDuplicateVersion}
               isLoading={state.isLoading}
@@ -170,8 +180,12 @@ export function VersionManager({
               version={selectedVersionMeta}
               statistics={selectedVersionStats}
               onUpdateNotes={actions.updateVersionNotes}
-              onPublish={(version) => actions.updateVersionStatus(version, "PUBLISHED")}
-              onArchive={(version) => actions.updateVersionStatus(version, "ARCHIVED")}
+              onPublish={(version) =>
+                actions.updateVersionStatus(version, "PUBLISHED")
+              }
+              onArchive={(version) =>
+                actions.updateVersionStatus(version, "ARCHIVED")
+              }
               onDuplicate={handleDuplicateVersion}
               isLoading={state.isLoading}
             />
@@ -186,8 +200,12 @@ export function VersionManager({
               versions={state.versions}
               selectedVersion={state.selectedVersion}
               onSelectVersion={handleVersionSelection}
-              onPublishVersion={(version) => actions.updateVersionStatus(version, "PUBLISHED")}
-              onArchiveVersion={(version) => actions.updateVersionStatus(version, "ARCHIVED")}
+              onPublishVersion={(version) =>
+                actions.updateVersionStatus(version, "PUBLISHED")
+              }
+              onArchiveVersion={(version) =>
+                actions.updateVersionStatus(version, "ARCHIVED")
+              }
               onDeleteVersion={actions.deleteVersion}
               onDuplicateVersion={handleDuplicateVersion}
               isLoading={state.isLoading}
@@ -199,8 +217,12 @@ export function VersionManager({
               version={selectedVersionMeta}
               statistics={selectedVersionStats}
               onUpdateNotes={actions.updateVersionNotes}
-              onPublish={(version) => actions.updateVersionStatus(version, "PUBLISHED")}
-              onArchive={(version) => actions.updateVersionStatus(version, "ARCHIVED")}
+              onPublish={(version) =>
+                actions.updateVersionStatus(version, "PUBLISHED")
+              }
+              onArchive={(version) =>
+                actions.updateVersionStatus(version, "ARCHIVED")
+              }
               onDuplicate={handleDuplicateVersion}
               isLoading={state.isLoading}
             />
@@ -217,8 +239,12 @@ export function VersionManager({
                 versions={state.versions}
                 selectedVersion={state.selectedVersion}
                 onSelectVersion={handleVersionSelection}
-                onPublishVersion={(version) => actions.updateVersionStatus(version, "PUBLISHED")}
-                onArchiveVersion={(version) => actions.updateVersionStatus(version, "ARCHIVED")}
+                onPublishVersion={(version) =>
+                  actions.updateVersionStatus(version, "PUBLISHED")
+                }
+                onArchiveVersion={(version) =>
+                  actions.updateVersionStatus(version, "ARCHIVED")
+                }
                 onDeleteVersion={actions.deleteVersion}
                 onDuplicateVersion={handleDuplicateVersion}
                 isLoading={state.isLoading}
@@ -233,8 +259,12 @@ export function VersionManager({
                 version={selectedVersionMeta}
                 statistics={selectedVersionStats}
                 onUpdateNotes={actions.updateVersionNotes}
-                onPublish={(version) => actions.updateVersionStatus(version, "PUBLISHED")}
-                onArchive={(version) => actions.updateVersionStatus(version, "ARCHIVED")}
+                onPublish={(version) =>
+                  actions.updateVersionStatus(version, "PUBLISHED")
+                }
+                onArchive={(version) =>
+                  actions.updateVersionStatus(version, "ARCHIVED")
+                }
                 onDuplicate={handleDuplicateVersion}
                 isLoading={state.isLoading}
               />
@@ -249,7 +279,7 @@ export function VersionManager({
     actions.selectVersion(version);
     // Load real statistics for the selected version
     setSelectedVersionStats(null);
-    const meta = state.versions.find(v => v.version === version);
+    const meta = state.versions.find((v) => v.version === version);
     const start = meta?.date_range.start;
     const end = meta?.date_range.end;
     (async () => {
@@ -259,13 +289,18 @@ export function VersionManager({
         let filled = 0;
         if (start && end) {
           const resp = await getSchedules(start, end, version, true);
-          if (typeof resp.total_schedules === 'number' && typeof resp.filled_shifts_count === 'number') {
+          if (
+            typeof resp.total_schedules === "number" &&
+            typeof resp.filled_shifts_count === "number"
+          ) {
             total = resp.total_schedules;
             filled = resp.filled_shifts_count;
           } else {
             const schedules = resp.schedules || [];
             total = schedules.length;
-            filled = schedules.filter(s => (s.shift_id != null) && s.is_empty !== true).length;
+            filled = schedules.filter(
+              (s) => s.shift_id != null && s.is_empty !== true,
+            ).length;
           }
         }
         const empty = Math.max(0, total - filled);
@@ -326,7 +361,10 @@ export function VersionManager({
   if (isCollapsible) {
     return (
       <Card className={className}>
-        <Collapsible open={!isCollapsed} onOpenChange={(open) => setIsCollapsed(!open)}>
+        <Collapsible
+          open={!isCollapsed}
+          onOpenChange={(open) => setIsCollapsed(!open)}
+        >
           <CollapsibleTrigger asChild>
             <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
               {renderCollapsibleHeader()}
@@ -359,22 +397,29 @@ export function VersionManager({
               ) : !dateRange?.from || !dateRange?.to ? (
                 /* No date range state */
                 <div className="text-center py-8">
-                  <div className="text-lg font-medium mb-2">Kein Zeitraum ausgewählt</div>
+                  <div className="text-lg font-medium mb-2">
+                    Kein Zeitraum ausgewählt
+                  </div>
                   <div className="text-sm text-muted-foreground">
-                    Bitte wählen Sie einen Zeitraum aus, um Versionen anzuzeigen.
+                    Bitte wählen Sie einen Zeitraum aus, um Versionen
+                    anzuzeigen.
                   </div>
                 </div>
               ) : state.versions.length === 0 ? (
                 /* Empty state */
                 <div className="text-center py-8">
-                  <div className="text-lg font-medium mb-2">Keine Versionen vorhanden</div>
+                  <div className="text-lg font-medium mb-2">
+                    Keine Versionen vorhanden
+                  </div>
                   <div className="text-sm text-muted-foreground mb-4">
                     Erstellen Sie eine Version für den ausgewählten Zeitraum.
                   </div>
                   {showCreateButton && (
                     <Button
                       onClick={handleCreateNewVersion}
-                      disabled={state.isLoading || !dateRange?.from || !dateRange?.to}
+                      disabled={
+                        state.isLoading || !dateRange?.from || !dateRange?.to
+                      }
                     >
                       <Plus className="h-4 w-4 mr-2" />
                       Erste Version erstellen
@@ -395,7 +440,9 @@ export function VersionManager({
             open={duplicateModalOpen}
             onOpenChange={setDuplicateModalOpen}
             sourceVersion={versionToDuplicate}
-            sourceVersionMeta={state.versions.find(v => v.version === versionToDuplicate)}
+            sourceVersionMeta={state.versions.find(
+              (v) => v.version === versionToDuplicate,
+            )}
             onDuplicate={handleDuplicateConfirm}
             isLoading={state.isLoading}
           />
@@ -436,7 +483,9 @@ export function VersionManager({
         /* No date range state */
         <Card>
           <CardContent className="p-8 text-center">
-            <div className="text-lg font-medium mb-2">Kein Zeitraum ausgewählt</div>
+            <div className="text-lg font-medium mb-2">
+              Kein Zeitraum ausgewählt
+            </div>
             <div className="text-sm text-muted-foreground">
               Bitte wählen Sie einen Zeitraum aus, um Versionen anzuzeigen.
             </div>
@@ -461,7 +510,9 @@ export function VersionManager({
             </CardTitle>
           </CardHeader>
           <CardContent className="text-center py-8">
-            <div className="text-lg font-medium mb-2">Keine Versionen vorhanden</div>
+            <div className="text-lg font-medium mb-2">
+              Keine Versionen vorhanden
+            </div>
             <div className="text-sm text-muted-foreground mb-4">
               Erstellen Sie eine Version für den ausgewählten Zeitraum.
             </div>
@@ -486,7 +537,9 @@ export function VersionManager({
               open={duplicateModalOpen}
               onOpenChange={setDuplicateModalOpen}
               sourceVersion={versionToDuplicate}
-              sourceVersionMeta={state.versions.find(v => v.version === versionToDuplicate)}
+              sourceVersionMeta={state.versions.find(
+                (v) => v.version === versionToDuplicate,
+              )}
               onDuplicate={handleDuplicateConfirm}
               isLoading={state.isLoading}
             />

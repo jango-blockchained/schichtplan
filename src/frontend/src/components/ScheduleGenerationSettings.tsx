@@ -1,10 +1,5 @@
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
@@ -106,7 +101,9 @@ const DEFAULT_REQUIREMENTS: Record<RequirementKey, boolean> =
 
 interface ScheduleGenerationSettingsProps {
   /** Current generation requirements settings */
-  settings: Partial<AppSettings["scheduling"]["generation_requirements"]> | null;
+  settings: Partial<
+    AppSettings["scheduling"]["generation_requirements"]
+  > | null;
   /** Callback for updating generation requirements */
   onUpdate: (updatedRequirements: Record<RequirementKey, boolean>) => void;
   /** Current generation options */
@@ -163,14 +160,11 @@ export function ScheduleGenerationSettings({
     // Initialize with settings if available, otherwise use defaults
     if (settings) {
       const req = { ...DEFAULT_REQUIREMENTS };
-      Object.keys(settings).forEach(
-        (key) => {
-          if (key in req && settings[key as RequirementKey] !== undefined) {
-            req[key as RequirementKey] =
-              !!settings[key as RequirementKey];
-          }
-        },
-      );
+      Object.keys(settings).forEach((key) => {
+        if (key in req && settings[key as RequirementKey] !== undefined) {
+          req[key as RequirementKey] = !!settings[key as RequirementKey];
+        }
+      });
       return req;
     }
     return { ...DEFAULT_REQUIREMENTS };
@@ -180,14 +174,11 @@ export function ScheduleGenerationSettings({
   useEffect(() => {
     if (settings) {
       const req = { ...DEFAULT_REQUIREMENTS };
-      Object.keys(settings).forEach(
-        (key) => {
-          if (key in req && settings[key as RequirementKey] !== undefined) {
-            req[key as RequirementKey] =
-              !!settings[key as RequirementKey];
-          }
-        },
-      );
+      Object.keys(settings).forEach((key) => {
+        if (key in req && settings[key as RequirementKey] !== undefined) {
+          req[key as RequirementKey] = !!settings[key as RequirementKey];
+        }
+      });
       setLocalRequirements(req);
     } else {
       setLocalRequirements({ ...DEFAULT_REQUIREMENTS });
@@ -195,7 +186,8 @@ export function ScheduleGenerationSettings({
   }, [settings]);
 
   // Local state for generation options
-  const [localGenerationOptions, setLocalGenerationOptions] = useState<GenerationOptions>(generationOptions);
+  const [localGenerationOptions, setLocalGenerationOptions] =
+    useState<GenerationOptions>(generationOptions);
 
   // Update local generation options when props change
   useEffect(() => {
@@ -221,7 +213,10 @@ export function ScheduleGenerationSettings({
     }
   };
 
-  const handleGenerationOptionToggle = (key: keyof GenerationOptions, checked: boolean) => {
+  const handleGenerationOptionToggle = (
+    key: keyof GenerationOptions,
+    checked: boolean,
+  ) => {
     const updatedOptions = {
       ...localGenerationOptions,
       [key]: checked,
@@ -279,14 +274,18 @@ export function ScheduleGenerationSettings({
                   Vorhandene Zuweisungen beibehalten
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Wenn aktiviert, werden bestehende Schichtzuweisungen nicht überschrieben.
-                  Wenn deaktiviert, werden alle Zuweisungen gelöscht und neu generiert.
+                  Wenn aktiviert, werden bestehende Schichtzuweisungen nicht
+                  überschrieben. Wenn deaktiviert, werden alle Zuweisungen
+                  gelöscht und neu generiert.
                 </p>
               </div>
               <Switch
                 checked={localGenerationOptions.keepExistingAssignments}
                 onCheckedChange={(checked) =>
-                  handleGenerationOptionToggle("keepExistingAssignments", checked)
+                  handleGenerationOptionToggle(
+                    "keepExistingAssignments",
+                    checked,
+                  )
                 }
               />
             </div>
@@ -297,7 +296,8 @@ export function ScheduleGenerationSettings({
             <div className="space-y-3">
               <Label className="text-sm font-medium">Generierungsphasen</Label>
               <p className="text-xs text-muted-foreground">
-                Wählen Sie, welche Phasen der Generierung ausgeführt werden sollen.
+                Wählen Sie, welche Phasen der Generierung ausgeführt werden
+                sollen.
               </p>
 
               <div className="space-y-3">
@@ -308,13 +308,17 @@ export function ScheduleGenerationSettings({
                       Phase 1: Feste Schichtzuweisungen
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Verarbeitet feste Verfügbarkeiten und erstellt direkte Schichtzuweisungen
+                      Verarbeitet feste Verfügbarkeiten und erstellt direkte
+                      Schichtzuweisungen
                     </p>
                   </div>
                   <Switch
                     checked={localGenerationOptions.usePhase1FixedAssignments}
                     onCheckedChange={(checked) =>
-                      handleGenerationOptionToggle("usePhase1FixedAssignments", checked)
+                      handleGenerationOptionToggle(
+                        "usePhase1FixedAssignments",
+                        checked,
+                      )
                     }
                   />
                 </div>
@@ -326,13 +330,19 @@ export function ScheduleGenerationSettings({
                       Phase 2: Bevorzugte Verfügbarkeiten
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Berücksichtigt bevorzugte Arbeitszeiten bei der Schichtverteilung
+                      Berücksichtigt bevorzugte Arbeitszeiten bei der
+                      Schichtverteilung
                     </p>
                   </div>
                   <Switch
-                    checked={localGenerationOptions.usePhase2PreferredAvailability}
+                    checked={
+                      localGenerationOptions.usePhase2PreferredAvailability
+                    }
                     onCheckedChange={(checked) =>
-                      handleGenerationOptionToggle("usePhase2PreferredAvailability", checked)
+                      handleGenerationOptionToggle(
+                        "usePhase2PreferredAvailability",
+                        checked,
+                      )
                     }
                   />
                 </div>
@@ -344,13 +354,17 @@ export function ScheduleGenerationSettings({
                       Phase 3: Standard-Generierung
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Füllt verbleibende Schichten mit der Standard-Generierungslogik
+                      Füllt verbleibende Schichten mit der
+                      Standard-Generierungslogik
                     </p>
                   </div>
                   <Switch
                     checked={localGenerationOptions.usePhase3StandardGeneration}
                     onCheckedChange={(checked) =>
-                      handleGenerationOptionToggle("usePhase3StandardGeneration", checked)
+                      handleGenerationOptionToggle(
+                        "usePhase3StandardGeneration",
+                        checked,
+                      )
                     }
                   />
                 </div>

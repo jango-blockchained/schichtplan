@@ -29,13 +29,14 @@ export function useScheduleModals() {
     isDiagnosticsOpen: false,
   });
 
-  const [confirmDeleteMessage, setConfirmDeleteMessage] = useState<ConfirmDeleteMessage | null>(null);
-  
+  const [confirmDeleteMessage, setConfirmDeleteMessage] =
+    useState<ConfirmDeleteMessage | null>(null);
+
   const [aiPreviewData, setAiPreviewData] = useState<any | null>(null);
 
   // Helper functions to update specific modal states
   const updateModalState = (key: keyof ScheduleModalsState, value: boolean) => {
-    setModalsState(prev => ({
+    setModalsState((prev) => ({
       ...prev,
       [key]: value,
     }));
@@ -66,7 +67,7 @@ export function useScheduleModals() {
     modalsState,
     confirmDeleteMessage,
     aiPreviewData,
-    
+
     // Actions
     openModal,
     closeModal,
@@ -74,27 +75,34 @@ export function useScheduleModals() {
     updateModalState,
     setConfirmDeleteMessage,
     setAiPreviewData,
-    
+
     // Individual modal controls (for backward compatibility)
     isGenerationSettingsOpen: modalsState.isGenerationSettingsOpen,
-    setIsGenerationSettingsOpen: (value: boolean) => updateModalState('isGenerationSettingsOpen', value),
-    
+    setIsGenerationSettingsOpen: (value: boolean) =>
+      updateModalState("isGenerationSettingsOpen", value),
+
     isAddScheduleDialogOpen: modalsState.isAddScheduleDialogOpen,
-    setIsAddScheduleDialogOpen: (value: boolean) => updateModalState('isAddScheduleDialogOpen', value),
-    
+    setIsAddScheduleDialogOpen: (value: boolean) =>
+      updateModalState("isAddScheduleDialogOpen", value),
+
     isAddAvailabilityDialogOpen: modalsState.isAddAvailabilityDialogOpen,
-    setIsAddAvailabilityDialogOpen: (value: boolean) => updateModalState('isAddAvailabilityDialogOpen', value),
-    
+    setIsAddAvailabilityDialogOpen: (value: boolean) =>
+      updateModalState("isAddAvailabilityDialogOpen", value),
+
     isStatisticsModalOpen: modalsState.isStatisticsModalOpen,
-    setIsStatisticsModalOpen: (value: boolean) => updateModalState('isStatisticsModalOpen', value),
-    
+    setIsStatisticsModalOpen: (value: boolean) =>
+      updateModalState("isStatisticsModalOpen", value),
+
     isDetailedAiModalOpen: modalsState.isDetailedAiModalOpen,
-    setIsDetailedAiModalOpen: (value: boolean) => updateModalState('isDetailedAiModalOpen', value),
-    
+    setIsDetailedAiModalOpen: (value: boolean) =>
+      updateModalState("isDetailedAiModalOpen", value),
+
     isAiDataPreviewOpen: modalsState.isAiDataPreviewOpen,
-    setIsAiDataPreviewOpen: (value: boolean) => updateModalState('isAiDataPreviewOpen', value),
-    
+    setIsAiDataPreviewOpen: (value: boolean) =>
+      updateModalState("isAiDataPreviewOpen", value),
+
     isDiagnosticsOpen: modalsState.isDiagnosticsOpen,
-    setIsDiagnosticsOpen: (value: boolean) => updateModalState('isDiagnosticsOpen', value),
+    setIsDiagnosticsOpen: (value: boolean) =>
+      updateModalState("isDiagnosticsOpen", value),
   };
 }

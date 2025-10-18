@@ -31,10 +31,7 @@ const createTestQueryClient = () =>
   });
 
 // Custom render function that includes providers
-function customRender(
-  ui: React.ReactElement,
-  options = {},
-) {
+function customRender(ui: React.ReactElement, options = {}) {
   const client = new QueryClient({
     defaultOptions: {
       queries: {

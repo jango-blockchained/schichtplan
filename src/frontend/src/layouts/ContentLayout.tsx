@@ -1,6 +1,12 @@
 import React from "react";
 import { cn } from "@/lib/utils";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 interface ContentSection {
   title?: string;
@@ -46,9 +52,7 @@ export const ContentLayout: React.FC<ContentLayoutProps> = ({
           )}
         </CardHeader>
       )}
-      <CardContent className="space-y-4">
-        {section.children}
-      </CardContent>
+      <CardContent className="space-y-4">{section.children}</CardContent>
     </Card>
   );
 
@@ -71,11 +75,7 @@ export const ContentLayout: React.FC<ContentLayoutProps> = ({
     );
   }
 
-  return (
-    <div className={cn("space-y-6", className)}>
-      {children}
-    </div>
-  );
+  return <div className={cn("space-y-6", className)}>{children}</div>;
 };
 
 // Convenience components for common patterns
@@ -91,26 +91,18 @@ export const ContentCard: React.FC<{
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
         <div className="space-y-1">
           {title && (
-            <CardTitle className="text-lg font-medium">
-              {title}
-            </CardTitle>
+            <CardTitle className="text-lg font-medium">{title}</CardTitle>
           )}
           {description && (
-            <CardDescription className="text-sm">
-              {description}
-            </CardDescription>
+            <CardDescription className="text-sm">{description}</CardDescription>
           )}
         </div>
         {headerActions && (
-          <div className="flex items-center space-x-2">
-            {headerActions}
-          </div>
+          <div className="flex items-center space-x-2">{headerActions}</div>
         )}
       </CardHeader>
     )}
-    <CardContent className="space-y-4">
-      {children}
-    </CardContent>
+    <CardContent className="space-y-4">{children}</CardContent>
   </Card>
 );
 
@@ -126,9 +118,5 @@ export const ContentGrid: React.FC<{
     4: "grid gap-6 md:grid-cols-2 lg:grid-cols-4",
   };
 
-  return (
-    <div className={cn(gridClasses[cols], className)}>
-      {children}
-    </div>
-  );
-}; 
+  return <div className={cn(gridClasses[cols], className)}>{children}</div>;
+};

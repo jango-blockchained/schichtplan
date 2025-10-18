@@ -31,7 +31,7 @@ import {
   Copy,
   Plus,
   RefreshCw,
-  Trash
+  Trash,
 } from "lucide-react";
 import { useState } from "react";
 import { DateRange } from "react-day-picker";
@@ -180,9 +180,12 @@ export function VersionControl({
         variant="outline"
         className={cn(
           "text-xs",
-          status === "PUBLISHED" && "bg-green-500/20 text-green-300 border-green-500/30",
-          status === "DRAFT" && "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
-          status === "ARCHIVED" && "bg-gray-500/20 text-gray-300 border-gray-500/30"
+          status === "PUBLISHED" &&
+            "bg-green-500/20 text-green-300 border-green-500/30",
+          status === "DRAFT" &&
+            "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+          status === "ARCHIVED" &&
+            "bg-gray-500/20 text-gray-300 border-gray-500/30",
         )}
       >
         {status.toLowerCase()}

@@ -1,6 +1,6 @@
 /**
  * Week Navigation Settings Section
- * 
+ *
  * Provides configuration options for week-based navigation including:
  * - Enable/disable week navigation
  * - Weekend start preference (Monday/Sunday)
@@ -8,36 +8,39 @@
  * - Default navigation mode
  */
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Settings, Split } from 'lucide-react';
+} from "@/components/ui/select";
+import { Settings, Split } from "lucide-react";
 
 export interface WeekNavigationSectionProps {
   settings: Partial<{
-    week_weekend_start: 'MONDAY' | 'SUNDAY';
-    week_month_boundary_mode: 'keep_intact' | 'split_by_month';
+    week_weekend_start: "MONDAY" | "SUNDAY";
+    week_month_boundary_mode: "keep_intact" | "split_by_month";
   }>;
-  onChange: (key: keyof WeekNavigationSectionProps['settings'], value: boolean | string) => void;
+  onChange: (
+    key: keyof WeekNavigationSectionProps["settings"],
+    value: boolean | string,
+  ) => void;
   onImmediateUpdate: () => void;
 }
 
 export default function WeekNavigationSection({
   settings,
   onChange,
-  onImmediateUpdate
+  onImmediateUpdate,
 }: WeekNavigationSectionProps) {
-
-  const handleSelectChange = (key: keyof WeekNavigationSectionProps['settings']) => (value: string) => {
-    onChange(key, value);
-    onImmediateUpdate();
-  };
+  const handleSelectChange =
+    (key: keyof WeekNavigationSectionProps["settings"]) => (value: string) => {
+      onChange(key, value);
+      onImmediateUpdate();
+    };
 
   return (
     <div className="space-y-6">
@@ -57,7 +60,7 @@ export default function WeekNavigationSection({
             </div>
             <Select
               value={settings.week_weekend_start}
-              onValueChange={handleSelectChange('week_weekend_start')}
+              onValueChange={handleSelectChange("week_weekend_start")}
             >
               <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Select weekend start" />
@@ -76,7 +79,7 @@ export default function WeekNavigationSection({
             </div>
             <Select
               value={settings.week_month_boundary_mode}
-              onValueChange={handleSelectChange('week_month_boundary_mode')}
+              onValueChange={handleSelectChange("week_month_boundary_mode")}
             >
               <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Select boundary mode" />
@@ -101,14 +104,17 @@ export default function WeekNavigationSection({
         <CardContent>
           <div className="text-sm text-muted-foreground space-y-2">
             <p>
-              <strong>Week-based navigation</strong> allows users to browse schedules by ISO calendar weeks (e.g., "2024-W15")
-              instead of manually selecting date ranges.
+              <strong>Week-based navigation</strong> allows users to browse
+              schedules by ISO calendar weeks (e.g., "2024-W15") instead of
+              manually selecting date ranges.
             </p>
             <p>
-              <strong>Keep Intact:</strong> Weeks that span multiple months are treated as single units.
+              <strong>Keep Intact:</strong> Weeks that span multiple months are
+              treated as single units.
             </p>
             <p>
-              <strong>Split by Month:</strong> Weeks are divided at month boundaries for separate scheduling.
+              <strong>Split by Month:</strong> Weeks are divided at month
+              boundaries for separate scheduling.
             </p>
           </div>
         </CardContent>

@@ -1,12 +1,18 @@
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ColorPicker } from '@/components/ui/color-picker';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
-import { SimplifiedPDFConfig } from '@/types/SimplifiedPDFConfig';
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ColorPicker } from "@/components/ui/color-picker";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { SimplifiedPDFConfig } from "@/types/SimplifiedPDFConfig";
 
 interface MEPStylingSectionProps {
   config: SimplifiedPDFConfig;
@@ -14,8 +20,14 @@ interface MEPStylingSectionProps {
   className?: string;
 }
 
-export function MEPStylingSection({ config, onChange, className = '' }: MEPStylingSectionProps) {
-  const handleFontChange = (family: SimplifiedPDFConfig['styling']['fontFamily']) => {
+export function MEPStylingSection({
+  config,
+  onChange,
+  className = "",
+}: MEPStylingSectionProps) {
+  const handleFontChange = (
+    family: SimplifiedPDFConfig["styling"]["fontFamily"],
+  ) => {
     onChange({
       styling: {
         ...config.styling,
@@ -25,8 +37,8 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
   };
 
   const handleFontSizeChange = (
-    sizeType: keyof SimplifiedPDFConfig['styling']['fontSize'],
-    size: number
+    sizeType: keyof SimplifiedPDFConfig["styling"]["fontSize"],
+    size: number,
   ) => {
     onChange({
       styling: {
@@ -40,8 +52,8 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
   };
 
   const handleColorChange = (
-    colorType: keyof SimplifiedPDFConfig['styling']['colors'],
-    color: string
+    colorType: keyof SimplifiedPDFConfig["styling"]["colors"],
+    color: string,
   ) => {
     onChange({
       styling: {
@@ -55,8 +67,8 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
   };
 
   const handleSpacingChange = (
-    spacingType: keyof SimplifiedPDFConfig['styling']['spacing'],
-    value: number
+    spacingType: keyof SimplifiedPDFConfig["styling"]["spacing"],
+    value: number,
   ) => {
     onChange({
       styling: {
@@ -70,8 +82,8 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
   };
 
   const handleTableStyleChange = (
-    styleType: keyof SimplifiedPDFConfig['styling']['tableStyle'],
-    value: boolean
+    styleType: keyof SimplifiedPDFConfig["styling"]["tableStyle"],
+    value: boolean,
   ) => {
     onChange({
       styling: {
@@ -92,8 +104,10 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
       <CardContent className="space-y-6">
         {/* Font Settings */}
         <div className="space-y-4">
-          <h4 className="text-sm font-medium text-muted-foreground">Schriftart</h4>
-          
+          <h4 className="text-sm font-medium text-muted-foreground">
+            Schriftart
+          </h4>
+
           <div className="space-y-2">
             <Label>Schriftfamilie</Label>
             <Select
@@ -121,7 +135,9 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
               </div>
               <Slider
                 value={[config.styling.fontSize.headerTitle]}
-                onValueChange={([value]) => handleFontSizeChange('headerTitle', value)}
+                onValueChange={([value]) =>
+                  handleFontSizeChange("headerTitle", value)
+                }
                 min={8}
                 max={16}
                 step={1}
@@ -137,7 +153,9 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
               </div>
               <Slider
                 value={[config.styling.fontSize.columnHeaders]}
-                onValueChange={([value]) => handleFontSizeChange('columnHeaders', value)}
+                onValueChange={([value]) =>
+                  handleFontSizeChange("columnHeaders", value)
+                }
                 min={6}
                 max={14}
                 step={1}
@@ -153,7 +171,9 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
               </div>
               <Slider
                 value={[config.styling.fontSize.subHeaders]}
-                onValueChange={([value]) => handleFontSizeChange('subHeaders', value)}
+                onValueChange={([value]) =>
+                  handleFontSizeChange("subHeaders", value)
+                }
                 min={5}
                 max={12}
                 step={1}
@@ -169,7 +189,9 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
               </div>
               <Slider
                 value={[config.styling.fontSize.tableContent]}
-                onValueChange={([value]) => handleFontSizeChange('tableContent', value)}
+                onValueChange={([value]) =>
+                  handleFontSizeChange("tableContent", value)
+                }
                 min={4}
                 max={10}
                 step={1}
@@ -185,7 +207,9 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
               </div>
               <Slider
                 value={[config.styling.fontSize.footer]}
-                onValueChange={([value]) => handleFontSizeChange('footer', value)}
+                onValueChange={([value]) =>
+                  handleFontSizeChange("footer", value)
+                }
                 min={4}
                 max={8}
                 step={1}
@@ -199,13 +223,13 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
         {/* Colors */}
         <div className="space-y-4">
           <h4 className="text-sm font-medium text-muted-foreground">Farben</h4>
-          
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Tabellen-Rahmen</Label>
               <ColorPicker
                 color={config.styling.colors.tableBorder}
-                onChange={(color) => handleColorChange('tableBorder', color)}
+                onChange={(color) => handleColorChange("tableBorder", color)}
               />
             </div>
 
@@ -213,7 +237,9 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
               <Label>Kopfzeilen-Hintergrund</Label>
               <ColorPicker
                 color={config.styling.colors.headerBackground}
-                onChange={(color) => handleColorChange('headerBackground', color)}
+                onChange={(color) =>
+                  handleColorChange("headerBackground", color)
+                }
               />
             </div>
 
@@ -221,7 +247,7 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
               <Label>Kopfzeilen-Text</Label>
               <ColorPicker
                 color={config.styling.colors.headerText}
-                onChange={(color) => handleColorChange('headerText', color)}
+                onChange={(color) => handleColorChange("headerText", color)}
               />
             </div>
 
@@ -229,7 +255,7 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
               <Label>Zellen-Hintergrund</Label>
               <ColorPicker
                 color={config.styling.colors.cellBackground}
-                onChange={(color) => handleColorChange('cellBackground', color)}
+                onChange={(color) => handleColorChange("cellBackground", color)}
               />
             </div>
 
@@ -237,7 +263,7 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
               <Label>Zellen-Text</Label>
               <ColorPicker
                 color={config.styling.colors.cellText}
-                onChange={(color) => handleColorChange('cellText', color)}
+                onChange={(color) => handleColorChange("cellText", color)}
               />
             </div>
 
@@ -245,7 +271,9 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
               <Label>Wechselnde Zeilen</Label>
               <ColorPicker
                 color={config.styling.colors.alternateRowBackground}
-                onChange={(color) => handleColorChange('alternateRowBackground', color)}
+                onChange={(color) =>
+                  handleColorChange("alternateRowBackground", color)
+                }
               />
             </div>
           </div>
@@ -255,8 +283,10 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
 
         {/* Spacing */}
         <div className="space-y-4">
-          <h4 className="text-sm font-medium text-muted-foreground">Abstände</h4>
-          
+          <h4 className="text-sm font-medium text-muted-foreground">
+            Abstände
+          </h4>
+
           <div className="space-y-3">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -267,7 +297,9 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
               </div>
               <Slider
                 value={[config.styling.spacing.cellPadding]}
-                onValueChange={([value]) => handleSpacingChange('cellPadding', value)}
+                onValueChange={([value]) =>
+                  handleSpacingChange("cellPadding", value)
+                }
                 min={1}
                 max={8}
                 step={0.5}
@@ -283,7 +315,9 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
               </div>
               <Slider
                 value={[config.styling.spacing.rowHeight]}
-                onValueChange={([value]) => handleSpacingChange('rowHeight', value)}
+                onValueChange={([value]) =>
+                  handleSpacingChange("rowHeight", value)
+                }
                 min={8}
                 max={25}
                 step={1}
@@ -299,7 +333,9 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
               </div>
               <Slider
                 value={[config.styling.spacing.borderWidth]}
-                onValueChange={([value]) => handleSpacingChange('borderWidth', value)}
+                onValueChange={([value]) =>
+                  handleSpacingChange("borderWidth", value)
+                }
                 min={0.1}
                 max={2}
                 step={0.1}
@@ -315,7 +351,9 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
               </div>
               <Slider
                 value={[config.styling.spacing.headerSpacing]}
-                onValueChange={([value]) => handleSpacingChange('headerSpacing', value)}
+                onValueChange={([value]) =>
+                  handleSpacingChange("headerSpacing", value)
+                }
                 min={2}
                 max={15}
                 step={1}
@@ -328,14 +366,18 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
 
         {/* Table Style Options */}
         <div className="space-y-4">
-          <h4 className="text-sm font-medium text-muted-foreground">Tabellen-Optionen</h4>
-          
+          <h4 className="text-sm font-medium text-muted-foreground">
+            Tabellen-Optionen
+          </h4>
+
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label>Rahmen anzeigen</Label>
               <Switch
                 checked={config.styling.tableStyle.showBorders}
-                onCheckedChange={(checked) => handleTableStyleChange('showBorders', checked)}
+                onCheckedChange={(checked) =>
+                  handleTableStyleChange("showBorders", checked)
+                }
               />
             </div>
 
@@ -343,7 +385,9 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
               <Label>Wechselnde Zeilenfarben</Label>
               <Switch
                 checked={config.styling.tableStyle.alternateRowColors}
-                onCheckedChange={(checked) => handleTableStyleChange('alternateRowColors', checked)}
+                onCheckedChange={(checked) =>
+                  handleTableStyleChange("alternateRowColors", checked)
+                }
               />
             </div>
 
@@ -351,7 +395,9 @@ export function MEPStylingSection({ config, onChange, className = '' }: MEPStyli
               <Label>Fette Überschriften</Label>
               <Switch
                 checked={config.styling.tableStyle.boldHeaders}
-                onCheckedChange={(checked) => handleTableStyleChange('boldHeaders', checked)}
+                onCheckedChange={(checked) =>
+                  handleTableStyleChange("boldHeaders", checked)
+                }
               />
             </div>
           </div>

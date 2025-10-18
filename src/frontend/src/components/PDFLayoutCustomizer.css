@@ -26,7 +26,11 @@
 }
 
 .pdf-slider .slider-track {
-  background: linear-gradient(90deg, hsl(var(--muted)) 0%, hsl(var(--primary)) 100%);
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 0%,
+    hsl(var(--primary)) 100%
+  );
 }
 
 /* Visual margin guides */
@@ -64,7 +68,8 @@
 }
 
 @keyframes pulse-highlight {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
   }
   50% {
@@ -81,7 +86,7 @@
   bottom: 0;
   pointer-events: none;
   opacity: 0.2;
-  background-image: 
+  background-image:
     linear-gradient(rgba(0, 0, 0, 0.1) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 0, 0, 0.1) 1px, transparent 1px);
   background-size: 20px 20px;
@@ -157,7 +162,7 @@
 }
 
 .preset-card.active::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   right: 0;
@@ -169,7 +174,7 @@
 }
 
 .preset-card.active::after {
-  content: '✓';
+  content: "✓";
   position: absolute;
   top: 4px;
   right: 4px;
@@ -183,18 +188,18 @@
   .pdf-customizer {
     flex-direction: column;
   }
-  
+
   .settings-panel {
     order: 2;
     max-height: 50vh;
     overflow-y: auto;
   }
-  
+
   .preview-panel {
     order: 1;
     min-height: 50vh;
   }
-  
+
   .margin-guide::before {
     font-size: 8px;
     padding: 1px 4px;
@@ -207,14 +212,14 @@
     background: hsl(var(--card));
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
   }
-  
+
   .margin-guide {
     border-color: hsl(var(--primary) / 0.6);
     background: hsl(var(--primary) / 0.1);
   }
-  
+
   .grid-overlay {
-    background-image: 
+    background-image:
       linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
       linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
   }
@@ -227,14 +232,14 @@
   .no-print {
     display: none !important;
   }
-  
+
   .preview-panel {
     width: 100% !important;
     height: 100vh !important;
     margin: 0 !important;
     padding: 0 !important;
   }
-  
+
   .preview-content {
     width: 100% !important;
     height: 100% !important;
@@ -268,11 +273,11 @@
   .color-picker-preview {
     border-width: 3px;
   }
-  
+
   .margin-guide {
     border-width: 3px;
   }
-  
+
   .preview-element-highlight {
     border-width: 3px;
   }

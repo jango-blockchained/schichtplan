@@ -1,16 +1,26 @@
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ColorPicker } from '@/components/ui/color-picker';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
-import { SimplifiedPDFConfig } from '@/types/SimplifiedPDFConfig';
-import { ChevronDown, Layout, Palette, Type } from 'lucide-react';
-import { useState } from 'react';
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ColorPicker } from "@/components/ui/color-picker";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { SimplifiedPDFConfig } from "@/types/SimplifiedPDFConfig";
+import { ChevronDown, Layout, Palette, Type } from "lucide-react";
+import { useState } from "react";
 
 interface StylingSectionProps {
   config: SimplifiedPDFConfig;
@@ -18,7 +28,11 @@ interface StylingSectionProps {
   className?: string;
 }
 
-export function StylingSection({ config, onConfigChange, className = '' }: StylingSectionProps) {
+export function StylingSection({
+  config,
+  onConfigChange,
+  className = "",
+}: StylingSectionProps) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const handleFontFamilyChange = (fontFamily: string) => {
@@ -30,7 +44,10 @@ export function StylingSection({ config, onConfigChange, className = '' }: Styli
     });
   };
 
-  const handleFontSizeChange = (type: keyof typeof config.styling.fontSize, value: number[]) => {
+  const handleFontSizeChange = (
+    type: keyof typeof config.styling.fontSize,
+    value: number[],
+  ) => {
     onConfigChange({
       styling: {
         ...config.styling,
@@ -42,7 +59,10 @@ export function StylingSection({ config, onConfigChange, className = '' }: Styli
     });
   };
 
-  const handleColorChange = (type: keyof typeof config.styling.colors, color: string) => {
+  const handleColorChange = (
+    type: keyof typeof config.styling.colors,
+    color: string,
+  ) => {
     onConfigChange({
       styling: {
         ...config.styling,
@@ -54,7 +74,10 @@ export function StylingSection({ config, onConfigChange, className = '' }: Styli
     });
   };
 
-  const handleSpacingChange = (type: keyof typeof config.styling.spacing, value: number[]) => {
+  const handleSpacingChange = (
+    type: keyof typeof config.styling.spacing,
+    value: number[],
+  ) => {
     onConfigChange({
       styling: {
         ...config.styling,
@@ -66,7 +89,10 @@ export function StylingSection({ config, onConfigChange, className = '' }: Styli
     });
   };
 
-  const handleTableStyleToggle = (field: keyof typeof config.styling.table_style, value: boolean) => {
+  const handleTableStyleToggle = (
+    field: keyof typeof config.styling.table_style,
+    value: boolean,
+  ) => {
     onConfigChange({
       styling: {
         ...config.styling,
@@ -84,7 +110,7 @@ export function StylingSection({ config, onConfigChange, className = '' }: Styli
         ...config.styling,
         table_style: {
           ...config.styling.table_style,
-          header_style: style as 'bold' | 'normal',
+          header_style: style as "bold" | "normal",
         },
       },
     });
@@ -109,13 +135,20 @@ export function StylingSection({ config, onConfigChange, className = '' }: Styli
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Font Family</Label>
-              <Select value={config.styling.fontFamily} onValueChange={handleFontFamilyChange}>
+              <Select
+                value={config.styling.fontFamily}
+                onValueChange={handleFontFamilyChange}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Helvetica">Helvetica (Sans-serif)</SelectItem>
-                  <SelectItem value="Times-Roman">Times Roman (Serif)</SelectItem>
+                  <SelectItem value="Helvetica">
+                    Helvetica (Sans-serif)
+                  </SelectItem>
+                  <SelectItem value="Times-Roman">
+                    Times Roman (Serif)
+                  </SelectItem>
                   <SelectItem value="Arial">Arial (Sans-serif)</SelectItem>
                   <SelectItem value="Courier">Courier (Monospace)</SelectItem>
                 </SelectContent>
@@ -132,7 +165,7 @@ export function StylingSection({ config, onConfigChange, className = '' }: Styli
                 </div>
                 <Slider
                   value={[config.styling.fontSize.base]}
-                  onValueChange={(value) => handleFontSizeChange('base', value)}
+                  onValueChange={(value) => handleFontSizeChange("base", value)}
                   min={6}
                   max={20}
                   step={1}
@@ -149,7 +182,9 @@ export function StylingSection({ config, onConfigChange, className = '' }: Styli
                 </div>
                 <Slider
                   value={[config.styling.fontSize.header]}
-                  onValueChange={(value) => handleFontSizeChange('header', value)}
+                  onValueChange={(value) =>
+                    handleFontSizeChange("header", value)
+                  }
                   min={8}
                   max={24}
                   step={1}
@@ -166,7 +201,9 @@ export function StylingSection({ config, onConfigChange, className = '' }: Styli
                 </div>
                 <Slider
                   value={[config.styling.fontSize.title]}
-                  onValueChange={(value) => handleFontSizeChange('title', value)}
+                  onValueChange={(value) =>
+                    handleFontSizeChange("title", value)
+                  }
                   min={12}
                   max={36}
                   step={1}
@@ -186,32 +223,52 @@ export function StylingSection({ config, onConfigChange, className = '' }: Styli
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-xs">Primary Color</Label>
-              <ColorPicker color={config.styling.colors.primary} onChange={(color) => handleColorChange('primary', color)} />
+              <ColorPicker
+                color={config.styling.colors.primary}
+                onChange={(color) => handleColorChange("primary", color)}
+              />
             </div>
 
             <div className="space-y-2">
               <Label className="text-xs">Secondary Color</Label>
-              <ColorPicker color={config.styling.colors.secondary} onChange={(color) => handleColorChange('secondary', color)} />
+              <ColorPicker
+                color={config.styling.colors.secondary}
+                onChange={(color) => handleColorChange("secondary", color)}
+              />
             </div>
 
             <div className="space-y-2">
               <Label className="text-xs">Text Color</Label>
-              <ColorPicker color={config.styling.colors.text} onChange={(color) => handleColorChange('text', color)} />
+              <ColorPicker
+                color={config.styling.colors.text}
+                onChange={(color) => handleColorChange("text", color)}
+              />
             </div>
 
             <div className="space-y-2">
               <Label className="text-xs">Border Color</Label>
-              <ColorPicker color={config.styling.colors.border} onChange={(color) => handleColorChange('border', color)} />
+              <ColorPicker
+                color={config.styling.colors.border}
+                onChange={(color) => handleColorChange("border", color)}
+              />
             </div>
 
             <div className="space-y-2">
               <Label className="text-xs">Header Background</Label>
-              <ColorPicker color={config.styling.colors.header_background} onChange={(color) => handleColorChange('header_background', color)} />
+              <ColorPicker
+                color={config.styling.colors.header_background}
+                onChange={(color) =>
+                  handleColorChange("header_background", color)
+                }
+              />
             </div>
 
             <div className="space-y-2">
               <Label className="text-xs">Header Text</Label>
-              <ColorPicker color={config.styling.colors.header_text} onChange={(color) => handleColorChange('header_text', color)} />
+              <ColorPicker
+                color={config.styling.colors.header_text}
+                onChange={(color) => handleColorChange("header_text", color)}
+              />
             </div>
           </div>
         </div>
@@ -230,19 +287,34 @@ export function StylingSection({ config, onConfigChange, className = '' }: Styli
               <Label htmlFor="alternate-rows" className="text-sm">
                 Alternate Row Colors
               </Label>
-              <Switch id="alternate-rows" checked={config.styling.table_style.alternate_rows} onCheckedChange={(value) => handleTableStyleToggle('alternate_rows', value)} />
+              <Switch
+                id="alternate-rows"
+                checked={config.styling.table_style.alternate_rows}
+                onCheckedChange={(value) =>
+                  handleTableStyleToggle("alternate_rows", value)
+                }
+              />
             </div>
 
             <div className="flex items-center justify-between">
               <Label htmlFor="grid-lines" className="text-sm">
                 Grid Lines
               </Label>
-              <Switch id="grid-lines" checked={config.styling.table_style.grid_lines} onCheckedChange={(value) => handleTableStyleToggle('grid_lines', value)} />
+              <Switch
+                id="grid-lines"
+                checked={config.styling.table_style.grid_lines}
+                onCheckedChange={(value) =>
+                  handleTableStyleToggle("grid_lines", value)
+                }
+              />
             </div>
 
             <div className="space-y-2">
               <Label>Header Style</Label>
-              <Select value={config.styling.table_style.header_style} onValueChange={handleHeaderStyleChange}>
+              <Select
+                value={config.styling.table_style.header_style}
+                onValueChange={handleHeaderStyleChange}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -260,7 +332,9 @@ export function StylingSection({ config, onConfigChange, className = '' }: Styli
           <CollapsibleTrigger asChild>
             <Button variant="outline" className="w-full justify-between">
               Advanced Settings
-              <ChevronDown className={`h-4 w-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${advancedOpen ? "rotate-180" : ""}`}
+              />
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-4 pt-4">
@@ -280,7 +354,9 @@ export function StylingSection({ config, onConfigChange, className = '' }: Styli
                   </div>
                   <Slider
                     value={[config.styling.spacing.cell_padding]}
-                    onValueChange={(value) => handleSpacingChange('cell_padding', value)}
+                    onValueChange={(value) =>
+                      handleSpacingChange("cell_padding", value)
+                    }
                     min={2}
                     max={20}
                     step={1}
@@ -297,7 +373,9 @@ export function StylingSection({ config, onConfigChange, className = '' }: Styli
                   </div>
                   <Slider
                     value={[config.styling.spacing.row_height]}
-                    onValueChange={(value) => handleSpacingChange('row_height', value)}
+                    onValueChange={(value) =>
+                      handleSpacingChange("row_height", value)
+                    }
                     min={16}
                     max={40}
                     step={2}
@@ -314,7 +392,9 @@ export function StylingSection({ config, onConfigChange, className = '' }: Styli
                   </div>
                   <Slider
                     value={[config.styling.table_style.border_width]}
-                    onValueChange={(value) => handleTableStyleToggle('border_width', Boolean(value[0]))}
+                    onValueChange={(value) =>
+                      handleTableStyleToggle("border_width", Boolean(value[0]))
+                    }
                     min={0}
                     max={5}
                     step={0.5}
@@ -331,7 +411,10 @@ export function StylingSection({ config, onConfigChange, className = '' }: Styli
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs">Background Color</Label>
-                  <ColorPicker color={config.styling.colors.table_bg} onChange={(color) => handleColorChange('table_bg', color)} />
+                  <ColorPicker
+                    color={config.styling.colors.table_bg}
+                    onChange={(color) => handleColorChange("table_bg", color)}
+                  />
                 </div>
               </div>
             </div>

@@ -2,7 +2,11 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useAIContext } from "@/contexts/AIContext";
@@ -25,7 +29,7 @@ import {
   Sparkles,
   ThumbsDown,
   ThumbsUp,
-  User
+  User,
 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -63,7 +67,8 @@ export const ConversationalAIChat: React.FC = () => {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [currentInput, setCurrentInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [currentSession, setCurrentSession] = useState<ConversationSession | null>(null);
+  const [currentSession, setCurrentSession] =
+    useState<ConversationSession | null>(null);
   const [sessions, setSessions] = useState<ConversationSession[]>([]);
   const [aiProvider] = useState<"openai" | "anthropic" | "gemini">("gemini");
   const [showContext, setShowContext] = useState(false);
@@ -84,12 +89,13 @@ export const ConversationalAIChat: React.FC = () => {
     const welcomeMessage: ConversationMessage = {
       id: "welcome",
       type: "system",
-      content: "Welcome to the AI-powered scheduling assistant! I can help you optimize schedules, manage employees, resolve conflicts, and much more. What would you like to work on today?",
+      content:
+        "Welcome to the AI-powered scheduling assistant! I can help you optimize schedules, manage employees, resolve conflicts, and much more. What would you like to work on today?",
       timestamp: new Date(),
       metadata: {
         agent: "system",
-        confidence: 1.0
-      }
+        confidence: 1.0,
+      },
     };
     setMessages([welcomeMessage]);
 
@@ -100,7 +106,7 @@ export const ConversationalAIChat: React.FC = () => {
       created_at: new Date(),
       last_message_at: new Date(),
       message_count: 1,
-      status: "active"
+      status: "active",
     };
     setCurrentSession(initialSession);
     setSessions([initialSession]);
@@ -113,10 +119,10 @@ export const ConversationalAIChat: React.FC = () => {
       id: `msg-${Date.now()}-user`,
       type: "user",
       content: currentInput.trim(),
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
     setCurrentInput("");
     setIsLoading(true);
 
@@ -131,7 +137,7 @@ export const ConversationalAIChat: React.FC = () => {
       const response = await aiService.sendChatMessage({
         message: messageWithContext,
         conversation_id: currentSession?.id,
-        context: pageContext
+        context: pageContext,
       });
 
       const aiMessage: ConversationMessage = {
@@ -144,19 +150,23 @@ export const ConversationalAIChat: React.FC = () => {
           workflow: response.metadata?.workflow as string,
           tools_used: response.metadata?.tools_used as string[],
           confidence: response.metadata?.confidence as number,
-          processing_time: response.metadata?.processing_time as number
-        }
+          processing_time: response.metadata?.processing_time as number,
+        },
       };
 
-      setMessages(prev => [...prev, aiMessage]);
+      setMessages((prev) => [...prev, aiMessage]);
 
       // Update session
       if (currentSession) {
-        setCurrentSession(prev => prev ? {
-          ...prev,
-          last_message_at: new Date(),
-          message_count: prev.message_count + 2
-        } : null);
+        setCurrentSession((prev) =>
+          prev
+            ? {
+                ...prev,
+                last_message_at: new Date(),
+                message_count: prev.message_count + 2,
+              }
+            : null,
+        );
       }
 
       toast.success("AI response generated successfully");
@@ -176,19 +186,23 @@ export const ConversationalAIChat: React.FC = () => {
             workflow: response.workflow,
             tools_used: response.tools_used,
             confidence: response.confidence,
-            processing_time: response.processing_time
-          }
+            processing_time: response.processing_time,
+          },
         };
 
-        setMessages(prev => [...prev, aiMessage]);
+        setMessages((prev) => [...prev, aiMessage]);
 
         // Update session
         if (currentSession) {
-          setCurrentSession(prev => prev ? {
-            ...prev,
-            last_message_at: new Date(),
-            message_count: prev.message_count + 2
-          } : null);
+          setCurrentSession((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  last_message_at: new Date(),
+                  message_count: prev.message_count + 2,
+                }
+              : null,
+          );
         }
 
         toast.success("AI response generated (offline mode)");
@@ -201,7 +215,9 @@ export const ConversationalAIChat: React.FC = () => {
     }
   };
 
-  const simulateAIResponse = async (userInput: string): Promise<{
+  const simulateAIResponse = async (
+    userInput: string,
+  ): Promise<{
     content: string;
     agent: string;
     workflow?: string;
@@ -210,43 +226,62 @@ export const ConversationalAIChat: React.FC = () => {
     processing_time: number;
   }> => {
     // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+    await new Promise((resolve) =>
+      setTimeout(resolve, 1000 + Math.random() * 2000),
+    );
 
     const lowerInput = userInput.toLowerCase();
 
     if (lowerInput.includes("schedule") || lowerInput.includes("optimize")) {
       return {
-        content: "I'll help you optimize the schedule. Let me analyze the current situation and identify potential improvements. I've detected several areas where we can enhance efficiency:\n\n1. **Workload Balance**: There are some employees with uneven shift distributions\n2. **Coverage Gaps**: I found 3 time periods that need better coverage\n3. **Conflict Resolution**: 2 scheduling conflicts need attention\n\nWould you like me to:\n- Run a comprehensive optimization workflow?\n- Focus on a specific time period?\n- Address particular employee assignments?",
+        content:
+          "I'll help you optimize the schedule. Let me analyze the current situation and identify potential improvements. I've detected several areas where we can enhance efficiency:\n\n1. **Workload Balance**: There are some employees with uneven shift distributions\n2. **Coverage Gaps**: I found 3 time periods that need better coverage\n3. **Conflict Resolution**: 2 scheduling conflicts need attention\n\nWould you like me to:\n- Run a comprehensive optimization workflow?\n- Focus on a specific time period?\n- Address particular employee assignments?",
         agent: "ScheduleOptimizerAgent",
         workflow: "schedule_analysis",
-        tools_used: ["analyze_schedule_conflicts", "get_coverage_requirements", "get_employee_availability"],
+        tools_used: [
+          "analyze_schedule_conflicts",
+          "get_coverage_requirements",
+          "get_employee_availability",
+        ],
         confidence: 0.92,
-        processing_time: 2.3
+        processing_time: 2.3,
       };
-    } else if (lowerInput.includes("employee") || lowerInput.includes("workload")) {
+    } else if (
+      lowerInput.includes("employee") ||
+      lowerInput.includes("workload")
+    ) {
       return {
-        content: "I'm analyzing employee workload and availability patterns. Here's what I found:\n\n**Current Workload Analysis:**\n- 12 employees total\n- Average workload: 38.5 hours/week\n- 3 employees are above recommended hours\n- 2 employees have availability conflicts\n\n**Recommendations:**\n- Redistribute 6 hours from overloaded employees\n- Consider cross-training for better flexibility\n- Review availability preferences\n\nShould I create a detailed workload redistribution plan?",
+        content:
+          "I'm analyzing employee workload and availability patterns. Here's what I found:\n\n**Current Workload Analysis:**\n- 12 employees total\n- Average workload: 38.5 hours/week\n- 3 employees are above recommended hours\n- 2 employees have availability conflicts\n\n**Recommendations:**\n- Redistribute 6 hours from overloaded employees\n- Consider cross-training for better flexibility\n- Review availability preferences\n\nShould I create a detailed workload redistribution plan?",
         agent: "EmployeeManagerAgent",
-        tools_used: ["get_employee_availability", "analyze_workload_distribution"],
+        tools_used: [
+          "get_employee_availability",
+          "analyze_workload_distribution",
+        ],
         confidence: 0.88,
-        processing_time: 1.8
+        processing_time: 1.8,
       };
-    } else if (lowerInput.includes("workflow") || lowerInput.includes("automation")) {
+    } else if (
+      lowerInput.includes("workflow") ||
+      lowerInput.includes("automation")
+    ) {
       return {
-        content: "I can set up automated workflows for your scheduling needs. Available workflow templates:\n\n🔄 **Comprehensive Optimization**\n- Full schedule analysis and optimization\n- Multi-agent coordination\n- Constraint validation\n\n⚡ **Quick Conflict Resolution**\n- Identify and resolve scheduling conflicts\n- Automated employee reassignment\n\n📊 **Weekly Analytics**\n- Generate insights and recommendations\n- Performance tracking\n\nWhich workflow would you like me to execute?",
+        content:
+          "I can set up automated workflows for your scheduling needs. Available workflow templates:\n\n🔄 **Comprehensive Optimization**\n- Full schedule analysis and optimization\n- Multi-agent coordination\n- Constraint validation\n\n⚡ **Quick Conflict Resolution**\n- Identify and resolve scheduling conflicts\n- Automated employee reassignment\n\n📊 **Weekly Analytics**\n- Generate insights and recommendations\n- Performance tracking\n\nWhich workflow would you like me to execute?",
         agent: "WorkflowCoordinator",
         workflow: "workflow_discovery",
         tools_used: ["list_available_workflows", "get_workflow_templates"],
         confidence: 0.95,
-        processing_time: 1.2
+        processing_time: 1.2,
       };
     } else {
       return {
-        content: "I understand you're looking for help with your scheduling needs. I can assist with:\n\n• **Schedule Optimization** - Improve efficiency and coverage\n• **Employee Management** - Balance workloads and preferences\n• **Conflict Resolution** - Identify and fix scheduling issues\n• **Analytics & Insights** - Generate reports and recommendations\n• **Workflow Automation** - Set up automated processes\n\nWhat specific area would you like to focus on first?",
+        content:
+          "I understand you're looking for help with your scheduling needs. I can assist with:\n\n• **Schedule Optimization** - Improve efficiency and coverage\n• **Employee Management** - Balance workloads and preferences\n• **Conflict Resolution** - Identify and fix scheduling issues\n• **Analytics & Insights** - Generate reports and recommendations\n• **Workflow Automation** - Set up automated processes\n\nWhat specific area would you like to focus on first?",
         agent: "BaseAgent",
         tools_used: ["general_assistance"],
         confidence: 0.85,
-        processing_time: 0.8
+        processing_time: 0.8,
       };
     }
   };
@@ -258,10 +293,13 @@ export const ConversationalAIChat: React.FC = () => {
     }
   };
 
-  const handleFeedback = (messageId: string, feedback: "positive" | "negative") => {
-    setMessages(prev => prev.map(msg =>
-      msg.id === messageId ? { ...msg, feedback } : msg
-    ));
+  const handleFeedback = (
+    messageId: string,
+    feedback: "positive" | "negative",
+  ) => {
+    setMessages((prev) =>
+      prev.map((msg) => (msg.id === messageId ? { ...msg, feedback } : msg)),
+    );
     toast.success(`Feedback recorded: ${feedback}`);
   };
 
@@ -283,20 +321,20 @@ export const ConversationalAIChat: React.FC = () => {
       created_at: new Date(),
       last_message_at: new Date(),
       message_count: 0,
-      status: "active"
+      status: "active",
     };
 
     setCurrentSession(newSession);
-    setSessions(prev => [newSession, ...prev]);
+    setSessions((prev) => [newSession, ...prev]);
     setMessages([]);
     toast.success("New conversation started");
   };
 
   const formatTimestamp = (timestamp: Date) => {
-    return new Intl.DateTimeFormat('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
+    return new Intl.DateTimeFormat("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
     }).format(timestamp);
   };
 
@@ -337,7 +375,7 @@ export const ConversationalAIChat: React.FC = () => {
                     "p-3 rounded-lg cursor-pointer transition-colors",
                     currentSession?.id === session.id
                       ? "bg-primary/10 border-primary border"
-                      : "bg-muted/50 hover:bg-muted"
+                      : "bg-muted/50 hover:bg-muted",
                   )}
                   onClick={() => setCurrentSession(session)}
                 >
@@ -390,7 +428,7 @@ export const ConversationalAIChat: React.FC = () => {
                   key={message.id}
                   className={cn(
                     "flex gap-3 max-w-[80%]",
-                    message.type === "user" ? "ml-auto" : ""
+                    message.type === "user" ? "ml-auto" : "",
                   )}
                 >
                   {message.type !== "user" && (
@@ -401,10 +439,12 @@ export const ConversationalAIChat: React.FC = () => {
                     </Avatar>
                   )}
 
-                  <div className={cn(
-                    "flex-1 space-y-2",
-                    message.type === "user" ? "text-right" : ""
-                  )}>
+                  <div
+                    className={cn(
+                      "flex-1 space-y-2",
+                      message.type === "user" ? "text-right" : "",
+                    )}
+                  >
                     <div
                       className={cn(
                         "rounded-lg p-3 text-sm",
@@ -412,10 +452,12 @@ export const ConversationalAIChat: React.FC = () => {
                           ? "bg-primary text-primary-foreground ml-auto"
                           : message.type === "system"
                             ? "bg-muted border border-border"
-                            : "bg-muted/50 border border-border"
+                            : "bg-muted/50 border border-border",
                       )}
                     >
-                      <div className="whitespace-pre-wrap">{message.content}</div>
+                      <div className="whitespace-pre-wrap">
+                        {message.content}
+                      </div>
 
                       {/* Message Metadata */}
                       {message.metadata && message.type === "ai" && (
@@ -425,17 +467,22 @@ export const ConversationalAIChat: React.FC = () => {
                             <span>Agent: {message.metadata.agent}</span>
                             {message.metadata.confidence && (
                               <Badge variant="outline" className="text-xs">
-                                {Math.round(message.metadata.confidence * 100)}% confidence
+                                {Math.round(message.metadata.confidence * 100)}%
+                                confidence
                               </Badge>
                             )}
                           </div>
 
-                          {message.metadata.tools_used && message.metadata.tools_used.length > 0 && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Settings className="h-3 w-3" />
-                              <span>Tools: {message.metadata.tools_used.join(", ")}</span>
-                            </div>
-                          )}
+                          {message.metadata.tools_used &&
+                            message.metadata.tools_used.length > 0 && (
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Settings className="h-3 w-3" />
+                                <span>
+                                  Tools:{" "}
+                                  {message.metadata.tools_used.join(", ")}
+                                </span>
+                              </div>
+                            )}
 
                           {message.metadata.processing_time && (
                             <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -448,10 +495,12 @@ export const ConversationalAIChat: React.FC = () => {
                     </div>
 
                     {/* Message Actions */}
-                    <div className={cn(
-                      "flex items-center gap-1",
-                      message.type === "user" ? "justify-end" : ""
-                    )}>
+                    <div
+                      className={cn(
+                        "flex items-center gap-1",
+                        message.type === "user" ? "justify-end" : "",
+                      )}
+                    >
                       <span className="text-xs text-muted-foreground">
                         {formatTimestamp(message.timestamp)}
                       </span>
@@ -471,9 +520,12 @@ export const ConversationalAIChat: React.FC = () => {
                             variant="ghost"
                             className={cn(
                               "h-6 w-6 p-0",
-                              message.feedback === "positive" && "text-green-500"
+                              message.feedback === "positive" &&
+                                "text-green-500",
                             )}
-                            onClick={() => handleFeedback(message.id, "positive")}
+                            onClick={() =>
+                              handleFeedback(message.id, "positive")
+                            }
                           >
                             <ThumbsUp className="h-3 w-3" />
                           </Button>
@@ -482,9 +534,11 @@ export const ConversationalAIChat: React.FC = () => {
                             variant="ghost"
                             className={cn(
                               "h-6 w-6 p-0",
-                              message.feedback === "negative" && "text-red-500"
+                              message.feedback === "negative" && "text-red-500",
                             )}
-                            onClick={() => handleFeedback(message.id, "negative")}
+                            onClick={() =>
+                              handleFeedback(message.id, "negative")
+                            }
                           >
                             <ThumbsDown className="h-3 w-3" />
                           </Button>
@@ -506,9 +560,7 @@ export const ConversationalAIChat: React.FC = () => {
               {isLoading && (
                 <div className="flex gap-3">
                   <Avatar className="h-8 w-8 mt-1">
-                    <AvatarFallback className="text-xs">
-                      🤖
-                    </AvatarFallback>
+                    <AvatarFallback className="text-xs">🤖</AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
                     <div className="bg-muted/50 border border-border rounded-lg p-3">
@@ -531,12 +583,23 @@ export const ConversationalAIChat: React.FC = () => {
           <Collapsible open={showContext} onOpenChange={setShowContext}>
             <div className="border-t border-border px-4 py-2">
               <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="sm" className="w-full justify-between text-xs">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-between text-xs"
+                >
                   <span className="flex items-center gap-2">
                     <Eye className="h-3 w-3" />
-                    Context ({Object.keys(pageContext.selectedItems).length + Object.keys(pageContext.filters).length} items)
+                    Context (
+                    {Object.keys(pageContext.selectedItems).length +
+                      Object.keys(pageContext.filters).length}{" "}
+                    items)
                   </span>
-                  {showContext ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  {showContext ? (
+                    <ChevronUp className="h-3 w-3" />
+                  ) : (
+                    <ChevronDown className="h-3 w-3" />
+                  )}
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-2">
@@ -544,36 +607,40 @@ export const ConversationalAIChat: React.FC = () => {
                   <CardContent className="p-3">
                     <div className="space-y-2 text-xs">
                       <div>
-                        <span className="font-medium">Page:</span> {pageContext.pageTitle}
+                        <span className="font-medium">Page:</span>{" "}
+                        {pageContext.pageTitle}
                       </div>
                       <div>
-                        <span className="font-medium">Route:</span> {pageContext.route}
+                        <span className="font-medium">Route:</span>{" "}
+                        {pageContext.route}
                       </div>
                       {Object.keys(pageContext.selectedItems).length > 0 && (
                         <div>
-                          <span className="font-medium">Selected:</span>{' '}
+                          <span className="font-medium">Selected:</span>{" "}
                           {Object.entries(pageContext.selectedItems)
                             .map(([key, value]) => `${key}=${String(value)}`)
-                            .join(', ')}
+                            .join(", ")}
                         </div>
                       )}
                       {Object.keys(pageContext.filters).length > 0 && (
                         <div>
-                          <span className="font-medium">Filters:</span>{' '}
+                          <span className="font-medium">Filters:</span>{" "}
                           {Object.entries(pageContext.filters)
                             .map(([key, value]) => `${key}=${String(value)}`)
-                            .join(', ')}
+                            .join(", ")}
                         </div>
                       )}
                       {pageContext.dateRange && (
                         <div>
-                          <span className="font-medium">Date Range:</span>{' '}
-                          {pageContext.dateRange.start.toLocaleDateString()} - {pageContext.dateRange.end.toLocaleDateString()}
+                          <span className="font-medium">Date Range:</span>{" "}
+                          {pageContext.dateRange.start.toLocaleDateString()} -{" "}
+                          {pageContext.dateRange.end.toLocaleDateString()}
                         </div>
                       )}
                       {pageContext.searchQuery && (
                         <div>
-                          <span className="font-medium">Search:</span> "{pageContext.searchQuery}"
+                          <span className="font-medium">Search:</span> "
+                          {pageContext.searchQuery}"
                         </div>
                       )}
                     </div>

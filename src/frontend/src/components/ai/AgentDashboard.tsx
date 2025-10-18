@@ -22,7 +22,7 @@ import {
   TrendingUp,
   Users,
   Workflow,
-  Zap
+  Zap,
 } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -38,9 +38,9 @@ interface AgentInteraction {
   tools_used: string[];
 }
 
-type AllowedStatus = Agent['status'] | 'processing' | 'idle';
+type AllowedStatus = Agent["status"] | "processing" | "idle";
 
-interface LocalAgent extends Omit<Agent, 'status' | 'performance'> {
+interface LocalAgent extends Omit<Agent, "status" | "performance"> {
   status: AllowedStatus;
   current_task?: {
     id: string;
@@ -53,7 +53,7 @@ interface LocalAgent extends Omit<Agent, 'status' | 'performance'> {
     success_rate_24h: number;
     avg_response_time_24h: number;
   };
-  performance: Agent['performance'] & {
+  performance: Agent["performance"] & {
     // allow extra mock-only metrics
     uptime_percentage?: number;
     successful_requests?: number;
@@ -64,7 +64,9 @@ interface LocalAgent extends Omit<Agent, 'status' | 'performance'> {
 
 export const AgentDashboard: React.FC = () => {
   const [agents, setAgents] = useState<LocalAgent[]>([]);
-  const [recentInteractions, setRecentInteractions] = useState<AgentInteraction[]>([]);
+  const [recentInteractions, setRecentInteractions] = useState<
+    AgentInteraction[]
+  >([]);
   const [selectedAgent, setSelectedAgent] = useState<LocalAgent | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -103,13 +105,14 @@ export const AgentDashboard: React.FC = () => {
         name: "Schedule Optimizer Agent",
         type: "schedule_optimizer",
         status: "active",
-        description: "Specialized in schedule optimization, conflict resolution, and workload balancing",
+        description:
+          "Specialized in schedule optimization, conflict resolution, and workload balancing",
         capabilities: [
           "Schedule Conflict Detection",
           "Workload Optimization",
           "Coverage Analysis",
           "Constraint Validation",
-          "Employee Assignment"
+          "Employee Assignment",
         ],
         performance: {
           total_requests: 1247,
@@ -120,32 +123,33 @@ export const AgentDashboard: React.FC = () => {
           successful_requests: 1205,
           average_response_time: 2.3,
           uptime_percentage: 99.2,
-          last_activity: new Date(Date.now() - 5 * 60 * 1000) // 5 minutes ago
+          last_activity: new Date(Date.now() - 5 * 60 * 1000), // 5 minutes ago
         },
         current_task: {
           id: "opt_001",
           description: "Optimizing weekly schedule for conflicts",
           progress: 75,
-          estimated_completion: new Date(Date.now() + 2 * 60 * 1000) // 2 minutes from now
+          estimated_completion: new Date(Date.now() + 2 * 60 * 1000), // 2 minutes from now
         },
         metrics: {
           requests_today: 23,
           success_rate_24h: 96.5,
-          avg_response_time_24h: 2.1
-        }
+          avg_response_time_24h: 2.1,
+        },
       },
       {
         id: "employee_manager",
         name: "Employee Manager Agent",
         type: "employee_manager",
         status: "active",
-        description: "Manages employee availability, preferences, and workload distribution",
+        description:
+          "Manages employee availability, preferences, and workload distribution",
         capabilities: [
           "Availability Analysis",
           "Workload Distribution",
           "Preference Management",
           "Fair Assignment",
-          "Skills Matching"
+          "Skills Matching",
         ],
         performance: {
           total_requests: 892,
@@ -155,26 +159,27 @@ export const AgentDashboard: React.FC = () => {
           successful_requests: 847,
           average_response_time: 1.8,
           uptime_percentage: 98.7,
-          last_activity: new Date(Date.now() - 12 * 60 * 1000) // 12 minutes ago
+          last_activity: new Date(Date.now() - 12 * 60 * 1000), // 12 minutes ago
         },
         metrics: {
           requests_today: 18,
           success_rate_24h: 94.8,
-          avg_response_time_24h: 1.9
-        }
+          avg_response_time_24h: 1.9,
+        },
       },
       {
         id: "workflow_coordinator",
         name: "Workflow Coordinator",
         type: "workflow_coordinator",
         status: "processing",
-        description: "Orchestrates multi-step workflows and coordinates between agents",
+        description:
+          "Orchestrates multi-step workflows and coordinates between agents",
         capabilities: [
           "Workflow Orchestration",
           "Agent Coordination",
           "Task Sequencing",
           "Decision Logic",
-          "Error Recovery"
+          "Error Recovery",
         ],
         performance: {
           total_requests: 456,
@@ -184,20 +189,20 @@ export const AgentDashboard: React.FC = () => {
           successful_requests: 441,
           average_response_time: 4.2,
           uptime_percentage: 97.8,
-          last_activity: new Date()
+          last_activity: new Date(),
         },
         current_task: {
           id: "wf_003",
           description: "Running comprehensive optimization workflow",
           progress: 45,
-          estimated_completion: new Date(Date.now() + 8 * 60 * 1000) // 8 minutes from now
+          estimated_completion: new Date(Date.now() + 8 * 60 * 1000), // 8 minutes from now
         },
         metrics: {
           requests_today: 7,
           success_rate_24h: 98.2,
-          avg_response_time_24h: 3.8
-        }
-      }
+          avg_response_time_24h: 3.8,
+        },
+      },
     ]);
 
     // Initialize recent interactions
@@ -210,7 +215,7 @@ export const AgentDashboard: React.FC = () => {
         timestamp: new Date(Date.now() - 5 * 60 * 1000),
         duration: 2.3,
         status: "success",
-        tools_used: ["analyze_schedule_conflicts", "optimize_coverage"]
+        tools_used: ["analyze_schedule_conflicts", "optimize_coverage"],
       },
       {
         id: "int_002",
@@ -220,7 +225,7 @@ export const AgentDashboard: React.FC = () => {
         timestamp: new Date(Date.now() - 12 * 60 * 1000),
         duration: 1.8,
         status: "success",
-        tools_used: ["get_employee_availability", "analyze_workload"]
+        tools_used: ["get_employee_availability", "analyze_workload"],
       },
       {
         id: "int_003",
@@ -230,8 +235,8 @@ export const AgentDashboard: React.FC = () => {
         timestamp: new Date(Date.now() - 15 * 60 * 1000),
         duration: 0.5,
         status: "success",
-        tools_used: ["execute_workflow", "coordinate_agents"]
-      }
+        tools_used: ["execute_workflow", "coordinate_agents"],
+      },
     ]);
   };
 
@@ -243,7 +248,7 @@ export const AgentDashboard: React.FC = () => {
     try {
       await aiService.toggleAgent(agentId, enabled);
       await loadAgents(); // Reload agents
-      toast.success(`Agent ${enabled ? 'enabled' : 'disabled'} successfully`);
+      toast.success(`Agent ${enabled ? "enabled" : "disabled"} successfully`);
     } catch (error) {
       console.error("Failed to toggle agent:", error);
       toast.error("Failed to toggle agent");
@@ -280,24 +285,29 @@ export const AgentDashboard: React.FC = () => {
     }
   };
 
-  const handleAgentAction = async (agentId: string, action: "start" | "pause" | "restart") => {
+  const handleAgentAction = async (
+    agentId: string,
+    action: "start" | "pause" | "restart",
+  ) => {
     setIsLoading(true);
     try {
       // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      setAgents(prev => prev.map(agent =>
-        agent.id === agentId
-          ? {
-            ...agent,
-            status: action === "pause" ? "idle" : "active",
-            performance: {
-              ...agent.performance,
-              last_activity: new Date()
-            }
-          }
-          : agent
-      ));
+      setAgents((prev) =>
+        prev.map((agent) =>
+          agent.id === agentId
+            ? {
+                ...agent,
+                status: action === "pause" ? "idle" : "active",
+                performance: {
+                  ...agent.performance,
+                  last_activity: new Date(),
+                },
+              }
+            : agent,
+        ),
+      );
 
       toast.success(`Agent ${action} successful`);
     } catch {
@@ -308,11 +318,11 @@ export const AgentDashboard: React.FC = () => {
   };
 
   const formatTimestamp = (timestamp: Date) => {
-    return new Intl.DateTimeFormat('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      day: '2-digit',
-      month: 'short'
+    return new Intl.DateTimeFormat("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      day: "2-digit",
+      month: "short",
     }).format(timestamp);
   };
 
@@ -329,7 +339,7 @@ export const AgentDashboard: React.FC = () => {
             key={agent.id}
             className={cn(
               "cursor-pointer transition-all hover:scale-105",
-              selectedAgent?.id === agent.id && "ring-2 ring-primary"
+              selectedAgent?.id === agent.id && "ring-2 ring-primary",
             )}
             onClick={() => setSelectedAgent(agent)}
           >
@@ -359,10 +369,15 @@ export const AgentDashboard: React.FC = () => {
                   <p className="text-xs text-muted-foreground">
                     {agent.current_task.description}
                   </p>
-                  <Progress value={agent.current_task.progress} className="h-2" />
+                  <Progress
+                    value={agent.current_task.progress}
+                    className="h-2"
+                  />
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>{agent.current_task.progress}% complete</span>
-                    <span>{formatTimestamp(agent.current_task.estimated_completion)}</span>
+                    <span>
+                      {formatTimestamp(agent.current_task.estimated_completion)}
+                    </span>
                   </div>
                 </div>
               )}
@@ -371,19 +386,27 @@ export const AgentDashboard: React.FC = () => {
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="space-y-1">
                   <p className="text-muted-foreground">Success Rate</p>
-                  <p className="font-semibold">{agent.metrics.success_rate_24h}%</p>
+                  <p className="font-semibold">
+                    {agent.metrics.success_rate_24h}%
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-muted-foreground">Avg Response</p>
-                  <p className="font-semibold">{agent.metrics.avg_response_time_24h}s</p>
+                  <p className="font-semibold">
+                    {agent.metrics.avg_response_time_24h}s
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-muted-foreground">Requests Today</p>
-                  <p className="font-semibold">{agent.metrics.requests_today}</p>
+                  <p className="font-semibold">
+                    {agent.metrics.requests_today}
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-muted-foreground">Uptime</p>
-                  <p className="font-semibold">{agent.performance.uptime_percentage ?? 0}%</p>
+                  <p className="font-semibold">
+                    {agent.performance.uptime_percentage ?? 0}%
+                  </p>
                 </div>
               </div>
 
@@ -394,11 +417,18 @@ export const AgentDashboard: React.FC = () => {
                   variant="outline"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleAgentAction(agent.id, agent.status === "active" ? "pause" : "start");
+                    handleAgentAction(
+                      agent.id,
+                      agent.status === "active" ? "pause" : "start",
+                    );
                   }}
                   disabled={isLoading}
                 >
-                  {agent.status === "active" ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                  {agent.status === "active" ? (
+                    <Pause className="h-3 w-3" />
+                  ) : (
+                    <Play className="h-3 w-3" />
+                  )}
                 </Button>
                 <Button
                   size="sm"
@@ -458,7 +488,9 @@ export const AgentDashboard: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           {getAgentIcon(agent.type)}
-                          <span className="text-sm font-medium">{agent.name}</span>
+                          <span className="text-sm font-medium">
+                            {agent.name}
+                          </span>
                         </div>
                         <Badge variant="outline">
                           {agent.performance.uptime_percentage}% uptime
@@ -466,18 +498,29 @@ export const AgentDashboard: React.FC = () => {
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-xs">
                         <div>
-                          <p className="text-muted-foreground">Total Requests</p>
-                          <p className="font-semibold">{agent.performance.total_requests}</p>
+                          <p className="text-muted-foreground">
+                            Total Requests
+                          </p>
+                          <p className="font-semibold">
+                            {agent.performance.total_requests}
+                          </p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Success Rate</p>
                           <p className="font-semibold">
-                            {Math.round((agent.performance.successful_requests / agent.performance.total_requests) * 100)}%
+                            {Math.round(
+                              (agent.performance.successful_requests /
+                                agent.performance.total_requests) *
+                                100,
+                            )}
+                            %
                           </p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Avg Response</p>
-                          <p className="font-semibold">{agent.performance.average_response_time}s</p>
+                          <p className="font-semibold">
+                            {agent.performance.average_response_time}s
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -492,27 +535,39 @@ export const AgentDashboard: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {agents.filter(agent => agent.current_task).map((agent) => (
-                      <div key={agent.id} className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            {getAgentIcon(agent.type)}
-                            <span className="text-sm font-medium">{agent.name}</span>
+                    {agents
+                      .filter((agent) => agent.current_task)
+                      .map((agent) => (
+                        <div key={agent.id} className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {getAgentIcon(agent.type)}
+                              <span className="text-sm font-medium">
+                                {agent.name}
+                              </span>
+                            </div>
+                            <Badge variant="secondary">
+                              {agent.current_task!.progress}%
+                            </Badge>
                           </div>
-                          <Badge variant="secondary">
-                            {agent.current_task!.progress}%
-                          </Badge>
+                          <p className="text-sm text-muted-foreground">
+                            {agent.current_task!.description}
+                          </p>
+                          <Progress
+                            value={agent.current_task!.progress}
+                            className="h-2"
+                          />
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            <span>
+                              ETA:{" "}
+                              {formatTimestamp(
+                                agent.current_task!.estimated_completion,
+                              )}
+                            </span>
+                          </div>
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          {agent.current_task!.description}
-                        </p>
-                        <Progress value={agent.current_task!.progress} className="h-2" />
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          <span>ETA: {formatTimestamp(agent.current_task!.estimated_completion)}</span>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 </CardContent>
               </Card>
@@ -528,9 +583,14 @@ export const AgentDashboard: React.FC = () => {
                 <ScrollArea className="h-[400px]">
                   <div className="space-y-4">
                     {recentInteractions.map((interaction) => {
-                      const agent = agents.find(a => a.id === interaction.agent_id);
+                      const agent = agents.find(
+                        (a) => a.id === interaction.agent_id,
+                      );
                       return (
-                        <div key={interaction.id} className="border rounded-lg p-4 space-y-3">
+                        <div
+                          key={interaction.id}
+                          className="border rounded-lg p-4 space-y-3"
+                        >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               {agent && getAgentIcon(agent.type)}
@@ -551,20 +611,28 @@ export const AgentDashboard: React.FC = () => {
                           <div className="space-y-2">
                             <div>
                               <p className="text-sm font-medium">Request:</p>
-                              <p className="text-sm text-muted-foreground">{interaction.request}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {interaction.request}
+                              </p>
                             </div>
                             <div>
                               <p className="text-sm font-medium">Response:</p>
-                              <p className="text-sm text-muted-foreground">{interaction.response}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {interaction.response}
+                              </p>
                             </div>
                           </div>
 
                           <div className="flex items-center justify-between text-xs text-muted-foreground">
                             <div className="flex items-center gap-1">
                               <Settings className="h-3 w-3" />
-                              <span>Tools: {interaction.tools_used.join(", ")}</span>
+                              <span>
+                                Tools: {interaction.tools_used.join(", ")}
+                              </span>
                             </div>
-                            <span>{formatTimestamp(interaction.timestamp)}</span>
+                            <span>
+                              {formatTimestamp(interaction.timestamp)}
+                            </span>
                           </div>
                         </div>
                       );
@@ -591,7 +659,9 @@ export const AgentDashboard: React.FC = () => {
                     </p>
 
                     <div>
-                      <h4 className="text-sm font-medium mb-2">Capabilities:</h4>
+                      <h4 className="text-sm font-medium mb-2">
+                        Capabilities:
+                      </h4>
                       <div className="space-y-1">
                         {agent.capabilities.map((capability, index) => (
                           <div key={index} className="flex items-center gap-2">
@@ -604,7 +674,9 @@ export const AgentDashboard: React.FC = () => {
 
                     <div className="pt-2 border-t">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Status:</span>
+                        <span className="text-sm text-muted-foreground">
+                          Status:
+                        </span>
                         <Badge variant={getStatusBadgeVariant(agent.status)}>
                           {agent.status}
                         </Badge>

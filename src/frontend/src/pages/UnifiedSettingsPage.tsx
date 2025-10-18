@@ -15,7 +15,12 @@ import { DEFAULT_SETTINGS } from "@/hooks/useSettings"; // Assuming default sett
 import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
 import { getSettings, updateSettings } from "@/services/api"; // Assuming API functions are here
 import type { Settings } from "@/types/index";
-import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseMutationResult,
+} from "@tanstack/react-query";
 // import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
 import React, { useEffect, useState } from "react";
@@ -30,8 +35,7 @@ type SectionId =
   | "appearance_display"
   | "integrations_ai"
   | "data_management"
-  | "holiday_management"
-  ;
+  | "holiday_management";
 
 interface Section {
   id: SectionId;
@@ -76,7 +80,6 @@ const sections: Section[] = [
     id: "holiday_management",
     title: "Holiday Management" /*, component: HolidayManagement*/,
   },
-
 ];
 
 // Temporary Placeholder for other sections
@@ -97,28 +100,32 @@ export default function UnifiedSettingsPage() {
   // Add WebSocket event handlers for real-time updates
   useWebSocketEvents([
     {
-      eventType: 'settings_updated',
+      eventType: "settings_updated",
       handler: () => {
         // Invalidate settings-related queries
-        queryClient.invalidateQueries({ queryKey: ['settings'] });
+        queryClient.invalidateQueries({ queryKey: ["settings"] });
 
         // Show notification
         toast({
           title: "Settings Updated",
           description: "Settings have been updated by another user.",
         });
-      }
+      },
     },
     {
-      eventType: 'shift_template_updated',
+      eventType: "shift_template_updated",
       handler: () => {
         // Invalidate shift templates when they are updated
-        queryClient.invalidateQueries({ queryKey: ['shifts'] });
-      }
-    }
+        queryClient.invalidateQueries({ queryKey: ["shifts"] });
+      },
+    },
   ]);
 
-  const { data: localSettings, isLoading: isLoadingSettings, error: settingsError } = useQuery<Settings, Error, Settings>({
+  const {
+    data: localSettings,
+    isLoading: isLoadingSettings,
+    error: settingsError,
+  } = useQuery<Settings, Error, Settings>({
     queryKey: ["settings"],
     queryFn: getSettings,
     select: (fetchedData: Settings): Settings => {
@@ -130,104 +137,124 @@ export default function UnifiedSettingsPage() {
           ...(fetchedData.general || {}),
           opening_days: {
             ...DEFAULT_SETTINGS.general.opening_days,
-            ...(fetchedData.general?.opening_days || {})
-          }
+            ...(fetchedData.general?.opening_days || {}),
+          },
         },
         scheduling: {
           ...DEFAULT_SETTINGS.scheduling,
           ...(fetchedData.scheduling || {}),
           generation_requirements: {
             ...(DEFAULT_SETTINGS.scheduling?.generation_requirements || {}),
-            ...(fetchedData.scheduling?.generation_requirements || {})
-          }
+            ...(fetchedData.scheduling?.generation_requirements || {}),
+          },
         },
         display: {
           ...DEFAULT_SETTINGS.display,
           ...(fetchedData.display || {}),
           dark_theme: {
             ...(DEFAULT_SETTINGS.display?.dark_theme || {}),
-            ...(fetchedData.display?.dark_theme || {})
-          }
+            ...(fetchedData.display?.dark_theme || {}),
+          },
         },
         pdf_layout: {
           ...DEFAULT_SETTINGS.pdf_layout,
           ...(fetchedData.pdf_layout || {}),
-          margins: { ...(DEFAULT_SETTINGS.pdf_layout?.margins || {}), ...(fetchedData.pdf_layout?.margins || {}) },
-          table_style: { ...(DEFAULT_SETTINGS.pdf_layout?.table_style || {}), ...(fetchedData.pdf_layout?.table_style || {}) },
-          fonts: { ...(DEFAULT_SETTINGS.pdf_layout?.fonts || {}), ...(fetchedData.pdf_layout?.fonts || {}) },
-          content: { ...(DEFAULT_SETTINGS.pdf_layout?.content || {}), ...(fetchedData.pdf_layout?.content || {}) },
+          margins: {
+            ...(DEFAULT_SETTINGS.pdf_layout?.margins || {}),
+            ...(fetchedData.pdf_layout?.margins || {}),
+          },
+          table_style: {
+            ...(DEFAULT_SETTINGS.pdf_layout?.table_style || {}),
+            ...(fetchedData.pdf_layout?.table_style || {}),
+          },
+          fonts: {
+            ...(DEFAULT_SETTINGS.pdf_layout?.fonts || {}),
+            ...(fetchedData.pdf_layout?.fonts || {}),
+          },
+          content: {
+            ...(DEFAULT_SETTINGS.pdf_layout?.content || {}),
+            ...(fetchedData.pdf_layout?.content || {}),
+          },
         },
         employee_groups: {
           ...DEFAULT_SETTINGS.employee_groups, // Start with all defaults for employee_groups
           ...(fetchedData.employee_groups || {}), // Spread fetched top-level employee_group props if any
 
           // For each type array, decide whether to use fetched or default
-          employee_types: (
-            (fetchedData.employee_groups?.employee_types && fetchedData.employee_groups.employee_types.length > 0)
-              ? fetchedData.employee_groups.employee_types
-              : DEFAULT_SETTINGS.employee_groups?.employee_types || []
-          ).map(et => ({ ...et, type: "employee_type" as const })),
+          employee_types: (fetchedData.employee_groups?.employee_types &&
+          fetchedData.employee_groups.employee_types.length > 0
+            ? fetchedData.employee_groups.employee_types
+            : DEFAULT_SETTINGS.employee_groups?.employee_types || []
+          ).map((et) => ({ ...et, type: "employee_type" as const })),
 
-          shift_types: (
-            (fetchedData.employee_groups?.shift_types && fetchedData.employee_groups.shift_types.length > 0)
-              ? fetchedData.employee_groups.shift_types
-              : DEFAULT_SETTINGS.employee_groups?.shift_types || []
-          ).map(st => ({
+          shift_types: (fetchedData.employee_groups?.shift_types &&
+          fetchedData.employee_groups.shift_types.length > 0
+            ? fetchedData.employee_groups.shift_types
+            : DEFAULT_SETTINGS.employee_groups?.shift_types || []
+          ).map((st) => ({
             ...st,
             type: "shift_type" as const,
-            autoAssignOnly: st.autoAssignOnly !== undefined ? st.autoAssignOnly : false // Ensure boolean
+            autoAssignOnly:
+              st.autoAssignOnly !== undefined ? st.autoAssignOnly : false, // Ensure boolean
           })),
 
-          absence_types: (
-            (fetchedData.employee_groups?.absence_types && fetchedData.employee_groups.absence_types.length > 0)
-              ? fetchedData.employee_groups.absence_types
-              : DEFAULT_SETTINGS.employee_groups?.absence_types || []
-          ).map(at => ({ ...at, type: "absence_type" as const })),
+          absence_types: (fetchedData.employee_groups?.absence_types &&
+          fetchedData.employee_groups.absence_types.length > 0
+            ? fetchedData.employee_groups.absence_types
+            : DEFAULT_SETTINGS.employee_groups?.absence_types || []
+          ).map((at) => ({ ...at, type: "absence_type" as const })),
         },
         availability_types: {
           ...DEFAULT_SETTINGS.availability_types, // Base defaults for availability_types structure
           ...(fetchedData.availability_types || {}), // Overwrite with fetched availability_types structure if it exists
-          types: (
-            fetchedData.availability_types?.types && fetchedData.availability_types.types.length > 0
-              ? fetchedData.availability_types.types // Use fetched if present and not empty
-              : DEFAULT_SETTINGS.availability_types?.types || [] // Otherwise, use default types or an empty array
-          ).map(avail => {
-            const defaultAvail = DEFAULT_SETTINGS.availability_types?.types?.find(dt => dt.id === avail.id);
-            return {
-              ...(defaultAvail || {}), // Spread default for this specific ID first
-              ...avail, // Then spread fetched, overwriting defaults if fields exist in fetched
-              type: avail.type || defaultAvail?.type || 'availability_type' as const, // Ensure type
-              // Ensure color has a fallback if missing from both fetched and default for this ID
-              color: avail.color || defaultAvail?.color || '#808080', // Fallback to gray
-              // Ensure is_available has a fallback
-              is_available: avail.is_available !== undefined
-                ? avail.is_available
-                : (defaultAvail?.is_available !== undefined
-                  ? defaultAvail.is_available
-                  : true // Default to true if completely missing
-                ),
-              // Ensure priority has a fallback
-              priority: avail.priority !== undefined
-                ? avail.priority
-                : (defaultAvail?.priority !== undefined
-                  ? defaultAvail.priority
-                  : 0 // Default to 0 if completely missing
-                )
-            };
-          })
+          types: (fetchedData.availability_types?.types &&
+          fetchedData.availability_types.types.length > 0
+            ? fetchedData.availability_types.types // Use fetched if present and not empty
+            : DEFAULT_SETTINGS.availability_types?.types || []
+          ) // Otherwise, use default types or an empty array
+            .map((avail) => {
+              const defaultAvail =
+                DEFAULT_SETTINGS.availability_types?.types?.find(
+                  (dt) => dt.id === avail.id,
+                );
+              return {
+                ...(defaultAvail || {}), // Spread default for this specific ID first
+                ...avail, // Then spread fetched, overwriting defaults if fields exist in fetched
+                type:
+                  avail.type ||
+                  defaultAvail?.type ||
+                  ("availability_type" as const), // Ensure type
+                // Ensure color has a fallback if missing from both fetched and default for this ID
+                color: avail.color || defaultAvail?.color || "#808080", // Fallback to gray
+                // Ensure is_available has a fallback
+                is_available:
+                  avail.is_available !== undefined
+                    ? avail.is_available
+                    : defaultAvail?.is_available !== undefined
+                      ? defaultAvail.is_available
+                      : true, // Default to true if completely missing
+                // Ensure priority has a fallback
+                priority:
+                  avail.priority !== undefined
+                    ? avail.priority
+                    : defaultAvail?.priority !== undefined
+                      ? defaultAvail.priority
+                      : 0, // Default to 0 if completely missing
+              };
+            }),
         },
         actions: {
           ...(DEFAULT_SETTINGS.actions || {}),
           ...(fetchedData.actions || {}),
           demo_data: {
             ...(DEFAULT_SETTINGS.actions?.demo_data || {}),
-            ...(fetchedData.actions?.demo_data || {})
-          }
+            ...(fetchedData.actions?.demo_data || {}),
+          },
         },
         ai_scheduling: {
           ...(DEFAULT_SETTINGS.ai_scheduling || {}),
-          ...(fetchedData.ai_scheduling || {})
-        }
+          ...(fetchedData.ai_scheduling || {}),
+        },
       };
       return mergedSettings as Settings;
     },
@@ -236,7 +263,8 @@ export default function UnifiedSettingsPage() {
   });
 
   // State to manage local edits before debounced save
-  const [editableSettings, setEditableSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [editableSettings, setEditableSettings] =
+    useState<Settings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
     if (localSettings) {
@@ -244,44 +272,48 @@ export default function UnifiedSettingsPage() {
     }
   }, [localSettings]);
 
-  const mutation: UseMutationResult<Settings, Error, Settings, unknown> = useMutation<Settings, Error, Settings>({
-    mutationFn: updateSettings,
-    onSuccess: () => {
-      // Don't invalidate queries here to avoid conflicts with manual updates
-      // queryClient.invalidateQueries({ queryKey: ["settings"] });
-      toast({
-        title: "Settings Saved",
-        description: "Your changes have been saved successfully.",
-        variant: "default",
-      });
-      // Optionally, update editableSettings directly from server response
-      // setEditableSettings(data); 
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error Saving Settings",
-        description: error.message || "An unexpected error occurred.",
-        variant: "destructive",
-      });
-    },
-  });
+  const mutation: UseMutationResult<Settings, Error, Settings, unknown> =
+    useMutation<Settings, Error, Settings>({
+      mutationFn: updateSettings,
+      onSuccess: () => {
+        // Don't invalidate queries here to avoid conflicts with manual updates
+        // queryClient.invalidateQueries({ queryKey: ["settings"] });
+        toast({
+          title: "Settings Saved",
+          description: "Your changes have been saved successfully.",
+          variant: "default",
+        });
+        // Optionally, update editableSettings directly from server response
+        // setEditableSettings(data);
+      },
+      onError: (error: Error) => {
+        toast({
+          title: "Error Saving Settings",
+          description: error.message || "An unexpected error occurred.",
+          variant: "destructive",
+        });
+      },
+    });
 
-  const debouncedUpdateSettings = useDebouncedCallback((settingsToSave: Settings) => {
-    mutation.mutate(settingsToSave);
-  }, 2000);
+  const debouncedUpdateSettings = useDebouncedCallback(
+    (settingsToSave: Settings) => {
+      mutation.mutate(settingsToSave);
+    },
+    2000,
+  );
 
   const handleSave = (
     category: keyof Settings,
     updates: Partial<Settings[typeof category]>,
   ) => {
-    setEditableSettings(prevSettings => {
+    setEditableSettings((prevSettings) => {
       const currentCategoryState = prevSettings[category];
       let newCategoryState;
 
       if (
         typeof currentCategoryState === "object" &&
         currentCategoryState !== null &&
-        typeof updates === 'object' && // Ensure updates is also an object
+        typeof updates === "object" && // Ensure updates is also an object
         updates !== null
       ) {
         newCategoryState = { ...currentCategoryState, ...updates };
@@ -308,10 +340,13 @@ export default function UnifiedSettingsPage() {
   ) => {
     const parsedValue = isNumeric ? parseFloat(String(value)) : value;
 
-    setEditableSettings(prevSettings => {
+    setEditableSettings((prevSettings) => {
       const currentCategoryState = prevSettings[category] || {};
       const newCategoryState = {
-        ...(typeof currentCategoryState === 'object' && currentCategoryState !== null ? currentCategoryState : {}),
+        ...(typeof currentCategoryState === "object" &&
+        currentCategoryState !== null
+          ? currentCategoryState
+          : {}),
         [key]: parsedValue,
       };
       const updatedSettings = {
@@ -325,7 +360,8 @@ export default function UnifiedSettingsPage() {
 
   const handleImmediateUpdate = () => {
     debouncedUpdateSettings.cancel();
-    mutation.mutate(editableSettings, { // Use editableSettings
+    mutation.mutate(editableSettings, {
+      // Use editableSettings
       onSuccess: (updatedData) => {
         queryClient.setQueryData(["settings"], updatedData);
         setEditableSettings(updatedData); // Update editable state
@@ -444,8 +480,8 @@ export default function UnifiedSettingsPage() {
         <Alert variant="destructive">
           <AlertDescription>
             Error loading settings:{" "}
-            {settingsError.message || "An unknown error occurred"}. Please try again
-            later or contact support.
+            {settingsError.message || "An unknown error occurred"}. Please try
+            again later or contact support.
           </AlertDescription>
         </Alert>
       );
@@ -480,12 +516,15 @@ export default function UnifiedSettingsPage() {
       case "scheduling_engine":
         return (
           <SchedulingEngineSection
-            settings={editableSettings.scheduling || DEFAULT_SETTINGS.scheduling}
+            settings={
+              editableSettings.scheduling || DEFAULT_SETTINGS.scheduling
+            }
             onInputChange={(key, value, isNumeric) =>
               handleSettingChange("scheduling", key, value, isNumeric)
             }
             onDiagnosticsChange={(checked) => {
-              const scheduling = editableSettings.scheduling || DEFAULT_SETTINGS.scheduling;
+              const scheduling =
+                editableSettings.scheduling || DEFAULT_SETTINGS.scheduling;
               const updatedSchedSettings = {
                 ...scheduling,
                 enable_diagnostics: checked,
@@ -493,13 +532,21 @@ export default function UnifiedSettingsPage() {
               handleSave("scheduling", updatedSchedSettings);
             }}
             onGenerationSettingsUpdate={(genUpdates) => {
-              const scheduling = editableSettings.scheduling || DEFAULT_SETTINGS.scheduling;
-              const currentGenReqsFull: NonNullable<typeof DEFAULT_SETTINGS.scheduling>["generation_requirements"] =
-                (scheduling.generation_requirements || DEFAULT_SETTINGS.scheduling.generation_requirements)!;
-              const updatedGenReqs: NonNullable<typeof DEFAULT_SETTINGS.scheduling>["generation_requirements"] = {
+              const scheduling =
+                editableSettings.scheduling || DEFAULT_SETTINGS.scheduling;
+              const currentGenReqsFull: NonNullable<
+                typeof DEFAULT_SETTINGS.scheduling
+              >["generation_requirements"] =
+                (scheduling.generation_requirements ||
+                  DEFAULT_SETTINGS.scheduling.generation_requirements)!;
+              const updatedGenReqs: NonNullable<
+                typeof DEFAULT_SETTINGS.scheduling
+              >["generation_requirements"] = {
                 ...currentGenReqsFull,
                 ...genUpdates,
-              } as NonNullable<typeof DEFAULT_SETTINGS.scheduling>["generation_requirements"];
+              } as NonNullable<
+                typeof DEFAULT_SETTINGS.scheduling
+              >["generation_requirements"];
               handleSave("scheduling", {
                 ...scheduling,
                 generation_requirements: updatedGenReqs,
@@ -530,10 +577,12 @@ export default function UnifiedSettingsPage() {
       case "week_navigation":
         return (
           <WeekNavigationSection
-            settings={editableSettings.week_navigation || {
-              week_weekend_start: "MONDAY",
-              week_month_boundary_mode: "keep_intact",
-            }}
+            settings={
+              editableSettings.week_navigation || {
+                week_weekend_start: "MONDAY",
+                week_month_boundary_mode: "keep_intact",
+              }
+            }
             onChange={handleWeekNavigationChange}
             onImmediateUpdate={handleImmediateUpdate}
           />
@@ -556,9 +605,7 @@ export default function UnifiedSettingsPage() {
           />
         );
       case "data_management":
-        return (
-          <DataManagementSection />
-        );
+        return <DataManagementSection />;
       case "holiday_management":
         return <HolidayManagement />;
 

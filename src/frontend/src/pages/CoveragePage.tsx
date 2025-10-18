@@ -1,4 +1,7 @@
-import { AISearchInput, type SearchSuggestion } from "@/components/ai/AISearchInput";
+import {
+  AISearchInput,
+  type SearchSuggestion,
+} from "@/components/ai/AISearchInput";
 import { CoverageEditor } from "@/components/coverage-editor";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -182,13 +185,13 @@ export default function CoveragePage() {
 
   // AI Search handlers
   const handleAISearch = (query: string, suggestions?: SearchSuggestion[]) => {
-    console.log('AI Search query:', query, 'Suggestions:', suggestions);
+    console.log("AI Search query:", query, "Suggestions:", suggestions);
     // TODO: Implement AI-powered search logic for coverage
     // This could search across coverage data, identify gaps, etc.
   };
 
   const handleAISuggestionSelect = (suggestion: SearchSuggestion) => {
-    console.log('AI Suggestion selected:', suggestion);
+    console.log("AI Suggestion selected:", suggestion);
     // TODO: Handle suggestion selection (e.g., filter coverage data, navigate to specific time slots, etc.)
   };
 

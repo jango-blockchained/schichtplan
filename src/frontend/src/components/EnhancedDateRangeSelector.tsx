@@ -28,7 +28,7 @@ import {
   format,
   getWeek,
   getYear,
-  startOfWeek
+  startOfWeek,
 } from "date-fns";
 import {
   AlertTriangle,
@@ -64,7 +64,11 @@ export function EnhancedDateRangeSelector({
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
 
   // Fetch settings early (must be before any conditional return for hooks rules)
-  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: getSettings, staleTime: 300_000 });
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+    staleTime: 300_000,
+  });
   const weekStartsOn = getWeekStartsOn(settings);
 
   // State for the date range selected within the dialog
@@ -175,7 +179,9 @@ export function EnhancedDateRangeSelector({
             </CardTitle>
             {currentVersion && (
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-muted-foreground">Aktuelle Version:</span>
+                <span className="text-sm font-medium text-muted-foreground">
+                  Aktuelle Version:
+                </span>
                 <div className="px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-medium border border-primary/20">
                   V{currentVersion}
                 </div>
@@ -196,7 +202,9 @@ export function EnhancedDateRangeSelector({
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <div className="flex flex-col items-center min-w-[220px] px-6 py-3 bg-primary/15 rounded-lg border border-primary/30">
-                <span className="font-medium text-lg text-primary">{formatWeekLabel()}</span>
+                <span className="font-medium text-lg text-primary">
+                  {formatWeekLabel()}
+                </span>
                 <span className="text-sm font-medium text-primary/90">
                   {formatDateRangeLabel()}
                 </span>

@@ -5,7 +5,7 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle
+  CardTitle,
 } from "@/components/ui/card";
 import {
   Dialog,
@@ -34,12 +34,7 @@ import {
 } from "@/components/ui/table";
 import { TimePicker } from "@/components/ui/time-picker";
 import { format, isValid, parse } from "date-fns";
-import {
-  CalendarPlus,
-  Edit,
-  Import,
-  Trash
-} from "lucide-react";
+import { CalendarPlus, Edit, Import, Trash } from "lucide-react";
 import React, { useState } from "react";
 
 // Define the SpecialDay type
@@ -54,7 +49,7 @@ export interface SpecialDay {
 }
 
 export interface SpecialDaysMap {
-  [date: string]: SpecialDay | Omit<SpecialDay, 'date'>;
+  [date: string]: SpecialDay | Omit<SpecialDay, "date">;
 }
 
 interface SpecialDaysManagementProps {
@@ -155,7 +150,7 @@ export const SpecialDaysManagement: React.FC<SpecialDaysManagementProps> = ({
     const dateString = format(selectedDate, "yyyy-MM-dd");
 
     // Create special day object
-    const specialDay: Omit<SpecialDay, 'date'> = {
+    const specialDay: Omit<SpecialDay, "date"> = {
       description,
       is_closed: isClosed,
     };

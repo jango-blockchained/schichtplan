@@ -53,7 +53,8 @@ export default function AbsenceModal({
   allowEmployeeSelection = false,
 }: AbsenceModalProps) {
   const [absences, setAbsences] = useState<Absence[]>([]);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number>(employeeId);
+  const [selectedEmployeeId, setSelectedEmployeeId] =
+    useState<number>(employeeId);
   const [newAbsence, setNewAbsence] = useState<Omit<Absence, "id">>({
     employee_id: employeeId,
     absence_type_id: "",
@@ -88,7 +89,7 @@ export default function AbsenceModal({
   }, [isOpen, selectedEmployeeId, loadAbsences]);
 
   useEffect(() => {
-    setNewAbsence(prev => ({
+    setNewAbsence((prev) => ({
       ...prev,
       employee_id: selectedEmployeeId,
     }));
@@ -158,14 +159,19 @@ export default function AbsenceModal({
                 <Label>Employee</Label>
                 <Select
                   value={selectedEmployeeId.toString()}
-                  onValueChange={(value) => setSelectedEmployeeId(parseInt(value))}
+                  onValueChange={(value) =>
+                    setSelectedEmployeeId(parseInt(value))
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select employee" />
                   </SelectTrigger>
                   <SelectContent>
                     {employees.map((employee) => (
-                      <SelectItem key={employee.id} value={employee.id.toString()}>
+                      <SelectItem
+                        key={employee.id}
+                        value={employee.id.toString()}
+                      >
                         {employee.first_name} {employee.last_name}
                       </SelectItem>
                     ))}
@@ -177,7 +183,8 @@ export default function AbsenceModal({
               <Label>Absence Type</Label>
               {absenceTypes.length === 0 ? (
                 <div className="text-sm text-muted-foreground p-2 border rounded">
-                  No absence types configured. Please configure absence types in settings first.
+                  No absence types configured. Please configure absence types in
+                  settings first.
                 </div>
               ) : (
                 <Select

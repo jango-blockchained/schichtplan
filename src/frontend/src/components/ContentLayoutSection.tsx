@@ -1,11 +1,17 @@
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
-import { SimplifiedPDFConfig } from '@/types/SimplifiedPDFConfig';
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { SimplifiedPDFConfig } from "@/types/SimplifiedPDFConfig";
 
 interface ContentLayoutSectionProps {
   config: SimplifiedPDFConfig;
@@ -13,8 +19,15 @@ interface ContentLayoutSectionProps {
   className?: string;
 }
 
-export function ContentLayoutSection({ config, onConfigChange, className = '' }: ContentLayoutSectionProps) {
-  const handleContentToggle = (field: keyof typeof config.contentLayout, value: boolean) => {
+export function ContentLayoutSection({
+  config,
+  onConfigChange,
+  className = "",
+}: ContentLayoutSectionProps) {
+  const handleContentToggle = (
+    field: keyof typeof config.contentLayout,
+    value: boolean,
+  ) => {
     onConfigChange({
       contentLayout: {
         ...config.contentLayout,
@@ -23,7 +36,10 @@ export function ContentLayoutSection({ config, onConfigChange, className = '' }:
     });
   };
 
-  const handleHeaderFooterToggle = (field: keyof typeof config.contentLayout.headerFooter, value: boolean) => {
+  const handleHeaderFooterToggle = (
+    field: keyof typeof config.contentLayout.headerFooter,
+    value: boolean,
+  ) => {
     onConfigChange({
       contentLayout: {
         ...config.contentLayout,
@@ -35,7 +51,10 @@ export function ContentLayoutSection({ config, onConfigChange, className = '' }:
     });
   };
 
-  const handleHeaderFooterText = (field: 'headerText' | 'footerText', value: string) => {
+  const handleHeaderFooterText = (
+    field: "headerText" | "footerText",
+    value: string,
+  ) => {
     onConfigChange({
       contentLayout: {
         ...config.contentLayout,
@@ -65,7 +84,8 @@ export function ContentLayoutSection({ config, onConfigChange, className = '' }:
         ...config.contentLayout,
         pageNumbering: {
           ...config.contentLayout.pageNumbering,
-          position: position as typeof config.contentLayout.pageNumbering.position,
+          position:
+            position as typeof config.contentLayout.pageNumbering.position,
         },
       },
     });
@@ -87,7 +107,7 @@ export function ContentLayoutSection({ config, onConfigChange, className = '' }:
     onConfigChange({
       contentLayout: {
         ...config.contentLayout,
-        columnLayout: layout as 'single' | 'multi',
+        columnLayout: layout as "single" | "multi",
       },
     });
   };
@@ -101,7 +121,10 @@ export function ContentLayoutSection({ config, onConfigChange, className = '' }:
         {/* Column Layout */}
         <div className="space-y-2">
           <Label>Column Layout</Label>
-          <Select value={config.contentLayout.columnLayout} onValueChange={handleColumnLayoutChange}>
+          <Select
+            value={config.contentLayout.columnLayout}
+            onValueChange={handleColumnLayoutChange}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -133,12 +156,15 @@ export function ContentLayoutSection({ config, onConfigChange, className = '' }:
           <div className="flex items-center gap-2">
             <Label className="text-sm font-medium">Content Visibility</Label>
             <Badge variant="secondary" className="text-xs">
-              {[
-                config.contentLayout.showEmployeeId,
-                config.contentLayout.showPosition,
-                config.contentLayout.showBreaks,
-                config.contentLayout.showTotalHours,
-              ].filter(Boolean).length} of 4 enabled
+              {
+                [
+                  config.contentLayout.showEmployeeId,
+                  config.contentLayout.showPosition,
+                  config.contentLayout.showBreaks,
+                  config.contentLayout.showTotalHours,
+                ].filter(Boolean).length
+              }{" "}
+              of 4 enabled
             </Badge>
           </div>
 
@@ -150,7 +176,9 @@ export function ContentLayoutSection({ config, onConfigChange, className = '' }:
               <Switch
                 id="show-employee-id"
                 checked={config.contentLayout.showEmployeeId}
-                onCheckedChange={(value) => handleContentToggle('showEmployeeId', value)}
+                onCheckedChange={(value) =>
+                  handleContentToggle("showEmployeeId", value)
+                }
               />
             </div>
 
@@ -161,7 +189,9 @@ export function ContentLayoutSection({ config, onConfigChange, className = '' }:
               <Switch
                 id="show-position"
                 checked={config.contentLayout.showPosition}
-                onCheckedChange={(value) => handleContentToggle('showPosition', value)}
+                onCheckedChange={(value) =>
+                  handleContentToggle("showPosition", value)
+                }
               />
             </div>
 
@@ -172,7 +202,9 @@ export function ContentLayoutSection({ config, onConfigChange, className = '' }:
               <Switch
                 id="show-breaks"
                 checked={config.contentLayout.showBreaks}
-                onCheckedChange={(value) => handleContentToggle('showBreaks', value)}
+                onCheckedChange={(value) =>
+                  handleContentToggle("showBreaks", value)
+                }
               />
             </div>
 
@@ -183,7 +215,9 @@ export function ContentLayoutSection({ config, onConfigChange, className = '' }:
               <Switch
                 id="show-total-hours"
                 checked={config.contentLayout.showTotalHours}
-                onCheckedChange={(value) => handleContentToggle('showTotalHours', value)}
+                onCheckedChange={(value) =>
+                  handleContentToggle("showTotalHours", value)
+                }
               />
             </div>
           </div>
@@ -203,19 +237,26 @@ export function ContentLayoutSection({ config, onConfigChange, className = '' }:
               <Switch
                 id="show-header"
                 checked={config.contentLayout.headerFooter.showHeader}
-                onCheckedChange={(value) => handleHeaderFooterToggle('showHeader', value)}
+                onCheckedChange={(value) =>
+                  handleHeaderFooterToggle("showHeader", value)
+                }
               />
             </div>
 
             {config.contentLayout.headerFooter.showHeader && (
               <div className="pl-4 space-y-2">
-                <Label htmlFor="header-text" className="text-xs text-muted-foreground">
+                <Label
+                  htmlFor="header-text"
+                  className="text-xs text-muted-foreground"
+                >
                   Header Text
                 </Label>
                 <Input
                   id="header-text"
-                  value={config.contentLayout.headerFooter.headerText || ''}
-                  onChange={(e) => handleHeaderFooterText('headerText', e.target.value)}
+                  value={config.contentLayout.headerFooter.headerText || ""}
+                  onChange={(e) =>
+                    handleHeaderFooterText("headerText", e.target.value)
+                  }
                   placeholder="Enter header text..."
                   className="text-sm"
                 />
@@ -229,24 +270,31 @@ export function ContentLayoutSection({ config, onConfigChange, className = '' }:
               <Switch
                 id="show-footer"
                 checked={config.contentLayout.headerFooter.showFooter}
-                onCheckedChange={(value) => handleHeaderFooterToggle('showFooter', value)}
+                onCheckedChange={(value) =>
+                  handleHeaderFooterToggle("showFooter", value)
+                }
               />
             </div>
 
             {config.contentLayout.headerFooter.showFooter && (
               <div className="pl-4 space-y-2">
-                <Label htmlFor="footer-text" className="text-xs text-muted-foreground">
+                <Label
+                  htmlFor="footer-text"
+                  className="text-xs text-muted-foreground"
+                >
                   Footer Text
                 </Label>
                 <Input
                   id="footer-text"
-                  value={config.contentLayout.headerFooter.footerText || ''}
-                  onChange={(e) => handleHeaderFooterText('footerText', e.target.value)}
+                  value={config.contentLayout.headerFooter.footerText || ""}
+                  onChange={(e) =>
+                    handleHeaderFooterText("footerText", e.target.value)
+                  }
                   placeholder="Enter footer text (use {date} for current date)..."
                   className="text-sm"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Use {'{date}'} to insert the current date
+                  Use {"{date}"} to insert the current date
                 </p>
               </div>
             )}
@@ -271,9 +319,11 @@ export function ContentLayoutSection({ config, onConfigChange, className = '' }:
           {config.contentLayout.pageNumbering.enabled && (
             <div className="pl-4 space-y-4">
               <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Position</Label>
-                <Select 
-                  value={config.contentLayout.pageNumbering.position} 
+                <Label className="text-xs text-muted-foreground">
+                  Position
+                </Label>
+                <Select
+                  value={config.contentLayout.pageNumbering.position}
                   onValueChange={handlePageNumberingPosition}
                 >
                   <SelectTrigger className="text-sm">
@@ -292,8 +342,8 @@ export function ContentLayoutSection({ config, onConfigChange, className = '' }:
 
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">Format</Label>
-                <Select 
-                  value={config.contentLayout.pageNumbering.format} 
+                <Select
+                  value={config.contentLayout.pageNumbering.format}
                   onValueChange={handlePageNumberingFormat}
                 >
                   <SelectTrigger className="text-sm">

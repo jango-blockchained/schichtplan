@@ -1,41 +1,53 @@
 import React, { useState } from "react";
-import { 
-  PageLayout, 
-  ContentLayout, 
-  ContentCard, 
-  ContentGrid, 
+import {
+  PageLayout,
+  ContentLayout,
+  ContentCard,
+  ContentGrid,
   SettingsLayout,
   SettingsSection,
   SettingsField,
-  SettingsGroup
+  SettingsGroup,
 } from "@/layouts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
-import { 
+import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertCircle,
@@ -49,7 +61,7 @@ import {
   Layout,
   Component,
   Type,
-  Zap
+  Zap,
 } from "lucide-react";
 
 export function DesignSystemDemo() {
@@ -59,12 +71,14 @@ export function DesignSystemDemo() {
   const breadcrumbs = [
     { href: "/", label: "Home" },
     { href: "/design", label: "Design System" },
-    { label: "Demo", isCurrentPage: true }
+    { label: "Demo", isCurrentPage: true },
   ];
 
   const headerActions = (
     <div className="flex gap-2">
-      <Button variant="outline" size="sm">Export</Button>
+      <Button variant="outline" size="sm">
+        Export
+      </Button>
       <Button size="sm">Save Changes</Button>
     </div>
   );
@@ -90,9 +104,9 @@ export function DesignSystemDemo() {
                 <Textarea id="description" placeholder="Enter description" />
               </SettingsField>
             </SettingsGroup>
-          )
-        }
-      ]
+          ),
+        },
+      ],
     },
     {
       id: "appearance",
@@ -108,7 +122,7 @@ export function DesignSystemDemo() {
               <SettingsField>
                 <div className="flex items-center justify-between">
                   <Label htmlFor="dark-mode">Dark Mode</Label>
-                  <Switch 
+                  <Switch
                     id="dark-mode"
                     checked={switchValue}
                     onCheckedChange={setSwitchValue}
@@ -129,10 +143,10 @@ export function DesignSystemDemo() {
                 </Select>
               </SettingsField>
             </SettingsGroup>
-          )
-        }
-      ]
-    }
+          ),
+        },
+      ],
+    },
   ];
 
   return (
@@ -187,15 +201,21 @@ export function DesignSystemDemo() {
             >
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Base Components</span>
+                  <span className="text-sm text-muted-foreground">
+                    Base Components
+                  </span>
                   <Badge variant="secondary">45+</Badge>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Layout Components</span>
+                  <span className="text-sm text-muted-foreground">
+                    Layout Components
+                  </span>
                   <Badge variant="secondary">8</Badge>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Form Components</span>
+                  <span className="text-sm text-muted-foreground">
+                    Form Components
+                  </span>
                   <Badge variant="secondary">12+</Badge>
                 </div>
               </div>
@@ -208,15 +228,21 @@ export function DesignSystemDemo() {
             >
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Color Variables</span>
+                  <span className="text-sm text-muted-foreground">
+                    Color Variables
+                  </span>
                   <span className="text-sm font-medium">24</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Spacing Scale</span>
+                  <span className="text-sm text-muted-foreground">
+                    Spacing Scale
+                  </span>
                   <span className="text-sm font-medium">8 steps</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Typography Scale</span>
+                  <span className="text-sm text-muted-foreground">
+                    Typography Scale
+                  </span>
                   <span className="text-sm font-medium">10 sizes</span>
                 </div>
               </div>
@@ -227,8 +253,9 @@ export function DesignSystemDemo() {
             <Info className="h-4 w-4" />
             <AlertTitle>Design System Status</AlertTitle>
             <AlertDescription>
-              The unified design system is actively maintained and follows shadcn-ui patterns 
-              with custom enhancements for the Schichtplan application.
+              The unified design system is actively maintained and follows
+              shadcn-ui patterns with custom enhancements for the Schichtplan
+              application.
             </AlertDescription>
           </Alert>
         </TabsContent>
@@ -275,7 +302,9 @@ export function DesignSystemDemo() {
                 <Alert className="border-green-200 bg-green-50 text-green-800">
                   <CheckCircle className="h-4 w-4" />
                   <AlertTitle>Success</AlertTitle>
-                  <AlertDescription>Operation completed successfully</AlertDescription>
+                  <AlertDescription>
+                    Operation completed successfully
+                  </AlertDescription>
                 </Alert>
               </div>
             </ContentCard>
@@ -308,7 +337,8 @@ export function DesignSystemDemo() {
             sections={[
               {
                 title: "Page Layout",
-                description: "Standard page structure with header, breadcrumbs, and content area",
+                description:
+                  "Standard page structure with header, breadcrumbs, and content area",
                 children: (
                   <div className="p-4 border-2 border-dashed border-muted rounded-lg">
                     <div className="space-y-3">
@@ -319,11 +349,12 @@ export function DesignSystemDemo() {
                       </div>
                     </div>
                   </div>
-                )
+                ),
               },
               {
                 title: "Content Layout",
-                description: "Flexible grid and card-based layouts for content organization",
+                description:
+                  "Flexible grid and card-based layouts for content organization",
                 children: (
                   <div className="grid grid-cols-3 gap-3">
                     {[1, 2, 3].map((i) => (
@@ -333,8 +364,8 @@ export function DesignSystemDemo() {
                       </div>
                     ))}
                   </div>
-                )
-              }
+                ),
+              },
             ]}
           />
         </TabsContent>
@@ -348,13 +379,17 @@ export function DesignSystemDemo() {
                   <div className="h-12 bg-primary rounded flex items-center justify-center text-primary-foreground text-sm font-medium">
                     Primary
                   </div>
-                  <code className="text-xs text-muted-foreground">hsl(0 0% 9%)</code>
+                  <code className="text-xs text-muted-foreground">
+                    hsl(0 0% 9%)
+                  </code>
                 </div>
                 <div className="space-y-2">
                   <div className="h-12 bg-secondary rounded flex items-center justify-center text-secondary-foreground text-sm font-medium">
                     Secondary
                   </div>
-                  <code className="text-xs text-muted-foreground">hsl(0 0% 96.1%)</code>
+                  <code className="text-xs text-muted-foreground">
+                    hsl(0 0% 96.1%)
+                  </code>
                 </div>
               </div>
             </ContentCard>
@@ -365,7 +400,9 @@ export function DesignSystemDemo() {
                   <div className="h-12 bg-destructive rounded flex items-center justify-center text-destructive-foreground text-sm font-medium">
                     Destructive
                   </div>
-                  <code className="text-xs text-muted-foreground">hsl(0 84.2% 60.2%)</code>
+                  <code className="text-xs text-muted-foreground">
+                    hsl(0 84.2% 60.2%)
+                  </code>
                 </div>
               </div>
             </ContentCard>
@@ -406,28 +443,48 @@ export function DesignSystemDemo() {
           <ContentCard title="Typography Scale">
             <div className="space-y-6">
               <div>
-                <h1 className="text-3xl font-semibold tracking-tight">Heading 1 - Page Titles</h1>
-                <code className="text-xs text-muted-foreground">text-3xl font-semibold tracking-tight</code>
+                <h1 className="text-3xl font-semibold tracking-tight">
+                  Heading 1 - Page Titles
+                </h1>
+                <code className="text-xs text-muted-foreground">
+                  text-3xl font-semibold tracking-tight
+                </code>
               </div>
               <div>
-                <h2 className="text-2xl font-semibold tracking-tight">Heading 2 - Section Headers</h2>
-                <code className="text-xs text-muted-foreground">text-2xl font-semibold tracking-tight</code>
+                <h2 className="text-2xl font-semibold tracking-tight">
+                  Heading 2 - Section Headers
+                </h2>
+                <code className="text-xs text-muted-foreground">
+                  text-2xl font-semibold tracking-tight
+                </code>
               </div>
               <div>
-                <h3 className="text-xl font-medium">Heading 3 - Subsection Headers</h3>
-                <code className="text-xs text-muted-foreground">text-xl font-medium</code>
+                <h3 className="text-xl font-medium">
+                  Heading 3 - Subsection Headers
+                </h3>
+                <code className="text-xs text-muted-foreground">
+                  text-xl font-medium
+                </code>
               </div>
               <div>
                 <h4 className="text-lg font-medium">Heading 4 - Card Titles</h4>
-                <code className="text-xs text-muted-foreground">text-lg font-medium</code>
+                <code className="text-xs text-muted-foreground">
+                  text-lg font-medium
+                </code>
               </div>
               <div>
-                <p className="text-base">Body text - Primary content and form inputs</p>
+                <p className="text-base">
+                  Body text - Primary content and form inputs
+                </p>
                 <code className="text-xs text-muted-foreground">text-base</code>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Small text - Secondary information and metadata</p>
-                <code className="text-xs text-muted-foreground">text-sm text-muted-foreground</code>
+                <p className="text-sm text-muted-foreground">
+                  Small text - Secondary information and metadata
+                </p>
+                <code className="text-xs text-muted-foreground">
+                  text-sm text-muted-foreground
+                </code>
               </div>
             </div>
           </ContentCard>
@@ -440,11 +497,13 @@ export function DesignSystemDemo() {
             description="Example of the unified settings layout pattern"
             tabs={settingsTabs}
             headerActions={
-              <Button variant="outline" size="sm">Reset to Defaults</Button>
+              <Button variant="outline" size="sm">
+                Reset to Defaults
+              </Button>
             }
           />
         </TabsContent>
       </Tabs>
     </PageLayout>
   );
-} 
+}

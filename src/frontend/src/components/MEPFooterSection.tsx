@@ -1,11 +1,14 @@
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
-import { MEPAbsenceType, SimplifiedPDFConfig } from '@/types/SimplifiedPDFConfig';
-import { PlusCircle, X } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import {
+  MEPAbsenceType,
+  SimplifiedPDFConfig,
+} from "@/types/SimplifiedPDFConfig";
+import { PlusCircle, X } from "lucide-react";
 
 interface MEPFooterSectionProps {
   config: SimplifiedPDFConfig;
@@ -13,9 +16,16 @@ interface MEPFooterSectionProps {
   className?: string;
 }
 
-function MEPFooterSectionComponent({ config, onChange, className = '' }: MEPFooterSectionProps) {
+function MEPFooterSectionComponent({
+  config,
+  onChange,
+  className = "",
+}: MEPFooterSectionProps) {
   // Handler for break rules
-  const handleBreakRulesChange = (field: 'enabled' | 'text', value: boolean | string) => {
+  const handleBreakRulesChange = (
+    field: "enabled" | "text",
+    value: boolean | string,
+  ) => {
     onChange({
       footer: {
         ...config.footer,
@@ -28,7 +38,10 @@ function MEPFooterSectionComponent({ config, onChange, className = '' }: MEPFoot
   };
 
   // Handler for absence types
-  const handleAbsenceTypesChange = (field: 'enabled' | 'title', value: boolean | string) => {
+  const handleAbsenceTypesChange = (
+    field: "enabled" | "title",
+    value: boolean | string,
+  ) => {
     onChange({
       footer: {
         ...config.footer,
@@ -41,7 +54,11 @@ function MEPFooterSectionComponent({ config, onChange, className = '' }: MEPFoot
   };
 
   // Handler for individual absence type
-  const handleAbsenceTypeChange = (index: number, field: keyof MEPAbsenceType, value: string) => {
+  const handleAbsenceTypeChange = (
+    index: number,
+    field: keyof MEPAbsenceType,
+    value: string,
+  ) => {
     const newTypes = [...config.footer.absence_types.types];
     newTypes[index] = {
       ...newTypes[index],
@@ -68,7 +85,7 @@ function MEPFooterSectionComponent({ config, onChange, className = '' }: MEPFoot
           ...config.footer.absence_types,
           types: [
             ...config.footer.absence_types.types,
-            { code: '', label: '' },
+            { code: "", label: "" },
           ],
         },
       },
@@ -77,7 +94,9 @@ function MEPFooterSectionComponent({ config, onChange, className = '' }: MEPFoot
 
   // Remove absence type
   const removeAbsenceType = (index: number) => {
-    const newTypes = config.footer.absence_types.types.filter((_, i) => i !== index);
+    const newTypes = config.footer.absence_types.types.filter(
+      (_, i) => i !== index,
+    );
     onChange({
       footer: {
         ...config.footer,
@@ -90,7 +109,10 @@ function MEPFooterSectionComponent({ config, onChange, className = '' }: MEPFoot
   };
 
   // Handler for instructions
-  const handleInstructionsChange = (field: 'enabled' | 'text', value: boolean | string) => {
+  const handleInstructionsChange = (
+    field: "enabled" | "text",
+    value: boolean | string,
+  ) => {
     onChange({
       footer: {
         ...config.footer,
@@ -103,7 +125,10 @@ function MEPFooterSectionComponent({ config, onChange, className = '' }: MEPFoot
   };
 
   // Handler for date stamp
-  const handleDateStampChange = (field: 'enabled' | 'text', value: boolean | string) => {
+  const handleDateStampChange = (
+    field: "enabled" | "text",
+    value: boolean | string,
+  ) => {
     onChange({
       footer: {
         ...config.footer,
@@ -127,13 +152,15 @@ function MEPFooterSectionComponent({ config, onChange, className = '' }: MEPFoot
             <Label>Pausenregelung</Label>
             <Switch
               checked={config.footer.break_rules.enabled}
-              onCheckedChange={(checked) => handleBreakRulesChange('enabled', checked)}
+              onCheckedChange={(checked) =>
+                handleBreakRulesChange("enabled", checked)
+              }
             />
           </div>
           {config.footer.break_rules.enabled && (
             <Input
               value={config.footer.break_rules.text}
-              onChange={(e) => handleBreakRulesChange('text', e.target.value)}
+              onChange={(e) => handleBreakRulesChange("text", e.target.value)}
               placeholder="Pausenregelung Text"
             />
           )}
@@ -147,28 +174,39 @@ function MEPFooterSectionComponent({ config, onChange, className = '' }: MEPFoot
             <Label>Abwesenheitscodes</Label>
             <Switch
               checked={config.footer.absence_types.enabled}
-              onCheckedChange={(checked) => handleAbsenceTypesChange('enabled', checked)}
+              onCheckedChange={(checked) =>
+                handleAbsenceTypesChange("enabled", checked)
+              }
             />
           </div>
           {config.footer.absence_types.enabled && (
             <div className="space-y-4">
               <Input
                 value={config.footer.absence_types.title}
-                onChange={(e) => handleAbsenceTypesChange('title', e.target.value)}
+                onChange={(e) =>
+                  handleAbsenceTypesChange("title", e.target.value)
+                }
                 placeholder="Abwesenheitscodes Titel"
               />
               <div className="space-y-2">
                 {config.footer.absence_types.types.map((type, index) => (
-                  <div key={index} className="grid grid-cols-[1fr_2fr_auto] gap-2 items-center">
+                  <div
+                    key={index}
+                    className="grid grid-cols-[1fr_2fr_auto] gap-2 items-center"
+                  >
                     <Input
                       value={type.code}
-                      onChange={(e) => handleAbsenceTypeChange(index, 'code', e.target.value)}
+                      onChange={(e) =>
+                        handleAbsenceTypeChange(index, "code", e.target.value)
+                      }
                       placeholder="Code"
                       className="w-20"
                     />
                     <Input
                       value={type.label}
-                      onChange={(e) => handleAbsenceTypeChange(index, 'label', e.target.value)}
+                      onChange={(e) =>
+                        handleAbsenceTypeChange(index, "label", e.target.value)
+                      }
                       placeholder="Bezeichnung"
                     />
                     <Button
@@ -203,13 +241,15 @@ function MEPFooterSectionComponent({ config, onChange, className = '' }: MEPFoot
             <Label>Hinweise</Label>
             <Switch
               checked={config.footer.instructions.enabled}
-              onCheckedChange={(checked) => handleInstructionsChange('enabled', checked)}
+              onCheckedChange={(checked) =>
+                handleInstructionsChange("enabled", checked)
+              }
             />
           </div>
           {config.footer.instructions.enabled && (
             <Input
               value={config.footer.instructions.text}
-              onChange={(e) => handleInstructionsChange('text', e.target.value)}
+              onChange={(e) => handleInstructionsChange("text", e.target.value)}
               placeholder="Hinweistext"
             />
           )}
@@ -223,13 +263,15 @@ function MEPFooterSectionComponent({ config, onChange, className = '' }: MEPFoot
             <Label>Datumsstempel</Label>
             <Switch
               checked={config.footer.date_stamp.enabled}
-              onCheckedChange={(checked) => handleDateStampChange('enabled', checked)}
+              onCheckedChange={(checked) =>
+                handleDateStampChange("enabled", checked)
+              }
             />
           </div>
           {config.footer.date_stamp.enabled && (
             <Input
               value={config.footer.date_stamp.text}
-              onChange={(e) => handleDateStampChange('text', e.target.value)}
+              onChange={(e) => handleDateStampChange("text", e.target.value)}
               placeholder="Datumsstempel Text"
             />
           )}

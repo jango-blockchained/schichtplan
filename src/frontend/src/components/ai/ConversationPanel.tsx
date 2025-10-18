@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { 
-  MessageCircle, 
-  Send, 
-  Bot, 
-  User, 
+import {
+  MessageCircle,
+  Send,
+  Bot,
+  User,
   Loader2,
   RotateCcw,
   Settings,
@@ -53,7 +53,9 @@ export function ConversationPanel({
   // Auto-scroll to latest message
   useEffect(() => {
     if (scrollAreaRef.current) {
-      const scrollElement = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      const scrollElement = scrollAreaRef.current.querySelector(
+        "[data-radix-scroll-area-viewport]",
+      );
       if (scrollElement) {
         scrollElement.scrollTop = scrollElement.scrollHeight;
       }
@@ -61,7 +63,7 @@ export function ConversationPanel({
   }, [messages]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (currentInput.trim() && !isLoading) {
         onSendMessage();
@@ -69,26 +71,26 @@ export function ConversationPanel({
     }
   };
 
-  const getMessageIcon = (type: ConversationMessage['type']) => {
+  const getMessageIcon = (type: ConversationMessage["type"]) => {
     switch (type) {
-      case 'user':
+      case "user":
         return <User className="h-4 w-4" />;
-      case 'ai':
+      case "ai":
         return <Bot className="h-4 w-4" />;
-      case 'system':
+      case "system":
         return <Settings className="h-4 w-4" />;
       default:
         return <MessageCircle className="h-4 w-4" />;
     }
   };
 
-  const getMessageColor = (type: ConversationMessage['type']) => {
+  const getMessageColor = (type: ConversationMessage["type"]) => {
     switch (type) {
-      case 'user':
+      case "user":
         return "bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800";
-      case 'ai':
+      case "ai":
         return "bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800";
-      case 'system':
+      case "system":
         return "bg-amber-50 border-amber-200 dark:bg-amber-950 dark:border-amber-800";
       default:
         return "bg-gray-50 border-gray-200 dark:bg-gray-950 dark:border-gray-800";
@@ -96,23 +98,23 @@ export function ConversationPanel({
   };
 
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('de-DE', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      second: '2-digit'
+    return date.toLocaleTimeString("de-DE", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
     });
   };
 
-  const formatTypeLabel = (type: ConversationMessage['type']) => {
+  const formatTypeLabel = (type: ConversationMessage["type"]) => {
     switch (type) {
-      case 'user':
-        return 'Sie';
-      case 'ai':
-        return 'KI-Assistent';
-      case 'system':
-        return 'System';
+      case "user":
+        return "Sie";
+      case "ai":
+        return "KI-Assistent";
+      case "system":
+        return "System";
       default:
-        return 'Unbekannt';
+        return "Unbekannt";
     }
   };
 
@@ -142,17 +144,17 @@ export function ConversationPanel({
 
       <CardContent className="flex-1 flex flex-col p-0">
         {/* Messages Area */}
-        <ScrollArea 
-          ref={scrollAreaRef}
-          className="flex-1 px-4 pb-4"
-        >
+        <ScrollArea ref={scrollAreaRef} className="flex-1 px-4 pb-4">
           <div className="space-y-4">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
                 <MessageCircle className="h-12 w-12 mb-2 opacity-50" />
-                <p className="text-sm">Starten Sie eine Unterhaltung mit dem KI-Assistenten</p>
+                <p className="text-sm">
+                  Starten Sie eine Unterhaltung mit dem KI-Assistenten
+                </p>
                 <p className="text-xs mt-1">
-                  Stellen Sie Fragen zur Schichtplanung oder bitten Sie um Optimierungen
+                  Stellen Sie Fragen zur Schichtplanung oder bitten Sie um
+                  Optimierungen
                 </p>
               </div>
             ) : (
@@ -161,7 +163,7 @@ export function ConversationPanel({
                   key={message.id}
                   className={cn(
                     "p-3 rounded-lg border",
-                    getMessageColor(message.type)
+                    getMessageColor(message.type),
                   )}
                 >
                   <div className="flex items-start gap-3">
@@ -188,7 +190,12 @@ export function ConversationPanel({
                       )}
                       {message.metadata?.generationResult && (
                         <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-300">
-                          <strong>Ergebnis:</strong> {JSON.stringify(message.metadata.generationResult, null, 2)}
+                          <strong>Ergebnis:</strong>{" "}
+                          {JSON.stringify(
+                            message.metadata.generationResult,
+                            null,
+                            2,
+                          )}
                         </div>
                       )}
                     </div>
@@ -237,8 +244,12 @@ export function ConversationPanel({
             </Button>
           </div>
           <div className="mt-2 text-xs text-muted-foreground">
-            <kbd className="px-1 py-0.5 bg-muted rounded text-xs">Enter</kbd> zum Senden, 
-            <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">Shift+Enter</kbd> für neue Zeile
+            <kbd className="px-1 py-0.5 bg-muted rounded text-xs">Enter</kbd>{" "}
+            zum Senden,
+            <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">
+              Shift+Enter
+            </kbd>{" "}
+            für neue Zeile
           </div>
         </div>
       </CardContent>

@@ -211,7 +211,7 @@ export interface Settings {
     auto_schedule_preferences: boolean | null;
     enable_diagnostics?: boolean | null;
     total_weekly_working_hours?: number | null;
-  generation_requirements: {
+    generation_requirements: {
       enforce_minimum_coverage: boolean;
       enforce_contracted_hours: boolean;
       enforce_keyholder_coverage: boolean;
@@ -227,14 +227,14 @@ export interface Settings {
       enforce_qualifications: boolean;
       enforce_opening_hours: boolean;
     } | null;
-  // Optional aliases for min/max employees per shift used in Coverage UI
-  min_employees_per_shift?: number | null;
-  max_employees_per_shift?: number | null;
+    // Optional aliases for min/max employees per shift used in Coverage UI
+    min_employees_per_shift?: number | null;
+    max_employees_per_shift?: number | null;
     scheduling_algorithm?: "standard" | "optimized" | null;
     max_generation_attempts?: number | null;
   };
   display: {
-    theme: 'light' | 'dark' | 'system' | null;
+    theme: "light" | "dark" | "system" | null;
     primary_color: string | null;
     secondary_color: string | null;
     accent_color: string | null;
@@ -331,10 +331,9 @@ export interface Settings {
     api_key?: string | null;
   } | null;
   week_navigation?: {
-    week_weekend_start?: 'MONDAY' | 'SUNDAY' | null;
-    week_month_boundary_mode?: 'keep_intact' | 'split_by_month' | null;
+    week_weekend_start?: "MONDAY" | "SUNDAY" | null;
+    week_month_boundary_mode?: "keep_intact" | "split_by_month" | null;
   } | null;
-
 }
 
 export interface CoverageTimeSlot {

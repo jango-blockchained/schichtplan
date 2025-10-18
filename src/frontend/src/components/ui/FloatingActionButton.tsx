@@ -1,10 +1,10 @@
 import { Button } from "@/components/ui/button";
 import {
-    ArrowDown,
-    ArrowUp,
-    LayoutPanelLeft,
-    SunMoon,
-    Zap,
+  ArrowDown,
+  ArrowUp,
+  LayoutPanelLeft,
+  SunMoon,
+  Zap,
 } from "lucide-react"; // Added more icons
 import React from "react";
 

@@ -1,37 +1,41 @@
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
-    ResizableHandle,
-    ResizablePanel,
-    ResizablePanelGroup
-} from '@/components/ui/resizable';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { useToast } from '@/components/ui/use-toast';
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
-    AlertCircle,
-    ChevronDown,
-    ChevronRight,
-    Redo2,
-    RotateCcw,
-    Save,
-    Undo2
-} from 'lucide-react';
-import { useState } from 'react';
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  AlertCircle,
+  ChevronDown,
+  ChevronRight,
+  Redo2,
+  RotateCcw,
+  Save,
+  Undo2,
+} from "lucide-react";
+import { useState } from "react";
 
 // Import our custom components
-import { LivePDFPreview } from './LivePDFPreview';
-import { MEPFooterSection } from './MEPFooterSection';
-import { MEPHeaderSection } from './MEPHeaderSection';
-import { MEPStylingSection } from './MEPStylingSection';
-import { MEPTableStructureSection } from './MEPTableStructureSection';
-import { QuickPresets } from './QuickPresets';
+import { LivePDFPreview } from "./LivePDFPreview";
+import { MEPFooterSection } from "./MEPFooterSection";
+import { MEPHeaderSection } from "./MEPHeaderSection";
+import { MEPStylingSection } from "./MEPStylingSection";
+import { MEPTableStructureSection } from "./MEPTableStructureSection";
+import { QuickPresets } from "./QuickPresets";
 
 // Import hooks and types
-import { usePDFLayoutState } from '@/hooks/usePDFLayoutState';
-import { SimplifiedPDFConfig } from '@/types/SimplifiedPDFConfig';
+import { usePDFLayoutState } from "@/hooks/usePDFLayoutState";
+import { SimplifiedPDFConfig } from "@/types/SimplifiedPDFConfig";
 
 interface MEPLayoutCustomizerProps {
   initialConfig?: Partial<SimplifiedPDFConfig>;
@@ -39,10 +43,10 @@ interface MEPLayoutCustomizerProps {
   className?: string;
 }
 
-export function MEPLayoutCustomizer({ 
-  initialConfig, 
-  onSave, 
-  className = '' 
+export function MEPLayoutCustomizer({
+  initialConfig,
+  onSave,
+  className = "",
 }: MEPLayoutCustomizerProps) {
   const { toast } = useToast();
   const [selectedElement, setSelectedElement] = useState<string | undefined>();
@@ -74,7 +78,7 @@ export function MEPLayoutCustomizer({
       // Optional: Add any real-time validation or side effects
       const errors = validateConfig(newConfig);
       if (errors.length > 0) {
-        console.warn('Configuration validation warnings:', errors);
+        console.warn("Configuration validation warnings:", errors);
       }
     },
   });
@@ -83,9 +87,9 @@ export function MEPLayoutCustomizer({
     const errors = validateConfig(config);
     if (errors.length > 0) {
       toast({
-        variant: 'destructive',
-        title: 'Konfigurationsfehler',
-        description: errors.join(', '),
+        variant: "destructive",
+        title: "Konfigurationsfehler",
+        description: errors.join(", "),
       });
       return;
     }
@@ -93,14 +97,14 @@ export function MEPLayoutCustomizer({
     const success = await save();
     if (success) {
       toast({
-        title: 'Gespeichert',
-        description: 'MEP Layout wurde erfolgreich gespeichert.',
+        title: "Gespeichert",
+        description: "MEP Layout wurde erfolgreich gespeichert.",
       });
     } else {
       toast({
-        variant: 'destructive',
-        title: 'Fehler',
-        description: 'Beim Speichern ist ein Fehler aufgetreten.',
+        variant: "destructive",
+        title: "Fehler",
+        description: "Beim Speichern ist ein Fehler aufgetreten.",
       });
     }
   };
@@ -108,8 +112,8 @@ export function MEPLayoutCustomizer({
   const handleReset = () => {
     reset();
     toast({
-      title: 'Zurückgesetzt',
-      description: 'MEP Layout wurde auf Standardwerte zurückgesetzt.',
+      title: "Zurückgesetzt",
+      description: "MEP Layout wurde auf Standardwerte zurückgesetzt.",
     });
   };
 
@@ -117,14 +121,17 @@ export function MEPLayoutCustomizer({
     const success = applyPreset(presetId);
     if (success) {
       toast({
-        title: 'Vorlage angewendet',
+        title: "Vorlage angewendet",
         description: `MEP Layout wurde auf "${presetId}" geändert.`,
       });
     }
   };
 
-  const toggleSection = (section: keyof typeof expandedSections, isOpen?: boolean) => {
-    setExpandedSections(prev => ({
+  const toggleSection = (
+    section: keyof typeof expandedSections,
+    isOpen?: boolean,
+  ) => {
+    setExpandedSections((prev) => ({
       ...prev,
       [section]: isOpen !== undefined ? isOpen : !prev[section],
     }));
@@ -138,8 +145,8 @@ export function MEPLayoutCustomizer({
       <div className="flex items-center justify-between p-4 border-b bg-background">
         <div className="flex items-center gap-4">
           <h1 className="text-lg font-semibold">MEP Layout Anpassen</h1>
-          <Badge variant={isDirty ? 'default' : 'secondary'}>
-            {isDirty ? 'Nicht gespeichert' : 'Gespeichert'}
+          <Badge variant={isDirty ? "default" : "secondary"}>
+            {isDirty ? "Nicht gespeichert" : "Gespeichert"}
           </Badge>
           {lastSaved && (
             <span className="text-sm text-muted-foreground">
@@ -158,7 +165,7 @@ export function MEPLayoutCustomizer({
           >
             <Undo2 className="h-4 w-4" />
           </Button>
-          
+
           <Button
             variant="outline"
             size="sm"
@@ -168,7 +175,7 @@ export function MEPLayoutCustomizer({
           >
             <Redo2 className="h-4 w-4" />
           </Button>
-          
+
           <Button
             variant="outline"
             size="sm"
@@ -177,14 +184,10 @@ export function MEPLayoutCustomizer({
           >
             <RotateCcw className="h-4 w-4" />
           </Button>
-          
+
           <Separator orientation="vertical" className="h-6" />
-          
-          <Button
-            onClick={handleSave}
-            disabled={!isDirty}
-            size="sm"
-          >
+
+          <Button onClick={handleSave} disabled={!isDirty} size="sm">
             <Save className="h-4 w-4 mr-2" />
             Speichern
           </Button>
@@ -196,7 +199,8 @@ export function MEPLayoutCustomizer({
         <Alert className="mx-4 mt-4">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            <strong>Konfigurationswarnungen:</strong> {validationErrors.join(', ')}
+            <strong>Konfigurationswarnungen:</strong>{" "}
+            {validationErrors.join(", ")}
           </AlertDescription>
         </Alert>
       )}
@@ -210,16 +214,19 @@ export function MEPLayoutCustomizer({
               <div className="p-4 border-b">
                 <h2 className="font-medium">Einstellungen</h2>
               </div>
-              
+
               <ScrollArea className="flex-1">
                 <div className="p-4 space-y-4">
                   {/* Quick Presets */}
-                  <Collapsible 
-                    open={expandedSections.presets} 
-                    onOpenChange={(open) => toggleSection('presets', open)}
+                  <Collapsible
+                    open={expandedSections.presets}
+                    onOpenChange={(open) => toggleSection("presets", open)}
                   >
                     <CollapsibleTrigger asChild>
-                      <Button variant="ghost" className="w-full justify-between p-0 h-auto">
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-between p-0 h-auto"
+                      >
                         <span className="font-medium">Schnellvorlagen</span>
                         {expandedSections.presets ? (
                           <ChevronDown className="h-4 w-4" />
@@ -237,12 +244,15 @@ export function MEPLayoutCustomizer({
                   </Collapsible>
 
                   {/* MEP Header */}
-                  <Collapsible 
-                    open={expandedSections.header} 
-                    onOpenChange={(open) => toggleSection('header', open)}
+                  <Collapsible
+                    open={expandedSections.header}
+                    onOpenChange={(open) => toggleSection("header", open)}
                   >
                     <CollapsibleTrigger asChild>
-                      <Button variant="ghost" className="w-full justify-between p-0 h-auto">
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-between p-0 h-auto"
+                      >
                         <span className="font-medium">Kopfbereich</span>
                         {expandedSections.header ? (
                           <ChevronDown className="h-4 w-4" />
@@ -260,12 +270,15 @@ export function MEPLayoutCustomizer({
                   </Collapsible>
 
                   {/* Table Structure */}
-                  <Collapsible 
-                    open={expandedSections.table} 
-                    onOpenChange={(open) => toggleSection('table', open)}
+                  <Collapsible
+                    open={expandedSections.table}
+                    onOpenChange={(open) => toggleSection("table", open)}
                   >
                     <CollapsibleTrigger asChild>
-                      <Button variant="ghost" className="w-full justify-between p-0 h-auto">
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-between p-0 h-auto"
+                      >
                         <span className="font-medium">Tabellenstruktur</span>
                         {expandedSections.table ? (
                           <ChevronDown className="h-4 w-4" />
@@ -283,12 +296,15 @@ export function MEPLayoutCustomizer({
                   </Collapsible>
 
                   {/* MEP Footer */}
-                  <Collapsible 
-                    open={expandedSections.footer} 
-                    onOpenChange={(open) => toggleSection('footer', open)}
+                  <Collapsible
+                    open={expandedSections.footer}
+                    onOpenChange={(open) => toggleSection("footer", open)}
                   >
                     <CollapsibleTrigger asChild>
-                      <Button variant="ghost" className="w-full justify-between p-0 h-auto">
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-between p-0 h-auto"
+                      >
                         <span className="font-medium">Fußbereich</span>
                         {expandedSections.footer ? (
                           <ChevronDown className="h-4 w-4" />
@@ -306,12 +322,15 @@ export function MEPLayoutCustomizer({
                   </Collapsible>
 
                   {/* Styling */}
-                  <Collapsible 
-                    open={expandedSections.styling} 
-                    onOpenChange={(open) => toggleSection('styling', open)}
+                  <Collapsible
+                    open={expandedSections.styling}
+                    onOpenChange={(open) => toggleSection("styling", open)}
                   >
                     <CollapsibleTrigger asChild>
-                      <Button variant="ghost" className="w-full justify-between p-0 h-auto">
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-between p-0 h-auto"
+                      >
                         <span className="font-medium">Styling</span>
                         {expandedSections.styling ? (
                           <ChevronDown className="h-4 w-4" />
@@ -340,7 +359,7 @@ export function MEPLayoutCustomizer({
               <div className="p-4 border-b">
                 <h2 className="font-medium">Live-Vorschau</h2>
               </div>
-              
+
               <div className="flex-1">
                 <LivePDFPreview
                   config={config}

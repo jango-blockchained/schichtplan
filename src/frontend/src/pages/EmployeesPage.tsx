@@ -23,10 +23,7 @@ import {
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useToast } from "@/components/ui/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Plus,
-  Upload
-} from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 import { useState } from "react";
 import { useEmployeeGroups } from "../hooks/useEmployeeGroups";
 import {
@@ -172,7 +169,11 @@ export const EmployeesPage = () => {
   };
 
   const handleDelete = (employee: Employee) => {
-    if (window.confirm(`Delete employee ${employee.first_name} ${employee.last_name}?`)) {
+    if (
+      window.confirm(
+        `Delete employee ${employee.first_name} ${employee.last_name}?`,
+      )
+    ) {
       deleteMutation.mutate(employee.id);
     }
   };
@@ -222,7 +223,11 @@ export const EmployeesPage = () => {
     }
   };
 
-  const handleCSVImportComplete = (result: { success: boolean; imported_count?: number; error?: string }) => {
+  const handleCSVImportComplete = (result: {
+    success: boolean;
+    imported_count?: number;
+    error?: string;
+  }) => {
     toast({
       title: result.success ? "Erfolg" : "Fehler",
       description: result.success
@@ -255,7 +260,8 @@ export const EmployeesPage = () => {
   if (!employeeGroups.length) {
     return (
       <div className="rounded-md bg-amber-100 p-4 text-amber-700">
-        Mitarbeitergruppen-Einstellungen konnten nicht geladen werden oder sind leer. Bitte überprüfen Sie die Einstellungen.
+        Mitarbeitergruppen-Einstellungen konnten nicht geladen werden oder sind
+        leer. Bitte überprüfen Sie die Einstellungen.
       </div>
     );
   }
@@ -268,10 +274,7 @@ export const EmployeesPage = () => {
         actions={
           <div className="flex gap-2 items-center">
             <ThemeToggle />
-            <Button
-              variant="outline"
-              onClick={() => setIsCSVImportOpen(true)}
-            >
+            <Button variant="outline" onClick={() => setIsCSVImportOpen(true)}>
               <Upload className="mr-2 h-4 w-4" />
               CSV Import
             </Button>
@@ -472,8 +475,14 @@ export const EmployeesPage = () => {
           onClose={() => setSelectedEmployeeForAbsence(null)}
           absenceTypes={
             settings?.employee_groups?.absence_types?.filter(
-              (type): type is { id: string; name: string; color: string; type: "absence_type" } =>
-                type.type === "absence_type"
+              (
+                type,
+              ): type is {
+                id: string;
+                name: string;
+                color: string;
+                type: "absence_type";
+              } => type.type === "absence_type",
             ) || []
           }
         />

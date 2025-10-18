@@ -34,7 +34,10 @@ export default function VersionsPage() {
     mutationFn: (version: number) =>
       updateVersionStatus(version, { status: "PUBLISHED" }),
     onSuccess: (res) => {
-      toast({ title: "Version veröffentlicht", description: `v${res.version} ist jetzt veröffentlicht.` });
+      toast({
+        title: "Version veröffentlicht",
+        description: `v${res.version} ist jetzt veröffentlicht.`,
+      });
       queryClient.invalidateQueries({ queryKey: ["all-versions"] });
     },
     onError: (e: unknown) =>
@@ -49,7 +52,10 @@ export default function VersionsPage() {
     mutationFn: (version: number) =>
       updateVersionStatus(version, { status: "ARCHIVED" }),
     onSuccess: (res) => {
-      toast({ title: "Version archiviert", description: `v${res.version} wurde archiviert.` });
+      toast({
+        title: "Version archiviert",
+        description: `v${res.version} wurde archiviert.`,
+      });
       queryClient.invalidateQueries({ queryKey: ["all-versions"] });
     },
     onError: (e: unknown) =>
@@ -63,7 +69,10 @@ export default function VersionsPage() {
   const deleteMutation = useMutation({
     mutationFn: (version: number) => deleteVersion(version),
     onSuccess: (res) => {
-      toast({ title: "Version gelöscht", description: `${res.deleted_schedules_count} Pläne entfernt.` });
+      toast({
+        title: "Version gelöscht",
+        description: `${res.deleted_schedules_count} Pläne entfernt.`,
+      });
       queryClient.invalidateQueries({ queryKey: ["all-versions"] });
     },
     onError: (e: unknown) =>
@@ -83,7 +92,10 @@ export default function VersionsPage() {
         notes: version.notes ?? undefined,
       }),
     onSuccess: (res) => {
-      toast({ title: "Version dupliziert", description: `Neue Version v${res.version} erstellt.` });
+      toast({
+        title: "Version dupliziert",
+        description: `Neue Version v${res.version} erstellt.`,
+      });
       queryClient.invalidateQueries({ queryKey: ["all-versions"] });
     },
     onError: (e: unknown) =>
@@ -118,12 +130,15 @@ export default function VersionsPage() {
           <Card>
             <CardContent className="pt-6">
               {isLoading && (
-                <div className="text-sm text-muted-foreground">Lade Versionen…</div>
+                <div className="text-sm text-muted-foreground">
+                  Lade Versionen…
+                </div>
               )}
 
               {isError && (
                 <div className="text-sm text-red-600">
-                  Fehler beim Laden der Versionen: {error instanceof Error ? error.message : String(error)}
+                  Fehler beim Laden der Versionen:{" "}
+                  {error instanceof Error ? error.message : String(error)}
                 </div>
               )}
 
@@ -131,17 +146,27 @@ export default function VersionsPage() {
                 <VersionTable
                   versions={allVersionsData?.versions ?? []}
                   selectedVersion={undefined}
-                  onSelectVersion={() => { /* no-op on this page */ }}
+                  onSelectVersion={() => {
+                    /* no-op on this page */
+                  }}
                   onPublishVersion={(v) => publishMutation.mutate(v)}
                   onArchiveVersion={(v) => archiveMutation.mutate(v)}
                   onDeleteVersion={(v) => {
-                    if (window.confirm(`Version v${v} wirklich löschen?`)) deleteMutation.mutate(v);
+                    if (window.confirm(`Version v${v} wirklich löschen?`))
+                      deleteMutation.mutate(v);
                   }}
                   onDuplicateVersion={(v) => {
-                    const meta = (allVersionsData?.versions ?? []).find((m) => m.version === v);
+                    const meta = (allVersionsData?.versions ?? []).find(
+                      (m) => m.version === v,
+                    );
                     if (meta) duplicateMutation.mutate(meta);
                   }}
-                  isLoading={publishMutation.isPending || archiveMutation.isPending || deleteMutation.isPending || duplicateMutation.isPending}
+                  isLoading={
+                    publishMutation.isPending ||
+                    archiveMutation.isPending ||
+                    deleteMutation.isPending ||
+                    duplicateMutation.isPending
+                  }
                   showPagination={true}
                   initialPageSize={10}
                   isCollapsible={false}
@@ -156,7 +181,10 @@ export default function VersionsPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex flex-col gap-3">
-                <div>Nutze die Kalenderseite, um Versionen im Kontext der Woche zu sehen.</div>
+                <div>
+                  Nutze die Kalenderseite, um Versionen im Kontext der Woche zu
+                  sehen.
+                </div>
                 <div className="flex gap-2">
                   <Button asChild>
                     <Link to="/calendar">Zur Kalenderansicht wechseln</Link>

@@ -61,18 +61,20 @@ export function useScheduleGeneration({
   const [showGenerationOverlay, setShowGenerationOverlay] = useState(false);
   const [lastSessionId, setLastSessionId] = useState<string | null>(null);
 
-  const addGenerationLog = useCallback((
-    type: "info" | "warning" | "error",
-    message: string,
-    details?: string
-  ) => {
-    setGenerationLogs(prev => [...prev, {
-      type,
-      timestamp: new Date().toISOString(),
-      message,
-      details
-    }]);
-  }, []);
+  const addGenerationLog = useCallback(
+    (type: "info" | "warning" | "error", message: string, details?: string) => {
+      setGenerationLogs((prev) => [
+        ...prev,
+        {
+          type,
+          timestamp: new Date().toISOString(),
+          message,
+          details,
+        },
+      ]);
+    },
+    [],
+  );
 
   const clearGenerationLogs = useCallback(() => {
     setGenerationLogs([]);
@@ -84,17 +86,16 @@ export function useScheduleGeneration({
     setLastSessionId(null);
   }, []);
 
-  const updateGenerationStep = useCallback((
-    stepId: string,
-    status: GenerationStep["status"],
-    message?: string,
-  ) => {
-    setGenerationSteps((steps) =>
-      steps.map((step) =>
-        step.id === stepId ? { ...step, status, message } : step,
-      ),
-    );
-  }, []);
+  const updateGenerationStep = useCallback(
+    (stepId: string, status: GenerationStep["status"], message?: string) => {
+      setGenerationSteps((steps) =>
+        steps.map((step) =>
+          step.id === stepId ? { ...step, status, message } : step,
+        ),
+      );
+    },
+    [],
+  );
 
   // Debounced query invalidation to prevent rapid updates
   const invalidateQueriesDebounced = useCallback(() => {
@@ -133,21 +134,41 @@ export function useScheduleGeneration({
         // Set up phased generation steps
         const steps: GenerationStep[] = [
           { id: "init", title: "Initialisiere Generierung", status: "pending" },
-          { id: "validate", title: "Validiere Eingabedaten", status: "pending" },
+          {
+            id: "validate",
+            title: "Validiere Eingabedaten",
+            status: "pending",
+          },
         ];
 
         // Add conditional phases based on options
         if (generationOptions.usePhase1FixedAssignments) {
-          steps.push({ id: "phase1", title: "Phase 1: Feste Schichtzuweisungen", status: "pending" });
+          steps.push({
+            id: "phase1",
+            title: "Phase 1: Feste Schichtzuweisungen",
+            status: "pending",
+          });
         }
         if (generationOptions.usePhase2PreferredAvailability) {
-          steps.push({ id: "phase2", title: "Phase 2: Bevorzugte Verfügbarkeiten", status: "pending" });
+          steps.push({
+            id: "phase2",
+            title: "Phase 2: Bevorzugte Verfügbarkeiten",
+            status: "pending",
+          });
         }
         if (generationOptions.usePhase3StandardGeneration) {
-          steps.push({ id: "phase3", title: "Phase 3: Standard-Generierung", status: "pending" });
+          steps.push({
+            id: "phase3",
+            title: "Phase 3: Standard-Generierung",
+            status: "pending",
+          });
         }
 
-        steps.push({ id: "finalize", title: "Finalisiere Schichtplan", status: "pending" });
+        steps.push({
+          id: "finalize",
+          title: "Finalisiere Schichtplan",
+          status: "pending",
+        });
 
         setGenerationSteps(steps);
         setShowGenerationOverlay(true);
@@ -157,14 +178,17 @@ export function useScheduleGeneration({
         addGenerationLog(
           "info",
           "Initialisiere mehrstufige Generierung",
-          `Version: ${selectedVersion}, Zeitraum: ${format(dateRange.from, "dd.MM.yyyy")} - ${format(dateRange.to, "dd.MM.yyyy")}`
+          `Version: ${selectedVersion}, Zeitraum: ${format(dateRange.from, "dd.MM.yyyy")} - ${format(dateRange.to, "dd.MM.yyyy")}`,
         );
         await new Promise((resolve) => setTimeout(resolve, 300));
         updateGenerationStep("init", "completed");
 
         // Validate
         updateGenerationStep("validate", "in-progress");
-        addGenerationLog("info", "Validiere Eingabedaten und Generierungsoptionen");
+        addGenerationLog(
+          "info",
+          "Validiere Eingabedaten und Generierungsoptionen",
+        );
         await new Promise((resolve) => setTimeout(resolve, 200));
         updateGenerationStep("validate", "completed");
 
@@ -174,7 +198,10 @@ export function useScheduleGeneration({
         // Phase 1: Fixed Assignments
         if (generationOptions.usePhase1FixedAssignments) {
           updateGenerationStep("phase1", "in-progress");
-          addGenerationLog("info", "Phase 1: Verarbeite feste Schichtzuweisungen");
+          addGenerationLog(
+            "info",
+            "Phase 1: Verarbeite feste Schichtzuweisungen",
+          );
 
           // Call API for fixed assignments phase
           const phase1Result = await generateSchedule(
@@ -186,23 +213,33 @@ export function useScheduleGeneration({
             {
               ...generationOptions,
               phaseMode: "fixed_assignments",
-              keepExistingAssignments: generationOptions.keepExistingAssignments,
-            }
+              keepExistingAssignments:
+                generationOptions.keepExistingAssignments,
+            },
           );
 
           if (phase1Result.session_id) {
             setLastSessionId(phase1Result.session_id);
-            addGenerationLog("info", `Phase 1 Session ID: ${phase1Result.session_id}`);
+            addGenerationLog(
+              "info",
+              `Phase 1 Session ID: ${phase1Result.session_id}`,
+            );
           }
 
-          addGenerationLog("info", `Phase 1 abgeschlossen: ${phase1Result.schedules?.length || 0} feste Zuweisungen verarbeitet`);
+          addGenerationLog(
+            "info",
+            `Phase 1 abgeschlossen: ${phase1Result.schedules?.length || 0} feste Zuweisungen verarbeitet`,
+          );
           updateGenerationStep("phase1", "completed");
         }
 
         // Phase 2: Preferred Availability
         if (generationOptions.usePhase2PreferredAvailability) {
           updateGenerationStep("phase2", "in-progress");
-          addGenerationLog("info", "Phase 2: Verarbeite bevorzugte Verfügbarkeiten");
+          addGenerationLog(
+            "info",
+            "Phase 2: Verarbeite bevorzugte Verfügbarkeiten",
+          );
 
           // Call API for preferred availability phase
           const phase2Result = await generateSchedule(
@@ -215,22 +252,31 @@ export function useScheduleGeneration({
               ...generationOptions,
               phaseMode: "preferred_availability",
               keepExistingAssignments: true, // Always keep existing in phase 2
-            }
+            },
           );
 
           if (phase2Result.session_id) {
             setLastSessionId(phase2Result.session_id);
-            addGenerationLog("info", `Phase 2 Session ID: ${phase2Result.session_id}`);
+            addGenerationLog(
+              "info",
+              `Phase 2 Session ID: ${phase2Result.session_id}`,
+            );
           }
 
-          addGenerationLog("info", `Phase 2 abgeschlossen: ${phase2Result.schedules?.length || 0} bevorzugte Verfügbarkeiten verarbeitet`);
+          addGenerationLog(
+            "info",
+            `Phase 2 abgeschlossen: ${phase2Result.schedules?.length || 0} bevorzugte Verfügbarkeiten verarbeitet`,
+          );
           updateGenerationStep("phase2", "completed");
         }
 
         // Phase 3: Standard Generation
         if (generationOptions.usePhase3StandardGeneration) {
           updateGenerationStep("phase3", "in-progress");
-          addGenerationLog("info", "Phase 3: Standard-Generierung für verbleibende Schichten");
+          addGenerationLog(
+            "info",
+            "Phase 3: Standard-Generierung für verbleibende Schichten",
+          );
 
           // Call API for standard generation phase
           const phase3Result = await generateSchedule(
@@ -243,23 +289,37 @@ export function useScheduleGeneration({
               ...generationOptions,
               phaseMode: "standard_generation",
               keepExistingAssignments: true, // Always keep existing in phase 3
-            }
+            },
           );
 
           if (phase3Result.session_id) {
             setLastSessionId(phase3Result.session_id);
-            addGenerationLog("info", `Phase 3 Session ID: ${phase3Result.session_id}`);
+            addGenerationLog(
+              "info",
+              `Phase 3 Session ID: ${phase3Result.session_id}`,
+            );
           }
 
           // Handle diagnostic logs from the final phase
-          if (enableDiagnostics && phase3Result.diagnostic_logs && phase3Result.diagnostic_logs.length > 0) {
+          if (
+            enableDiagnostics &&
+            phase3Result.diagnostic_logs &&
+            phase3Result.diagnostic_logs.length > 0
+          ) {
             phase3Result.diagnostic_logs.forEach((log) => {
-              const logType = log.includes("ERROR") ? "error" : log.includes("WARNING") ? "warning" : "info";
+              const logType = log.includes("ERROR")
+                ? "error"
+                : log.includes("WARNING")
+                  ? "warning"
+                  : "info";
               addGenerationLog(logType, log);
             });
           }
 
-          addGenerationLog("info", `Phase 3 abgeschlossen: ${phase3Result.schedules?.length || 0} Standard-Zuweisungen generiert`);
+          addGenerationLog(
+            "info",
+            `Phase 3 abgeschlossen: ${phase3Result.schedules?.length || 0} Standard-Zuweisungen generiert`,
+          );
           updateGenerationStep("phase3", "completed");
         }
 
@@ -271,11 +331,18 @@ export function useScheduleGeneration({
         // Note: We'll get the final result from the last phase that was executed
         let finalResult;
         if (generationOptions.usePhase3StandardGeneration) {
-          finalResult = await generateSchedule(fromStr, toStr, createEmptySchedules, selectedVersion, enableDiagnostics, {
-            ...generationOptions,
-            phaseMode: "finalize",
-            keepExistingAssignments: true,
-          });
+          finalResult = await generateSchedule(
+            fromStr,
+            toStr,
+            createEmptySchedules,
+            selectedVersion,
+            enableDiagnostics,
+            {
+              ...generationOptions,
+              phaseMode: "finalize",
+              keepExistingAssignments: true,
+            },
+          );
         } else {
           // If phase 3 wasn't used, create a minimal final result
           finalResult = { schedules: [], errors: [] };
@@ -288,29 +355,45 @@ export function useScheduleGeneration({
         if (hasDisplayIssues) {
           addGenerationLog("info", "Korrigiere Anzeige-Probleme");
           try {
-            const [fixDurationResult, fixDisplayResult] = await Promise.allSettled([
-              fixShiftDurations(),
-              selectedVersion && dateRange.from && dateRange.to
-                ? fixScheduleDisplay(fromStr, toStr, selectedVersion)
-                : Promise.resolve({ days_fixed: [] })
-            ]);
+            const [fixDurationResult, fixDisplayResult] =
+              await Promise.allSettled([
+                fixShiftDurations(),
+                selectedVersion && dateRange.from && dateRange.to
+                  ? fixScheduleDisplay(fromStr, toStr, selectedVersion)
+                  : Promise.resolve({ days_fixed: [] }),
+              ]);
 
             if (fixDurationResult.status === "fulfilled") {
               addGenerationLog("info", "Schichtdauern korrigiert");
             } else {
-              addGenerationLog("warning", "Problem beim Korrigieren der Schichtdauern", String(fixDurationResult.reason));
+              addGenerationLog(
+                "warning",
+                "Problem beim Korrigieren der Schichtdauern",
+                String(fixDurationResult.reason),
+              );
             }
 
             if (fixDisplayResult.status === "fulfilled") {
               const result = fixDisplayResult.value;
               if (result.days_fixed && result.days_fixed.length > 0) {
-                addGenerationLog("info", `Anzeige optimiert: ${result.days_fixed.length} Tage aktualisiert`);
+                addGenerationLog(
+                  "info",
+                  `Anzeige optimiert: ${result.days_fixed.length} Tage aktualisiert`,
+                );
               }
             } else {
-              addGenerationLog("warning", "Problem bei der Anzeige-Optimierung", String(fixDisplayResult.reason));
+              addGenerationLog(
+                "warning",
+                "Problem bei der Anzeige-Optimierung",
+                String(fixDisplayResult.reason),
+              );
             }
           } catch (error) {
-            addGenerationLog("warning", "Problem beim Korrigieren der Anzeige", String(error instanceof Error ? error.message : error));
+            addGenerationLog(
+              "warning",
+              "Problem beim Korrigieren der Anzeige",
+              String(error instanceof Error ? error.message : error),
+            );
           }
         } else {
           addGenerationLog("info", "Keine Anzeige-Probleme gefunden");
@@ -322,11 +405,14 @@ export function useScheduleGeneration({
         return finalResult;
       } catch (error) {
         console.error("Generation error:", error);
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         addGenerationLog("error", "Fehler bei der Generierung", errorMessage);
 
         // Mark current step as error
-        const currentStep = generationSteps.find(step => step.status === "in-progress");
+        const currentStep = generationSteps.find(
+          (step) => step.status === "in-progress",
+        );
         if (currentStep) {
           updateGenerationStep(currentStep.id, "error", errorMessage);
         }
@@ -335,13 +421,17 @@ export function useScheduleGeneration({
       }
     },
     onSuccess: () => {
-      addGenerationLog("info", "Mehrstufige Generierung erfolgreich abgeschlossen");
+      addGenerationLog(
+        "info",
+        "Mehrstufige Generierung erfolgreich abgeschlossen",
+      );
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
       onSuccess?.();
     },
     onError: (error) => {
       console.error("Generation failed:", error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       toast({
         title: "Generierung fehlgeschlagen",
         description: errorMessage,

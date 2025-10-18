@@ -1,9 +1,9 @@
-import type { Settings } from '@/types';
-import { getWeekStartsOn } from '@/utils/weekStart';
+import type { Settings } from "@/types";
+import { getWeekStartsOn } from "@/utils/weekStart";
 import { addDays, endOfWeek, getWeek, startOfWeek } from "date-fns";
 import { DateRange } from "react-day-picker";
 
-type SettingsLike = Pick<Settings, 'week_navigation'> | undefined;
+type SettingsLike = Pick<Settings, "week_navigation"> | undefined;
 
 // Lightweight accessor to cached settings (react-query) if available without direct import cycle
 function getCachedSettings(): SettingsLike | undefined {
@@ -15,7 +15,7 @@ function getCachedSettings(): SettingsLike | undefined {
   // If a global queryClient reference has been attached (optional pattern), try to read
   try {
     if (w.__REACT_QUERY_CLIENT__) {
-      return w.__REACT_QUERY_CLIENT__.getQueryData(['settings']);
+      return w.__REACT_QUERY_CLIENT__.getQueryData(["settings"]);
     }
   } catch {
     /* ignore */
@@ -97,7 +97,10 @@ export function getDateRangeFromWeekAndCount(
   }
 
   if (isNaN(weekCount) || weekCount < 1 || weekCount > 4) {
-    console.error("Invalid week count in getDateRangeFromWeekAndCount:", weekCount);
+    console.error(
+      "Invalid week count in getDateRangeFromWeekAndCount:",
+      weekCount,
+    );
     weekCount = 1;
   }
 
@@ -132,11 +135,17 @@ export function getDateRangeFromWeekAndCount(
 }
 
 export function getCurrentWeek(): number {
-  return getWeek(new Date(), { weekStartsOn: getWeekStartsOn(getCachedSettings()) });
+  return getWeek(new Date(), {
+    weekStartsOn: getWeekStartsOn(getCachedSettings()),
+  });
 }
 
 export function getDateRangeForWeeks(startWeek: number, weekCount: number) {
-  const { start, end } = getWeekDateRange(new Date().getFullYear(), startWeek, weekCount);
+  const { start, end } = getWeekDateRange(
+    new Date().getFullYear(),
+    startWeek,
+    weekCount,
+  );
   return { from: start, to: end };
 }
 
@@ -149,7 +158,9 @@ export function weekCount(from: Date, to: Date): number {
   const ws = getWeekStartsOn(getCachedSettings());
   const start = startOfWeek(from, { weekStartsOn: ws });
   const end = endOfWeek(to, { weekStartsOn: ws });
-  const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  const days = Math.ceil(
+    (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+  );
   return Math.ceil(days / 7);
 }
 
@@ -164,7 +175,10 @@ export function getAvailableCalendarWeeks(
   const weeks: { value: string; label: string }[] = [];
   // Add weeks from current year
   for (let i = currentWeek; i <= 52; i++) {
-    weeks.push({ value: `${currentYear}-${i}`, label: `KW ${i}/${currentYear}` });
+    weeks.push({
+      value: `${currentYear}-${i}`,
+      label: `KW ${i}/${currentYear}`,
+    });
   }
   // Add weeks from next year if requested
   if (includeNextYear) {

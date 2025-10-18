@@ -1,15 +1,15 @@
 /**
  * Week-based version control hook for the Schichtplan frontend.
- * 
+ *
  * This hook replaces useVersionControl with week-centric version management,
  * providing navigation, version creation, and state management for week-based schedules.
  * Now integrates with the settings system for configuration.
  */
 
-import { useToast } from '@/components/ui/use-toast';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo, useState } from 'react';
-import { DateRange } from 'react-day-picker';
+import { useToast } from "@/components/ui/use-toast";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
+import { DateRange } from "react-day-picker";
 
 import {
   createWeekVersion as apiCreateWeekVersion,
@@ -19,18 +19,18 @@ import {
   getWeekInfo,
   getWeekSegments,
   WeekSegmentsResponse,
-} from '@/services/api';
-import type { Settings } from '@/types';
+} from "@/services/api";
+import type { Settings } from "@/types";
 import {
   MonthBoundaryMode,
   VersionIdentifier,
   WeekendStart,
-  WeekNavigationState
-} from '@/types/weekVersion';
+  WeekNavigationState,
+} from "@/types/weekVersion";
 import {
   getCurrentWeekIdentifier,
   getWeekFromIdentifier,
-} from '@/utils/weekUtils';
+} from "@/utils/weekUtils";
 
 interface UseWeekBasedVersionControlProps {
   initialWeek?: string;
@@ -47,14 +47,14 @@ export function useWeekBasedVersionControl({
   initialWeek,
   onWeekChanged,
   onVersionSelected,
-  overrideSettings
+  overrideSettings,
 }: UseWeekBasedVersionControlProps = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Initialize current week
   const [currentWeek, setCurrentWeek] = useState<string>(
-    initialWeek || getCurrentWeekIdentifier()
+    initialWeek || getCurrentWeekIdentifier(),
   );
 
   // State for tracking current segment when in split mode
@@ -62,7 +62,7 @@ export function useWeekBasedVersionControl({
 
   // Fetch settings from the settings system
   const { data: settings, isLoading: isSettingsLoading } = useQuery<Settings>({
-    queryKey: ['settings'],
+    queryKey: ["settings"],
     queryFn: getSettings,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -70,47 +70,60 @@ export function useWeekBasedVersionControl({
   // Derive week navigation settings from settings or use defaults
   const weekNavigationSettings = useMemo(() => {
     const weekNavSettings = settings?.week_navigation || {
-      week_weekend_start: 'MONDAY',
-      week_month_boundary_mode: 'keep_intact',
+      week_weekend_start: "MONDAY",
+      week_month_boundary_mode: "keep_intact",
     };
 
     return {
       enableWeekNavigation: overrideSettings?.enableWeekNavigation ?? true, // Always enable week navigation
-      weekendStart: overrideSettings?.weekendStart ??
-        (weekNavSettings.week_weekend_start === 'SUNDAY' ? WeekendStart.SUNDAY : WeekendStart.MONDAY),
-      monthBoundaryMode: overrideSettings?.monthBoundaryMode ??
-        (weekNavSettings.week_month_boundary_mode === 'split_by_month' ? MonthBoundaryMode.SPLIT_ON_MONTH : MonthBoundaryMode.KEEP_INTACT),
+      weekendStart:
+        overrideSettings?.weekendStart ??
+        (weekNavSettings.week_weekend_start === "SUNDAY"
+          ? WeekendStart.SUNDAY
+          : WeekendStart.MONDAY),
+      monthBoundaryMode:
+        overrideSettings?.monthBoundaryMode ??
+        (weekNavSettings.week_month_boundary_mode === "split_by_month"
+          ? MonthBoundaryMode.SPLIT_ON_MONTH
+          : MonthBoundaryMode.KEEP_INTACT),
     };
   }, [settings, overrideSettings]);
 
-  const [selectedVersion, setSelectedVersion] = useState<VersionIdentifier | undefined>();
+  const [selectedVersion, setSelectedVersion] = useState<
+    VersionIdentifier | undefined
+  >();
   const [isLoading, setIsLoading] = useState(false);
 
   // Fetch week segments when month boundary mode is SPLIT_ON_MONTH
   const { data: segmentsData } = useQuery<WeekSegmentsResponse>({
-    queryKey: ['week-segments', currentWeek],
+    queryKey: ["week-segments", currentWeek],
     queryFn: () => getWeekSegments(currentWeek),
-    enabled: weekNavigationSettings.monthBoundaryMode === MonthBoundaryMode.SPLIT_ON_MONTH && !!currentWeek,
+    enabled:
+      weekNavigationSettings.monthBoundaryMode ===
+        MonthBoundaryMode.SPLIT_ON_MONTH && !!currentWeek,
     staleTime: 5 * 60 * 1000,
   });
 
-  const navigateToWeek = useCallback(async (weekIdentifier: string) => {
-    try {
-      setIsLoading(true);
-      await getWeekInfo(weekIdentifier);
-      setCurrentWeek(weekIdentifier);
-      onWeekChanged?.(weekIdentifier);
-    } catch (error) {
-      console.error('Week navigation error:', error);
-      toast({
-        title: "Navigation Error",
-        description: `Failed to navigate to week ${weekIdentifier}`,
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [onWeekChanged, toast]);
+  const navigateToWeek = useCallback(
+    async (weekIdentifier: string) => {
+      try {
+        setIsLoading(true);
+        await getWeekInfo(weekIdentifier);
+        setCurrentWeek(weekIdentifier);
+        onWeekChanged?.(weekIdentifier);
+      } catch (error) {
+        console.error("Week navigation error:", error);
+        toast({
+          title: "Navigation Error",
+          description: `Failed to navigate to week ${weekIdentifier}`,
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [onWeekChanged, toast],
+  );
 
   const navigateNext = useCallback(async () => {
     try {
@@ -119,11 +132,11 @@ export function useWeekBasedVersionControl({
       setCurrentWeek(nextWeekInfo.week_identifier);
       onWeekChanged?.(nextWeekInfo.week_identifier);
     } catch (error) {
-      console.error('Next week navigation error:', error);
+      console.error("Next week navigation error:", error);
       toast({
         title: "Navigation Error",
         description: "Failed to navigate to next week",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -137,57 +150,66 @@ export function useWeekBasedVersionControl({
       setCurrentWeek(prevWeekInfo.week_identifier);
       onWeekChanged?.(prevWeekInfo.week_identifier);
     } catch (error) {
-      console.error('Previous week navigation error:', error);
+      console.error("Previous week navigation error:", error);
       toast({
         title: "Navigation Error",
         description: "Failed to navigate to previous week",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
   }, [currentWeek, onWeekChanged, toast]);
 
-  const createVersionForWeek = useCallback(async (weekIdentifier: string) => {
-    try {
-      setIsLoading(true);
-      console.log('[DEBUG] Creating week version for:', weekIdentifier);
-      const result = await apiCreateWeekVersion({
-        week_identifier: weekIdentifier,
-        create_empty_schedules: true
-      });
-      console.log('[DEBUG] Week version creation result:', result);
-      toast({
-        title: "Version Created",
-        description: `Created version ${result.version} for week ${weekIdentifier}`
-      });
+  const createVersionForWeek = useCallback(
+    async (weekIdentifier: string) => {
+      try {
+        setIsLoading(true);
+        console.log("[DEBUG] Creating week version for:", weekIdentifier);
+        const result = await apiCreateWeekVersion({
+          week_identifier: weekIdentifier,
+          create_empty_schedules: true,
+        });
+        console.log("[DEBUG] Week version creation result:", result);
+        toast({
+          title: "Version Created",
+          description: `Created version ${result.version} for week ${weekIdentifier}`,
+        });
 
-      // Set the new version as selected and trigger callback
-      if (result.version) {
-        setSelectedVersion(result.version);
-        if (onVersionSelected) {
-          onVersionSelected(result.version);
+        // Set the new version as selected and trigger callback
+        if (result.version) {
+          setSelectedVersion(result.version);
+          if (onVersionSelected) {
+            onVersionSelected(result.version);
+          }
         }
-      }
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['schedules'] });
-      queryClient.invalidateQueries({ queryKey: ['versions'] });
-      queryClient.invalidateQueries({ queryKey: ['week-version', weekIdentifier] });
-      queryClient.invalidateQueries({ queryKey: ['week-version'] }); // Invalidate all week version queries
+        // Invalidate queries to refresh data
+        queryClient.invalidateQueries({ queryKey: ["schedules"] });
+        queryClient.invalidateQueries({ queryKey: ["versions"] });
+        queryClient.invalidateQueries({
+          queryKey: ["week-version", weekIdentifier],
+        });
+        queryClient.invalidateQueries({ queryKey: ["week-version"] }); // Invalidate all week version queries
 
-      return result;
-    } catch (error) {
-      console.error('[DEBUG] Week version creation error for', weekIdentifier, error);
-      toast({
-        title: "Creation Error",
-        description: `Failed to create version for week ${weekIdentifier}: ${error instanceof Error ? error.message : String(error)}`,
-        variant: "destructive"
-      });
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [queryClient, toast, onVersionSelected]);
+        return result;
+      } catch (error) {
+        console.error(
+          "[DEBUG] Week version creation error for",
+          weekIdentifier,
+          error,
+        );
+        toast({
+          title: "Creation Error",
+          description: `Failed to create version for week ${weekIdentifier}: ${error instanceof Error ? error.message : String(error)}`,
+          variant: "destructive",
+        });
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [queryClient, toast, onVersionSelected],
+  );
 
   // Calculate current date range using settings
   const currentWeekInfo = useMemo(() => {
@@ -199,17 +221,19 @@ export function useWeekBasedVersionControl({
   const dateRange: DateRange = useMemo(() => {
     // If in split mode and segments are available, use segment dates
     if (segmentsData?.isSplit && segmentsData.segments.length > 0) {
-      const segment = segmentsData.segments.find(s => s.segment_number === currentSegment);
+      const segment = segmentsData.segments.find(
+        (s) => s.segment_number === currentSegment,
+      );
       if (segment) {
         return {
           from: new Date(segment.start_date),
-          to: new Date(segment.end_date)
+          to: new Date(segment.end_date),
         };
       }
     }
     return {
       from: currentWeekInfo.startDate,
-      to: currentWeekInfo.endDate
+      to: currentWeekInfo.endDate,
     };
   }, [currentWeekInfo, segmentsData, currentSegment]);
 
@@ -226,7 +250,7 @@ export function useWeekBasedVersionControl({
       weekendStart: weekNavigationSettings.weekendStart,
       monthBoundaryMode: weekNavigationSettings.monthBoundaryMode,
       isLoading: isLoading || isSettingsLoading,
-      hasVersions: false // This would be determined by API query
+      hasVersions: false, // This would be determined by API query
     } as WeekNavigationState,
     settings: weekNavigationSettings,
     navigateToWeek,

@@ -1,6 +1,6 @@
 /**
  * Refactored Version Table Component
- * 
+ *
  * A clean, focused component for displaying version information in a table format.
  * This component is purely presentational and delegates all actions to parent components.
  */
@@ -100,7 +100,9 @@ export function VersionTable({
       <Card className={className}>
         <CardHeader>
           <div className="text-center text-muted-foreground py-8">
-            <div className="text-lg font-medium mb-2">Keine Versionen vorhanden</div>
+            <div className="text-lg font-medium mb-2">
+              Keine Versionen vorhanden
+            </div>
             <div className="text-sm">
               Erstellen Sie eine neue Version, um zu beginnen.
             </div>
@@ -114,8 +116,12 @@ export function VersionTable({
   const sortedVersions = [...versions].sort((a, b) => b.version - a.version);
 
   // Pagination calculations
-  const totalPages = showPagination ? Math.ceil(sortedVersions.length / itemsPerPage) : 1;
-  const indexOfLastItem = showPagination ? currentPage * itemsPerPage : sortedVersions.length;
+  const totalPages = showPagination
+    ? Math.ceil(sortedVersions.length / itemsPerPage)
+    : 1;
+  const indexOfLastItem = showPagination
+    ? currentPage * itemsPerPage
+    : sortedVersions.length;
   const indexOfFirstItem = showPagination ? indexOfLastItem - itemsPerPage : 0;
   const currentItems = sortedVersions.slice(indexOfFirstItem, indexOfLastItem);
 
@@ -136,19 +142,28 @@ export function VersionTable({
     switch (status) {
       case "DRAFT":
         return (
-          <Badge variant="outline" className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30">
+          <Badge
+            variant="outline"
+            className="text-xs bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
+          >
             draft
           </Badge>
         );
       case "PUBLISHED":
         return (
-          <Badge variant="outline" className="text-xs bg-green-500/20 text-green-300 border-green-500/30">
+          <Badge
+            variant="outline"
+            className="text-xs bg-green-500/20 text-green-300 border-green-500/30"
+          >
             published
           </Badge>
         );
       case "ARCHIVED":
         return (
-          <Badge variant="outline" className="text-xs bg-gray-500/20 text-gray-300 border-gray-500/30">
+          <Badge
+            variant="outline"
+            className="text-xs bg-gray-500/20 text-gray-300 border-gray-500/30"
+          >
             archived
           </Badge>
         );
@@ -190,7 +205,7 @@ export function VersionTable({
             >
               {i}
             </PaginationLink>
-          </PaginationItem>
+          </PaginationItem>,
         );
       }
     } else {
@@ -203,7 +218,7 @@ export function VersionTable({
           >
             1
           </PaginationLink>
-        </PaginationItem>
+        </PaginationItem>,
       );
 
       // Show ellipsis if needed
@@ -211,7 +226,7 @@ export function VersionTable({
         items.push(
           <PaginationItem key="ellipsis1">
             <PaginationEllipsis />
-          </PaginationItem>
+          </PaginationItem>,
         );
       }
 
@@ -228,7 +243,7 @@ export function VersionTable({
             >
               {i}
             </PaginationLink>
-          </PaginationItem>
+          </PaginationItem>,
         );
       }
 
@@ -237,7 +252,7 @@ export function VersionTable({
         items.push(
           <PaginationItem key="ellipsis2">
             <PaginationEllipsis />
-          </PaginationItem>
+          </PaginationItem>,
         );
       }
 
@@ -251,7 +266,7 @@ export function VersionTable({
             >
               {totalPages}
             </PaginationLink>
-          </PaginationItem>
+          </PaginationItem>,
         );
       }
     }
@@ -372,16 +387,19 @@ export function VersionTable({
           <TableBody>
             {currentItems.map((version) => {
               const isSelected = selectedVersion === version.version;
-              const isNew = version.created_at && isVersionNew(version.created_at);
+              const isNew =
+                version.created_at && isVersionNew(version.created_at);
 
               return (
                 <TableRow
                   key={version.version}
-                  className={`${isSelected
-                    ? "bg-primary/10 border-primary/20"
-                    : "hover:bg-muted/30"
-                    } ${isNew ? "bg-green-500/10 border-green-500/20" : ""
-                    } border-b border-border`}
+                  className={`${
+                    isSelected
+                      ? "bg-primary/10 border-primary/20"
+                      : "hover:bg-muted/30"
+                  } ${
+                    isNew ? "bg-green-500/10 border-green-500/20" : ""
+                  } border-b border-border`}
                 >
                   <TableCell className="font-medium">
                     <Button
@@ -389,9 +407,7 @@ export function VersionTable({
                       size="sm"
                       onClick={() => onSelectVersion(version.version)}
                       className={
-                        isSelected
-                          ? "bg-primary/20 hover:bg-primary/30"
-                          : ""
+                        isSelected ? "bg-primary/20 hover:bg-primary/30" : ""
                       }
                       disabled={isLoading}
                     >
@@ -448,7 +464,7 @@ export function VersionTable({
                   <TableCell>
                     {getWeekCount(
                       version.date_range.start,
-                      version.date_range.end
+                      version.date_range.end,
                     )}
                   </TableCell>
                   <TableCell>{renderVersionActions(version)}</TableCell>

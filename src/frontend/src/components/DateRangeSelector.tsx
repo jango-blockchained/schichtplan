@@ -63,7 +63,7 @@ export function DateRangeSelector({
   const formatDateRangeLabel = () => {
     return `${format(dateRange.from!, "dd.MM.yyyy")} - ${format(
       dateRange.to!,
-      "dd.MM.yyyy"
+      "dd.MM.yyyy",
     )}`;
   };
 

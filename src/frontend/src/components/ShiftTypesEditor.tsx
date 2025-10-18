@@ -5,21 +5,21 @@ import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
 import { ColorPicker } from "./ui/color-picker";
 import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "./ui/table";
 
 export interface ShiftType {
@@ -128,12 +128,21 @@ export default function ShiftTypesEditor({
         <h3 className="text-lg font-medium">Schichttypen</h3>
         <Button
           onClick={() => {
-            setEditingType({ id: "EARLY", name: "", color: "#000000", type: "shift_type" });
+            setEditingType({
+              id: "EARLY",
+              name: "",
+              color: "#000000",
+              type: "shift_type",
+            });
             setShowDialog(true);
           }}
           disabled={isLoading} // Disable if loading
         >
-          {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Plus className="mr-2 h-4 w-4" />
+          )}
           Neuen Typ hinzufügen
         </Button>
       </div>
@@ -281,8 +290,14 @@ export default function ShiftTypesEditor({
             >
               Abbrechen
             </Button>
-            <Button onClick={handleSaveType} disabled={isLoading}> {/* Disable if loading */}
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Speichern"}
+            <Button onClick={handleSaveType} disabled={isLoading}>
+              {" "}
+              {/* Disable if loading */}
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Speichern"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

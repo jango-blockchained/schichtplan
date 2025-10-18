@@ -1,21 +1,21 @@
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import React, { useState } from 'react';
+} from "@/components/ui/select";
+import React, { useState } from "react";
 
 interface AddAvailabilityDialogProps {
   isOpen: boolean;
@@ -35,14 +35,14 @@ export const AddAvailabilityDialog: React.FC<AddAvailabilityDialogProps> = ({
   onSubmit,
   employees,
 }) => {
-  const [selectedEmployee, setSelectedEmployee] = useState<string>('');
-  const [date, setDate] = useState<string>('');
-  const [shiftType, setShiftType] = useState<string>('');
-  const [availabilityType, setAvailabilityType] = useState<string>('');
+  const [selectedEmployee, setSelectedEmployee] = useState<string>("");
+  const [date, setDate] = useState<string>("");
+  const [shiftType, setShiftType] = useState<string>("");
+  const [availabilityType, setAvailabilityType] = useState<string>("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!selectedEmployee || !date || !shiftType || !availabilityType) {
       return;
     }
@@ -55,10 +55,10 @@ export const AddAvailabilityDialog: React.FC<AddAvailabilityDialogProps> = ({
     });
 
     // Reset form
-    setSelectedEmployee('');
-    setDate('');
-    setShiftType('');
-    setAvailabilityType('');
+    setSelectedEmployee("");
+    setDate("");
+    setShiftType("");
+    setAvailabilityType("");
     onClose();
   };
 
@@ -71,7 +71,10 @@ export const AddAvailabilityDialog: React.FC<AddAvailabilityDialogProps> = ({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="employee">Mitarbeiter</Label>
-            <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+            <Select
+              value={selectedEmployee}
+              onValueChange={setSelectedEmployee}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Mitarbeiter auswählen" />
               </SelectTrigger>
@@ -112,7 +115,10 @@ export const AddAvailabilityDialog: React.FC<AddAvailabilityDialogProps> = ({
 
           <div className="space-y-2">
             <Label htmlFor="availability-type">Verfügbarkeitstyp</Label>
-            <Select value={availabilityType} onValueChange={setAvailabilityType}>
+            <Select
+              value={availabilityType}
+              onValueChange={setAvailabilityType}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Verfügbarkeitstyp auswählen" />
               </SelectTrigger>

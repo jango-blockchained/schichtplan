@@ -3,11 +3,11 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 import { fixShiftDurations } from "@/services/api";
 import {
-    AlertCircle,
-    CheckCircle,
-    Circle,
-    RefreshCw,
-    XCircle,
+  AlertCircle,
+  CheckCircle,
+  Circle,
+  RefreshCw,
+  XCircle,
 } from "lucide-react";
 import React from "react";
 
