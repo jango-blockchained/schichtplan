@@ -1,5 +1,6 @@
 import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it as test } from "bun:test";
+import TypingIndicator from "../../components/ai/TypingIndicator";
 import "../setup";
 
 // Create mock functions

@@ -107,7 +107,7 @@ export function useBulkAvailabilityOptimized({
           (empStatus.status === "Available" ||
             empStatus.status.startsWith("Shift:"));
 
-        employeeMap.set(empStatus.employee_id, {
+        employeeMap.set(Number(empStatus.employee_id), {
           ...empStatus,
           is_available: isAvailable,
           absence_info: isOnAbsence ? (empStatus.details as AbsenceInfo) : null,

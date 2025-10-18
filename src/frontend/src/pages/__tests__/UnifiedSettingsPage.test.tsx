@@ -1,17 +1,18 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import { act } from "react-dom/test-utils";
 import { fireEvent, render, screen, waitFor } from "../../test-utils/test-utils";
 import type { Settings } from "../../types";
 import UnifiedSettingsPage from "../UnifiedSettingsPage";
 
-// Mock the API functions
-const mockGetSettings = mock.fn();
-const mockUpdateSettings = mock.fn((settings) => Promise.resolve(settings));
+// Mock the API functions using simple local mocks
+const mockGetSettings = () => Promise.resolve(mockSettings);
+const mockUpdateSettings = (settings: any) => Promise.resolve(settings);
 
-mock.module("../../services/api", () => ({
+// Create a local api object used by tests
+const api = {
   getSettings: mockGetSettings,
   updateSettings: mockUpdateSettings,
-}));
+};
 
 // Create a mock settings object that matches the expected structure
 

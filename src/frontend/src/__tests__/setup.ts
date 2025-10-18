@@ -115,7 +115,7 @@ globalThis.HTMLElement = globalThis.HTMLElement || (class MockHTMLElement {
     keys() { return { next: () => ({ done: true, value: undefined }) } as IterableIterator<number>; },
     values() { return { next: () => ({ done: true, value: undefined }) } as IterableIterator<string>; },
     [Symbol.iterator]() { return { next: () => ({ done: true, value: undefined }) } as IterableIterator<string>; }
-  } as DOMTokenList;
+  } as unknown as DOMTokenList;
   id = "";
   slot = "";
   style = {} as CSSStyleDeclaration;

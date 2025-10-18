@@ -77,9 +77,9 @@ interface AddScheduleDialogProps {
   }) => Promise<void>;
   version: number;
   defaultDate?: Date;
-  defaultEmployeeId?: number;
+  defaultEmployeeId?: number | string;
   // Optional props used by tests
-  defaultShiftId?: number | null;
+  defaultShiftId?: number | string | null;
   scheduleId?: number | null;
 }
 
@@ -142,13 +142,13 @@ export function AddScheduleDialog({
       setSelectedDate(initialDefaultDate || new Date());
 
       if (initialDefaultEmployeeId) {
-        setSelectedEmployee(initialDefaultEmployeeId);
+        setSelectedEmployee(Number(initialDefaultEmployeeId));
       } else {
         setSelectedEmployee(null);
       }
 
       // Reset shift selection
-      setSelectedShift(defaultShiftId ?? null);
+      setSelectedShift(defaultShiftId != null ? Number(defaultShiftId) : null);
       setSelectedAvailabilityType(null);
       setIsKeyholder(false);
     }
@@ -170,7 +170,7 @@ export function AddScheduleDialog({
             );
 
             if (defaultEmployeeInList) {
-              setSelectedEmployee(initialDefaultEmployeeId);
+              setSelectedEmployee(Number(initialDefaultEmployeeId));
             } else {
               // Don't clear selection if it was explicitly set
             }
@@ -217,7 +217,7 @@ export function AddScheduleDialog({
           // Auto-select if there's only one available shift
           const availableShifts = data.filter((shift) => shift.is_available);
           if (availableShifts.length === 1) {
-            setSelectedShift(availableShifts[0].shift_id);
+            setSelectedShift(Number(availableShifts[0].shift_id));
             setSelectedAvailabilityType(availableShifts[0].availability_type);
           }
           // If there's a currently assigned shift, select it
@@ -225,7 +225,7 @@ export function AddScheduleDialog({
             (shift) => shift.is_currently_assigned,
           );
           if (currentAssignment) {
-            setSelectedShift(currentAssignment.shift_id);
+            setSelectedShift(Number(currentAssignment.shift_id));
             setSelectedAvailabilityType(currentAssignment.availability_type);
           }
         })
@@ -592,7 +592,7 @@ export function AddScheduleDialog({
                       className={cn(
                         "text-xs opacity-80 ml-2",
                         empStatus.status.startsWith("Absence") &&
-                          "text-red-500",
+                        "text-red-500",
                         empStatus.status.startsWith("Shift") && "text-blue-500",
                         empStatus.status === "Available" && "text-green-500",
                       )}
@@ -659,10 +659,10 @@ export function AddScheduleDialog({
                 {/* Then show unavailable shifts (if any) */}
                 {applicableShiftsList.filter((s) => !s.is_available).length >
                   0 && (
-                  <div className="py-1 px-2 text-xs text-muted-foreground border-t">
-                    Nicht verfügbare Schichten:
-                  </div>
-                )}
+                    <div className="py-1 px-2 text-xs text-muted-foreground border-t">
+                      Nicht verfügbare Schichten:
+                    </div>
+                  )}
                 {applicableShiftsList
                   .filter((s) => !s.is_available)
                   .map((shift) => (

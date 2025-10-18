@@ -9,7 +9,7 @@ import {
 import * as apiService from "../../services/api"; // Use apiService for mocking
 import {
   EmployeeWithAvailability,
-  ScheduleEntry,
+  Schedule,
   ShiftForEmployee,
 } from "../../types"; // Import the types
 import { AddScheduleDialog } from "../Schedule/AddScheduleDialog"; // Adjust path as necessary
@@ -35,19 +35,19 @@ describe("AddScheduleDialog", () => {
   const testVersion = 1;
 
   const availableEmployee: EmployeeWithAvailability = {
-    employee_id: "E1",
+    employee_id: 1,
     first_name: "John",
     last_name: "Doe",
     status: "Available",
     is_active: true,
   };
   const preferredShift: ShiftForEmployee = {
-    shift_id: "S2",
+    shift_id: 2,
     name: "Late Shift (12:00-20:00)",
     availability_type: "PREFERRED",
   };
   const availableShift: ShiftForEmployee = {
-    shift_id: "S1",
+    shift_id: 1,
     name: "Early Shift (08:00-16:00)",
     availability_type: "AVAILABLE",
   };
@@ -69,7 +69,7 @@ describe("AddScheduleDialog", () => {
       version: testVersion,
       availability_type: preferredShift.availability_type,
       notes: "",
-    } as ScheduleEntry);
+    } as unknown as Schedule);
   });
 
   test("renders correctly when open", () => {
@@ -78,7 +78,6 @@ describe("AddScheduleDialog", () => {
         isOpen={true}
         onOpenChange={mockOnOpenChange}
         onScheduleAdded={mockOnScheduleAdded}
-        onAddSchedule={mockOnAddSchedule}
         onAddSchedule={mockOnAddSchedule}
         scheduleId={null}
         defaultDate={testDefaultDate}
@@ -120,7 +119,6 @@ describe("AddScheduleDialog", () => {
         onOpenChange={mockOnOpenChange}
         onScheduleAdded={mockOnScheduleAdded}
         onAddSchedule={mockOnAddSchedule}
-        onAddSchedule={mockOnAddSchedule}
         scheduleId={null}
         defaultDate={testDefaultDate}
         defaultEmployeeId={null}
@@ -160,7 +158,6 @@ describe("AddScheduleDialog", () => {
         isOpen={true}
         onOpenChange={mockOnOpenChange}
         onScheduleAdded={mockOnScheduleAdded}
-        onAddSchedule={mockOnAddSchedule}
         onAddSchedule={mockOnAddSchedule}
         scheduleId={null}
         defaultDate={testDefaultDate}
@@ -209,7 +206,6 @@ describe("AddScheduleDialog", () => {
         isOpen={true}
         onOpenChange={mockOnOpenChange}
         onScheduleAdded={mockOnScheduleAdded}
-        onAddSchedule={mockOnAddSchedule}
         onAddSchedule={mockOnAddSchedule}
         scheduleId={null}
         defaultDate={testDefaultDate}

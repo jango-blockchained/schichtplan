@@ -70,7 +70,7 @@ export function useBulkAvailability({
           ExtendedEmployeeAvailabilityStatus
         >();
 
-        result.data.forEach((empStatus: EmployeeAvailabilityStatus) => {
+  result.data.forEach((empStatus: EmployeeAvailabilityStatus) => {
           // Parse the status to determine availability
           // Employees are NOT available if they:
           // 1. Have status "Unavailable" (no availability records)
@@ -87,7 +87,7 @@ export function useBulkAvailability({
             (empStatus.status === "Available" ||
               empStatus.status.startsWith("Shift:"));
 
-          employeeMap.set(empStatus.employee_id, {
+          employeeMap.set(Number(empStatus.employee_id), {
             ...empStatus,
             is_available: isAvailable,
             absence_info: isOnAbsence

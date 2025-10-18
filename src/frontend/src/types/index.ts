@@ -64,7 +64,7 @@ export interface Schedule {
   shift_end: string | null | undefined;
   is_empty: boolean | undefined;
   version: number;
-  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  status?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   break_start?: string | null;
   break_end?: string | null;
   break_duration?: number | null; // Duration in minutes
@@ -435,8 +435,8 @@ export interface WeeklySchedule {
 
 // New Types
 export interface EmployeeAvailabilityStatus {
-  employee_id: number;
-  employee_name: string;
+  employee_id: string | number;
+  employee_name?: string;
   status: string; // e.g., "Available", "Absence: Vacation", "Shift: Early (07:00-15:00)"
   details?: unknown; // Could be Absence object or Schedule object for more info
 }
@@ -449,12 +449,12 @@ export type AvailabilityTypeStrings =
   | "UNAVAILABLE";
 
 export interface ApplicableShift {
-  shift_id: number;
+  shift_id: string | number;
   name: string;
-  start_time: string; // "HH:MM"
-  end_time: string; // "HH:MM"
-  availability_type: AvailabilityTypeStrings;
-  is_available: boolean; // Whether the employee is fully available for this shift
+  start_time?: string; // "HH:MM"
+  end_time?: string; // "HH:MM"
+  availability_type?: AvailabilityTypeStrings;
+  is_available?: boolean; // Whether the employee is fully available for this shift
   availability_hours?: Array<{ hour: number; availability_type: string }>; // Details about each hour's availability
   is_currently_assigned?: boolean; // Whether this shift is already assigned to this employee
   is_assigned_to_other?: boolean; // Whether this shift is assigned to another employee

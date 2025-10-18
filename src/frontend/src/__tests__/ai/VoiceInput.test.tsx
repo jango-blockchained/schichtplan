@@ -58,10 +58,11 @@ const mockSpeechRecognition = {
   onstart: null,
 };
 
-globalThis.SpeechRecognition = function () {
+// Cast to any because tests assign a factory returning a mock object
+(globalThis as any).SpeechRecognition = function () {
   return mockSpeechRecognition;
 };
-globalThis.webkitSpeechRecognition = globalThis.SpeechRecognition;
+(globalThis as any).webkitSpeechRecognition = (globalThis as any).SpeechRecognition;
 
 // Mock getUserMedia
 Object.defineProperty(navigator, "mediaDevices", {
@@ -154,7 +155,7 @@ describe("VoiceInput Component", () => {
 
   test("shows audio level visualization when recording", async () => {
     const { container } = render(
-      <VoiceInput onTranscript={onTranscription} />,
+      <VoiceInput onTranscript={mockOnTranscript} />,
     );
 
     const micButton = container.querySelector("button");

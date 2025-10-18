@@ -220,8 +220,6 @@ export const useTypingIndicator = (conversationId: string) => {
   return { startTyping, stopTyping, isTyping };
 };
 
-export default TypingIndicatorComponent;
-
 // Lightweight proxy component used by ConversationalAIChatEnhanced
 export const TypingIndicatorInline: React.FC<{
   users: string[];
@@ -258,3 +256,6 @@ export const TypingIndicator: React.FC<{
     </div>
   );
 };
+
+// Export default as the lightweight wrapper for legacy imports and tests
+export default TypingIndicator;
