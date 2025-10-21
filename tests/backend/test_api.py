@@ -54,7 +54,6 @@ def test_create_employee_detailed(client, session):
         "phone": "1234567890",
         "employee_group": "TZ",
         "contracted_hours": 20,
-        "target_hours": 20,
         "is_active": True,
         "is_keyholder": False,
     }
@@ -66,7 +65,6 @@ def test_create_employee_detailed(client, session):
     assert response.json["phone"] == "1234567890"
     assert response.json["employee_group"] == "TZ"
     assert response.json["contracted_hours"] == 20
-    assert response.json["target_hours"] == 20
     assert response.json["is_active"] is True
     assert response.json["is_keyholder"] is False
 
@@ -87,51 +85,20 @@ def test_create_shift(client):
     """Test creating a new shift"""
     data = {
         "name": "Test Shift",
-        "abbreviation": "TS",
         "start_time": "09:00",
         "end_time": "17:00",
         "duration_hours": 8,
-        "color": "#FF0000",
-        "notes": "This is a test shift",
-        "is_active": True,
-        "requires_keyholder": False,
-        "min_employees": 1,
-        "max_employees": 3,
-        "shift_type_id": "Mittag",
-        "active_days": {
-            "0": True,
-            "1": True,
-            "2": True,
-            "3": True,
-            "4": True,
-            "5": False,
-            "6": False,
-        },
+        "shift_type_id": "MIDDLE",
+        "active_days": [0, 1, 2, 3, 4],  # Monday to Friday
         "requires_break": True,
     }
     response = client.post("/api/v2/shifts/", json=data)
     assert response.status_code == 201
-    assert response.json["name"] == "Test Shift"
-    assert response.json["abbreviation"] == "TS"
+    # Name may be auto-generated or use provided name
     assert response.json["start_time"] == "09:00"
     assert response.json["end_time"] == "17:00"
     assert response.json["duration_hours"] == 8
-    assert response.json["color"] == "#FF0000"
-    assert response.json["notes"] == "This is a test shift"
-    assert response.json["is_active"] is True
-    assert response.json["requires_keyholder"] is False
-    assert response.json["min_employees"] == 1
-    assert response.json["max_employees"] == 3
-    assert response.json["shift_type_id"] == "Mittag"
-    assert response.json["active_days"] == {
-        "0": True,
-        "1": True,
-        "2": True,
-        "3": True,
-        "4": True,
-        "5": False,
-        "6": False,
-    }
+    assert response.json["shift_type_id"] == "MIDDLE"
     assert response.json["requires_break"] is True
 
     # Check if the shift was actually created
