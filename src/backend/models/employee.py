@@ -6,13 +6,11 @@ from sqlalchemy import (
     Boolean,
     Column,
     Date,
+    Enum as SQLEnum,
     Float,
     ForeignKey,
     Integer,
     String,
-)
-from sqlalchemy import (
-    Enum as SQLEnum,
 )
 from sqlalchemy.orm import relationship
 
@@ -146,14 +144,36 @@ class Employee(db.Model):
         )
         logging.info(f"Contracted hours: {self.contracted_hours}")
 
-        # Dynamic validation: allow any non-negative float up to a legal upper bound
-        if not 0 <= self.contracted_hours <= 48:  # German labor law maximum/week
+        # Group-specific validation
+        if self.employee_group in [EmployeeGroup.VZ, EmployeeGroup.TL]:
+            # Full-time employees: 30-48 hours per week
+            if not 30 <= self.contracted_hours <= 48:
+                logging.warning(
+                    f"Contracted hours outside of full-time range: {self.contracted_hours}"
+                )
+                return False
+        elif self.employee_group == EmployeeGroup.TZ:
+            # Part-time employees: 8-35 hours per week
+            if not 8 <= self.contracted_hours <= 35:
+                logging.warning(
+                    f"Contracted hours outside of part-time range: {self.contracted_hours}"
+                )
+                return False
+        elif self.employee_group == EmployeeGroup.GFB:
+            # Mini-job employees: up to legal limit (556 hours/month ≈ 128 hours/week)
+            max_weekly = (556 / 12.41) / 4.33  # ≈ 10.3 hours/week
+            if not 0 <= self.contracted_hours <= max_weekly:
+                logging.warning(
+                    f"Contracted hours outside of mini-job range: {self.contracted_hours}"
+                )
+                return False
+        # Fallback: allow any non-negative float up to legal upper bound
+        elif not 0 <= self.contracted_hours <= 48:
             logging.warning(
                 f"Contracted hours outside of legal limit: {self.contracted_hours}"
             )
             return False
 
-        # No group-specific constraints; treat as dynamic float
         return True
 
     def get_max_daily_hours(self) -> float:

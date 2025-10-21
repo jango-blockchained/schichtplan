@@ -1,5 +1,5 @@
-from models import Employee, EmployeeGroup, Settings, db
-from models.settings import DAY_NAME_TO_NUM_KEY
+from src.backend.models import Employee, EmployeeGroup, Settings, db
+from src.backend.models.settings import DAY_NAME_TO_NUM_KEY
 
 
 def test_employee_creation(session):
@@ -37,7 +37,10 @@ def test_employee_hours_validation(session):
     vl_employee.contracted_hours = 48  # Maximum allowed
     assert vl_employee.validate_hours()
 
-    vl_employee.contracted_hours = 30  # Below minimum
+    vl_employee.contracted_hours = 30  # Minimum allowed
+    assert vl_employee.validate_hours()
+
+    vl_employee.contracted_hours = 29  # Below minimum
     assert not vl_employee.validate_hours()
 
     vl_employee.contracted_hours = 50  # Above maximum
@@ -55,7 +58,10 @@ def test_employee_hours_validation(session):
     tz_employee.contracted_hours = 35  # Maximum allowed
     assert tz_employee.validate_hours()
 
-    tz_employee.contracted_hours = 8  # Below minimum
+    tz_employee.contracted_hours = 8  # Minimum allowed
+    assert tz_employee.validate_hours()
+
+    tz_employee.contracted_hours = 7  # Below minimum
     assert not tz_employee.validate_hours()
 
     tz_employee.contracted_hours = 36  # Above maximum
@@ -84,7 +90,10 @@ def test_employee_hours_validation(session):
     tl_employee.contracted_hours = 48  # Maximum allowed
     assert tl_employee.validate_hours()
 
-    tl_employee.contracted_hours = 30  # Below minimum
+    tl_employee.contracted_hours = 30  # Minimum allowed
+    assert tl_employee.validate_hours()
+
+    tl_employee.contracted_hours = 29  # Below minimum
     assert not tl_employee.validate_hours()
 
     tl_employee.contracted_hours = 50  # Above maximum
@@ -460,21 +469,15 @@ def test_settings_update_from_dict(session):
     # Check merge behavior for generation_requirements (assuming merge, not overwrite)
     # The default for enforce_contracted_hours is True. If it's still true, merge worked.
     # If the model's update_from_dict for JSON does a deep merge, this would pass.
-    # If it's a shallow update/overwrite, this specific sub-key might be missing or be part of a new dict.
     # For this test, we'll assume a simple update, so only 'enforce_minimum_coverage' changed.
     assert (
         updated_settings.generation_requirements.get("enforce_minimum_coverage")
         is False
     )
-    if (
-        "enforce_contracted_hours" in updated_settings.generation_requirements
-    ):  # If it was a full overwrite of the sub-dict
-        assert (
-            updated_settings.generation_requirements.get("enforce_contracted_hours")
-            is None
-        )  # Or whatever not-present evaluates to
-    # A better test would be to check if an existing key *not* in update_data's generation_requirements is still there.
-    # For now, this checks the updated value.
+    # enforce_contracted_hours should still be True since it wasn't explicitly updated
+    assert (
+        updated_settings.generation_requirements.get("enforce_contracted_hours") is True
+    )
 
     # --- Verify Display ---
     assert updated_settings.theme == "dark"

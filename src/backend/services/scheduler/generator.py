@@ -610,7 +610,7 @@ class ScheduleGenerator:
 
             self.generation_options = (
                 external_config_dict.get("generation_options", {})
-                if external_config_dict
+                if external_config_dict and isinstance(external_config_dict, dict)
                 else {}
             )
             self.active_phase_mode = self.generation_options.get("phaseMode")

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, Tuple  # Corrected Tuple import
+from typing import Any  # Corrected Tuple import
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, Float, Integer, String
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -428,7 +428,7 @@ class Settings(db.Model):
 
     def get_store_hours(
         self, date: datetime
-    ) -> Tuple[str, str]:  # Ensure Tuple is imported
+    ) -> tuple[str, str]:  # Ensure Tuple is imported
         date_str = date.strftime("%Y-%m-%d")
         if (
             self.special_days
@@ -445,7 +445,7 @@ class Settings(db.Model):
                 return custom_hours["opening"], custom_hours["closing"]
         return str(self.store_opening), str(self.store_closing)
 
-    def _get_pdf_layout_dict(self) -> Dict[str, Any]:
+    def _get_pdf_layout_dict(self) -> dict[str, Any]:
         """Get PDF layout configuration, preferring MEP config if available."""
         if self.pdf_layout_mep_config:
             # Return the new MEP structure
@@ -480,7 +480,7 @@ class Settings(db.Model):
                 },
             }
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         # Convert opening_days to use string day names
         formatted_opening_days = (
             {NUM_KEY_TO_DAY_NAME.get(k, k): v for k, v in self.opening_days.items()}
@@ -599,7 +599,7 @@ class Settings(db.Model):
 
         # Scheduling Settings
         settings.scheduling_resource_type = "coverage"
-        settings.default_shift_duration = 6.0
+        settings.default_shift_duration = 8.0
         settings.min_break_duration = 5
         settings.max_daily_hours = 12.0
         settings.max_weekly_hours = 50.0
@@ -807,7 +807,7 @@ class Settings(db.Model):
         return cls.get_default_settings()
 
     @classmethod
-    def update_from_dict(cls, data: Dict[str, Any]) -> None:
+    def update_from_dict(cls, data: dict[str, Any]) -> None:
         settings = cls.get_or_create_default()  # Get the settings instance
         for category, values in data.items():
             if category == "general":
@@ -947,7 +947,7 @@ class Settings(db.Model):
     # --- and would be reviewed/adjusted in a separate step if their direct ---
     # --- column access (e.g. settings.margin_top) is affected by deeper changes ---
     @classmethod
-    def get_pdf_layout_config(cls) -> Dict[str, Any]:
+    def get_pdf_layout_config(cls) -> dict[str, Any]:
         settings = cls.query.first()
         if not settings:
             # Fallback to a default structure if no settings exist
@@ -961,7 +961,7 @@ class Settings(db.Model):
     # For brevity, I'm omitting the full bodies of save_pdf_layout_config, get_default_pdf_presets, etc.
     # but they would need to be present and potentially updated.
     @classmethod
-    def get_default_pdf_presets(cls) -> Dict[str, Dict[str, Any]]:
+    def get_default_pdf_presets(cls) -> dict[str, dict[str, Any]]:
         # Simplified default
         return {"Classic": cls.get_default_settings().to_dict().get("pdf_layout", {})}
 
