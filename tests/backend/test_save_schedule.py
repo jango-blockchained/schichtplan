@@ -3,21 +3,18 @@
 Script to test schedule generation and saving to the database.
 """
 
-from src.backend.app import create_app
-from datetime import date, timedelta
 import sys
+from datetime import date, timedelta
 
 
-def test_save_schedule():
+def test_save_schedule(app):
     """Test that schedule entries are being saved to the database"""
     print("Starting test of schedule saving...")
 
-    # Create app and get context
-    app = create_app()
     with app.app_context():
         # Import models and services within the app context
+        from src.backend.models import Schedule
         from src.backend.services.scheduler import ScheduleGenerator
-        from models import Schedule
 
         # Check for existing schedule entries
         existing_entries = Schedule.query.all()
@@ -38,7 +35,8 @@ def test_save_schedule():
             )
 
             print(
-                f"Schedule generation completed with {len(result.get('schedule', []))} entries"
+                "Schedule generation completed with "
+                f"{len(result.get('schedule', []))} entries"
             )
 
             # Check warnings
@@ -46,7 +44,8 @@ def test_save_schedule():
             print(f"Warnings: {len(warnings)}")
             for i, warning in enumerate(warnings[:3]):
                 print(
-                    f"  Warning {i + 1}: {warning.get('message')} ({warning.get('type')})"
+                    f"  Warning {i + 1}: {warning.get('message')} "
+                    f"({warning.get('type')})"
                 )
 
             # Now check if entries were saved to database
@@ -55,7 +54,7 @@ def test_save_schedule():
                 Schedule.date >= start_date, Schedule.date <= end_date
             ).all()
 
-            print(f"Found {len(new_entries)} entries in database for the date range")
+            print("Found {len(new_entries)} entries in database for the date range")
 
             # Check if any entries have shifts assigned
             entries_with_shifts = [e for e in new_entries if e.shift_id is not None]
@@ -72,15 +71,11 @@ def test_save_schedule():
                     print(f"    Shift ID: {entry.shift_id}")
                     print(f"    Status: {entry.status}")
 
-            return True
+            assert len(new_entries) > 0, "No schedule entries were saved to database"
 
         except Exception as e:
             print(f"Error: {e}", file=sys.stderr)
             import traceback
 
             traceback.print_exc()
-            return False
-
-
-if __name__ == "__main__":
-    test_save_schedule()
+            raise

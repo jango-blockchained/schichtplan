@@ -15,7 +15,7 @@ def test_schedule_generation():
 
         try:
             result = generator.generate_schedule(
-                start_date, end_date, create_empty_schedules
+                start_date, end_date, None, create_empty_schedules
             )
             print("Schedule generation completed successfully!")
             print(f"Generated {len(result.get('schedule', []))} schedule entries")

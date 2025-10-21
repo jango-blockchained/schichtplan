@@ -11,8 +11,8 @@ import asyncio
 import logging
 import signal
 import sys
-from pathlib import Path
 from contextlib import suppress
+from pathlib import Path
 
 # Ensure project root is on the Python path for `src.*` imports
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -76,14 +76,12 @@ class ConversationalMCPServer:
 
             # Create conversational service
             self.logger.info("Creating conversational AI service...")
-            self.conversational_service = (
-                await create_conversational_mcp_service(
-                    base_mcp_service=self.base_mcp_service,
-                    redis_url=self.config.conversations.redis_url,
-                    openai_key=self.config.ai_providers.openai_api_key,
-                    anthropic_key=self.config.ai_providers.anthropic_api_key,
-                    gemini_key=self.config.ai_providers.gemini_api_key,
-                )
+            self.conversational_service = await create_conversational_mcp_service(
+                base_mcp_service=self.base_mcp_service,
+                redis_url=self.config.conversations.redis_url,
+                openai_key=self.config.ai_providers.openai_api_key,
+                anthropic_key=self.config.ai_providers.anthropic_api_key,
+                gemini_key=self.config.ai_providers.gemini_api_key,
             )
 
             # Test connections
@@ -127,9 +125,7 @@ class ConversationalMCPServer:
 
             # Test Redis connection
             try:
-                conversation_manager = (
-                    self.conversational_service.conversation_manager
-                )
+                conversation_manager = self.conversational_service.conversation_manager
                 # Try to create and retrieve a test conversation
                 test_context = await conversation_manager.create_conversation(
                     user_id="test_connection", session_id="test_session"
@@ -212,12 +208,11 @@ class ConversationalMCPServer:
                 raise ValueError(f"Unsupported transport: {transport}")
 
             self.is_running = True
-            self.logger.info(
-                message = f"🚀 MCP server started on {transport}"
-                if port:
-                    message = f"{message}:{port}"
-                self.logger.info(message)
-            )
+
+            message = f"🚀 MCP server started on {transport}"
+            if port:
+                message = f"{message}:{port}"
+            self.logger.info(message)
 
             # Setup signal handlers
             self._setup_signal_handlers()
@@ -241,18 +236,14 @@ class ConversationalMCPServer:
             # Cancel server task
             if self.server_task and not self.server_task.done():
                 self.server_task.cancel()
-                try:
+                with suppress(asyncio.CancelledError):
                     await self.server_task
-                except asyncio.CancelledError:
-                    pass
 
             # Cancel cleanup task
             if self.cleanup_task and not self.cleanup_task.done():
                 self.cleanup_task.cancel()
-                try:
+                with suppress(asyncio.CancelledError):
                     await self.cleanup_task
-                except asyncio.CancelledError:
-                    pass
 
             # Cleanup conversations
             if self.conversational_service:
@@ -278,10 +269,7 @@ class ConversationalMCPServer:
 
                 # Cleanup expired conversations
                 if self.conversational_service:
-                    count = (
-                        await self.conversational_service.conversation_manager
-                        .cleanup_expired_conversations()
-                    )
+                    count = await self.conversational_service.conversation_manager.cleanup_expired_conversations()
                     if count > 0:
                         self.logger.info(
                             "🧹 Cleaned up %s expired conversations",

@@ -696,42 +696,64 @@ class ScheduleGenerator:
                         # Add assignments to the schedule container
                         assigned_employee_ids = set()
                         for assignment_dict in assignments:
-                            # Get shift template for creating ScheduleAssignment
-                            shift_template = None
-                            if (
-                                "shift_id" in assignment_dict
-                                and assignment_dict["shift_id"]
-                            ):
-                                shift_template = self.resources.get_shift(
-                                    assignment_dict["shift_id"]
+                            # Handle both dictionary and ScheduleAssignment
+                            # object formats
+                            if isinstance(assignment_dict, ScheduleAssignment):
+                                # If it's already a ScheduleAssignment object,
+                                # use it directly
+                                schedule_assignment = assignment_dict
+                                assigned_employee_ids.add(
+                                    schedule_assignment.employee_id
+                                )
+                                self.logger.debug(
+                                    f"Added existing assignment to schedule: "
+                                    f"Employee {schedule_assignment.employee_id}, "
+                                    f"Shift {schedule_assignment.shift_id}, "
+                                    f"Date {schedule_assignment.date}"
+                                )
+                            else:
+                                # Handle dictionary format (expected from
+                                # DistributionManager)
+                                # Get shift template for creating
+                                # ScheduleAssignment
+                                shift_template = None
+                                if (
+                                    "shift_id" in assignment_dict
+                                    and assignment_dict["shift_id"]
+                                ):
+                                    shift_template = self.resources.get_shift(
+                                        assignment_dict["shift_id"]
+                                    )
+
+                                # Create ScheduleAssignment object
+                                schedule_assignment = ScheduleAssignment(
+                                    employee_id=assignment_dict.get("employee_id"),
+                                    shift_id=assignment_dict.get("shift_id"),
+                                    date_val=assignment_dict.get("date", current_date),
+                                    shift_template=shift_template,
+                                    availability_type=assignment_dict.get(
+                                        "availability_type"
+                                    ),
+                                    status=assignment_dict.get("status", "PENDING"),
+                                    version=self.schedule.version,
+                                    break_start=assignment_dict.get("break_start"),
+                                    break_end=assignment_dict.get("break_end"),
+                                    notes=assignment_dict.get("notes"),
+                                    logger_instance=self.diagnostic_logger,
                                 )
 
-                            # Create ScheduleAssignment object
-                            schedule_assignment = ScheduleAssignment(
-                                employee_id=assignment_dict.get("employee_id"),
-                                shift_id=assignment_dict.get("shift_id"),
-                                date_val=assignment_dict.get("date", current_date),
-                                shift_template=shift_template,
-                                availability_type=assignment_dict.get(
-                                    "availability_type"
-                                ),
-                                status=assignment_dict.get("status", "PENDING"),
-                                version=self.schedule.version,
-                                break_start=assignment_dict.get("break_start"),
-                                break_end=assignment_dict.get("break_end"),
-                                notes=assignment_dict.get("notes"),
-                                logger_instance=self.diagnostic_logger,
-                            )
+                                assigned_employee_ids.add(
+                                    schedule_assignment.employee_id
+                                )
+                                self.logger.debug(
+                                    f"Added assignment to schedule: Employee "
+                                    f"{schedule_assignment.employee_id}, Shift "
+                                    f"{schedule_assignment.shift_id}, Date "
+                                    f"{schedule_assignment.date}"
+                                )
 
                             # Add to schedule container
                             self.schedule.add_assignment(schedule_assignment)
-                            assigned_employee_ids.add(schedule_assignment.employee_id)
-                            self.logger.debug(
-                                f"Added assignment to schedule: Employee "
-                                f"{schedule_assignment.employee_id}, Shift "
-                                f"{schedule_assignment.shift_id}, Date "
-                                f"{schedule_assignment.date}"
-                            )
 
                         # If create_empty_schedules is True, create empty entries
                         # for employees who weren't assigned
