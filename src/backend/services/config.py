@@ -6,19 +6,19 @@ This module contains configuration settings for the conversational AI system.
 
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
 class AIProviderConfig:
     """Configuration for AI providers."""
 
-    openai_api_key: Optional[str] = None
-    openai_base_url: Optional[str] = None
-    anthropic_api_key: Optional[str] = None
-    gemini_api_key: Optional[str] = None
+    openai_api_key: str | None = None
+    openai_base_url: str | None = None
+    anthropic_api_key: str | None = None
+    gemini_api_key: str | None = None
     preferred_provider: str = "openai"  # "openai", "anthropic", or "gemini"
-    default_model: Optional[str] = None
+    default_model: str | None = None
     max_tokens: int = 4096
     temperature: float = 0.7
     timeout: int = 30
@@ -44,7 +44,7 @@ class SecurityConfig:
     api_key_required: bool = False
     rate_limit_per_minute: int = 60
     max_conversation_duration: int = 7200  # 2 hours
-    allowed_origins: List[str] = None
+    allowed_origins: list[str] = None
 
     def __post_init__(self):
         if self.allowed_origins is None:
@@ -197,7 +197,7 @@ class ConversationalAIConfig:
         """Load configuration from a JSON or YAML file."""
         import json
 
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             if config_path.endswith(".json"):
                 data = json.load(f)
             elif config_path.endswith((".yml", ".yaml")):
@@ -210,7 +210,7 @@ class ConversationalAIConfig:
         return cls.from_dict(data)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ConversationalAIConfig":
+    def from_dict(cls, data: dict[str, Any]) -> "ConversationalAIConfig":
         """Create configuration from dictionary."""
 
         ai_providers = AIProviderConfig(**data.get("ai_providers", {}))
@@ -242,13 +242,13 @@ class ConversationalAIConfig:
             **main_data,
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert configuration to dictionary."""
         from dataclasses import asdict
 
         return asdict(self)
 
-    def validate(self) -> List[str]:
+    def validate(self) -> list[str]:
         """Validate configuration and return list of errors."""
         errors = []
 
@@ -439,34 +439,46 @@ if __name__ == "__main__":
 
 def load_ai_config_from_database() -> AIProviderConfig:
     """Load AI provider configuration from database settings."""
-    try:
-        # Import here to avoid circular imports
+
+    def _load_from_db() -> AIProviderConfig:
+        # Import inside helper to avoid circular dependencies during import
         from src.backend.models.settings import Settings
 
-        # Get the settings from database
         settings = Settings.query.first()
         if not settings or not settings.ai_scheduling:
             return AIProviderConfig()
 
-        ai_settings = settings.ai_scheduling
-
-        # Extract API key from settings
+        ai_settings = settings.ai_scheduling or {}
         gemini_api_key = ai_settings.get("api_key", "")
 
-        # Create config with Gemini as preferred if API key is available
+        preferred = (
+            "gemini" if gemini_api_key else os.getenv("AI_PREFERRED_PROVIDER", "openai")
+        )
+
         return AIProviderConfig(
             openai_api_key=os.getenv("OPENAI_API_KEY"),
             openai_base_url=os.getenv("OPENAI_BASE_URL"),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
             gemini_api_key=gemini_api_key or os.getenv("GEMINI_API_KEY"),
-            preferred_provider="gemini"
-            if gemini_api_key
-            else os.getenv("AI_PREFERRED_PROVIDER", "openai"),
+            preferred_provider=preferred,
             default_model=os.getenv("AI_DEFAULT_MODEL"),
             max_tokens=int(os.getenv("AI_MAX_TOKENS", "4096")),
             temperature=float(os.getenv("AI_TEMPERATURE", "0.7")),
             timeout=int(os.getenv("AI_TIMEOUT", "30")),
         )
+
+    try:
+        from flask import has_app_context
+
+        if has_app_context():
+            return _load_from_db()
+
+        # No current app context; create one temporarily for the lookup
+        from src.backend.app import create_app
+
+        app = create_app()
+        with app.app_context():
+            return _load_from_db()
     except Exception as e:
         print(f"Error loading AI config from database: {e}")
         # Fallback to environment variables only
