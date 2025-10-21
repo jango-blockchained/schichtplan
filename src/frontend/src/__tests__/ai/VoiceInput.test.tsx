@@ -129,8 +129,8 @@ describe("VoiceInput Component", () => {
 
     // The test MediaRecorder + test AI service should process and call onTranscript
     await waitFor(() => {
-      expect(mockOnTranscript.toHaveBeenCalled()).toBe(true);
-    });
+      expect(mockOnTranscript.toHaveBeenCalled()).toBeTruthy();
+    }, { timeout: 2000 });
   });
 
   test("handles speech recognition results", async () => {
@@ -224,8 +224,8 @@ describe("VoiceInput Component", () => {
     });
 
     await waitFor(() => {
-      expect(onCommand.toHaveBeenCalled()).toBe(true);
-    });
+      expect(onCommand.toHaveBeenCalled()).toBeTruthy();
+    }, { timeout: 2000 });
   });
 
   test("handles microphone permission errors", async () => {

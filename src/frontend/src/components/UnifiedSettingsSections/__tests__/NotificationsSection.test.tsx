@@ -2,6 +2,7 @@ import { describe, it, expect, mock, beforeEach } from "bun:test";
 import { render, screen, fireEvent } from "../../../test-utils/test-utils";
 import NotificationsSection from "../NotificationsSection";
 import type { Settings } from "../../../types";
+import "../../../__tests__/setup";
 
 describe("NotificationsSection", () => {
   let mockOnDisplaySettingChange: ReturnType<typeof mock>; // Simpler type for the mock object

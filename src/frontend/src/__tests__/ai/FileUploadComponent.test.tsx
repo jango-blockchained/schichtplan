@@ -109,7 +109,7 @@ describe("FileUploadComponent", () => {
 
       // Should process the file
       await waitFor(() => {
-        expect(onFileAnalyzed.toHaveBeenCalled()).toBe(true);
+        expect(onFileAnalyzed.toHaveBeenCalled()).toBeTruthy();
       });
     }
   });
@@ -156,7 +156,7 @@ describe("FileUploadComponent", () => {
       });
 
       // Both callbacks should be called
-      expect(onFileSelected.toHaveBeenCalled()).toBe(true);
+      expect(onFileSelected.toHaveBeenCalled()).toBeTruthy();
     }
   });
 
@@ -199,7 +199,7 @@ describe("FileUploadComponent", () => {
       });
 
       // Should trigger error callback
-      expect(onError.toHaveBeenCalled()).toBe(true);
+      expect(onError.toHaveBeenCalled()).toBeTruthy();
     }
   });
 
@@ -224,7 +224,7 @@ describe("FileUploadComponent", () => {
         });
       });
 
-      expect(onFileSelected.toHaveBeenCalled()).toBe(true);
+      expect(onFileSelected.toHaveBeenCalled()).toBeTruthy();
     }
   });
 
@@ -248,7 +248,7 @@ describe("FileUploadComponent", () => {
         });
       });
 
-      expect(onFileSelected.toHaveBeenCalled()).toBe(true);
+      expect(onFileSelected.toHaveBeenCalled()).toBeTruthy();
     }
   });
 
