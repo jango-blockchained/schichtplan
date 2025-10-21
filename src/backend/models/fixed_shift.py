@@ -92,7 +92,12 @@ class ShiftTemplate(db.Model):
             end_hour = int(end_time.split(":")[0])
 
             # Get settings-based shift types if available
-            settings = Settings.query.first()
+            try:
+                settings = Settings.query.first()
+            except RuntimeError:
+                # No app context available, skip settings lookup
+                settings = None
+                
             if settings and hasattr(settings, "shift_types") and settings.shift_types:
                 # Determine the shift type ID and enum based on time
                 if start_hour < 11:
@@ -189,7 +194,12 @@ class ShiftTemplate(db.Model):
 
     def _validate_store_hours(self):
         """Validate that shift times are within store hours, considering keyholder requirements"""
-        settings = Settings.query.first()
+        try:
+            settings = Settings.query.first()
+        except RuntimeError:
+            # No app context available, skip validation
+            return
+            
         if not settings:
             settings = Settings.get_default_settings()
 
