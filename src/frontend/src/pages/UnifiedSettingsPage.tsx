@@ -23,8 +23,27 @@ import {
 } from "@tanstack/react-query";
 // import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useDebouncedCallback } from "use-debounce";
+
+// Deep equality comparison utility
+function deepEqual(obj1: any, obj2: any): boolean {
+  if (obj1 === obj2) return true;
+  if (obj1 == null || obj2 == null) return false;
+  if (typeof obj1 !== "object" || typeof obj2 !== "object") return false;
+  
+  const keys1 = Object.keys(obj1);
+  const keys2 = Object.keys(obj2);
+  
+  if (keys1.length !== keys2.length) return false;
+  
+  for (const key of keys1) {
+    if (!keys2.includes(key)) return false;
+    if (!deepEqual(obj1[key], obj2[key])) return false;
+  }
+  
+  return true;
+}
 
 type SectionId =
   | "general_store_setup"
@@ -265,17 +284,23 @@ export default function UnifiedSettingsPage() {
   // State to manage local edits before debounced save
   const [editableSettings, setEditableSettings] =
     useState<Settings>(DEFAULT_SETTINGS);
+  
+  // Keep track of the last saved settings to detect actual changes
+  const lastSavedSettingsRef = useRef<Settings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
     if (localSettings) {
       setEditableSettings(localSettings);
+      lastSavedSettingsRef.current = localSettings;
     }
   }, [localSettings]);
 
   const mutation: UseMutationResult<Settings, Error, Settings, unknown> =
     useMutation<Settings, Error, Settings>({
       mutationFn: updateSettings,
-      onSuccess: () => {
+      onSuccess: (data) => {
+        // Update the last saved reference to prevent duplicate saves
+        lastSavedSettingsRef.current = data;
         // Don't invalidate queries here to avoid conflicts with manual updates
         // queryClient.invalidateQueries({ queryKey: ["settings"] });
         toast({
@@ -283,8 +308,6 @@ export default function UnifiedSettingsPage() {
           description: "Your changes have been saved successfully.",
           variant: "default",
         });
-        // Optionally, update editableSettings directly from server response
-        // setEditableSettings(data);
       },
       onError: (error: Error) => {
         toast({
@@ -297,7 +320,10 @@ export default function UnifiedSettingsPage() {
 
   const debouncedUpdateSettings = useDebouncedCallback(
     (settingsToSave: Settings) => {
-      mutation.mutate(settingsToSave);
+      // Only save if settings have actually changed
+      if (!deepEqual(settingsToSave, lastSavedSettingsRef.current)) {
+        mutation.mutate(settingsToSave);
+      }
     },
     2000,
   );
