@@ -10,7 +10,7 @@ import json
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any
@@ -187,15 +187,19 @@ class RedisStateStore(StateStore):
         """Save conversation context to Redis."""
         try:
             key = f"{self.key_prefix}{context.conversation_id}"
-            data = self._serialize_context(context)
 
             # Update timestamp
             context.updated_at = datetime.now()
+            data = self._serialize_context(context)
 
             await self.redis.setex(key, self.ttl, json.dumps(data))
             return True
         except Exception as e:
-            logging.error(f"Failed to save conversation {context.conversation_id}: {e}")
+            logging.error(
+                "Failed to save conversation %s: %s",
+                context.conversation_id,
+                e,
+            )
             return False
 
     async def load_conversation(
@@ -211,7 +215,11 @@ class RedisStateStore(StateStore):
 
             return self._deserialize_context(json.loads(data))
         except Exception as e:
-            logging.error(f"Failed to load conversation {conversation_id}: {e}")
+            logging.error(
+                "Failed to load conversation %s: %s",
+                conversation_id,
+                e,
+            )
             return None
 
     async def delete_conversation(self, conversation_id: str) -> bool:
@@ -221,7 +229,11 @@ class RedisStateStore(StateStore):
             result = await self.redis.delete(key)
             return result > 0
         except Exception as e:
-            logging.error(f"Failed to delete conversation {conversation_id}: {e}")
+            logging.error(
+                "Failed to delete conversation %s: %s",
+                conversation_id,
+                e,
+            )
             return False
 
     async def list_conversations(
@@ -240,73 +252,152 @@ class RedisStateStore(StateStore):
                     if user_id is None or context.user_id == user_id:
                         conversations.append(context)
 
-            return sorted(conversations, key=lambda x: x.updated_at, reverse=True)
+            return sorted(
+                conversations,
+                key=lambda x: x.updated_at,
+                reverse=True,
+            )
         except Exception as e:
-            logging.error(f"Failed to list conversations: {e}")
+            logging.error("Failed to list conversations: %s", e)
             return []
 
     def _serialize_context(self, context: ConversationContext) -> dict[str, Any]:
         """Serialize conversation context to dictionary."""
-        data = asdict(context)
+        return {
+            "conversation_id": context.conversation_id,
+            "user_id": context.user_id,
+            "session_id": context.session_id,
+            "state": context.state.value,
+            "created_at": context.created_at.isoformat(),
+            "updated_at": context.updated_at.isoformat(),
+            "expires_at": context.expires_at.isoformat()
+            if context.expires_at
+            else None,
+            "goals": [self._serialize_goal(goal) for goal in context.goals],
+            "current_goal": context.current_goal,
+            "context_items": [
+                self._serialize_context_item(item) for item in context.context_items
+            ],
+            "tools_used": list(context.tools_used),
+            "tool_results": context.tool_results,
+            "pending_tool_calls": context.pending_tool_calls,
+            "user_preferences": context.user_preferences,
+            "metrics": context.metrics,
+            "max_context_items": context.max_context_items,
+            "ai_personality": context.ai_personality,
+            "ai_verbosity": context.ai_verbosity,
+            "ai_proactivity": context.ai_proactivity,
+        }
 
-        # Convert ConversationState enum to string value
-        data["state"] = context.state.value
+    def _serialize_context_item(self, item: ContextItem) -> dict[str, Any]:
+        """Serialize a context item."""
+        return {
+            "id": item.id,
+            "type": item.type,
+            "content": item.content,
+            "timestamp": item.timestamp.isoformat(),
+            "relevance_score": item.relevance_score,
+            "metadata": item.metadata or {},
+            "expires_at": (item.expires_at.isoformat() if item.expires_at else None),
+        }
 
-        # Convert ConversationPriority enums to string values
-        for goal in data.get("goals", []):
-            if hasattr(goal, "priority") and hasattr(goal["priority"], "value"):
-                goal["priority"] = goal["priority"].value
-
-        # Convert datetime objects to ISO strings
-        data["created_at"] = context.created_at.isoformat()
-        data["updated_at"] = context.updated_at.isoformat()
-        if context.expires_at:
-            data["expires_at"] = context.expires_at.isoformat()
-
-        # Serialize context items
-        data["context_items"] = [
-            {
-                **asdict(item),
-                "timestamp": item.timestamp.isoformat(),
-                "expires_at": item.expires_at.isoformat() if item.expires_at else None,
-            }
-            for item in context.context_items
-        ]
-
-        # Serialize goals
-        data["goals"] = [asdict(goal) for goal in context.goals]
-
-        return data
+    def _serialize_goal(self, goal: ConversationGoal) -> dict[str, Any]:
+        """Serialize a conversation goal."""
+        return {
+            "id": goal.id,
+            "description": goal.description,
+            "type": goal.type,
+            "priority": goal.priority.value
+            if isinstance(goal.priority, ConversationPriority)
+            else goal.priority,
+            "status": goal.status,
+            "sub_goals": [
+                self._serialize_goal(sub_goal) for sub_goal in goal.sub_goals or []
+            ],
+            "success_criteria": goal.success_criteria or {},
+        }
 
     def _deserialize_context(self, data: dict[str, Any]) -> ConversationContext:
         """Deserialize conversation context from dictionary."""
-        # Convert ISO strings back to datetime objects
-        data["created_at"] = datetime.fromisoformat(data["created_at"])
-        data["updated_at"] = datetime.fromisoformat(data["updated_at"])
-        if data.get("expires_at"):
-            data["expires_at"] = datetime.fromisoformat(data["expires_at"])
+        created_at = datetime.fromisoformat(data["created_at"])
+        updated_at = datetime.fromisoformat(data["updated_at"])
+        expires_at = (
+            datetime.fromisoformat(data["expires_at"])
+            if data.get("expires_at")
+            else None
+        )
 
-        # Deserialize context items
-        context_items = []
-        for item_data in data.get("context_items", []):
-            item_data["timestamp"] = datetime.fromisoformat(item_data["timestamp"])
-            if item_data.get("expires_at"):
-                item_data["expires_at"] = datetime.fromisoformat(
-                    item_data["expires_at"]
-                )
-            context_items.append(ContextItem(**item_data))
-        data["context_items"] = context_items
+        context_items = [
+            self._deserialize_context_item(item_data)
+            for item_data in data.get("context_items", [])
+        ]
+        goals = [
+            self._deserialize_goal(goal_data) for goal_data in data.get("goals", [])
+        ]
 
-        # Deserialize goals
-        goals = []
-        for goal_data in data.get("goals", []):
-            goals.append(ConversationGoal(**goal_data))
-        data["goals"] = goals
+        return ConversationContext(
+            conversation_id=data["conversation_id"],
+            user_id=data.get("user_id"),
+            session_id=data["session_id"],
+            state=ConversationState(data["state"]),
+            created_at=created_at,
+            updated_at=updated_at,
+            expires_at=expires_at,
+            goals=goals,
+            current_goal=data.get("current_goal"),
+            context_items=context_items,
+            tools_used=data.get("tools_used", []),
+            tool_results=data.get("tool_results", {}),
+            pending_tool_calls=data.get("pending_tool_calls", []),
+            user_preferences=data.get("user_preferences", {}),
+            metrics=data.get("metrics", {}),
+            max_context_items=data.get("max_context_items", 100),
+            ai_personality=data.get("ai_personality", "helpful_scheduler"),
+            ai_verbosity=data.get("ai_verbosity", "normal"),
+            ai_proactivity=data.get("ai_proactivity", "medium"),
+        )
 
-        # Convert state enum
-        data["state"] = ConversationState(data["state"])
+    def _deserialize_context_item(self, data: dict[str, Any]) -> ContextItem:
+        """Deserialize a context item."""
+        timestamp = datetime.fromisoformat(data["timestamp"])
+        expires_at = (
+            datetime.fromisoformat(data["expires_at"])
+            if data.get("expires_at")
+            else None
+        )
 
-        return ConversationContext(**data)
+        return ContextItem(
+            id=data["id"],
+            type=data["type"],
+            content=data.get("content"),
+            timestamp=timestamp,
+            relevance_score=data.get("relevance_score", 1.0),
+            metadata=data.get("metadata") or {},
+            expires_at=expires_at,
+        )
+
+    def _deserialize_goal(self, data: dict[str, Any]) -> ConversationGoal:
+        """Deserialize a conversation goal."""
+        priority = data.get("priority", ConversationPriority.NORMAL)
+        if not isinstance(priority, ConversationPriority):
+            try:
+                priority = ConversationPriority(priority)
+            except ValueError:
+                priority = ConversationPriority.NORMAL
+
+        sub_goals = [
+            self._deserialize_goal(sub_goal) for sub_goal in data.get("sub_goals", [])
+        ]
+
+        return ConversationGoal(
+            id=data["id"],
+            description=data.get("description", ""),
+            type=data.get("type", ""),
+            priority=priority,
+            status=data.get("status", "pending"),
+            sub_goals=sub_goals,
+            success_criteria=data.get("success_criteria") or {},
+        )
 
 
 class ConversationManager:
@@ -378,7 +469,11 @@ class ConversationManager:
         # Call lifecycle hooks
         await self._call_hooks("on_create", context)
 
-        self.logger.info(f"Created conversation {conversation_id} for user {user_id}")
+        self.logger.info(
+            "Created conversation %s for user %s",
+            conversation_id,
+            user_id,
+        )
         return context
 
     async def get_conversation(
@@ -463,7 +558,10 @@ class ConversationManager:
             await self._call_hooks("on_error", context)
 
         self.logger.info(
-            f"Conversation {conversation_id} state changed: {old_state} -> {state}"
+            "Conversation %s state changed: %s -> %s",
+            conversation_id,
+            old_state,
+            state,
         )
         return success
 
@@ -501,7 +599,10 @@ class ConversationManager:
         # Keep only the most relevant items
         context.context_items = context.context_items[: context.max_context_items]
 
-        self.logger.debug(f"Trimmed context for conversation {context.conversation_id}")
+        self.logger.debug(
+            "Trimmed context for conversation %s",
+            context.conversation_id,
+        )
 
     async def _expire_conversation(self, context: ConversationContext):
         """Handle conversation expiration."""

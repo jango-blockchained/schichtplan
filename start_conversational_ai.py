@@ -11,16 +11,25 @@ import asyncio
 import logging
 import signal
 import sys
+from pathlib import Path
+from contextlib import suppress
 
-# Add the src path for imports
-sys.path.append("/home/jango/Git/maike2/schichtplan/src")
+# Ensure project root is on the Python path for `src.*` imports
+PROJECT_ROOT = Path(__file__).resolve().parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-from backend.app import create_app
-from backend.services.config import ConversationalAIConfig, get_config
-from backend.services.conversational_mcp_service import (
+from src.backend.app import create_app  # noqa: E402
+from src.backend.services.config import (  # noqa: E402
+    ConversationalAIConfig,
+    get_config,
+)
+from src.backend.services.conversational_mcp_service import (  # noqa: E402
     create_conversational_mcp_service,
 )
-from backend.services.mcp_service import SchichtplanMCPService
+from src.backend.services.mcp_service import (  # noqa: E402
+    SchichtplanMCPService,
+)
 
 
 class ConversationalMCPServer:
@@ -67,12 +76,14 @@ class ConversationalMCPServer:
 
             # Create conversational service
             self.logger.info("Creating conversational AI service...")
-            self.conversational_service = await create_conversational_mcp_service(
-                base_mcp_service=self.base_mcp_service,
-                redis_url=self.config.conversations.redis_url,
-                openai_key=self.config.ai_providers.openai_api_key,
-                anthropic_key=self.config.ai_providers.anthropic_api_key,
-                gemini_key=self.config.ai_providers.gemini_api_key,
+            self.conversational_service = (
+                await create_conversational_mcp_service(
+                    base_mcp_service=self.base_mcp_service,
+                    redis_url=self.config.conversations.redis_url,
+                    openai_key=self.config.ai_providers.openai_api_key,
+                    anthropic_key=self.config.ai_providers.anthropic_api_key,
+                    gemini_key=self.config.ai_providers.gemini_api_key,
+                )
             )
 
             # Test connections
@@ -98,17 +109,27 @@ class ConversationalMCPServer:
             for provider_type, provider in ai_orchestrator.providers.items():
                 try:
                     if await provider.validate_connection():
-                        self.logger.info(f"✅ {provider_type.value} connection OK")
+                        self.logger.info(
+                            "✅ %s connection OK",
+                            provider_type.value,
+                        )
                     else:
                         self.logger.warning(
-                            f"⚠️  {provider_type.value} connection failed"
+                            "⚠️  %s connection failed",
+                            provider_type.value,
                         )
                 except Exception as e:
-                    self.logger.warning(f"⚠️  {provider_type.value} test error: {e}")
+                    self.logger.warning(
+                        "⚠️  %s test error: %s",
+                        provider_type.value,
+                        e,
+                    )
 
             # Test Redis connection
             try:
-                conversation_manager = self.conversational_service.conversation_manager
+                conversation_manager = (
+                    self.conversational_service.conversation_manager
+                )
                 # Try to create and retrieve a test conversation
                 test_context = await conversation_manager.create_conversation(
                     user_id="test_connection", session_id="test_session"
@@ -133,9 +154,11 @@ class ConversationalMCPServer:
             # Test database connection
             try:
                 with self.flask_app.app_context():
+                    from sqlalchemy import text
+
                     from src.backend.models import db
 
-                    db.session.execute(db.text("SELECT 1"))
+                    db.session.execute(text("SELECT 1"))
                     db.session.commit()
                 self.logger.info("✅ Database connection OK")
 
@@ -156,7 +179,10 @@ class ConversationalMCPServer:
             self.logger.warning("Server is already running")
             return
 
-        self.logger.info(f"🌟 Starting MCP server with {transport} transport...")
+        self.logger.info(
+            "🌟 Starting MCP server with %s transport...",
+            transport,
+        )
 
         try:
             # Get the MCP server instance
@@ -187,7 +213,10 @@ class ConversationalMCPServer:
 
             self.is_running = True
             self.logger.info(
-                f"🚀 MCP server started on {transport}" + (f":{port}" if port else "")
+                message = f"🚀 MCP server started on {transport}"
+                if port:
+                    message = f"{message}:{port}"
+                self.logger.info(message)
             )
 
             # Setup signal handlers
@@ -249,9 +278,15 @@ class ConversationalMCPServer:
 
                 # Cleanup expired conversations
                 if self.conversational_service:
-                    count = await self.conversational_service.conversation_manager.cleanup_expired_conversations()
+                    count = (
+                        await self.conversational_service.conversation_manager
+                        .cleanup_expired_conversations()
+                    )
                     if count > 0:
-                        self.logger.info(f"🧹 Cleaned up {count} expired conversations")
+                        self.logger.info(
+                            "🧹 Cleaned up %s expired conversations",
+                            count,
+                        )
 
             except asyncio.CancelledError:
                 break
@@ -262,7 +297,10 @@ class ConversationalMCPServer:
         """Setup signal handlers for graceful shutdown."""
 
         def signal_handler(signum, frame):
-            self.logger.info(f"Received signal {signum}, initiating shutdown...")
+            self.logger.info(
+                "Received signal %s, initiating shutdown...",
+                signum,
+            )
             asyncio.create_task(self.stop_server())
 
         # Handle common signals
