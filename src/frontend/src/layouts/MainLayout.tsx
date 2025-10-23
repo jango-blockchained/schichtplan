@@ -1,3 +1,4 @@
+import { UnifiedFloatingMenu } from "@/components/ui/UnifiedFloatingMenu";
 import {
   Select,
   SelectContent,
@@ -320,7 +321,8 @@ export const MainLayout = () => {
           </main>
         </div>
 
-        <GlobalAIChat />
+        {/* Unified bottom-right menu and AI chat dialog */}
+        <UnifiedFloatingMenu />
       </div>
     </SidebarProvider>
   );
