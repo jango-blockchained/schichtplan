@@ -515,6 +515,11 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
 
     try {
       if (profileDialog.mode === "save") {
+        console.log("Creating profile with data:", {
+          name: profileDialog.name,
+          description: profileDialog.description,
+          coverageData: coverage,
+        });
         await createCoverageProfile({
           name: profileDialog.name,
           description: profileDialog.description,
@@ -550,9 +555,11 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
       queryClient.invalidateQueries({ queryKey: ["coverage-profiles"] });
       setProfileDialog({ isOpen: false, name: "", description: "", mode: "save" });
     } catch (error) {
+      console.error("Profile save error:", error);
+      const errorMessage = error instanceof Error ? error.message : "An error occurred";
       toast({
         title: "Error saving profile",
-        description: error instanceof Error ? error.message : "An error occurred",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -870,14 +877,10 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
         <Dialog
           open={profileDialog.isOpen}
           onOpenChange={(open) => {
-            if (!open) {
-              setProfileDialog({
-                isOpen: false,
-                name: "",
-                description: "",
-                mode: "save",
-              });
-            }
+            setProfileDialog((prev) => ({
+              ...prev,
+              isOpen: open,
+            }));
           }}
         >
           <DialogContent>

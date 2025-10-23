@@ -1547,6 +1547,13 @@ export const createCoverageProfile = async (data: {
     );
     return response.data;
   } catch (error) {
+    if (error instanceof AxiosError) {
+      const message =
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        error.message;
+      throw new Error(`Failed to create coverage profile: ${message}`);
+    }
     if (error instanceof Error) {
       throw new Error(
         `Failed to create coverage profile: ${error.message}`,
@@ -1572,6 +1579,13 @@ export const updateCoverageProfile = async (
     );
     return response.data;
   } catch (error) {
+    if (error instanceof AxiosError) {
+      const message =
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        error.message;
+      throw new Error(`Failed to update coverage profile: ${message}`);
+    }
     if (error instanceof Error) {
       throw new Error(
         `Failed to update coverage profile: ${error.message}`,
@@ -1614,6 +1628,13 @@ export const copyCoverageProfile = async (
     );
     return response.data;
   } catch (error) {
+    if (error instanceof AxiosError) {
+      const message =
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        error.message;
+      throw new Error(`Failed to copy coverage profile: ${message}`);
+    }
     if (error instanceof Error) {
       throw new Error(
         `Failed to copy coverage profile: ${error.message}`,
@@ -1629,6 +1650,13 @@ export const deleteCoverageProfile = async (
   try {
     await api.delete(`/api/v2/coverage-profiles/${profileId}`);
   } catch (error) {
+    if (error instanceof AxiosError) {
+      const message =
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        error.message;
+      throw new Error(`Failed to delete coverage profile: ${message}`);
+    }
     if (error instanceof Error) {
       throw new Error(
         `Failed to delete coverage profile: ${error.message}`,
