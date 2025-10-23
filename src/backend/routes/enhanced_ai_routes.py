@@ -1,7 +1,33 @@
 """
-Enhanced AI Routes with Voice, File Upload, Real-time Features
+DEPRECATED: Phase 2 Experimental Features
+
+This module contains experimental AI features that are not currently implemented
+or registered in the main Flask application. It includes:
+- Voice input/output endpoints
+- File upload and analysis
+- Real-time WebSocket handlers
+- Analytics endpoints
+
+All code is preserved for reference but should not be used or relied upon.
+To re-enable any features, uncomment the code below and integrate with Flask app.
+
+Last Updated: 2025-10-23 (Commented out for cleanup)
 """
 
+# ============================================================================
+# COMMENTED OUT - PHASE 2 EXPERIMENTAL AI FEATURES
+# ============================================================================
+# The following code is preserved for reference but not currently used.
+# See docstring above for details.
+#
+# To re-enable individual features:
+# 1. Uncomment the relevant sections below
+# 2. Register the blueprint in src/backend/app.py: app.register_blueprint(enhanced_ai_bp)
+# 3. Ensure all dependencies are installed (speech_recognition, etc.)
+# 4. Run tests to verify functionality
+# ============================================================================
+
+"""
 import json
 import os
 from datetime import datetime
@@ -801,3 +827,5 @@ def get_enhanced_blueprint_info():
             },
         ],
     }
+"""
+# End of commented out Phase 2 experimental code

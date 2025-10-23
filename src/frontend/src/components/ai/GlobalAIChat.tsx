@@ -42,7 +42,7 @@ export const GlobalAIChat: React.FC = () => {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-5xl w-[95vw] h-[85vh] p-0">
+      <DialogContent className="max-w-2xl w-[90vw] h-[85vh] p-0">
         <DialogHeader className="px-6 pt-6">
           <DialogTitle className="flex items-center gap-2">
             Conversational AI

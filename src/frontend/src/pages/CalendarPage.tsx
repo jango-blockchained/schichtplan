@@ -1,4 +1,3 @@
-import AISchedulerPanel from "@/components/AISchedulerPanel";
 import { AIConversationGenerationDialog } from "@/components/Schedule/AIConversationGenerationDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -650,7 +649,7 @@ const CalendarPage: React.FC = () => {
                               className={cn(
                                 "w-1.5 h-1.5 rounded-full",
                                 shiftTypeColors[shiftType as string] ||
-                                  "bg-gray-500",
+                                "bg-gray-500",
                               )}
                             />
                           ))}
@@ -743,9 +742,9 @@ const CalendarPage: React.FC = () => {
                 className={cn(
                   "h-12 flex flex-col items-center justify-center font-semibold text-sm border rounded-t",
                   isSameDay(day, new Date()) &&
-                    "bg-primary text-primary-foreground",
+                  "bg-primary text-primary-foreground",
                   isSameDay(day, selectedDate || new Date()) &&
-                    "ring-2 ring-primary",
+                  "ring-2 ring-primary",
                 )}
               >
                 <span>{format(day, "EEE")}</span>
@@ -797,7 +796,7 @@ const CalendarPage: React.FC = () => {
                                   className={cn(
                                     "p-1 m-1 rounded text-xs cursor-move",
                                     shiftTypeColors[
-                                      schedule.shift_type_id || ""
+                                    schedule.shift_type_id || ""
                                     ] || "bg-gray-100",
                                     "text-white",
                                     snapshot.isDragging && "opacity-50",
@@ -925,7 +924,7 @@ const CalendarPage: React.FC = () => {
                                       className={cn(
                                         "mt-1",
                                         shiftTypeColors[
-                                          schedule.shift_type_id
+                                        schedule.shift_type_id
                                         ] || "bg-gray-500",
                                       )}
                                     >
@@ -1075,7 +1074,7 @@ const CalendarPage: React.FC = () => {
                                         className={cn(
                                           "mt-1",
                                           shiftTypeColors[
-                                            schedule.shift_type_id
+                                          schedule.shift_type_id
                                           ] || "bg-gray-500",
                                         )}
                                         variant="secondary"
@@ -1300,7 +1299,7 @@ const CalendarPage: React.FC = () => {
               <span>
                 {Math.round(
                   (statistics.filledShifts / (statistics.totalShifts || 1)) *
-                    100,
+                  100,
                 )}
                 %
               </span>
@@ -1635,7 +1634,7 @@ const CalendarPage: React.FC = () => {
           <DialogHeader>
             <DialogTitle>AI Suggestions</DialogTitle>
           </DialogHeader>
-          <AISchedulerPanel />
+          {/* AISchedulerPanel removed - component no longer exists */}
         </DialogContent>
       </Dialog>
     </div>

@@ -1,10 +1,23 @@
 """
-AI Integration Framework for Conversational Scheduling
+DEPRECATED: AI Integration Framework
 
-This module provides the infrastructure for integrating with various AI providers,
-managing prompts dynamically, and processing AI responses for tool usage.
+This module is no longer in use and has been replaced by ConversationalSchichtplanMCPService.
+It is preserved for reference only and should not be imported or used.
+
+The create_ai_orchestrator() function is not called anywhere in the codebase.
+Use ConversationalSchichtplanMCPService (src/backend/services/conversational_mcp_service.py) instead.
+
+Last Updated: 2025-10-23 (Marked for removal)
 """
 
+# ============================================================================
+# COMMENTED OUT - UNUSED AI INTEGRATION MODULE
+# ============================================================================
+# This entire module is deprecated. See docstring above.
+# To re-enable, uncomment the code below and update any imports that use it.
+# ============================================================================
+
+"""
 import json
 import logging
 import re
@@ -1112,3 +1125,6 @@ async def create_ai_orchestrator_from_config(
         else None,
         gemini_key=config.gemini_api_key if hasattr(config, "gemini_api_key") else None,
     )
+
+"""
+# End of commented out deprecated AI integration module

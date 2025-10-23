@@ -1,7 +1,22 @@
 """
-Enhanced Agent Registry with configuration management and performance tracking.
+DEPRECATED: Enhanced Agent Registry
+
+This module implements an experimental agent registry system that is not used anywhere
+in the codebase. The EnhancedAgentRegistry class is never instantiated or called.
+
+It is preserved for reference only and should not be used.
+
+Last Updated: 2025-10-23 (Marked for removal)
 """
 
+# ============================================================================
+# COMMENTED OUT - UNUSED AGENT REGISTRY MODULE
+# ============================================================================
+# This entire module is experimental and not in use. See docstring above.
+# To re-enable, uncomment the code below and integrate with system.
+# ============================================================================
+
+"""
 import threading
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -458,3 +473,6 @@ class EnhancedAgentRegistry:
 
 # Global enhanced agent registry instance
 enhanced_agent_registry = EnhancedAgentRegistry()
+
+"""
+# End of commented out deprecated agent registry

@@ -1,5 +1,3 @@
-import { GlobalAIAssistant } from "@/components/ai/GlobalAIAssistant";
-import { GlobalAIChat } from "@/components/ai/GlobalAIChat";
 import {
   Select,
   SelectContent,
@@ -322,11 +320,7 @@ export const MainLayout = () => {
           </main>
         </div>
 
-        {/* Global AI Chat dialog */}
         <GlobalAIChat />
-
-        {/* Global AI Assistant - Omnipresent AI helper with integrated menu */}
-        <GlobalAIAssistant />
       </div>
     </SidebarProvider>
   );

@@ -1,10 +1,23 @@
 """
-Enhanced AI Conversation Handler
+DEPRECATED: Enhanced AI Conversation Handler
 
-This module provides intelligent conversation handling with tool usage,
-workflow execution, and multi-step reasoning capabilities.
+This module is a duplicate of ConversationalSchichtplanMCPService and is not used.
+It is preserved for reference only.
+
+The EnhancedAIConversationHandler class is not instantiated or imported anywhere.
+Use ConversationalSchichtplanMCPService (src/backend/services/conversational_mcp_service.py) instead.
+
+Last Updated: 2025-10-23 (Marked for removal)
 """
 
+# ============================================================================
+# COMMENTED OUT - DUPLICATE CONVERSATION HANDLER
+# ============================================================================
+# This entire module is deprecated (duplicate). See docstring above.
+# To re-enable, uncomment the code below and update any imports.
+# ============================================================================
+
+"""
 import json
 import os
 import re
@@ -541,3 +554,6 @@ async def create_enhanced_conversation_handler(
         conversation_manager=conversation_manager,
         ai_orchestrator=ai_orchestrator,
     )
+
+"""
+# End of commented out deprecated conversation handler

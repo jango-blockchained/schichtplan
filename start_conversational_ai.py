@@ -189,20 +189,16 @@ class ConversationalMCPServer:
 
             # Start the appropriate transport
             if transport == "stdio":
-                self.server_task = asyncio.create_task(mcp_server.run())
+                self.server_task = asyncio.create_task(mcp_server.run_stdio_async())
             elif transport == "sse":
-                from fastmcp.transports.sse import sse_transport
-
                 port = port or self.config.mcp_server_port
                 self.server_task = asyncio.create_task(
-                    mcp_server.run_transport(sse_transport(port=port))
+                    mcp_server.run_sse_async(host="0.0.0.0", port=port)
                 )
             elif transport == "http":
-                from fastmcp.transports.http import http_transport
-
                 port = port or self.config.mcp_server_port + 1
                 self.server_task = asyncio.create_task(
-                    mcp_server.run_transport(http_transport(port=port))
+                    mcp_server.run_http_async(host="0.0.0.0", port=port)
                 )
             else:
                 raise ValueError(f"Unsupported transport: {transport}")
