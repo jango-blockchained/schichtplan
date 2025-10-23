@@ -23,6 +23,8 @@ import {
   Sparkles,
   X,
   Zap,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { ConversationalAIChat } from "./ConversationalAIChat";
@@ -36,7 +38,7 @@ interface QuickAction {
   label: string;
   icon: React.ReactNode;
   description: string;
-  handler: () => Promise<void>;
+  handler: () => Promise<void> | void;
   enabled: boolean;
 }
 
@@ -190,7 +192,7 @@ export const GlobalAIAssistant: React.FC<GlobalAIAssistantProps> = ({
           className={cn(
             "fixed right-0 top-0 h-screen z-40 transition-all duration-300 ease-in-out",
             "bg-background border-l border-border shadow-2xl",
-            isMinimized ? "w-16" : "w-[450px]",
+            isMinimized ? "w-16" : "w-[600px] max-w-[90vw]",
           )}
           style={{
             transform: isOpen ? "translateX(0)" : "translateX(100%)",
@@ -279,7 +281,7 @@ export const GlobalAIAssistant: React.FC<GlobalAIAssistantProps> = ({
                       <Zap className="h-4 w-4 text-yellow-600" />
                       Quick Actions
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       {quickActions.map((action) => (
                         <Button
                           key={action.id}
@@ -379,9 +381,34 @@ function getQuickActionsForPage(
   toast: any,
   setIsProcessing: (value: boolean) => void,
 ): QuickAction[] {
+  // Common scroll actions for all pages
+  const commonActions: QuickAction[] = [
+    {
+      id: "scroll-to-top",
+      label: "Page Up",
+      icon: <ArrowUp className="h-3 w-3" />,
+      description: "Scroll to top of page",
+      handler: () => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      },
+      enabled: true,
+    },
+    {
+      id: "scroll-to-bottom",
+      label: "Page Down",
+      icon: <ArrowDown className="h-3 w-3" />,
+      description: "Scroll to bottom of page",
+      handler: () => {
+        window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+      },
+      enabled: true,
+    },
+  ];
+
   // Schedule page actions
   if (route.includes("/schedule") || route.includes("/calendar")) {
     return [
+      ...commonActions,
       {
         id: "optimize-schedule",
         label: "Optimize",
@@ -530,6 +557,7 @@ function getQuickActionsForPage(
   // Employee page actions
   if (route.includes("/employee")) {
     return [
+      ...commonActions,
       {
         id: "analyze-workload",
         label: "Analyze",
@@ -599,6 +627,7 @@ function getQuickActionsForPage(
 
   // Default actions for other pages
   return [
+    ...commonActions,
     {
       id: "ask-ai",
       label: "Ask AI",
