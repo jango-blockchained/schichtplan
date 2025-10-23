@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import React from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { FloatingSuggestionsPanel } from "./components/ai/FloatingSuggestionsPanel";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AIContextProvider } from "./contexts/AIContext";
 import { MainLayout } from "./layouts/MainLayout";
@@ -80,7 +79,6 @@ const App: React.FC = () => {
                   <Route path="design-system" element={<DesignSystemDemo />} />
                 </Route>
               </Routes>
-              <FloatingSuggestionsPanel autoShow={false} />
               <Toaster />
             </AIContextProvider>
           </BrowserRouter>

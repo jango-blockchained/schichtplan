@@ -48,6 +48,9 @@ from src.backend.routes import (
     logs,
 )
 from src.backend.routes.absences import bp as absences_bp
+from src.backend.routes.ai_conversation_routes import (
+    ai_conversation_bp,
+)
 from src.backend.routes.ai_schedule_routes import ai_schedule_bp
 from src.backend.routes.auth import bp as auth_bp
 from src.backend.routes.availability import availability
@@ -197,6 +200,7 @@ def create_app(config_class=Config):
     app.register_blueprint(employees, url_prefix="/api/v2")
     app.register_blueprint(availability)
     app.register_blueprint(absences_bp, url_prefix="/api/v2")
+    app.register_blueprint(ai_conversation_bp, url_prefix="/api/v2/ai-conversation")
     app.register_blueprint(ai_schedule_bp, url_prefix="/api/v2")
     app.register_blueprint(enhanced_ai_bp)
     app.register_blueprint(holidays_bp, url_prefix="/api/v2")
