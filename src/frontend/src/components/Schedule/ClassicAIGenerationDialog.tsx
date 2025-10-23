@@ -18,6 +18,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -25,8 +32,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAIConversation } from "@/hooks/useAIConversation";
 import { aiService } from "@/services/aiService";
 import {
+  getAllCoverageProfiles,
+  getDefaultCoverageProfile,
+} from "@/services/api";
+import { useQuery } from "@tanstack/react-query";
+import {
   AlertTriangle,
   ArrowRight,
+  Calendar,
   Info,
   Loader2,
   MessageCircle,
@@ -35,7 +48,7 @@ import {
   Sliders,
   Users,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 interface ClassicAIGenerationDialogProps {
@@ -69,6 +82,7 @@ interface ClassicAIOptions {
     temperature: number;
     creativity: number;
   };
+  coverageProfileId?: number;
 }
 
 const DEFAULT_OPTIONS: ClassicAIOptions = {
@@ -93,6 +107,7 @@ const DEFAULT_OPTIONS: ClassicAIOptions = {
     temperature: 0.7,
     creativity: 0.5,
   },
+  coverageProfileId: undefined,
 };
 
 export function ClassicAIGenerationDialog({
@@ -104,8 +119,31 @@ export function ClassicAIGenerationDialog({
   onComplete,
 }: ClassicAIGenerationDialogProps) {
   const [options, setOptions] = useState<ClassicAIOptions>(DEFAULT_OPTIONS);
-  const [activeTab, setActiveTab] = useState("priorities");
+  const [activeTab, setActiveTab] = useState("coverage");
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Load coverage profiles
+  const { data: coverageProfiles = [] } = useQuery({
+    queryKey: ["coverage-profiles"],
+    queryFn: getAllCoverageProfiles,
+    enabled: isOpen,
+  });
+
+  const { data: defaultProfile } = useQuery({
+    queryKey: ["defaultCoverageProfile"],
+    queryFn: getDefaultCoverageProfile,
+    enabled: isOpen,
+  });
+
+  // Set default coverage profile on dialog open
+  useEffect(() => {
+    if (isOpen && defaultProfile && !options.coverageProfileId) {
+      setOptions((prev) => ({
+        ...prev,
+        coverageProfileId: defaultProfile.id,
+      }));
+    }
+  }, [isOpen, defaultProfile]);
 
   // Conversation mode hook
   const conversation = useAIConversation(async (prompt: string) => {
@@ -178,6 +216,7 @@ export function ClassicAIGenerationDialog({
         start_date: startDate,
         end_date: endDate,
         version_id: versionId,
+        coverage_profile_id: options.coverageProfileId,
         options: {
           priority_settings: options.prioritySettings,
           constraint_overrides: options.constraintOverrides,
@@ -244,7 +283,11 @@ export function ClassicAIGenerationDialog({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="coverage" className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Profil
+            </TabsTrigger>
             <TabsTrigger value="priorities" className="flex items-center gap-2">
               <Sliders className="h-4 w-4" />
               Prioritäten
@@ -272,6 +315,54 @@ export function ClassicAIGenerationDialog({
               Unterhaltung
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="coverage" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">
+                  Abdeckungsprofil wählen
+                </CardTitle>
+                <CardDescription>
+                  Wählen Sie ein gespeichertes Abdeckungsprofil für die Schichtplan-Generierung. Das Standardprofil ist vorausgewählt.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="coverage-profile-select">Abdeckungsprofil</Label>
+                  <Select
+                    value={String(options.coverageProfileId || "")}
+                    onValueChange={(value) =>
+                      setOptions((prev) => ({
+                        ...prev,
+                        coverageProfileId: value ? parseInt(value, 10) : undefined,
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="coverage-profile-select">
+                      <SelectValue placeholder="Profil wählen..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Keine (aktuelle Abdeckung verwenden)</SelectItem>
+                      {coverageProfiles.map((profile) => (
+                        <SelectItem key={profile.id} value={String(profile.id)}>
+                          {profile.name}
+                          {profile.isDefault && " (Standard)"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {options.coverageProfileId && (
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      Das ausgewählte Profil wird für diese Generierung verwendet. Die Abdeckungsanforderungen aus dem Profil überschreiben die aktuelle Konfiguration.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="priorities" className="space-y-4">
             <Card>

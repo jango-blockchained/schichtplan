@@ -125,4 +125,5 @@ export interface CoverageEditorProps {
   initialCoverage?: DailyCoverage[];
   storeConfig: StoreConfigProps;
   onChange?: (coverage: DailyCoverage[]) => void;
+  currentProfileId?: number;
 }

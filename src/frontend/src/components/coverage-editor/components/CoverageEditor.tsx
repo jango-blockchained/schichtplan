@@ -1,22 +1,38 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import { DndProvider } from "react-dnd";
-import { HTML5Backend } from "react-dnd-html5-backend";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, PencilIcon, CheckSquare, Square, Edit3 } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  CoverageEditorProps,
-  DailyCoverage,
-  StoreConfigProps,
-  CoverageTimeSlot,
+  copyCoverageProfile,
+  createCoverageProfile,
+  updateCoverageProfile,
+} from "@/services/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { CheckSquare, Edit3, PencilIcon, Plus, Save, Square } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { DndProvider } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
+import {
   BlockIdentifier,
   BulkEditData,
+  CoverageEditorProps,
+  CoverageTimeSlot,
+  DailyCoverage,
+  StoreConfigProps,
 } from "../types";
 import { DAYS_SHORT, GRID_CONSTANTS } from "../utils/constants";
-import { DayRow } from "./DayRow";
+import { timeToMinutes } from "../utils/time";
 import { BulkEditDialog } from "./BulkEditDialog";
-import { timeToMinutes, minutesToTime } from "../utils/time";
+import { DayRow } from "./DayRow";
 
 const { TIME_COLUMN_WIDTH, TIME_ROW_HEIGHT, HEADER_HEIGHT } = GRID_CONSTANTS;
 
@@ -104,12 +120,22 @@ const createDefaultDailyCoverage = (dayIndex: number): DailyCoverage => ({
   timeSlots: [],
 });
 
+interface SaveProfileDialogState {
+  isOpen: boolean;
+  name: string;
+  description: string;
+  mode: "save" | "update" | "copy";
+  targetId?: number;
+}
+
 export const CoverageEditor: React.FC<CoverageEditorProps> = ({
   initialCoverage,
   storeConfig: rawStoreConfig,
   onChange,
+  currentProfileId,
 }) => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [gridWidth, setGridWidth] = useState(0);
@@ -118,6 +144,14 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedBlocks, setSelectedBlocks] = useState<Set<string>>(new Set());
   const [showBulkEditDialog, setShowBulkEditDialog] = useState(false);
+
+  // Profile save dialog state
+  const [profileDialog, setProfileDialog] = useState<SaveProfileDialogState>({
+    isOpen: false,
+    name: "",
+    description: "",
+    mode: "save",
+  });
 
   const storeConfig = useMemo(
     () => normalizeStoreConfig(rawStoreConfig),
@@ -423,6 +457,107 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
     setSelectionMode(false);
   };
 
+  // Profile management handlers
+  const openSaveProfileDialog = () => {
+    setProfileDialog({
+      isOpen: true,
+      name: "",
+      description: "",
+      mode: "save",
+    });
+  };
+
+  const openUpdateProfileDialog = () => {
+    if (!currentProfileId) {
+      toast({
+        title: "No profile selected",
+        description: "Please load a profile before updating.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setProfileDialog({
+      isOpen: true,
+      name: "",
+      description: "",
+      mode: "update",
+      targetId: currentProfileId,
+    });
+  };
+
+  const openCopyProfileDialog = () => {
+    if (!currentProfileId) {
+      toast({
+        title: "No profile selected",
+        description: "Please load a profile before copying.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setProfileDialog({
+      isOpen: true,
+      name: "",
+      description: "",
+      mode: "copy",
+      targetId: currentProfileId,
+    });
+  };
+
+  const handleSaveProfile = async () => {
+    if (!profileDialog.name.trim()) {
+      toast({
+        title: "Profile name required",
+        description: "Please enter a name for the profile.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      if (profileDialog.mode === "save") {
+        await createCoverageProfile({
+          name: profileDialog.name,
+          description: profileDialog.description,
+          coverageData: coverage,
+        });
+        toast({
+          title: "Profile saved",
+          description: `Profile "${profileDialog.name}" has been created.`,
+        });
+      } else if (profileDialog.mode === "update") {
+        await updateCoverageProfile(profileDialog.targetId!, {
+          name: profileDialog.name || undefined,
+          description: profileDialog.description || undefined,
+          coverageData: coverage,
+        });
+        toast({
+          title: "Profile updated",
+          description: `Profile has been updated with the current coverage.`,
+        });
+      } else if (profileDialog.mode === "copy") {
+        await copyCoverageProfile(
+          profileDialog.targetId!,
+          profileDialog.name,
+          profileDialog.description || undefined,
+        );
+        toast({
+          title: "Profile copied",
+          description: `Profile has been copied as "${profileDialog.name}".`,
+        });
+      }
+
+      // Invalidate coverage profiles query to refresh the list
+      queryClient.invalidateQueries({ queryKey: ["coverage-profiles"] });
+      setProfileDialog({ isOpen: false, name: "", description: "", mode: "save" });
+    } catch (error) {
+      toast({
+        title: "Error saving profile",
+        description: error instanceof Error ? error.message : "An error occurred",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleUpdateOpeningMinEmployees = (value: number) => {
     const newValue = Math.max(1, value);
     setOpeningMinEmployees(newValue);
@@ -502,7 +637,7 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
             <h2 className="text-lg font-semibold">
               Employee Coverage Requirements
             </h2>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Button
                 variant={isEditing ? "secondary" : "outline"}
                 size="sm"
@@ -574,6 +709,42 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
                   <Plus className="h-4 w-4" />
                   Add All
                 </Button>
+              )}
+
+              {!selectionMode && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={openSaveProfileDialog}
+                  >
+                    <Save className="h-4 w-4" />
+                    Save as Profile
+                  </Button>
+                  {currentProfileId && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={openUpdateProfileDialog}
+                      >
+                        <Save className="h-4 w-4" />
+                        Update Profile
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={openCopyProfileDialog}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Copy Profile
+                      </Button>
+                    </>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -694,6 +865,102 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
           onBulkUpdate={handleBulkUpdate}
           storeConfig={storeConfig}
         />
+
+        {/* Save/Update/Copy Profile Dialog */}
+        <Dialog
+          open={profileDialog.isOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setProfileDialog({
+                isOpen: false,
+                name: "",
+                description: "",
+                mode: "save",
+              });
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {profileDialog.mode === "save"
+                  ? "Save Coverage as Profile"
+                  : profileDialog.mode === "update"
+                    ? "Update Current Profile"
+                    : "Copy Profile"}
+              </DialogTitle>
+              <DialogDescription>
+                {profileDialog.mode === "save"
+                  ? "Save your current coverage configuration as a new profile"
+                  : profileDialog.mode === "update"
+                    ? "Update the profile with your current coverage"
+                    : "Create a copy of this profile"}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="profile-name">Profile Name</Label>
+                <Input
+                  id="profile-name"
+                  placeholder="e.g., Summer Schedule"
+                  value={profileDialog.name}
+                  onChange={(e) =>
+                    setProfileDialog({
+                      ...profileDialog,
+                      name: e.target.value,
+                    })
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleSaveProfile();
+                    }
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="profile-description">Description (Optional)</Label>
+                <Input
+                  id="profile-description"
+                  placeholder="e.g., Coverage for summer peak season"
+                  value={profileDialog.description}
+                  onChange={(e) =>
+                    setProfileDialog({
+                      ...profileDialog,
+                      description: e.target.value,
+                    })
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleSaveProfile();
+                    }
+                  }}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() =>
+                  setProfileDialog({
+                    isOpen: false,
+                    name: "",
+                    description: "",
+                    mode: "save",
+                  })
+                }
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleSaveProfile}>
+                {profileDialog.mode === "save"
+                  ? "Save Profile"
+                  : profileDialog.mode === "update"
+                    ? "Update Profile"
+                    : "Copy Profile"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DndProvider>
   );

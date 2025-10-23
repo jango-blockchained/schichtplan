@@ -518,12 +518,41 @@ def generate_schedule():
         raw_generation_options = request_data.get("generation_options") or {}
         schedule_request = ScheduleGenerateRequest(**request_data)
 
-        # The request might include other config like version, create_empty_schedules etc.
-        external_config_dict = schedule_request.dict(
-            exclude_unset=True
-        )  # Get all passed params as dict
-        if raw_generation_options:
-            external_config_dict["generation_options"] = raw_generation_options
+        # Load coverage profile if coverage_profile_id is provided
+        if schedule_request.coverage_profile_id:
+            from src.backend.models import CoverageProfile
+
+            profile = db.session.get(
+                CoverageProfile, schedule_request.coverage_profile_id
+            )
+            if not profile:
+                logger.warning(
+                    f"Coverage profile with ID {schedule_request.coverage_profile_id} not found"
+                )
+                return jsonify(
+                    {
+                        "status": "error",
+                        "message": f"Coverage profile with ID {schedule_request.coverage_profile_id} not found",
+                    }
+                ), HTTPStatus.NOT_FOUND
+
+            # Update the coverage data in the request
+            logger.info(
+                f"Using coverage profile '{profile.name}' (ID: {profile.id}) for schedule generation"
+            )
+            # Add profile coverage data to external config
+            request_data["coverage_data"] = profile.coverage_data
+            # Update the dict that will be passed to the generator
+            external_config_dict = dict(request_data)
+            if raw_generation_options:
+                external_config_dict["generation_options"] = raw_generation_options
+        else:
+            # The request might include other config like version, create_empty_schedules etc.
+            external_config_dict = schedule_request.dict(
+                exclude_unset=True
+            )  # Get all passed params as dict
+            if raw_generation_options:
+                external_config_dict["generation_options"] = raw_generation_options
 
         logger.info(
             f"Generating schedule for date range: {schedule_request.start_date} to {schedule_request.end_date}"
@@ -2328,6 +2357,28 @@ def generate_ai_schedule():
 
         # Process request
         data = request.get_json()
+
+        # Load coverage profile if coverage_profile_id is provided
+        if data.get("coverage_profile_id"):
+            from src.backend.models import CoverageProfile
+
+            profile = db.session.get(CoverageProfile, data.get("coverage_profile_id"))
+            if not profile:
+                logger.warning(
+                    f"Coverage profile with ID {data.get('coverage_profile_id')} not found"
+                )
+                return jsonify(
+                    {
+                        "status": "error",
+                        "message": f"Coverage profile with ID {data.get('coverage_profile_id')} not found",
+                    }
+                ), HTTPStatus.NOT_FOUND
+
+            # Add profile coverage data to the request
+            logger.info(
+                f"Using coverage profile '{profile.name}' (ID: {profile.id}) for AI schedule generation"
+            )
+            data["coverage_data"] = profile.coverage_data
 
         try:
             start_date = datetime.strptime(data.get("start_date"), "%Y-%m-%d").date()

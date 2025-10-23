@@ -77,6 +77,13 @@ class ScheduleGenerateRequest(BaseModel):
             "Optional feature flags that control phased generation behaviour."
         ),
     )
+    coverage_profile_id: int | None = Field(
+        None,
+        alias="coverage_profile_id",
+        description=(
+            "Optional ID of a saved coverage profile to use for this generation."
+        ),
+    )
 
 
 class ScheduleUpdateRequest(BaseModel):

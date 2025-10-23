@@ -1,17 +1,18 @@
 import { API_TIMEOUT } from "@/constants";
 import type {
-  Absence,
-  AiImportResponse,
-  ApplicableShift,
-  DailyCoverage,
-  Employee,
-  EmployeeAvailabilityStatus,
-  ScheduleUpdate,
-  Settings,
-  Shift,
-  SpecialDay,
-  Schedule as TSchedule,
-  ScheduleResponse as TScheduleResponse,
+    Absence,
+    AiImportResponse,
+    ApplicableShift,
+    CoverageProfile,
+    DailyCoverage,
+    Employee,
+    EmployeeAvailabilityStatus,
+    ScheduleUpdate,
+    Settings,
+    Shift,
+    SpecialDay,
+    Schedule as TSchedule,
+    ScheduleResponse as TScheduleResponse,
 } from "@/types/index";
 import type { PDFLayoutConfig } from "@/types/pdf";
 import axios, { AxiosError } from "axios";
@@ -1469,6 +1470,169 @@ export const getAllCoverage = async (): Promise<DailyCoverage[]> => {
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to get all coverage data: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+// Coverage Profiles API
+export const getAllCoverageProfiles = async (): Promise<
+  CoverageProfile[]
+> => {
+  try {
+    const response = await api.get<CoverageProfile[]>(
+      "/api/v2/coverage-profiles/",
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to get coverage profiles: ${error.message}`,
+      );
+    }
+    throw error;
+  }
+};
+
+export const getDefaultCoverageProfile = async (): Promise<
+  CoverageProfile | null
+> => {
+  try {
+    const response = await api.get<CoverageProfile>(
+      "/api/v2/coverage-profiles/default",
+    );
+    return response.data;
+  } catch (error) {
+    // It's ok if there's no default profile yet
+    if (error instanceof Error && error.message.includes("404")) {
+      return null;
+    }
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to get default coverage profile: ${error.message}`,
+      );
+    }
+    throw error;
+  }
+};
+
+export const getCoverageProfile = async (
+  profileId: number,
+): Promise<CoverageProfile> => {
+  try {
+    const response = await api.get<CoverageProfile>(
+      `/api/v2/coverage-profiles/${profileId}`,
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to get coverage profile: ${error.message}`,
+      );
+    }
+    throw error;
+  }
+};
+
+export const createCoverageProfile = async (data: {
+  name: string;
+  description?: string;
+  coverageData: DailyCoverage[];
+  isDefault?: boolean;
+}): Promise<CoverageProfile> => {
+  try {
+    const response = await api.post<CoverageProfile>(
+      "/api/v2/coverage-profiles/",
+      data,
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to create coverage profile: ${error.message}`,
+      );
+    }
+    throw error;
+  }
+};
+
+export const updateCoverageProfile = async (
+  profileId: number,
+  data: Partial<{
+    name: string;
+    description: string;
+    coverageData: DailyCoverage[];
+    isDefault: boolean;
+  }>,
+): Promise<CoverageProfile> => {
+  try {
+    const response = await api.put<CoverageProfile>(
+      `/api/v2/coverage-profiles/${profileId}`,
+      data,
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to update coverage profile: ${error.message}`,
+      );
+    }
+    throw error;
+  }
+};
+
+export const setDefaultCoverageProfile = async (
+  profileId: number,
+): Promise<CoverageProfile> => {
+  try {
+    const response = await api.post<CoverageProfile>(
+      `/api/v2/coverage-profiles/${profileId}/set-default`,
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to set default coverage profile: ${error.message}`,
+      );
+    }
+    throw error;
+  }
+};
+
+export const copyCoverageProfile = async (
+  profileId: number,
+  newName: string,
+  newDescription?: string,
+): Promise<CoverageProfile> => {
+  try {
+    const response = await api.post<CoverageProfile>(
+      `/api/v2/coverage-profiles/${profileId}/copy`,
+      {
+        name: newName,
+        description: newDescription,
+      },
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to copy coverage profile: ${error.message}`,
+      );
+    }
+    throw error;
+  }
+};
+
+export const deleteCoverageProfile = async (
+  profileId: number,
+): Promise<void> => {
+  try {
+    await api.delete(`/api/v2/coverage-profiles/${profileId}`);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to delete coverage profile: ${error.message}`,
+      );
     }
     throw error;
   }

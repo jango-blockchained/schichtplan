@@ -352,6 +352,16 @@ export interface DailyCoverage {
   timeSlots: CoverageTimeSlot[];
 }
 
+export interface CoverageProfile {
+  id: number;
+  name: string;
+  description?: string;
+  coverageData: DailyCoverage[];
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PDFLayoutConfig {
   page_size: string;
   orientation: string;

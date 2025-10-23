@@ -19,7 +19,7 @@ from src.backend.models import (
 from src.backend.models.employee import AvailabilityType, EmployeeGroup
 from src.backend.models.fixed_shift import ShiftType
 
-bp = Blueprint("demo_data", __name__, url_prefix="/demo-data")
+bp = Blueprint("demo_data", __name__, url_prefix="/api/v2/demo-data")
 
 
 def production_safeguard(f):
@@ -521,12 +521,43 @@ def generate_improved_availability_data(employees):
                                 )
                                 availabilities.append(pref_slot)
 
-            else:
-                # This is a non-working day - mostly unavailable with some flexibility
+            # This is a non-working day - mostly unavailable with some flexibility
 
-                # 80% chance of being completely unavailable on non-working days
-                if random.random() < 0.8:
-                    for hour in range(business_start, business_end):
+            # 80% chance of being completely unavailable on non-working days
+            elif random.random() < 0.8:
+                for hour in range(business_start, business_end):
+                    unavail_slot = EmployeeAvailability(
+                        employee_id=employee.id,
+                        day_of_week=day_idx,
+                        hour=hour,
+                        is_available=False,
+                        availability_type=AvailabilityType.UNAVAILABLE,
+                        start_date=day_date_obj,
+                        end_date=day_date_obj,
+                        is_recurring=False,
+                    )
+                    availabilities.append(unavail_slot)
+            else:
+                # 20% chance of some availability (flexible employees)
+                # Add a few available hours scattered throughout the day
+                available_hours = random.sample(
+                    range(business_start, business_end), random.randint(2, 5)
+                )
+
+                for hour in range(business_start, business_end):
+                    if hour in available_hours:
+                        avail_slot = EmployeeAvailability(
+                            employee_id=employee.id,
+                            day_of_week=day_idx,
+                            hour=hour,
+                            is_available=True,
+                            availability_type=AvailabilityType.AVAILABLE,
+                            start_date=day_date_obj,
+                            end_date=day_date_obj,
+                            is_recurring=False,
+                        )
+                        availabilities.append(avail_slot)
+                    else:
                         unavail_slot = EmployeeAvailability(
                             employee_id=employee.id,
                             day_of_week=day_idx,
@@ -538,38 +569,6 @@ def generate_improved_availability_data(employees):
                             is_recurring=False,
                         )
                         availabilities.append(unavail_slot)
-                else:
-                    # 20% chance of some availability (flexible employees)
-                    # Add a few available hours scattered throughout the day
-                    available_hours = random.sample(
-                        range(business_start, business_end), random.randint(2, 5)
-                    )
-
-                    for hour in range(business_start, business_end):
-                        if hour in available_hours:
-                            avail_slot = EmployeeAvailability(
-                                employee_id=employee.id,
-                                day_of_week=day_idx,
-                                hour=hour,
-                                is_available=True,
-                                availability_type=AvailabilityType.AVAILABLE,
-                                start_date=day_date_obj,
-                                end_date=day_date_obj,
-                                is_recurring=False,
-                            )
-                            availabilities.append(avail_slot)
-                        else:
-                            unavail_slot = EmployeeAvailability(
-                                employee_id=employee.id,
-                                day_of_week=day_idx,
-                                hour=hour,
-                                is_available=False,
-                                availability_type=AvailabilityType.UNAVAILABLE,
-                                start_date=day_date_obj,
-                                end_date=day_date_obj,
-                                is_recurring=False,
-                            )
-                            availabilities.append(unavail_slot)
 
         # Calculate total weekly hours for this employee
         weekly_hours = len(

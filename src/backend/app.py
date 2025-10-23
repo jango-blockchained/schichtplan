@@ -30,6 +30,9 @@ from flask_migrate import Migrate
 from werkzeug.exceptions import HTTPException
 
 from src.backend.api.coverage import bp as coverage_bp
+from src.backend.api.coverage_profiles import (
+    bp as coverage_profiles_bp,
+)
 from src.backend.api.csv_import import csv_import_bp
 from src.backend.api.demo_data import bp as demo_data_bp
 from src.backend.api.pdf_settings import bp as pdf_settings_bp
@@ -59,8 +62,6 @@ from src.backend.routes.shifts import shifts
 from src.backend.routes.special_days import special_days as special_days_bp
 from src.backend.utils.logger import (
     CustomFormatter,
-)
-from src.backend.utils.logger import (
     logger as global_logger,
 )
 
@@ -204,12 +205,13 @@ def create_app(config_class=Config):
     app.register_blueprint(special_days_bp, url_prefix="/api/v2")
     app.register_blueprint(auth_bp)  # Register auth blueprint
     app.register_blueprint(coverage_bp)
+    app.register_blueprint(coverage_profiles_bp)
     app.register_blueprint(csv_import_bp)  # Register CSV import blueprint
     app.register_blueprint(pdf_settings_bp)  # Register PDF settings blueprint
     app.register_blueprint(
         api_settings_bp, name="api_settings"
     )  # Register API settings blueprint
-    app.register_blueprint(demo_data_bp, url_prefix="/api/v2")
+    app.register_blueprint(demo_data_bp)
     app.register_blueprint(logs.bp, url_prefix="/api/v2/logs")
     app.register_blueprint(
         api_schedules_bp, name="api_schedules"
@@ -451,7 +453,7 @@ def create_app(config_class=Config):
                     # Display the last few lines of the diagnostic log
                     try:
                         if log_path.exists():
-                            with open(log_path, "r") as f:
+                            with open(log_path) as f:
                                 lines = f.readlines()
                                 if lines:
                                     print("\nLast 10 lines of diagnostic log:")

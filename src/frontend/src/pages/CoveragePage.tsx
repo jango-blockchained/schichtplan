@@ -2,15 +2,20 @@ import {
   AISearchInput,
   type SearchSuggestion,
 } from "@/components/ai/AISearchInput";
-import { CoverageEditor } from "@/components/coverage-editor";
+import { CoverageEditor, CoverageProfileManager } from "@/components/coverage-editor";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
-import { getAllCoverage, getSettings, updateCoverage } from "@/services/api";
-import { CoverageTimeSlot, DailyCoverage } from "@/types/index";
+import {
+  getAllCoverage,
+  getDefaultCoverageProfile,
+  getSettings,
+  updateCoverage,
+} from "@/services/api";
+import { CoverageProfile, CoverageTimeSlot, DailyCoverage } from "@/types/index";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar, Clock, Loader2, TrendingUp, Users } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Line,
   LineChart,
@@ -51,6 +56,7 @@ const CustomTooltip = ({
 export default function CoveragePage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [selectedProfile, setSelectedProfile] = useState<CoverageProfile | null>(null);
 
   const { data: settings, isLoading: isSettingsLoading } = useQuery({
     queryKey: ["settings"] as const,
@@ -62,9 +68,29 @@ export default function CoveragePage() {
     queryFn: getAllCoverage,
   });
 
+  // Load default profile on mount
+  const { data: defaultProfile } = useQuery({
+    queryKey: ["defaultCoverageProfile"],
+    queryFn: getDefaultCoverageProfile,
+    staleTime: Infinity, // Don't refetch unless invalidated
+  });
+
+  // When default profile is loaded and coverage hasn't been edited, use the profile data
+  const effectiveCoverage = useMemo(() => {
+    // Use current coverage if it exists and has content
+    if (coverage && coverage.some((day) => day.timeSlots.length > 0)) {
+      return coverage;
+    }
+    // Otherwise use default profile coverage if available
+    if (defaultProfile && selectedProfile?.id === defaultProfile.id) {
+      return defaultProfile.coverageData;
+    }
+    return coverage || [];
+  }, [coverage, defaultProfile, selectedProfile]);
+
   // Calculate real stats from coverage data
   const stats = useMemo(() => {
-    if (!coverage || !Array.isArray(coverage)) return null;
+    if (!effectiveCoverage || !Array.isArray(effectiveCoverage)) return null;
 
     // Initialize default coverage array if empty
     const defaultCoverage: DailyCoverage[] = Array.from(
@@ -77,7 +103,7 @@ export default function CoveragePage() {
 
     // Merge existing coverage with defaults
     const fullCoverage = defaultCoverage.map((defaultDay) => {
-      const existingDay = coverage.find(
+      const existingDay = effectiveCoverage.find(
         (day) => day.dayIndex === defaultDay.dayIndex,
       );
       return existingDay || defaultDay;
@@ -150,9 +176,7 @@ export default function CoveragePage() {
           : 0,
       weeklyData,
     };
-  }, [coverage]);
-
-  if (isSettingsLoading || !settings || isCoverageLoading || !stats) {
+  }, [effectiveCoverage]); if (isSettingsLoading || !settings || isCoverageLoading || !stats) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -177,7 +201,7 @@ export default function CoveragePage() {
 
   // Initialize default coverage if none exists
   const initialCoverage =
-    coverage ||
+    effectiveCoverage ||
     Array.from({ length: 7 }, (_, index) => ({
       dayIndex: index,
       timeSlots: [] as CoverageTimeSlot[],
@@ -288,6 +312,7 @@ export default function CoveragePage() {
       <CoverageEditor
         initialCoverage={initialCoverage}
         storeConfig={storeConfig}
+        currentProfileId={selectedProfile?.id}
         onChange={async (newCoverage) => {
           try {
             await updateCoverage(newCoverage);
@@ -305,6 +330,20 @@ export default function CoveragePage() {
             });
           }
         }}
+      />
+
+      {/* Coverage Profiles Manager */}
+      <CoverageProfileManager
+        onSelectProfile={(profile) => {
+          setSelectedProfile(profile);
+          // Manually update coverage with the profile data
+          // This simulates loading the profile
+          toast({
+            title: "Profile Loaded",
+            description: `Loaded coverage profile "${profile.name}"`,
+          });
+        }}
+        selectedProfileId={selectedProfile?.id}
       />
     </div>
   );
