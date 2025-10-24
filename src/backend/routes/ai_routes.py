@@ -21,19 +21,19 @@ from src.backend.services.background_task_manager import (
     TaskType,
     background_task_manager,
 )
-from src.backend.services.enhanced_agent_registry import (
-    AgentCapability,
-    AgentStatus,
-    enhanced_agent_registry,
-)
-from src.backend.services.enhanced_conversation_manager import (
-    ConversationSearchFilter,
-    enhanced_conversation_manager,
-)
 
-# Add enhanced services imports
-from src.backend.services.enhanced_mcp_service import mcp_tool_executor
-
+# from src.backend.services.enhanced_agent_registry import (
+#     AgentCapability,
+#     AgentStatus,
+#     enhanced_agent_registry,
+# )
+# from src.backend.services.enhanced_conversation_manager import (
+#     ConversationSearchFilter,
+#     enhanced_conversation_manager,
+# )
+#
+# # Add enhanced services imports
+# from src.backend.services.enhanced_mcp_service import mcp_tool_executor
 # Import AI services
 from src.backend.services.mcp_service import SchichtplanMCPService
 from src.backend.services.simple_conversation_manager import SimpleConversationManager
@@ -794,19 +794,17 @@ def get_task_progress(task_id):
         logger.app_logger.error(f"Failed to get task progress: {str(e)}")
         return jsonify({"error": f"Failed to get task progress: {str(e)}"}), 500
 
-
-"""
-# ============================================================================
-# DEPRECATED / EXPERIMENTAL ROUTES
-# ============================================================================
-# The following routes are experimental, for debugging, or not fully
-# implemented. They are commented out to clean up the API surface.
-# They can be re-enabled for development or if features are completed.
-# ============================================================================
-
-@ai_bp.route("/tasks/<task_id>/cancel", methods=["POST"])
-@track_performance
-def cancel_task(task_id):
+    # ============================================================================
+    # DEPRECATED / EXPERIMENTAL ROUTES
+    # ============================================================================
+    # The following routes are experimental, for debugging, or not fully
+    # implemented. They are commented out to clean up the API surface.
+    # They can be re-enabled for development or if features are completed.
+    # ============================================================================
+    #
+    # @ai_bp.route("/tasks/<task_id>/cancel", methods=["POST"])
+    # @track_performance
+    # def cancel_task(task_id):
     """
     Cancel a running background task.
 
@@ -2340,7 +2338,8 @@ def get_performance_overview():
     except Exception as e:
         logger.app_logger.error(f"Get performance overview error: {str(e)}")
         return jsonify(
-            {"error": f"Failed to get performance overview: {str(e)}", "monitoring_status": {"active": False}}
+            {
+                "error": f"Failed to get performance overview: {str(e)}",
+                "monitoring_status": {"active": False},
+            }
         ), 500
-
-"""

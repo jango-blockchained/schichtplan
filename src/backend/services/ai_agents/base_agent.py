@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from ..ai_integration import AIOrchestrator, AIRequest, AIResponse
 from ..conversation_manager import ConversationContext
@@ -47,13 +47,13 @@ class AgentAction:
     id: str
     agent_id: str
     action_type: str
-    parameters: Dict[str, Any]
+    parameters: dict[str, Any]
     reasoning: str
     confidence_score: float
     timestamp: datetime = field(default_factory=datetime.now)
     status: AgentStatus = AgentStatus.IDLE
-    result: Optional[Any] = None
-    error: Optional[str] = None
+    result: Any | None = None
+    error: str | None = None
 
 
 @dataclass
@@ -63,9 +63,9 @@ class AgentPlan:
     id: str
     agent_id: str
     goal: str
-    steps: List[AgentAction]
-    dependencies: Dict[str, List[str]] = field(default_factory=dict)
-    estimated_duration: Optional[int] = None
+    steps: list[AgentAction]
+    dependencies: dict[str, list[str]] = field(default_factory=dict)
+    estimated_duration: int | None = None
     confidence_score: float = 0.0
     created_at: datetime = field(default_factory=datetime.now)
     status: AgentStatus = AgentStatus.IDLE
@@ -79,9 +79,9 @@ class BaseAgent(ABC):
         agent_id: str,
         name: str,
         description: str,
-        capabilities: List[AgentCapability],
+        capabilities: list[AgentCapability],
         ai_orchestrator: AIOrchestrator,
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
     ):
         self.agent_id = agent_id
         self.name = name
@@ -92,9 +92,9 @@ class BaseAgent(ABC):
 
         # Agent state
         self.status = AgentStatus.IDLE
-        self.current_plan: Optional[AgentPlan] = None
-        self.action_history: List[AgentAction] = []
-        self.knowledge_base: Dict[str, Any] = {}
+        self.current_plan: AgentPlan | None = None
+        self.action_history: list[AgentAction] = []
+        self.knowledge_base: dict[str, Any] = {}
 
         # Performance metrics
         self.success_rate = 0.0
@@ -104,7 +104,7 @@ class BaseAgent(ABC):
     @abstractmethod
     async def can_handle(
         self, request: str, context: ConversationContext
-    ) -> Tuple[bool, float]:
+    ) -> tuple[bool, float]:
         """
         Check if this agent can handle the given request.
 
@@ -151,7 +151,7 @@ class BaseAgent(ABC):
 
     async def execute_plan(
         self, plan: AgentPlan, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Execute a complete plan with dependency management.
 
@@ -308,7 +308,7 @@ Provide your thoughts, reasoning, and any recommendations. Be specific and actio
         """
         return agent_info.strip()
 
-    def _extract_relevant_context(self, context: ConversationContext) -> Dict[str, Any]:
+    def _extract_relevant_context(self, context: ConversationContext) -> dict[str, Any]:
         """Extract context relevant to this agent's capabilities."""
         return {
             "conversation_id": context.conversation_id,
@@ -319,7 +319,7 @@ Provide your thoughts, reasoning, and any recommendations. Be specific and actio
             "knowledge_base": self.knowledge_base,
         }
 
-    def _get_preferred_models(self) -> List[str]:
+    def _get_preferred_models(self) -> list[str]:
         """Get preferred AI models for this agent."""
         # Base implementation - can be overridden by specific agents
         return ["gpt-4o", "claude-3-5-sonnet-20241022", "gemini-pro"]
@@ -332,7 +332,7 @@ Provide your thoughts, reasoning, and any recommendations. Be specific and actio
             "source": "learning",
         }
 
-    def get_performance_metrics(self) -> Dict[str, Any]:
+    def get_performance_metrics(self) -> dict[str, Any]:
         """Get agent performance metrics."""
         successful_actions = sum(
             1
