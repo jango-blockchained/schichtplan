@@ -103,6 +103,12 @@ export const MainLayout = () => {
         description: "Urlaub/Krankheit verwalten",
       },
       {
+        label: "Urlaubsplanung",
+        path: "/vacation",
+        icon: CalendarDays,
+        description: "Urlaubsplanung und -verwaltung",
+      },
+      {
         label: "Mitarbeiter",
         path: "/employees",
         icon: Users,
