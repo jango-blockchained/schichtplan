@@ -20,6 +20,7 @@ import PDFLayoutCustomizerPage from "./pages/PDFLayoutCustomizerPage";
 import { SchedulePage } from "./pages/SchedulePage";
 import { ShiftsPage } from "./pages/ShiftsPage";
 import UnifiedSettingsPage from "./pages/UnifiedSettingsPage";
+import VacationPlanningPage from "./pages/VacationPlanningPage";
 import VersionsPage from "./pages/VersionsPage";
 
 const queryClient = new QueryClient({
@@ -64,6 +65,7 @@ const App: React.FC = () => {
                   <Route path="overview" element={<OverviewPage />} />
                   <Route path="versions" element={<VersionsPage />} />
                   <Route path="absences" element={<AbsencesPage />} />
+                  <Route path="vacation" element={<VacationPlanningPage />} />
                   <Route path="shifts" element={<ShiftsPage />} />
                   <Route path="coverage" element={<CoveragePage />} />
                   <Route path="employees" element={<EmployeesPage />} />

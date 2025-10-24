@@ -104,24 +104,28 @@ class ConversationalMCPServer:
             # Test AI providers
             ai_orchestrator = self.conversational_service.ai_orchestrator
 
-            for provider_type, provider in ai_orchestrator.providers.items():
-                try:
-                    if await provider.validate_connection():
-                        self.logger.info(
-                            "✅ %s connection OK",
-                            provider_type.value,
-                        )
-                    else:
+            # Check if providers attribute exists and is iterable
+            if hasattr(ai_orchestrator, "providers") and ai_orchestrator.providers:
+                for provider_type, provider in ai_orchestrator.providers.items():
+                    try:
+                        if await provider.validate_connection():
+                            self.logger.info(
+                                "✅ %s connection OK",
+                                provider_type.value,
+                            )
+                        else:
+                            self.logger.warning(
+                                "⚠️  %s connection failed",
+                                provider_type.value,
+                            )
+                    except Exception as e:
                         self.logger.warning(
-                            "⚠️  %s connection failed",
+                            "⚠️  %s test error: %s",
                             provider_type.value,
+                            e,
                         )
-                except Exception as e:
-                    self.logger.warning(
-                        "⚠️  %s test error: %s",
-                        provider_type.value,
-                        e,
-                    )
+            else:
+                self.logger.info("ℹ️  AI providers not configured")
 
             # Test Redis connection
             try:
@@ -324,17 +328,20 @@ class ConversationalMCPServer:
 
             # Check AI providers
             ai_status = {}
-            for (
-                provider_type,
-                provider,
-            ) in self.conversational_service.ai_orchestrator.providers.items():
-                try:
-                    if await provider.validate_connection():
-                        ai_status[provider_type.value] = "healthy"
-                    else:
-                        ai_status[provider_type.value] = "connection_failed"
-                except Exception as e:
-                    ai_status[provider_type.value] = f"error: {e}"
+            if hasattr(self.conversational_service.ai_orchestrator, "providers"):
+                for (
+                    provider_type,
+                    provider,
+                ) in self.conversational_service.ai_orchestrator.providers.items():
+                    try:
+                        if await provider.validate_connection():
+                            ai_status[provider_type.value] = "healthy"
+                        else:
+                            ai_status[provider_type.value] = "connection_failed"
+                    except Exception as e:
+                        ai_status[provider_type.value] = f"error: {e}"
+            else:
+                ai_status["note"] = "No providers configured"
 
             health_status["components"]["ai_providers"] = ai_status
 

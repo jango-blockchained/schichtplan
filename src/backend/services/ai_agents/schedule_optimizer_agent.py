@@ -8,7 +8,7 @@ It can handle complex scheduling scenarios, resolve conflicts, and suggest impro
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from ..ai_integration import AIOrchestrator
 from ..conversation_manager import ConversationContext
@@ -19,7 +19,7 @@ class ScheduleOptimizerAgent(BaseAgent):
     """Specialized agent for schedule optimization tasks."""
 
     def __init__(
-        self, ai_orchestrator: AIOrchestrator, logger: Optional[logging.Logger] = None
+        self, ai_orchestrator: AIOrchestrator, logger: logging.Logger | None = None
     ):
         super().__init__(
             agent_id="schedule_optimizer",
@@ -45,7 +45,7 @@ class ScheduleOptimizerAgent(BaseAgent):
 
     async def can_handle(
         self, request: str, context: ConversationContext
-    ) -> Tuple[bool, float]:
+    ) -> tuple[bool, float]:
         """Check if this agent can handle schedule optimization requests."""
         optimization_keywords = [
             "optimize",
@@ -202,7 +202,7 @@ Respond in JSON format:
 
     async def _analyze_current_state(
         self, action: AgentAction, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Analyze the current schedule state."""
         # This would typically call MCP tools to get current schedule data
         analysis_result = {
@@ -225,7 +225,7 @@ Respond in JSON format:
 
     async def _identify_conflicts(
         self, action: AgentAction, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Identify scheduling conflicts."""
         conflicts_result = {
             "action": "identify_conflicts",
@@ -240,7 +240,7 @@ Respond in JSON format:
 
     async def _resolve_conflicts(
         self, action: AgentAction, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Resolve identified conflicts."""
         resolution_result = {
             "action": "resolve_conflicts",
@@ -256,7 +256,7 @@ Respond in JSON format:
 
     async def _balance_workload(
         self, action: AgentAction, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Balance workload across employees."""
         balance_result = {
             "action": "balance_workload",
@@ -271,7 +271,7 @@ Respond in JSON format:
 
     async def _optimize_coverage(
         self, action: AgentAction, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Optimize shift coverage."""
         coverage_result = {
             "action": "optimize_coverage",
@@ -286,7 +286,7 @@ Respond in JSON format:
 
     async def _improve_fairness(
         self, action: AgentAction, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Improve fairness in schedule assignments."""
         fairness_result = {
             "action": "improve_fairness",
@@ -301,7 +301,7 @@ Respond in JSON format:
 
     async def _validate_solution(
         self, action: AgentAction, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Validate the optimization solution."""
         validation_result = {
             "action": "validate_solution",
@@ -317,7 +317,7 @@ Respond in JSON format:
 
     async def _generate_recommendations(
         self, action: AgentAction, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate final recommendations."""
         recommendations_result = {
             "action": "generate_recommendations",
@@ -331,7 +331,7 @@ Respond in JSON format:
         self.update_knowledge("final_recommendations", recommendations_result)
         return recommendations_result
 
-    def _create_default_plan(self, request: str) -> Dict[str, Any]:
+    def _create_default_plan(self, request: str) -> dict[str, Any]:
         """Create a default optimization plan when AI analysis fails."""
         return {
             "analysis": "Standard schedule optimization request",
@@ -369,7 +369,7 @@ Respond in JSON format:
     # Strategy methods for different optimization approaches
     async def _resolve_conflicts_strategy(
         self, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Strategy for resolving scheduling conflicts."""
         return {
             "strategy": "conflict_resolution",
@@ -378,7 +378,7 @@ Respond in JSON format:
 
     async def _balance_workload_strategy(
         self, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Strategy for balancing workload."""
         return {
             "strategy": "workload_balancing",
@@ -387,7 +387,7 @@ Respond in JSON format:
 
     async def _optimize_coverage_strategy(
         self, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Strategy for optimizing coverage."""
         return {
             "strategy": "coverage_optimization",
@@ -396,14 +396,14 @@ Respond in JSON format:
 
     async def _improve_fairness_strategy(
         self, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Strategy for improving fairness."""
         return {
             "strategy": "fairness_improvement",
             "steps": ["measure_fairness", "adjust_assignments", "verify"],
         }
 
-    def _get_preferred_models(self) -> List[str]:
+    def _get_preferred_models(self) -> list[str]:
         """Get preferred AI models for optimization tasks."""
         # Prefer models good at analytical and logical reasoning
         return ["gpt-4o", "claude-3-5-sonnet-20241022", "o1-preview"]

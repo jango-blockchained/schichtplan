@@ -1,4 +1,3 @@
-import { UnifiedFloatingMenu } from "@/components/ui/UnifiedFloatingMenu";
 import {
   Select,
   SelectContent,
@@ -101,6 +100,12 @@ export const MainLayout = () => {
         path: "/absences",
         icon: CalendarDays,
         description: "Urlaub/Krankheit verwalten",
+      },
+      {
+        label: "Urlaubsplanung",
+        path: "/vacation",
+        icon: CalendarDays,
+        description: "Urlaubsplanung und -verwaltung",
       },
       {
         label: "Mitarbeiter",
@@ -320,9 +325,6 @@ export const MainLayout = () => {
             </div>
           </main>
         </div>
-
-        {/* Unified bottom-right menu and AI chat dialog */}
-        <UnifiedFloatingMenu />
       </div>
     </SidebarProvider>
   );

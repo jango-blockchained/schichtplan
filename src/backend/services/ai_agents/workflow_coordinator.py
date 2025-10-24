@@ -9,7 +9,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..ai_integration import AIOrchestrator, AIRequest
 from ..conversation_manager import ConversationContext
@@ -44,8 +44,8 @@ class WorkflowStep:
     id: str
     agent_id: str
     task_description: str
-    parameters: Dict[str, Any] = field(default_factory=dict)
-    dependencies: List[str] = field(default_factory=list)
+    parameters: dict[str, Any] = field(default_factory=dict)
+    dependencies: list[str] = field(default_factory=list)
     expected_duration: int = 60  # seconds
     parallel_execution: bool = False
     critical_path: bool = False
@@ -60,10 +60,10 @@ class WorkflowPlan:
     id: str
     workflow_type: WorkflowType
     description: str
-    steps: List[WorkflowStep]
+    steps: list[WorkflowStep]
     estimated_duration: int
-    critical_path_steps: List[str] = field(default_factory=list)
-    success_criteria: Dict[str, Any] = field(default_factory=dict)
+    critical_path_steps: list[str] = field(default_factory=list)
+    success_criteria: dict[str, Any] = field(default_factory=dict)
     created_at: datetime = field(default_factory=datetime.now)
     status: WorkflowStatus = WorkflowStatus.PLANNING
 
@@ -75,14 +75,14 @@ class WorkflowCoordinator:
         self,
         agent_registry: AgentRegistry,
         ai_orchestrator: AIOrchestrator,
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
     ):
         self.agent_registry = agent_registry
         self.ai_orchestrator = ai_orchestrator
         self.logger = logger or logging.getLogger(__name__)
 
         # Active workflows
-        self.active_workflows: Dict[str, WorkflowPlan] = {}
+        self.active_workflows: dict[str, WorkflowPlan] = {}
 
         # Workflow templates
         self.workflow_templates = {
@@ -95,7 +95,7 @@ class WorkflowCoordinator:
 
     async def analyze_request_complexity(
         self, request: str, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Analyze if a request requires complex workflow coordination.
 
@@ -162,7 +162,7 @@ Respond with JSON:
         workflow_type: WorkflowType,
         request: str,
         context: ConversationContext,
-        parameters: Optional[Dict[str, Any]] = None,
+        parameters: dict[str, Any] | None = None,
     ) -> WorkflowPlan:
         """
         Create a workflow plan for the given request.
@@ -194,7 +194,7 @@ Respond with JSON:
 
     async def execute_workflow(
         self, workflow_id: str, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Execute a workflow plan.
 
@@ -250,20 +250,17 @@ Respond with JSON:
                             # Remove from completed to retry
                             if step.id in completed_steps:
                                 completed_steps.remove(step.id)
+                        # Critical path failure
+                        elif step.critical_path:
+                            workflow.status = WorkflowStatus.FAILED
+                            raise RuntimeError(f"Critical step {step.id} failed: {e}")
                         else:
-                            # Critical path failure
-                            if step.critical_path:
-                                workflow.status = WorkflowStatus.FAILED
-                                raise RuntimeError(
-                                    f"Critical step {step.id} failed: {e}"
-                                )
-                            else:
-                                # Non-critical failure, continue
-                                step_results[step.id] = {
-                                    "status": "failed",
-                                    "error": str(e),
-                                }
-                                completed_steps.add(step.id)
+                            # Non-critical failure, continue
+                            step_results[step.id] = {
+                                "status": "failed",
+                                "error": str(e),
+                            }
+                            completed_steps.add(step.id)
 
             workflow.status = WorkflowStatus.COMPLETED
             execution_time = (datetime.now() - start_time).total_seconds()
@@ -301,8 +298,8 @@ Respond with JSON:
         self,
         step: WorkflowStep,
         context: ConversationContext,
-        previous_results: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        previous_results: dict[str, Any],
+    ) -> dict[str, Any]:
         """Execute a single workflow step."""
 
         # Get the agent for this step
@@ -324,8 +321,8 @@ Respond with JSON:
         return result
 
     def _evaluate_workflow_success(
-        self, workflow: WorkflowPlan, step_results: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, workflow: WorkflowPlan, step_results: dict[str, Any]
+    ) -> dict[str, Any]:
         """Evaluate if workflow met success criteria."""
 
         successful_steps = sum(
@@ -351,8 +348,8 @@ Respond with JSON:
         }
 
     def _generate_improvement_recommendations(
-        self, workflow: WorkflowPlan, step_results: Dict[str, Any]
-    ) -> List[str]:
+        self, workflow: WorkflowPlan, step_results: dict[str, Any]
+    ) -> list[str]:
         """Generate recommendations for workflow improvement."""
         recommendations = []
 
@@ -382,7 +379,7 @@ Respond with JSON:
 
     # Workflow template creators
     async def _create_comprehensive_optimization_workflow(
-        self, request: str, context: ConversationContext, parameters: Dict[str, Any]
+        self, request: str, context: ConversationContext, parameters: dict[str, Any]
     ) -> WorkflowPlan:
         """Create comprehensive optimization workflow."""
 
@@ -431,7 +428,7 @@ Respond with JSON:
         )
 
     async def _create_constraint_solving_workflow(
-        self, request: str, context: ConversationContext, parameters: Dict[str, Any]
+        self, request: str, context: ConversationContext, parameters: dict[str, Any]
     ) -> WorkflowPlan:
         """Create constraint solving workflow."""
 
@@ -468,7 +465,7 @@ Respond with JSON:
         )
 
     async def _create_employee_integration_workflow(
-        self, request: str, context: ConversationContext, parameters: Dict[str, Any]
+        self, request: str, context: ConversationContext, parameters: dict[str, Any]
     ) -> WorkflowPlan:
         """Create employee integration workflow."""
 
@@ -505,7 +502,7 @@ Respond with JSON:
         )
 
     async def _create_scenario_planning_workflow(
-        self, request: str, context: ConversationContext, parameters: Dict[str, Any]
+        self, request: str, context: ConversationContext, parameters: dict[str, Any]
     ) -> WorkflowPlan:
         """Create scenario planning workflow."""
 
@@ -542,7 +539,7 @@ Respond with JSON:
         )
 
     async def _create_improvement_workflow(
-        self, request: str, context: ConversationContext, parameters: Dict[str, Any]
+        self, request: str, context: ConversationContext, parameters: dict[str, Any]
     ) -> WorkflowPlan:
         """Create continuous improvement workflow."""
 

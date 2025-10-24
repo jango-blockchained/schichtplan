@@ -14,6 +14,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { PageHeader } from "@/components/PageHeader";
 import { EmployeeModal } from "@/components/EmployeeModal";
+import { EmployeeDetailModal } from "@/components/EmployeeDetailModal";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -23,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
+import { Plus, Trash2, ToggleLeft, ToggleRight, Eye } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface AlertState {
@@ -35,6 +36,8 @@ export function EmployeePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [showInactive, setShowInactive] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [alertState, setAlertState] = useState<AlertState>({
     type: null,
     employee: null,
@@ -222,6 +225,17 @@ export function EmployeePage() {
                   <Button
                     variant="outline"
                     size="icon"
+                    onClick={() => {
+                      setSelectedEmployee(employee);
+                      setShowDetailModal(true);
+                    }}
+                    title="Details anzeigen"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
                     onClick={() =>
                       setAlertState({ type: "deactivate", employee })
                     }
@@ -316,6 +330,13 @@ export function EmployeePage() {
         isLoading={isLoading}
         onAddEmployee={handleAddEmployee}
         onUpdateEmployee={handleUpdateEmployee}
+      />
+
+      {/* Employee Detail Modal */}
+      <EmployeeDetailModal
+        employee={selectedEmployee}
+        open={showDetailModal}
+        onOpenChange={setShowDetailModal}
       />
     </div>
   );

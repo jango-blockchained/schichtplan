@@ -8,7 +8,7 @@ management, skill-based assignments, and employee satisfaction optimization.
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from ..ai_integration import AIOrchestrator
 from ..conversation_manager import ConversationContext
@@ -19,7 +19,7 @@ class EmployeeManagerAgent(BaseAgent):
     """Specialized agent for employee management tasks."""
 
     def __init__(
-        self, ai_orchestrator: AIOrchestrator, logger: Optional[logging.Logger] = None
+        self, ai_orchestrator: AIOrchestrator, logger: logging.Logger | None = None
     ):
         super().__init__(
             agent_id="employee_manager",
@@ -45,7 +45,7 @@ class EmployeeManagerAgent(BaseAgent):
 
     async def can_handle(
         self, request: str, context: ConversationContext
-    ) -> Tuple[bool, float]:
+    ) -> tuple[bool, float]:
         """Check if this agent can handle employee management requests."""
         employee_keywords = [
             "employee",
@@ -206,7 +206,7 @@ Respond in JSON format:
 
     async def _analyze_employee_data(
         self, action: AgentAction, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Analyze current employee data and metrics."""
         analysis_result = {
             "action": "analyze_employee_data",
@@ -227,7 +227,7 @@ Respond in JSON format:
 
     async def _check_availability(
         self, action: AgentAction, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Check employee availability and preferences."""
         availability_result = {
             "action": "check_availability",
@@ -243,7 +243,7 @@ Respond in JSON format:
 
     async def _assess_skills(
         self, action: AgentAction, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Assess employee skills and competencies."""
         skills_result = {
             "action": "assess_skills",
@@ -259,7 +259,7 @@ Respond in JSON format:
 
     async def _analyze_workload(
         self, action: AgentAction, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Analyze employee workload distribution."""
         workload_result = {
             "action": "analyze_workload",
@@ -275,7 +275,7 @@ Respond in JSON format:
 
     async def _suggest_assignments(
         self, action: AgentAction, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Suggest optimal employee assignments."""
         assignment_result = {
             "action": "suggest_assignments",
@@ -291,7 +291,7 @@ Respond in JSON format:
 
     async def _optimize_satisfaction(
         self, action: AgentAction, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Optimize employee satisfaction."""
         satisfaction_result = {
             "action": "optimize_satisfaction",
@@ -307,7 +307,7 @@ Respond in JSON format:
 
     async def _balance_worklife(
         self, action: AgentAction, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Balance work-life requirements."""
         balance_result = {
             "action": "balance_worklife",
@@ -323,7 +323,7 @@ Respond in JSON format:
 
     async def _generate_employee_recommendations(
         self, action: AgentAction, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate final employee management recommendations."""
         recommendations_result = {
             "action": "generate_employee_recommendations",
@@ -337,7 +337,7 @@ Respond in JSON format:
         self.update_knowledge("employee_recommendations", recommendations_result)
         return recommendations_result
 
-    def _create_default_employee_plan(self, request: str) -> Dict[str, Any]:
+    def _create_default_employee_plan(self, request: str) -> dict[str, Any]:
         """Create a default employee management plan when AI analysis fails."""
         return {
             "analysis": "Standard employee management request",
@@ -375,7 +375,7 @@ Respond in JSON format:
     # Strategy methods for different employee management approaches
     async def _optimize_availability_strategy(
         self, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Strategy for optimizing employee availability."""
         return {
             "strategy": "availability_optimization",
@@ -384,7 +384,7 @@ Respond in JSON format:
 
     async def _skill_assignment_strategy(
         self, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Strategy for skill-based assignments."""
         return {
             "strategy": "skill_based_assignment",
@@ -393,7 +393,7 @@ Respond in JSON format:
 
     async def _satisfaction_strategy(
         self, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Strategy for improving satisfaction."""
         return {
             "strategy": "satisfaction_improvement",
@@ -402,14 +402,14 @@ Respond in JSON format:
 
     async def _worklife_balance_strategy(
         self, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Strategy for work-life balance."""
         return {
             "strategy": "worklife_balance",
             "steps": ["assess_balance", "identify_issues", "adjust"],
         }
 
-    def _get_preferred_models(self) -> List[str]:
+    def _get_preferred_models(self) -> list[str]:
         """Get preferred AI models for employee management tasks."""
         # Prefer models good at understanding human factors and empathy
         return ["claude-3-5-sonnet-20241022", "gpt-4o", "gemini-pro"]

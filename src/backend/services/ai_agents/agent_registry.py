@@ -8,7 +8,7 @@ and coordinating multi-agent workflows.
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from ..ai_integration import AIOrchestrator
 from ..conversation_manager import ConversationContext
@@ -24,7 +24,7 @@ class AgentRegistration:
     agent: BaseAgent
     priority: int = 50  # Lower number = higher priority
     enabled: bool = True
-    last_used: Optional[datetime] = None
+    last_used: datetime | None = None
     success_rate: float = 0.0
     total_requests: int = 0
     successful_requests: int = 0
@@ -34,9 +34,9 @@ class AgentRegistration:
 class RequestRoutingResult:
     """Result of routing a request to agents."""
 
-    selected_agent: Optional[BaseAgent]
+    selected_agent: BaseAgent | None
     confidence_score: float
-    alternative_agents: List[Tuple[BaseAgent, float]] = field(default_factory=list)
+    alternative_agents: list[tuple[BaseAgent, float]] = field(default_factory=list)
     routing_reasoning: str = ""
 
 
@@ -44,19 +44,19 @@ class AgentRegistry:
     """Registry for managing and coordinating AI agents."""
 
     def __init__(
-        self, ai_orchestrator: AIOrchestrator, logger: Optional[logging.Logger] = None
+        self, ai_orchestrator: AIOrchestrator, logger: logging.Logger | None = None
     ):
         self.ai_orchestrator = ai_orchestrator
         self.logger = logger or logging.getLogger(__name__)
 
         # Registry of available agents
-        self.agents: Dict[str, AgentRegistration] = {}
+        self.agents: dict[str, AgentRegistration] = {}
 
         # Capability-based index for fast lookups
-        self.capability_index: Dict[AgentCapability, List[str]] = {}
+        self.capability_index: dict[AgentCapability, list[str]] = {}
 
         # Request routing history for learning
-        self.routing_history: List[Dict[str, Any]] = []
+        self.routing_history: list[dict[str, Any]] = []
 
         # Auto-register default agents
         self._register_default_agents()
@@ -268,7 +268,7 @@ class AgentRegistry:
 
     async def execute_with_agent(
         self, agent: BaseAgent, request: str, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Execute a request with a specific agent.
 
@@ -323,7 +323,7 @@ class AgentRegistry:
 
     async def process_request(
         self, request: str, context: ConversationContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Process a request by routing to appropriate agent and executing.
 
@@ -360,13 +360,13 @@ class AgentRegistry:
             ],
         }
 
-    def get_agent_by_id(self, agent_id: str) -> Optional[BaseAgent]:
+    def get_agent_by_id(self, agent_id: str) -> BaseAgent | None:
         """Get an agent by ID."""
         if agent_id in self.agents:
             return self.agents[agent_id].agent
         return None
 
-    def get_agents_by_capability(self, capability: AgentCapability) -> List[BaseAgent]:
+    def get_agents_by_capability(self, capability: AgentCapability) -> list[BaseAgent]:
         """Get all agents with a specific capability."""
         if capability not in self.capability_index:
             return []
@@ -378,7 +378,7 @@ class AgentRegistry:
 
         return agents
 
-    def get_registry_status(self) -> Dict[str, Any]:
+    def get_registry_status(self) -> dict[str, Any]:
         """Get current status of the agent registry."""
         enabled_count = sum(1 for reg in self.agents.values() if reg.enabled)
         total_requests = sum(reg.total_requests for reg in self.agents.values())
