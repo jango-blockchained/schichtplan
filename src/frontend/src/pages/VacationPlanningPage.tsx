@@ -466,7 +466,9 @@ export default function VacationPlanningPage() {
         open={showAbsenceModal}
         onOpenChange={setShowAbsenceModal}
         employees={activeEmployees}
-        absenceTypes={settings?.employee_groups?.absence_types || []}
+        absenceTypes={(settings?.employee_groups?.absence_types || []).filter(
+          (type): type is import("@/types").AbsenceType => type.type === "absence_type"
+        )}
         onSubmit={(data) => createAbsenceMutation.mutate(data)}
         isLoading={createAbsenceMutation.isPending}
       />
