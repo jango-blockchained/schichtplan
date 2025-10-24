@@ -1,4 +1,3 @@
-import { UnifiedFloatingMenu } from "@/components/ui/UnifiedFloatingMenu";
 import {
   Select,
   SelectContent,
@@ -326,9 +325,6 @@ export const MainLayout = () => {
             </div>
           </main>
         </div>
-
-        {/* Unified bottom-right menu and AI chat dialog */}
-        <UnifiedFloatingMenu />
       </div>
     </SidebarProvider>
   );
