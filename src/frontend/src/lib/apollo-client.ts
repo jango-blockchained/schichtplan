@@ -2,7 +2,6 @@ import {
   ApolloClient,
   InMemoryCache,
   HttpLink,
-  ApolloLink,
 } from "@apollo/client";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -13,14 +12,14 @@ const httpLink = new HttpLink({
 });
 
 const client = new ApolloClient({
-  link: httpLink as unknown as ApolloLink,
+  link: httpLink,
   cache: new InMemoryCache(),
   defaultOptions: {
     watchQuery: {
-      fetchPolicy: "network-only",
+      fetchPolicy: "cache-and-network",
     },
     query: {
-      fetchPolicy: "network-only",
+      fetchPolicy: "cache-first",
     },
   },
 });
