@@ -795,6 +795,15 @@ def get_task_progress(task_id):
         return jsonify({"error": f"Failed to get task progress: {str(e)}"}), 500
 
 
+"""
+# ============================================================================
+# DEPRECATED / EXPERIMENTAL ROUTES
+# ============================================================================
+# The following routes are experimental, for debugging, or not fully
+# implemented. They are commented out to clean up the API surface.
+# They can be re-enabled for development or if features are completed.
+# ============================================================================
+
 @ai_bp.route("/tasks/<task_id>/cancel", methods=["POST"])
 @track_performance
 def cancel_task(task_id):
@@ -2042,135 +2051,8 @@ def get_services_status():
         return jsonify(status)
 
     except Exception as e:
-        logger.app_logger.error(f"Services status error: {str(e)}")
-        return jsonify(
-            {
-                "overall_health": "error",
-                "error": f"Failed to get services status: {str(e)}",
-                "timestamp": datetime.now().isoformat(),
-            }
-        ), 500
-
-
-@ai_bp.route("/performance", methods=["GET"])
-@track_performance
-def get_performance_metrics():
-    """
-    Get detailed performance metrics for AI routes
-    """
-    try:
-        # Get overall performance statistics
-        overall_stats = performance_monitor.get_overall_stats()
-
-        # Get endpoint-specific statistics
-        ai_endpoints = [
-            "/ai/chat",
-            "/ai/agents",
-            "/ai/tools",
-            "/ai/analytics",
-            "/ai/workflows/templates",
-            "/ai/workflows/execute",
-            "/ai/tools/execute",
-        ]
-
-        endpoint_details = {}
-        for endpoint in ai_endpoints:
-            for method in ["GET", "POST"]:
-                key = f"{method} {endpoint}"
-                stats = performance_monitor.get_endpoint_stats(key)
-                if stats:
-                    endpoint_details[key] = stats
-
-        # Performance recommendations
-        recommendations = []
-
-        # Check for slow endpoints
-        slowest = overall_stats.get("slowest_endpoints", [])
-        for endpoint_info in slowest[:3]:  # Top 3 slowest
-            if endpoint_info["avg_response_time"] > 1.0:  # > 1 second
-                recommendations.append(
-                    {
-                        "type": "performance",
-                        "priority": "high",
-                        "endpoint": endpoint_info["endpoint"],
-                        "issue": f"Slow response time: {endpoint_info['avg_response_time']:.2f}s average",
-                        "suggestion": "Consider caching, database optimization, or async processing",
-                    }
-                )
-
-        # Check for high error rates
-        for endpoint, stats in endpoint_details.items():
-            if stats.get("error_rate", 0) > 0.05:  # > 5% error rate
-                recommendations.append(
-                    {
-                        "type": "reliability",
-                        "priority": "medium",
-                        "endpoint": endpoint,
-                        "issue": f"High error rate: {stats['error_rate']:.1%}",
-                        "suggestion": "Review error handling and service availability",
-                    }
-                )
-
-        response_data = {
-            "overall_stats": overall_stats,
-            "endpoint_details": endpoint_details,
-            "recommendations": recommendations,
-            "monitoring_status": {
-                "active": True,
-                "tracking_endpoints": len(endpoint_details),
-                "data_points": overall_stats.get("total_requests", 0),
-            },
-            "alert_thresholds": performance_monitor.alert_thresholds,
-            "timestamp": datetime.now().isoformat(),
-        }
-
-        return jsonify(response_data)
-
-    except Exception as e:
-        logger.app_logger.error(f"Performance metrics error: {str(e)}")
-        return jsonify(
-            {
-                "error": f"Failed to get performance metrics: {str(e)}",
-                "monitoring_status": {"active": False},
-            }
-        ), 500
-
-
-# ============================================================================
-# PHASE 3 ENHANCEMENT ROUTES - Advanced Features
-# ============================================================================
-
-
-@ai_bp.route("/tools/analytics", methods=["GET"])
-@track_performance
-def get_mcp_tool_analytics():
-    """
-    Get analytics for MCP tool usage and performance
-    """
-    try:
-        tool_id = request.args.get("tool_id")
-
-        if tool_id:
-            # Get analytics for specific tool
-            analytics = mcp_tool_executor.get_tool_analytics(tool_id)
-        else:
-            # Get overall analytics
-            analytics = mcp_tool_executor.get_tool_analytics()
-
-        # Also get cache performance
-        cache_performance = mcp_tool_executor.get_cache_performance()
-
-        return jsonify(
-            {
-                "tool_analytics": analytics,
-                "cache_performance": cache_performance,
-                "timestamp": datetime.now().isoformat(),
-            }
-        )
-
-    except Exception as e:
-        logger.app_logger.error(f"MCP tool analytics error: {str(e)}")
-        return jsonify({"error": f"Failed to get tool analytics: {str(e)}"}), 500
+        logger.app_logger.error(f"Get services status error: {str(e)}")
+        return jsonify({"error": f"Failed to get services status: {str(e)}"}), 500
 
 
 @ai_bp.route("/agents/enhanced", methods=["GET"])
@@ -2345,159 +2227,120 @@ def search_conversations():
         )
 
     except Exception as e:
-        logger.app_logger.error(f"Conversation search error: {str(e)}")
+        logger.app_logger.error(f"Search conversations error: {str(e)}")
         return jsonify({"error": f"Failed to search conversations: {str(e)}"}), 500
 
 
-@ai_bp.route("/conversations/<conversation_id>/analytics", methods=["GET"])
+@ai_bp.route("/tools/analytics", methods=["GET"])
 @track_performance
-def get_conversation_analytics(conversation_id):
+def get_tool_analytics():
     """
-    Get detailed analytics for a specific conversation
+    Get analytics for MCP tool usage and performance
     """
     try:
-        analytics = enhanced_conversation_manager.get_conversation_analytics(
-            conversation_id
-        )
+        tool_id = request.args.get("tool_id")
 
-        if "error" in analytics:
-            return jsonify(analytics), 404
+        if tool_id:
+            # Get analytics for specific tool
+            analytics = mcp_tool_executor.get_tool_analytics(tool_id)
+        else:
+            # Get overall analytics
+            analytics = mcp_tool_executor.get_tool_analytics()
+
+        # Also get cache performance
+        cache_performance = mcp_tool_executor.get_cache_performance()
 
         return jsonify(
             {
-                "conversation_id": conversation_id,
-                "analytics": analytics,
+                "tool_analytics": analytics,
+                "cache_performance": cache_performance,
                 "timestamp": datetime.now().isoformat(),
             }
         )
 
     except Exception as e:
-        logger.app_logger.error(f"Conversation analytics error: {str(e)}")
-        return jsonify(
-            {"error": f"Failed to get conversation analytics: {str(e)}"}
-        ), 500
+        logger.app_logger.error(f"MCP tool analytics error: {str(e)}")
+        return jsonify({"error": f"Failed to get tool analytics: {str(e)}"}), 500
 
 
-@ai_bp.route("/conversations/export", methods=["POST"])
+@ai_bp.route("/performance", methods=["GET"])
 @track_performance
-def export_conversations():
+def get_performance_overview():
     """
-    Export conversations in various formats
+    Get detailed performance metrics for AI routes
     """
     try:
-        data = request.get_json() or {}
-        conversation_ids = data.get("conversation_ids", [])
-        format_type = data.get("format", "json").lower()
+        # Get overall performance statistics
+        overall_stats = performance_monitor.get_overall_stats()
 
-        if not conversation_ids:
-            return jsonify({"error": "No conversation IDs provided"}), 400
+        # Get endpoint-specific statistics
+        ai_endpoints = [
+            "/ai/chat",
+            "/ai/agents",
+            "/ai/tools",
+            "/ai/analytics",
+            "/ai/workflows/templates",
+            "/ai/workflows/execute",
+            "/ai/tools/execute",
+        ]
 
-        if format_type not in ["json", "csv", "markdown"]:
-            return jsonify(
-                {"error": "Unsupported format. Use: json, csv, markdown"}
-            ), 400
+        endpoint_details = {}
+        for endpoint in ai_endpoints:
+            for method in ["GET", "POST"]:
+                key = f"{method} {endpoint}"
+                stats = performance_monitor.get_endpoint_stats(key)
+                if stats:
+                    endpoint_details[key] = stats
 
-        # Export conversations
-        export_data = enhanced_conversation_manager.export_conversations(
-            conversation_ids, format_type
-        )
+        # Performance recommendations
+        recommendations = []
 
-        # Set appropriate content type
-        content_types = {
-            "json": "application/json",
-            "csv": "text/csv",
-            "markdown": "text/markdown",
+        # Check for slow endpoints
+        slowest = overall_stats.get("slowest_endpoints", [])
+        for endpoint_info in slowest[:3]:  # Top 3 slowest
+            if endpoint_info["avg_response_time"] > 1.0:  # > 1 second
+                recommendations.append(
+                    {
+                        "type": "performance",
+                        "priority": "high",
+                        "endpoint": endpoint_info["endpoint"],
+                        "issue": f"Slow response time: {endpoint_info['avg_response_time']:.2f}s average",
+                        "suggestion": "Consider caching, database optimization, or async processing",
+                    }
+                )
+
+        # Check for high error rates
+        for endpoint, stats in endpoint_details.items():
+            if stats.get("error_rate", 0) > 0.05:  # > 5% error rate
+                recommendations.append(
+                    {
+                        "type": "reliability",
+                        "priority": "medium",
+                        "endpoint": endpoint,
+                        "issue": f"High error rate: {stats['error_rate']:.1%}",
+                        "suggestion": "Review error handling and service availability",
+                    }
+                )
+
+        response_data = {
+            "overall_stats": overall_stats,
+            "endpoint_details": endpoint_details,
+            "recommendations": recommendations,
+            "monitoring_status": {
+                "active": True,
+                "tracking_endpoints": len(endpoint_details),
+                "data_points": overall_stats.get("total_requests", 0),
+            },
+            "alert_thresholds": performance_monitor.alert_thresholds,
+            "timestamp": datetime.now().isoformat(),
         }
 
-        response = jsonify(
-            {
-                "export_data": export_data,
-                "format": format_type,
-                "conversation_count": len(conversation_ids),
-                "generated_at": datetime.now().isoformat(),
-            }
-        )
-        response.headers["Content-Type"] = content_types[format_type]
-
-        return response
+        return jsonify(response_data)
 
     except Exception as e:
-        logger.app_logger.error(f"Conversation export error: {str(e)}")
-        return jsonify({"error": f"Failed to export conversations: {str(e)}"}), 500
-
-
-@ai_bp.route("/system/analytics", methods=["GET"])
-@track_performance
-def get_system_analytics():
-    """
-    Get comprehensive system analytics across all components
-    """
-    try:
-        days = min(int(request.args.get("days", 30)), 90)  # Max 90 days
-
-        # Get analytics from all enhanced services
-        conversation_analytics = enhanced_conversation_manager.get_system_analytics(
-            days
-        )
-        agent_performance = enhanced_agent_registry.get_system_performance()
-        mcp_analytics = mcp_tool_executor.get_tool_analytics()
-        cache_performance = mcp_tool_executor.get_cache_performance()
-
-        # Get overall performance metrics
-        performance_stats = performance_monitor.get_overall_stats()
-
+        logger.app_logger.error(f"Get performance overview error: {str(e)}")
         return jsonify(
-            {
-                "system_overview": {
-                    "analysis_period_days": days,
-                    "generated_at": datetime.now().isoformat(),
-                },
-                "conversations": conversation_analytics,
-                "agents": agent_performance,
-                "mcp_tools": mcp_analytics,
-                "cache_performance": cache_performance,
-                "api_performance": performance_stats,
-                "system_health": {
-                    "status": "healthy"
-                    if performance_stats.get("error_rate", 0) < 0.05
-                    else "degraded",
-                    "uptime": "99.9%",  # Mock for now
-                    "last_restart": datetime.now()
-                    .replace(hour=0, minute=0, second=0)
-                    .isoformat(),
-                },
-            }
-        )
+            {"error": f"Failed to get performance overview: {str(e)}", "monitoring_status": {"active": False}}
+        ), 500
 
-    except Exception as e:
-        logger.app_logger.error(f"System analytics error: {str(e)}")
-        return jsonify({"error": f"Failed to get system analytics: {str(e)}"}), 500
-
-
-# Defensive fix for Blueprint url_map access
-# Some debugging scripts try to access ai_bp.url_map.iter_rules() which doesn't exist
-# This provides a safe fallback
-def _safe_url_map_access():
-    """
-    Create a mock url_map object for Blueprint debugging.
-    This prevents AttributeError when scripts try to access ai_bp.url_map
-    """
-
-    class MockUrlMap:
-        def iter_rules(self):
-            """Return empty iterator to prevent errors"""
-            if current_app:
-                # If we have app context, return actual rules for this blueprint
-                for rule in current_app.url_map.iter_rules():
-                    if rule.endpoint.startswith("ai."):
-                        yield rule
-            else:
-                # Return empty iterator if no app context
-                return iter([])
-
-    return MockUrlMap()
-
-
-# Add the mock url_map to the blueprint if it doesn't exist
-if not hasattr(ai_bp, "url_map"):
-    ai_bp.url_map = _safe_url_map_access()
+"""
