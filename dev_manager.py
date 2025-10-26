@@ -101,22 +101,24 @@ class ServiceCard(Static):
             if self.service.status == "RUNNING"
             else "🟡"
         )
+        # Sanitize service name for use as ID (replace spaces with underscores)
+        safe_name = self.service.name.replace(" ", "_").replace("-", "_").lower()
         yield Label(
             f"{status_emoji} Status: {self.service.status}",
-            id=f"status-{self.service.name}",
+            id=f"status_{safe_name}",
         )
 
         with Horizontal(classes="service-actions"):
-            yield Button("▶️ Start", id=f"start-{self.service.name}", variant="success")
-            yield Button("⏹️ Stop", id=f"stop-{self.service.name}", variant="error")
-            yield Button(
-                "🔄 Restart", id=f"restart-{self.service.name}", variant="primary"
-            )
+            yield Button("▶️ Start", id=f"start_{safe_name}", variant="success")
+            yield Button("⏹️ Stop", id=f"stop_{safe_name}", variant="error")
+            yield Button("🔄 Restart", id=f"restart_{safe_name}", variant="primary")
 
     def update_status(self, status: str):
         """Update the status label with colorful emoji"""
         self.service.status = status
-        status_label = self.query_one(f"#status-{self.service.name}", Label)
+        # Sanitize service name for use as ID
+        safe_name = self.service.name.replace(" ", "_").replace("-", "_").lower()
+        status_label = self.query_one(f"#status_{safe_name}", Label)
 
         # Colorful status emojis
         if status == "RUNNING":
