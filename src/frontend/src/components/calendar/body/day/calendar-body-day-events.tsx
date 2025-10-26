@@ -1,12 +1,18 @@
+import { isWithinInterval } from 'date-fns'
 import { useCalendarContext } from '../../calendar-context'
-import { isSameDay } from 'date-fns'
 
 export default function CalendarBodyDayEvents() {
   const { events, date, setManageEventDialogOpen, setSelectedEvent } =
     useCalendarContext()
-  const dayEvents = events.filter((event) => isSameDay(event.start, date))
+  // Show events that include this day in their date range
+  const dayEvents = events.filter((event) =>
+    isWithinInterval(date, {
+      start: event.start,
+      end: event.end,
+    })
+  )
 
-  return !!dayEvents.length ? (
+  return dayEvents.length ? (
     <div className="flex flex-col gap-2">
       <p className="font-medium p-2 pb-0 font-heading">Events</p>
       <div className="flex flex-col gap-2">

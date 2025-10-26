@@ -1,8 +1,8 @@
-import { CalendarEvent as CalendarEventType } from '@/components/calendar/calendar-types'
 import { useCalendarContext } from '@/components/calendar/calendar-context'
-import { format, isSameDay, isSameMonth } from 'date-fns'
+import { CalendarEvent as CalendarEventType } from '@/components/calendar/calendar-types'
 import { cn } from '@/lib/utils'
-import { motion, MotionConfig, AnimatePresence } from 'framer-motion'
+import { format, isSameDay, isSameMonth } from 'date-fns'
+import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
 
 interface EventPosition {
   left: string
@@ -64,10 +64,12 @@ export default function CalendarEvent({
   event,
   month = false,
   className,
+  currentDay,
 }: {
   event: CalendarEventType
   month?: boolean
   className?: string
+  currentDay?: Date
 }) {
   const { events, setSelectedEvent, setManageEventDialogOpen, date } =
     useCalendarContext()
@@ -75,17 +77,27 @@ export default function CalendarEvent({
 
   // Generate a unique key that includes the current month to prevent animation conflicts
   const isEventInCurrentMonth = isSameMonth(event.start, date)
-  const animationKey = `${event.id}-${
-    isEventInCurrentMonth ? 'current' : 'adjacent'
-  }`
+  const animationKey = `${event.id}-${isEventInCurrentMonth ? 'current' : 'adjacent'
+    }`
+
+  // Determine if this is the first or last day of a multi-day vacation
+  const isFirstDay = !currentDay || isSameDay(event.start, currentDay)
+  const isLastDay = !currentDay || isSameDay(event.end, currentDay)
+  const isMultiDay = !isSameDay(event.start, event.end)
 
   return (
     <MotionConfig reducedMotion="user">
       <AnimatePresence mode="wait">
         <motion.div
           className={cn(
-            `px-3 py-1.5 rounded-md truncate cursor-pointer transition-all duration-300 bg-${event.color}-500/10 hover:bg-${event.color}-500/20 border border-${event.color}-500`,
+            `px-3 py-1.5 cursor-pointer transition-all duration-300 bg-${event.color}-500/10 hover:bg-${event.color}-500/20 border border-${event.color}-500`,
             !month && 'absolute',
+            month && 'truncate',
+            month && isMultiDay && [
+              isFirstDay ? 'rounded-l-md' : 'rounded-none',
+              isLastDay ? 'rounded-r-md' : 'rounded-none',
+            ],
+            month && !isMultiDay && 'rounded-md',
             className
           )}
           style={style}

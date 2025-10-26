@@ -1,18 +1,18 @@
-import { useCalendarContext } from '../../calendar-context'
-import {
-  startOfMonth,
-  endOfMonth,
-  startOfWeek,
-  endOfWeek,
-  eachDayOfInterval,
-  isSameMonth,
-  isSameDay,
-  format,
-  isWithinInterval,
-} from 'date-fns'
 import { cn } from '@/lib/utils'
-import CalendarEvent from '../../calendar-event'
+import {
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameDay,
+  isSameMonth,
+  isWithinInterval,
+  startOfMonth,
+  startOfWeek,
+} from 'date-fns'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useCalendarContext } from '../../calendar-context'
+import CalendarEvent from '../../calendar-event'
 
 export default function CalendarBodyMonth() {
   const { date, events, setDate, setMode } = useCalendarContext()
@@ -71,8 +71,12 @@ export default function CalendarBodyMonth() {
           }}
         >
           {calendarDays.map((day) => {
+            // Show events that span across this day (not just start on this day)
             const dayEvents = visibleEvents.filter((event) =>
-              isSameDay(event.start, day)
+              isWithinInterval(day, {
+                start: event.start,
+                end: event.end,
+              })
             )
             const isToday = isSameDay(day, today)
             const isCurrentMonth = isSameMonth(day, date)
@@ -104,6 +108,7 @@ export default function CalendarBodyMonth() {
                       <CalendarEvent
                         key={event.id}
                         event={event}
+                        currentDay={day}
                         className="relative h-auto"
                         month
                       />
