@@ -307,7 +307,40 @@ class Settings(db.Model):
 
     # AI Scheduling Settings
     ai_scheduling = Column(
-        JSON, nullable=True, default=lambda: {"enabled": False, "api_key": ""}
+        JSON,
+        nullable=True,
+        default=lambda: {
+            "enabled": False,
+            "api_key": "",  # Legacy field for backward compatibility
+            "provider": "gemini",
+            "model": "gemini-pro",
+            "temperature": 0.7,
+            "max_tokens": 2048,
+            "timeout": 30,
+            "api_keys": {"gemini": "", "openai": "", "anthropic": ""},
+            "fallback_enabled": True,
+            "fallback_providers": ["anthropic", "openai"],
+            "rate_limit": 100,
+            "cache_enabled": True,
+            "cache_ttl": 3600,
+            "logging_level": "info",
+            "conversation_persistence": True,
+            "max_conversation_history": 50,
+            "agents": {
+                "schedule_optimizer": {"enabled": True, "max_concurrent_requests": 5},
+                "employee_manager": {"enabled": True, "max_concurrent_requests": 3},
+                "workflow_coordinator": {
+                    "enabled": True,
+                    "max_parallel_workflows": 3,
+                },
+            },
+            "system": {
+                "mcp_server_url": "http://localhost:8001",
+                "mcp_server_timeout": 30,
+                "health_check_interval": 60,
+                "maintenance_mode": False,
+            },
+        },
     )
 
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -563,7 +596,41 @@ class Settings(db.Model):
             },
             "ai_scheduling": self.ai_scheduling
             if self.ai_scheduling is not None
-            else {"enabled": False, "api_key": ""},
+            else {
+                "enabled": False,
+                "api_key": "",
+                "provider": "gemini",
+                "model": "gemini-pro",
+                "temperature": 0.7,
+                "max_tokens": 2048,
+                "timeout": 30,
+                "api_keys": {"gemini": "", "openai": "", "anthropic": ""},
+                "fallback_enabled": True,
+                "fallback_providers": ["anthropic", "openai"],
+                "rate_limit": 100,
+                "cache_enabled": True,
+                "cache_ttl": 3600,
+                "logging_level": "info",
+                "conversation_persistence": True,
+                "max_conversation_history": 50,
+                "agents": {
+                    "schedule_optimizer": {
+                        "enabled": True,
+                        "max_concurrent_requests": 5,
+                    },
+                    "employee_manager": {"enabled": True, "max_concurrent_requests": 3},
+                    "workflow_coordinator": {
+                        "enabled": True,
+                        "max_parallel_workflows": 3,
+                    },
+                },
+                "system": {
+                    "mcp_server_url": "http://localhost:8001",
+                    "mcp_server_timeout": 30,
+                    "health_check_interval": 60,
+                    "maintenance_mode": False,
+                },
+            },
             "week_navigation": {
                 "week_weekend_start": self.week_weekend_start,
                 "week_month_boundary_mode": self.week_month_boundary_mode,
@@ -796,7 +863,39 @@ class Settings(db.Model):
         settings.actions_demo_data = {"selected_module": "", "last_execution": None}
 
         # AI Scheduling Settings
-        settings.ai_scheduling = {"enabled": False, "api_key": ""}
+        # AI Scheduling Settings
+        settings.ai_scheduling = {
+            "enabled": False,
+            "api_key": "",  # Legacy field for backward compatibility
+            "provider": "gemini",
+            "model": "gemini-pro",
+            "temperature": 0.7,
+            "max_tokens": 2048,
+            "timeout": 30,
+            "api_keys": {"gemini": "", "openai": "", "anthropic": ""},
+            "fallback_enabled": True,
+            "fallback_providers": ["anthropic", "openai"],
+            "rate_limit": 100,
+            "cache_enabled": True,
+            "cache_ttl": 3600,
+            "logging_level": "info",
+            "conversation_persistence": True,
+            "max_conversation_history": 50,
+            "agents": {
+                "schedule_optimizer": {"enabled": True, "max_concurrent_requests": 5},
+                "employee_manager": {"enabled": True, "max_concurrent_requests": 3},
+                "workflow_coordinator": {
+                    "enabled": True,
+                    "max_parallel_workflows": 3,
+                },
+            },
+            "system": {
+                "mcp_server_url": "http://localhost:8001",
+                "mcp_server_timeout": 30,
+                "health_check_interval": 60,
+                "maintenance_mode": False,
+            },
+        }
 
         return settings
 
