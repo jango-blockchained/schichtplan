@@ -13,7 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAbsencesByRange, getEmployees, getSettings } from "@/services/api";
 import { getWeekStartsOn } from "@/utils/weekStart";
 import { useQuery } from "@tanstack/react-query";
-import { endOfWeek, format, startOfWeek } from "date-fns";
+import { differenceInDays, endOfWeek, format, startOfWeek } from "date-fns";
+import { Calendar, CalendarOff, LayoutGrid, Table as TableIcon, TrendingDown, Users } from "lucide-react";
 import { useMemo } from "react";
 
 export default function AbsencesPage() {
@@ -57,6 +58,22 @@ export default function AbsencesPage() {
     );
   }, [settings?.employee_groups?.absence_types]);
 
+  // Calculate statistics
+  const totalDays = useMemo(() => {
+    return absences.reduce((sum, absence) => {
+      const days = differenceInDays(
+        new Date(absence.end_date),
+        new Date(absence.start_date)
+      ) + 1;
+      return sum + days;
+    }, 0);
+  }, [absences]);
+
+  const affectedEmployees = useMemo(() => {
+    const uniqueEmployeeIds = new Set(absences.map(a => a.employee_id));
+    return uniqueEmployeeIds.size;
+  }, [absences]);
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <PageHeader
@@ -64,10 +81,56 @@ export default function AbsencesPage() {
         description={`Aktuelle Woche: ${label}`}
       />
 
+      {/* Summary Statistics */}
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Abwesenheiten</CardTitle>
+            <CalendarOff className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{absences.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              in dieser Woche
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Betroffene Mitarbeiter</CardTitle>
+            <Users className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{affectedEmployees}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              mit Abwesenheiten
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Gesamttage</CardTitle>
+            <Calendar className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalDays}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Tage Abwesenheit
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Tabs defaultValue="table" className="w-full">
         <TabsList>
-          <TabsTrigger value="table">Tabelle</TabsTrigger>
-          <TabsTrigger value="cards">Karten</TabsTrigger>
+          <TabsTrigger value="table">
+            <TableIcon className="h-4 w-4 mr-2" />
+            Tabelle
+          </TabsTrigger>
+          <TabsTrigger value="cards">
+            <LayoutGrid className="h-4 w-4 mr-2" />
+            Karten
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="table" className="mt-4">
@@ -114,9 +177,17 @@ export default function AbsencesPage() {
                     <TableRow>
                       <TableCell
                         colSpan={4}
-                        className="text-center text-muted-foreground py-8"
+                        className="text-center py-12"
                       >
-                        Keine Abwesenheiten in dieser Woche.
+                        <div className="flex flex-col items-center gap-2">
+                          <TrendingDown className="h-12 w-12 text-muted-foreground/50" />
+                          <p className="text-muted-foreground font-medium">
+                            Keine Abwesenheiten in dieser Woche
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Alle Mitarbeiter sind verfügbar
+                          </p>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )}
@@ -165,11 +236,21 @@ export default function AbsencesPage() {
               );
             })}
             {absences.length === 0 && (
-              <Card>
-                <CardContent className="py-10 text-center text-muted-foreground">
-                  Keine Abwesenheiten in dieser Woche.
-                </CardContent>
-              </Card>
+              <div className="col-span-full">
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <TrendingDown className="h-12 w-12 text-muted-foreground/50" />
+                      <p className="text-muted-foreground font-medium">
+                        Keine Abwesenheiten in dieser Woche
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Alle Mitarbeiter sind verfügbar
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             )}
           </div>
         </TabsContent>
