@@ -18,7 +18,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Absence, AbsenceType, Employee } from "@/types";
 import { format } from "date-fns";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
 interface VacationAbsenceModalProps {
   open: boolean;
@@ -63,7 +63,7 @@ export function VacationAbsenceModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validation
     if (!formData.employee_id || !formData.absence_type_id) {
       return;
