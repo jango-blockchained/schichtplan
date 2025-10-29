@@ -14,7 +14,7 @@ import { getAbsencesByRange, getEmployees, getSettings } from "@/services/api";
 import { getWeekStartsOn } from "@/utils/weekStart";
 import { useQuery } from "@tanstack/react-query";
 import { differenceInDays, endOfWeek, format, startOfWeek } from "date-fns";
-import { Calendar, CalendarOff, LayoutGrid, Table as TableIcon, TrendingDown, Users } from "lucide-react";
+import { Calendar, CalendarOff, CheckCircle, LayoutGrid, Table as TableIcon, Users } from "lucide-react";
 import { useMemo } from "react";
 
 export default function AbsencesPage() {
@@ -61,6 +61,8 @@ export default function AbsencesPage() {
   // Calculate statistics
   const totalDays = useMemo(() => {
     return absences.reduce((sum, absence) => {
+      // Add 1 to include both start and end dates (inclusive date range)
+      // Example: Monday to Tuesday is 2 days (Mon, Tue), not 1
       const days = differenceInDays(
         new Date(absence.end_date),
         new Date(absence.start_date)
@@ -180,7 +182,7 @@ export default function AbsencesPage() {
                         className="text-center py-12"
                       >
                         <div className="flex flex-col items-center gap-2">
-                          <TrendingDown className="h-12 w-12 text-muted-foreground/50" />
+                          <CheckCircle className="h-12 w-12 text-green-600/50" />
                           <p className="text-muted-foreground font-medium">
                             Keine Abwesenheiten in dieser Woche
                           </p>
@@ -240,7 +242,7 @@ export default function AbsencesPage() {
                 <Card>
                   <CardContent className="py-12 text-center">
                     <div className="flex flex-col items-center gap-2">
-                      <TrendingDown className="h-12 w-12 text-muted-foreground/50" />
+                      <CheckCircle className="h-12 w-12 text-green-600/50" />
                       <p className="text-muted-foreground font-medium">
                         Keine Abwesenheiten in dieser Woche
                       </p>

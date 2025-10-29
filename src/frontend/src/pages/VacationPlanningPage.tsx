@@ -223,6 +223,7 @@ export default function VacationPlanningPage() {
           <CardContent>
             <div className="text-2xl font-bold">
               {filteredAbsences.reduce((sum, absence) => {
+                // Add 1 to include both start and end dates (inclusive date range)
                 const days = differenceInDays(
                   new Date(absence.end_date),
                   new Date(absence.start_date)
