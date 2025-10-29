@@ -24,5 +24,5 @@ export type CalendarEvent = {
   end: Date
 }
 
-export const calendarModes = ['day', 'week', 'month'] as const
+export const calendarModes = ['day', 'week', 'month', 'year'] as const
 export type Mode = (typeof calendarModes)[number]

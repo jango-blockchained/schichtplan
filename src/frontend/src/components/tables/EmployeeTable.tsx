@@ -65,6 +65,13 @@ export const EmployeeTable = ({
       width: "w-[100px]",
     },
     {
+      key: "vacation_per_year",
+      header: "Vacation Days",
+      type: "number",
+      sortable: true,
+      width: "w-[130px]",
+    },
+    {
       key: "birthday",
       header: "Birthday",
       type: "date",
@@ -150,19 +157,19 @@ export const EmployeeTable = ({
 
   const tableBulkActions = bulkActions
     ? [
-        {
-          icon: <span className="mr-2">📤</span>,
-          label: "Export",
-          onClick: bulkActions.onExport,
-          variant: "outline" as const,
-        },
-        {
-          icon: <Trash2 className="mr-2 h-4 w-4" />,
-          label: "Delete",
-          onClick: bulkActions.onBulkDelete,
-          variant: "destructive" as const,
-        },
-      ]
+      {
+        icon: <span className="mr-2">📤</span>,
+        label: "Export",
+        onClick: bulkActions.onExport,
+        variant: "outline" as const,
+      },
+      {
+        icon: <Trash2 className="mr-2 h-4 w-4" />,
+        label: "Delete",
+        onClick: bulkActions.onBulkDelete,
+        variant: "destructive" as const,
+      },
+    ]
     : [];
 
   return (

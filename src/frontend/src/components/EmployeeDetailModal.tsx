@@ -18,34 +18,24 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  getAbsences,
-  getEmployeeAvailabilityByDate,
-  getSchedules,
-  getSettings,
-} from "@/services/api";
-import { Absence, Employee, Schedule, Settings } from "@/types";
-import { getWeekStartsOn } from "@/utils/weekStart";
+import { getAbsences, getSchedules, getSettings } from "@/services/api";
+import { Absence, Employee, Settings } from "@/types";
 import { useQuery } from "@tanstack/react-query";
 import {
-  addDays,
   differenceInDays,
   endOfMonth,
-  endOfWeek,
   format,
   startOfMonth,
-  startOfWeek,
 } from "date-fns";
 import {
+  Briefcase,
   Calendar,
+  CalendarDays,
   Clock,
   Mail,
-  MapPin,
   Phone,
   User,
   Users,
-  Briefcase,
-  CalendarDays,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -74,8 +64,6 @@ export function EmployeeDetailModal({
     queryFn: getSettings,
     enabled: open && !!employee,
   });
-
-  const weekStartsOn = getWeekStartsOn(settings);
 
   // Fetch employee absences
   const { data: absences = [] } = useQuery<Absence[]>({
@@ -251,7 +239,7 @@ export function EmployeeDetailModal({
                 <CardTitle className="text-lg">Vertragsdaten</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-muted-foreground" />
                     <div>
@@ -279,6 +267,17 @@ export function EmployeeDetailModal({
                       >
                         {employee.is_active ? "Aktiv" : "Inaktiv"}
                       </Badge>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Urlaubstage p.a.
+                      </p>
+                      <p className="font-medium">
+                        {employee.vacation_per_year}
+                      </p>
                     </div>
                   </div>
                 </div>

@@ -20,6 +20,7 @@ export interface Employee {
   last_name: string;
   employee_group: string;
   contracted_hours: number;
+  vacation_per_year: number;
   is_keyholder: boolean;
   is_active: boolean;
   birthday: string | null;
@@ -93,7 +94,7 @@ export interface ScheduleResponse {
   versions?: number[];
   version_statuses?: Record<number, string>;
   current_version?: number;
-  version_meta?: any;
+  version_meta?: unknown;
   logs?: string[];
   diagnostic_logs?: string[];
   // Optional session id returned by some API flows (AI generation phases)
@@ -520,6 +521,7 @@ export interface Absence {
   absence_type_id: string;
   start_date: string;
   end_date: string;
+  status: string;
   note?: string;
 }
 

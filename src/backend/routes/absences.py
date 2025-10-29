@@ -4,7 +4,10 @@ from flask import Blueprint, jsonify, request
 from pydantic import ValidationError
 
 from src.backend.models import Absence, Employee, db
-from src.backend.schemas.absences import AbsenceCreateRequest, AbsenceUpdateRequest
+from src.backend.schemas.absences import (
+    AbsenceCreateRequest,
+    AbsenceUpdateRequest,
+)
 
 bp = Blueprint("absences", __name__)
 
@@ -23,7 +26,7 @@ def create_absence_direct():
 
         employee_id = data["employee_id"]
         # Check if employee exists
-        employee = Employee.query.get_or_404(employee_id)
+        Employee.query.get_or_404(employee_id)
 
         # Validate data using Pydantic schema
         request_data = AbsenceCreateRequest(**data)
@@ -41,9 +44,16 @@ def create_absence_direct():
         return jsonify(absence.to_dict()), 201
 
     except ValidationError as e:  # Catch Pydantic validation errors
-        return jsonify(
-            {"status": "error", "message": "Invalid input.", "details": e.errors()}
-        ), 400  # Return validation details
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Invalid input.",
+                    "details": e.errors(),
+                }
+            ),
+            400,
+        )  # Return validation details
     except Exception as e:  # Catch any other exceptions
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 400
@@ -60,7 +70,8 @@ def list_absences():
       - employee_id: int (optional)
 
     If no dates are provided, returns all absences (use cautiously).
-    If only one of start_date/end_date is provided, the other will default to the same value.
+    If only one of start_date/end_date is provided,
+    the other will default to the same value.
     """
     try:
         start_date_str = request.args.get("start_date")
@@ -80,9 +91,16 @@ def list_absences():
                 start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
                 end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
             except ValueError:
-                return jsonify({"error": "Invalid date format. Use YYYY-MM-DD."}), 400
+                return (
+                    jsonify(
+                        {
+                            "error": "Invalid date format. Use YYYY-MM-DD.",
+                        }
+                    ),
+                    400,
+                )
 
-            # Overlap condition: (absence.start_date <= end_date) and (absence.end_date >= start_date)
+            # Overlap condition ensures absences intersect requested window
             query = query.filter(
                 Absence.start_date <= end_date, Absence.end_date >= start_date
             )
@@ -102,7 +120,7 @@ def list_absences():
 )  # Without leading slash for different URL patterns
 @bp.route("/absences/employees/<int:employee_id>/absences", methods=["GET"])
 def get_employee_absences(employee_id):
-    employee = Employee.query.get_or_404(employee_id)
+    Employee.query.get_or_404(employee_id)
     absences = Absence.query.filter_by(employee_id=employee_id).all()
     return jsonify([absence.to_dict() for absence in absences])
 
@@ -113,7 +131,7 @@ def get_employee_absences(employee_id):
 )  # Without leading slash
 @bp.route("/absences/employees/<int:employee_id>/absences", methods=["POST"])
 def create_absence(employee_id):
-    employee = Employee.query.get_or_404(employee_id)
+    Employee.query.get_or_404(employee_id)
 
     try:
         data = request.get_json()
@@ -133,15 +151,25 @@ def create_absence(employee_id):
         return jsonify(absence.to_dict()), 201
 
     except ValidationError as e:  # Catch Pydantic validation errors
-        return jsonify(
-            {"status": "error", "message": "Invalid input.", "details": e.errors()}
-        ), 400  # Return validation details
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Invalid input.",
+                    "details": e.errors(),
+                }
+            ),
+            400,
+        )  # Return validation details
     except Exception as e:  # Catch any other exceptions
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 400
 
 
-@bp.route("/employees/<int:employee_id>/absences/<int:absence_id>", methods=["DELETE"])
+@bp.route(
+    "/employees/<int:employee_id>/absences/<int:absence_id>",
+    methods=["DELETE"],
+)
 @bp.route(
     "employees/<int:employee_id>/absences/<int:absence_id>", methods=["DELETE"]
 )  # Without leading slash
@@ -163,12 +191,16 @@ def delete_absence(employee_id, absence_id):
         return jsonify({"error": str(e)}), 400
 
 
-@bp.route("/employees/<int:employee_id>/absences/<int:absence_id>", methods=["PUT"])
+@bp.route(
+    "/employees/<int:employee_id>/absences/<int:absence_id>",
+    methods=["PUT"],
+)
 @bp.route(
     "employees/<int:employee_id>/absences/<int:absence_id>", methods=["PUT"]
 )  # Without leading slash
 @bp.route(
-    "/absences/employees/<int:employee_id>/absences/<int:absence_id>", methods=["PUT"]
+    "/absences/employees/<int:employee_id>/absences/<int:absence_id>",
+    methods=["PUT"],
 )
 def update_absence(employee_id, absence_id):
     absence = Absence.query.filter_by(
@@ -197,14 +229,23 @@ def update_absence(employee_id, absence_id):
             absence.absence_type_id = request_data.absence_type_id
         if request_data.note is not None:
             absence.note = request_data.note
+        if request_data.status is not None:
+            absence.status = request_data.status
 
         db.session.commit()
         return jsonify(absence.to_dict())
 
     except ValidationError as e:  # Catch Pydantic validation errors
-        return jsonify(
-            {"status": "error", "message": "Invalid input.", "details": e.errors()}
-        ), 400  # Return validation details
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Invalid input.",
+                    "details": e.errors(),
+                }
+            ),
+            400,
+        )  # Return validation details
     except Exception as e:  # Catch any other exceptions
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 400

@@ -1,6 +1,14 @@
-from . import db
 from datetime import datetime
-from typing import Dict, Any
+from enum import Enum
+from typing import Any
+
+from . import db
+
+
+class AbsenceStatus(str, Enum):
+    REQUESTED = "requested"
+    APPROVED = "approved"
+    DECLINED = "declined"
 
 
 class Absence(db.Model):
@@ -13,6 +21,9 @@ class Absence(db.Model):
     )  # References an ID in settings.absence_types JSON array
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
+    status = db.Column(
+        db.String(20), nullable=False, default=AbsenceStatus.REQUESTED.value
+    )
     note = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(
@@ -21,20 +32,21 @@ class Absence(db.Model):
 
     employee = db.relationship("Employee", backref=db.backref("absences", lazy=True))
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "employee_id": self.employee_id,
             "absence_type_id": self.absence_type_id,
             "start_date": self.start_date.isoformat(),
             "end_date": self.end_date.isoformat(),
+            "status": self.status,
             "note": self.note,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "Absence":
+    def from_dict(data: dict[str, Any]) -> "Absence":
         """Create an Absence instance from dictionary data.
 
         Args:
@@ -49,6 +61,7 @@ class Absence(db.Model):
         # Set attributes directly
         absence.employee_id = data.get("employee_id")
         absence.absence_type_id = data.get("absence_type_id")
+        absence.status = data.get("status", AbsenceStatus.REQUESTED.value)
         absence.note = data.get("note")
 
         # Process start_date

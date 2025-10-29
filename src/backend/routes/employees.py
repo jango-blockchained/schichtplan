@@ -5,7 +5,10 @@ from pydantic import ValidationError
 
 from src.backend.models import Employee, EmployeeAvailability, db
 from src.backend.models.employee import AvailabilityType
-from src.backend.schemas.employees import EmployeeCreateRequest, EmployeeUpdateRequest
+from src.backend.schemas.employees import (
+    EmployeeCreateRequest,
+    EmployeeUpdateRequest,
+)
 
 employees = Blueprint("employees", __name__)
 
@@ -41,6 +44,11 @@ def create_employee():
             last_name=request_data.last_name,
             employee_group=request_data.employee_group,
             contracted_hours=request_data.contracted_hours,
+            vacation_per_year=(
+                request_data.vacation_per_year
+                if request_data.vacation_per_year is not None
+                else 30
+            ),
             is_keyholder=bool(request_data.is_keyholder),
             email=request_data.email,
             phone=request_data.phone,
@@ -52,9 +60,16 @@ def create_employee():
         return jsonify(employee.to_dict()), HTTPStatus.CREATED
 
     except ValidationError as e:  # Catch Pydantic validation errors
-        return jsonify(
-            {"status": "error", "message": "Invalid input.", "details": e.errors()}
-        ), HTTPStatus.BAD_REQUEST  # Return validation details
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Invalid input.",
+                    "details": e.errors(),
+                }
+            ),
+            HTTPStatus.BAD_REQUEST,
+        )  # Return validation details
     except Exception as e:  # Catch any other exceptions
         db.session.rollback()
         return jsonify(
@@ -86,6 +101,8 @@ def update_employee(employee_id):
             employee.employee_group = request_data.employee_group
         if request_data.contracted_hours is not None:
             employee.contracted_hours = request_data.contracted_hours
+        if request_data.vacation_per_year is not None:
+            employee.vacation_per_year = max(0, request_data.vacation_per_year)
         if request_data.is_active is not None:
             employee.is_active = request_data.is_active
         if request_data.is_keyholder is not None:
@@ -99,9 +116,16 @@ def update_employee(employee_id):
         return jsonify(employee.to_dict())
 
     except ValidationError as e:  # Catch Pydantic validation errors
-        return jsonify(
-            {"status": "error", "message": "Invalid input.", "details": e.errors()}
-        ), HTTPStatus.BAD_REQUEST  # Return validation details
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Invalid input.",
+                    "details": e.errors(),
+                }
+            ),
+            HTTPStatus.BAD_REQUEST,
+        )  # Return validation details
     except Exception as e:
         db.session.rollback()
         return jsonify(
@@ -121,7 +145,7 @@ def delete_employee(employee_id):
 
     try:
         # First, delete all related schedules for this employee
-        from src.backend.models.schedule import Schedule
+        from src.backend.models.schedule import Schedule  # noqa: PLC0415
 
         Schedule.query.filter_by(employee_id=employee.id).delete()
 
@@ -195,5 +219,5 @@ def update_employee_availabilities(employee_id):
 @employees.route("/employees/<int:employee_id>/availability", methods=["GET"])
 @employees.route("/api/employees/<int:employee_id>/availability", methods=["GET"])
 def get_employee_availability(employee_id):
-    """Alias for get_employee_availabilities - handles the singular form for frontend compatibility"""
+    """Return availabilities via singular compatibility alias."""
     return get_employee_availabilities(employee_id)

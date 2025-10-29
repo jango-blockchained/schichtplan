@@ -44,6 +44,7 @@ export function VacationAbsenceModal({
     absence_type_id: absence?.absence_type_id || "",
     start_date: absence?.start_date || format(new Date(), "yyyy-MM-dd"),
     end_date: absence?.end_date || format(new Date(), "yyyy-MM-dd"),
+    status: absence?.status || "requested",
     note: absence?.note || "",
   });
 
@@ -54,6 +55,7 @@ export function VacationAbsenceModal({
         absence_type_id: absence.absence_type_id,
         start_date: absence.start_date,
         end_date: absence.end_date,
+        status: absence.status,
         note: absence.note || "",
       });
     }
@@ -154,6 +156,25 @@ export function VacationAbsenceModal({
                   required
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={formData.status}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, status: value })
+                }
+              >
+                <SelectTrigger id="status">
+                  <SelectValue placeholder="Status auswählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="requested">Beantragt</SelectItem>
+                  <SelectItem value="approved">Genehmigt</SelectItem>
+                  <SelectItem value="declined">Abgelehnt</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

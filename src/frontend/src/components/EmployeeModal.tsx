@@ -32,6 +32,7 @@ interface EmployeeModalProps {
     last_name: string;
     employee_group: string;
     contracted_hours: number;
+    vacation_per_year: number;
     is_keyholder: boolean;
     is_active: boolean;
     birthday: string | null;
@@ -53,6 +54,7 @@ export function EmployeeModal({
     last_name: employee?.last_name || "",
     employee_group: employee?.employee_group || "VZ",
     contracted_hours: employee?.contracted_hours ?? 0,
+    vacation_per_year: employee?.vacation_per_year ?? 30,
     is_keyholder: employee?.is_keyholder || false,
     is_active: employee?.is_active || true,
     birthday: employee?.birthday || null,
@@ -189,27 +191,45 @@ export function EmployeeModal({
                 required
               />
             </div>
-            <div className="space-y-4 pt-2">
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="is_keyholder"
-                  checked={formData.is_keyholder}
-                  onCheckedChange={(checked: boolean) =>
-                    setFormData({ ...formData, is_keyholder: checked })
-                  }
-                />
-                <Label htmlFor="is_keyholder">Keyholder</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="is_active"
-                  checked={formData.is_active}
-                  onCheckedChange={(checked: boolean) =>
-                    setFormData({ ...formData, is_active: checked })
-                  }
-                />
-                <Label htmlFor="is_active">Active</Label>
-              </div>
+            <div className="space-y-2">
+              <Label>Vacation Days / Year</Label>
+              <Input
+                type="number"
+                min={0}
+                max={365}
+                value={formData.vacation_per_year}
+                onChange={(e) => {
+                  const value = Number(e.target.value);
+                  setFormData({
+                    ...formData,
+                    vacation_per_year: Number.isFinite(value) ? value : 0,
+                  });
+                }}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4 pt-2">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="is_keyholder"
+                checked={formData.is_keyholder}
+                onCheckedChange={(checked: boolean) =>
+                  setFormData({ ...formData, is_keyholder: checked })
+                }
+              />
+              <Label htmlFor="is_keyholder">Keyholder</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="is_active"
+                checked={formData.is_active}
+                onCheckedChange={(checked: boolean) =>
+                  setFormData({ ...formData, is_active: checked })
+                }
+              />
+              <Label htmlFor="is_active">Active</Label>
             </div>
           </div>
         </div>

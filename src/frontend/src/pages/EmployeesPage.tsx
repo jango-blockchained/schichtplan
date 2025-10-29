@@ -1,5 +1,4 @@
 import AbsenceModal from "@/components/AbsenceModal";
-import { AIEmployeeInsights } from "@/components/ai/AIEmployeeInsights";
 import CSVImportDialog from "@/components/CSVImportDialog";
 import { EmployeeAvailabilityModal } from "@/components/EmployeeAvailabilityModal";
 import { PageHeader } from "@/components/PageHeader";
@@ -42,6 +41,7 @@ const initialFormData: EmployeeFormData = {
   last_name: "",
   employee_group: "",
   contracted_hours: 0,
+  vacation_per_year: 30,
   is_keyholder: false,
   is_active: true,
   birthday: null,
@@ -109,6 +109,7 @@ export const EmployeesPage = () => {
         last_name: employee.last_name,
         employee_group: employee.employee_group,
         contracted_hours: employee.contracted_hours,
+        vacation_per_year: employee.vacation_per_year ?? 30,
         is_keyholder: employee.is_keyholder,
         is_active: employee.is_active,
         birthday: employee.birthday || null,
@@ -122,6 +123,7 @@ export const EmployeesPage = () => {
         ...initialFormData,
         employee_group: defaultGroup ? defaultGroup.id : "",
         contracted_hours: 0,
+        vacation_per_year: 30,
       });
     }
     setIsDialogOpen(true);
@@ -286,14 +288,6 @@ export const EmployeesPage = () => {
         }
       />
 
-      {/* AI Employee Insights */}
-      <AIEmployeeInsights
-        employees={employees}
-        selectedEmployeeId={editingEmployee?.id}
-        autoRefresh={true}
-        refreshInterval={60000}
-      />
-
       <EmployeeTable
         employees={employees}
         employeeGroups={employeeGroups}
@@ -419,6 +413,25 @@ export const EmployeesPage = () => {
                   }
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Vacation Days / Year</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={365}
+                  value={formData.vacation_per_year}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    setFormData({
+                      ...formData,
+                      vacation_per_year: Number.isFinite(value) ? value : 0,
+                    });
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
               <div className="space-y-4 pt-2">
                 <div className="flex items-center space-x-2">
                   <Switch

@@ -56,6 +56,7 @@ class Employee(db.Model):
     last_name = Column(String(100), nullable=False)
     employee_group = Column(SQLEnum(EmployeeGroup), nullable=False)
     contracted_hours = Column(Float, nullable=False)
+    vacation_per_year = Column(Integer, nullable=False, default=30)
     is_keyholder = Column(Boolean, nullable=False, default=False)
     is_active = Column(Boolean, nullable=False, default=True)
     birthday = Column(Date, nullable=True)
@@ -89,6 +90,7 @@ class Employee(db.Model):
         birthday=None,
         email=None,
         phone=None,
+        vacation_per_year=30,
     ):
         self.first_name = first_name
         self.last_name = last_name
@@ -102,6 +104,7 @@ class Employee(db.Model):
         self.birthday = birthday
         self.email = email
         self.phone = phone
+        self.vacation_per_year = vacation_per_year
 
         # Add scheduler-expected attributes
         # These will be populated from separate preference models in the future
@@ -212,6 +215,7 @@ class Employee(db.Model):
             "contracted_hours": self.contracted_hours,
             "is_keyholder": self.is_keyholder,
             "is_active": self.is_active,
+            "vacation_per_year": self.vacation_per_year,
             "birthday": self.birthday.isoformat() if self.birthday else None,
             "email": self.email,
             "phone": self.phone,

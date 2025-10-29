@@ -1,3 +1,4 @@
+import { GlobalAIDialog } from "@/components/ai/GlobalAIDialog";
 import {
   Select,
   SelectContent,
@@ -20,6 +21,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { useAIDialog } from "@/hooks/useAIDialog";
 import { getSettings } from "@/services/api";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -40,6 +42,7 @@ import { Outlet, Link as RouterLink, useLocation } from "react-router-dom";
 
 export const MainLayout = () => {
   const location = useLocation();
+  const { openDialog } = useAIDialog();
   const { data: settings } = useQuery({
     queryKey: ["settings"] as const,
     queryFn: getSettings,
@@ -76,18 +79,6 @@ export const MainLayout = () => {
         path: "/",
         icon: LayoutDashboard,
         description: "Schichtplanung und -verwaltung",
-      },
-      {
-        label: "Kalender",
-        path: "/calendar",
-        icon: CalendarDays,
-        description: "Kalenderansicht der Schichten",
-      },
-      {
-        label: "AI Dashboard",
-        path: "/ai",
-        icon: Bot,
-        description: "KI-gestütztes System für intelligente Schichtplanung",
       },
       {
         label: "Versionen",
@@ -137,6 +128,12 @@ export const MainLayout = () => {
 
   const systemNavItems = React.useMemo(
     () => [
+      {
+        label: "AI Assistant",
+        path: "/ai",
+        icon: Bot,
+        description: "KI-gestütztes System für intelligente Schichtplanung",
+      },
       {
         label: "Design System",
         path: "/design-system",
@@ -244,10 +241,28 @@ export const MainLayout = () => {
                   </SidebarMenuItem>
                 );
               })}
+
+              {/* AI Assistant Menu Item */}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => openDialog()}
+                  tooltip="AI Assistant (Cmd+/)"
+                  className="cursor-pointer"
+                >
+                  <Bot className="size-4" />
+                  <span>AI Assistant</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      {/* Copyright Footer */}
+      <div className="border-t border-border p-3 text-center text-xs text-muted-foreground">
+        <p>Made with ☕ and ❤️</p>
+        <p>© jango</p>
+      </div>
 
       <SidebarRail />
     </Sidebar>
@@ -326,6 +341,9 @@ export const MainLayout = () => {
           </main>
         </div>
       </div>
+
+      {/* Global AI Dialog */}
+      <GlobalAIDialog />
     </SidebarProvider>
   );
 };
