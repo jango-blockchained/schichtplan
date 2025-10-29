@@ -14,7 +14,7 @@ from flask import (
 )
 from flask_cors import CORS
 
-from src.backend.models import MessageType
+from src.backend.models import MessageType, Settings
 from src.backend.services.ai_agents import AgentRegistry, WorkflowCoordinator
 from src.backend.services.ai_integration import create_ai_orchestrator
 from src.backend.services.background_task_manager import (
@@ -1770,16 +1770,43 @@ def update_ai_settings():
 @track_performance
 def health_check():
     """
-    AI system health check
+    AI system health check with comprehensive status information
     """
     try:
+        # Get settings to check AI configuration
+        settings = Settings.query.first()
+        ai_settings = settings.ai_scheduling if settings and settings.ai_scheduling else {}
+        
+        # Check if AI is enabled
+        ai_enabled = ai_settings.get("enabled", False)
+        
+        # Determine overall system health
+        services_status = {
+            "mcp_service": {"status": "initialized" if mcp_service else "not_initialized", "initialized": mcp_service is not None},
+            "agent_registry": {"status": "initialized" if agent_registry else "not_initialized", "initialized": agent_registry is not None},
+            "workflow_coordinator": {"status": "initialized" if workflow_coordinator else "not_initialized", "initialized": workflow_coordinator is not None},
+            "conversation_manager": {"status": "initialized" if conversation_manager else "not_initialized", "initialized": conversation_manager is not None},
+        }
+        
+        # Count initialized services
+        initialized_count = sum(1 for svc in services_status.values() if svc["initialized"])
+        total_count = len(services_status)
+        
+        # Determine overall status
+        if not ai_enabled:
+            overall_status = "disabled"
+        elif initialized_count == 0:
+            overall_status = "critical"
+        elif initialized_count < total_count:
+            overall_status = "degraded"
+        else:
+            overall_status = "healthy"
+        
         health_status = {
-            "status": "healthy",
-            "services": {
-                "mcp_service": mcp_service is not None,
-                "agent_registry": agent_registry is not None,
-                "workflow_coordinator": workflow_coordinator is not None,
-            },
+            "status": overall_status,
+            "ai_enabled": ai_enabled,
+            "services": services_status,
+            "initialized_services": f"{initialized_count}/{total_count}",
             "timestamp": datetime.now().isoformat(),
         }
 
@@ -1787,7 +1814,11 @@ def health_check():
 
     except Exception as e:
         logger.app_logger.error(f"AI health check error: {str(e)}")
-        return jsonify({"error": f"Health check failed: {str(e)}"}), 500
+        return jsonify({
+            "status": "error",
+            "error": f"Health check failed: {str(e)}",
+            "timestamp": datetime.now().isoformat(),
+        }), 500
 
 
 @ai_bp.route("/chat/history/<conversation_id>", methods=["GET"])
@@ -1963,12 +1994,35 @@ def debug_info():
 @track_performance
 def get_services_status():
     """
-    Get detailed status of all AI services
+    Get detailed status of all AI services including provider status
     """
     try:
+        # Get settings to check for API keys
+        settings = Settings.query.first()
+        ai_settings = settings.ai_scheduling if settings and settings.ai_scheduling else {}
+        api_keys = ai_settings.get("api_keys", {})
+        
+        # Check provider status based on API keys
+        providers = []
+        provider_configs = [
+            {"provider": "gemini", "key": api_keys.get("gemini", "")},
+            {"provider": "openai", "key": api_keys.get("openai", "")},
+            {"provider": "anthropic", "key": api_keys.get("anthropic", "")},
+        ]
+        
+        for config in provider_configs:
+            has_key = bool(config["key"] and config["key"].strip())
+            providers.append({
+                "provider": config["provider"],
+                "status": "available" if has_key else "unavailable",
+                "has_api_key": has_key,
+                "last_checked": datetime.now().isoformat(),
+            })
+        
         status = {
             "overall_health": "healthy",
             "timestamp": datetime.now().isoformat(),
+            "providers": providers,
             "services": {
                 "conversation_manager": {
                     "available": conversation_manager is not None,
