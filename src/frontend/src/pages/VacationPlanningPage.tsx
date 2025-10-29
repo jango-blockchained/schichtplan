@@ -38,9 +38,13 @@ import {
   subMonths,
 } from "date-fns";
 import {
+  CalendarDays,
+  CalendarOff,
   Plus,
   Trash2,
   Users,
+  UserCheck,
+  Info,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { VacationAbsenceModal } from "@/components/VacationAbsenceModal";
@@ -185,29 +189,85 @@ export default function VacationPlanningPage() {
         }
       />
 
+      {/* Summary Statistics */}
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Aktive Mitarbeiter</CardTitle>
+            <UserCheck className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{activeEmployees.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              verfügbar für Urlaubsplanung
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Abwesenheiten</CardTitle>
+            <CalendarDays className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{filteredAbsences.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {selectedEmployeeId ? "für ausgewählten Mitarbeiter" : "im angezeigten Zeitraum"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Gesamttage</CardTitle>
+            <CalendarOff className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {filteredAbsences.reduce((sum, absence) => {
+                const days = differenceInDays(
+                  new Date(absence.end_date),
+                  new Date(absence.start_date)
+                ) + 1;
+                return sum + days;
+              }, 0)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Tage Abwesenheit
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Filter Bar */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-4">
             <Users className="h-5 w-5 text-muted-foreground" />
-            <Select
-              value={selectedEmployeeId?.toString() || "all"}
-              onValueChange={(value) =>
-                setSelectedEmployeeId(value === "all" ? null : Number(value))
-              }
-            >
-              <SelectTrigger className="w-[250px]">
-                <SelectValue placeholder="Alle Mitarbeiter" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Alle Mitarbeiter</SelectItem>
-                {activeEmployees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id.toString()}>
-                    {emp.first_name} {emp.last_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex-1">
+              <Select
+                value={selectedEmployeeId?.toString() || "all"}
+                onValueChange={(value) =>
+                  setSelectedEmployeeId(value === "all" ? null : Number(value))
+                }
+              >
+                <SelectTrigger className="w-full sm:w-[300px]">
+                  <SelectValue placeholder="Alle Mitarbeiter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Mitarbeiter</SelectItem>
+                  {activeEmployees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id.toString()}>
+                      {emp.first_name} {emp.last_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedEmployeeId && (
+              <Badge variant="secondary" className="flex items-center gap-1">
+                <Info className="h-3 w-3" />
+                Gefiltert
+              </Badge>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -250,9 +310,19 @@ export default function VacationPlanningPage() {
                 <TableRow>
                   <TableCell
                     colSpan={7}
-                    className="text-center text-muted-foreground py-8"
+                    className="text-center py-12"
                   >
-                    Keine Abwesenheiten im ausgewählten Zeitraum
+                    <div className="flex flex-col items-center gap-2">
+                      <CalendarOff className="h-12 w-12 text-muted-foreground/50" />
+                      <p className="text-muted-foreground font-medium">
+                        Keine Abwesenheiten im ausgewählten Zeitraum
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedEmployeeId 
+                          ? "Für diesen Mitarbeiter sind keine Abwesenheiten geplant"
+                          : "Fügen Sie eine neue Abwesenheit hinzu, um zu beginnen"}
+                      </p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
