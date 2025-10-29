@@ -330,6 +330,44 @@ export interface Settings {
   ai_scheduling?: {
     enabled?: boolean | null;
     api_key?: string | null;
+    provider?: "openai" | "anthropic" | "gemini" | null;
+    model?: string | null;
+    temperature?: number | null;
+    max_tokens?: number | null;
+    timeout?: number | null;
+    api_keys?: {
+      gemini?: string | null;
+      openai?: string | null;
+      anthropic?: string | null;
+    } | null;
+    fallback_enabled?: boolean | null;
+    fallback_providers?: string[] | null;
+    rate_limit?: number | null;
+    cache_enabled?: boolean | null;
+    cache_ttl?: number | null;
+    logging_level?: "debug" | "info" | "warning" | "error" | null;
+    conversation_persistence?: boolean | null;
+    max_conversation_history?: number | null;
+    agents?: {
+      schedule_optimizer?: {
+        enabled?: boolean | null;
+        max_concurrent_requests?: number | null;
+      } | null;
+      employee_manager?: {
+        enabled?: boolean | null;
+        max_concurrent_requests?: number | null;
+      } | null;
+      workflow_coordinator?: {
+        enabled?: boolean | null;
+        max_parallel_workflows?: number | null;
+      } | null;
+    } | null;
+    system?: {
+      mcp_server_url?: string | null;
+      mcp_server_timeout?: number | null;
+      health_check_interval?: number | null;
+      maintenance_mode?: boolean | null;
+    } | null;
   } | null;
   week_navigation?: {
     week_weekend_start?: "MONDAY" | "SUNDAY" | null;
