@@ -12,21 +12,21 @@ import {
 import { getWeekStartsOn } from "@/utils/weekStart";
 import { useQuery, useQuery as useSettingsQuery } from "@tanstack/react-query";
 import { endOfWeek, format, startOfWeek } from "date-fns";
-import { 
-  ArrowRight, 
+import {
+  ArrowRight,
   Calendar,
   CalendarCheck,
   CalendarClock,
-  CalendarDays, 
-  CalendarX2, 
+  CalendarDays,
+  CalendarX2,
   Clock,
   FileText,
   GitBranch,
   LayoutGrid,
   Settings,
   TrendingUp,
-  Users,
   UserCheck,
+  Users,
   UserX
 } from "lucide-react";
 import { useMemo } from "react";

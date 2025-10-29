@@ -50,11 +50,11 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Info,
   Plus,
   Trash2,
-  Users,
   UserCheck,
-  Info,
+  Users,
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
