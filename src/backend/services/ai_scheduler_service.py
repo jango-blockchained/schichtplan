@@ -1427,7 +1427,7 @@ class AISchedulerService:
         """Generate a descriptive shift name from shift template data"""
         try:
             # Try to get the actual shift template for a proper name
-            shift = ShiftTemplate.query.get(shift_template_id)
+            shift = db.session.get(ShiftTemplate, shift_template_id)
             if shift and shift.name:
                 return shift.name
 

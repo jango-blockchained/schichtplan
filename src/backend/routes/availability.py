@@ -924,7 +924,7 @@ def check_employee_availability_for_date(employee_id, date):
             ), HTTPStatus.BAD_REQUEST
 
         # Get employee
-        employee = Employee.query.get(employee_id)
+        employee = db.session.get(Employee, employee_id)
         if not employee:
             return jsonify(
                 {"error": f"Employee with ID {employee_id} not found"}

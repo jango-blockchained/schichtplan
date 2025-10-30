@@ -409,7 +409,7 @@ def create_schedule_entry():
             # Setting break_start/end might require shift_id lookup or might be set manually
             # For now, only calculate if shift_id is present, otherwise clear
             if schedule.shift_id is not None:
-                shift = ShiftTemplate.query.get(schedule.shift_id)
+                shift = db.session.get(ShiftTemplate, schedule.shift_id)
                 if shift is not None:
                     # Simplified break calculation: assume break starts after 1 hour of shift
                     shift_start = datetime.strptime(shift.start_time, "%H:%M")
@@ -772,7 +772,7 @@ def update_schedule(schedule_id):
                     if auto_break_duration > 0:
                         # If we have a shift, calculate break times based on shift times
                         if schedule.shift_id is not None:
-                            shift = ShiftTemplate.query.get(schedule.shift_id)
+                            shift = db.session.get(ShiftTemplate, schedule.shift_id)
                             if shift is not None:
                                 # Start break midway through the shift
                                 shift_start = datetime.strptime(
@@ -819,7 +819,7 @@ def update_schedule(schedule_id):
                     )
                     # If we have a shift, calculate break times based on shift times
                     if schedule.shift_id is not None:
-                        shift = ShiftTemplate.query.get(schedule.shift_id)
+                        shift = db.session.get(ShiftTemplate, schedule.shift_id)
                         if shift is not None:
                             # Start break midway through the shift
                             shift_start = datetime.strptime(shift.start_time, "%H:%M")
@@ -896,7 +896,7 @@ def update_schedule(schedule_id):
 
                     # If we're setting a shift_id, also update shift times from the template
                     if schedule.shift_id is not None:
-                        shift_template = ShiftTemplate.query.get(schedule.shift_id)
+                        shift_template = db.session.get(ShiftTemplate, schedule.shift_id)
                         if shift_template:
                             schedule.shift_start = shift_template.start_time
                             schedule.shift_end = shift_template.end_time
@@ -946,7 +946,7 @@ def update_schedule(schedule_id):
                     if auto_break_duration > 0:
                         # If we have a shift, calculate break times based on shift times
                         if schedule.shift_id is not None:
-                            shift = ShiftTemplate.query.get(schedule.shift_id)
+                            shift = db.session.get(ShiftTemplate, schedule.shift_id)
                             if shift is not None:
                                 # Start break midway through the shift
                                 shift_start = datetime.strptime(
@@ -993,7 +993,7 @@ def update_schedule(schedule_id):
                     )
                     # If we have a shift, calculate break times based on shift times
                     if schedule.shift_id is not None:
-                        shift = ShiftTemplate.query.get(schedule.shift_id)
+                        shift = db.session.get(ShiftTemplate, schedule.shift_id)
                         if shift is not None:
                             # Start break midway through the shift
                             shift_start = datetime.strptime(shift.start_time, "%H:%M")

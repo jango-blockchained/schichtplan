@@ -124,7 +124,7 @@ def get_employee_request_form():
             }), HTTPStatus.BAD_REQUEST
         
         # Fetch employee
-        employee = Employee.query.get(employee_id)
+        employee = db.session.get(Employee, employee_id)
         if not employee:
             return jsonify({
                 "status": "error",

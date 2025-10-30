@@ -231,7 +231,7 @@ def get_schedules():
                 # Fallback: fetch shift data directly if relationship is missing
                 from ..models.fixed_shift import ShiftTemplate
 
-                shift = ShiftTemplate.query.get(schedule.shift_id)
+                shift = db.session.get(ShiftTemplate, schedule.shift_id)
                 if shift:
                     schedule_data.update(
                         {

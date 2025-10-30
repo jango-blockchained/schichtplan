@@ -346,7 +346,7 @@ class CRUDOperationsTools:
         if not filters or "id" not in filters:
             return {"error": "Employee ID is required for read operation"}
 
-        employee = Employee.query.get(filters["id"])
+        employee = db.session.get(Employee, filters["id"])
         if not employee:
             return {"error": f"Employee with ID {filters['id']} not found"}
 
@@ -446,7 +446,7 @@ class CRUDOperationsTools:
         if not employee_data or "id" not in employee_data:
             return {"error": "Employee ID is required for update operation"}
 
-        employee = Employee.query.get(employee_data["id"])
+        employee = db.session.get(Employee, employee_data["id"])
         if not employee:
             return {"error": f"Employee with ID {employee_data['id']} not found"}
 
@@ -515,7 +515,7 @@ class CRUDOperationsTools:
         if not filters or "id" not in filters:
             return {"error": "Employee ID is required for delete operation"}
 
-        employee = Employee.query.get(filters["id"])
+        employee = db.session.get(Employee, filters["id"])
         if not employee:
             return {"error": f"Employee with ID {filters['id']} not found"}
 
@@ -666,7 +666,7 @@ class CRUDOperationsTools:
 
         from src.backend.models import Schedule
 
-        schedule = Schedule.query.get(filters["id"])
+        schedule = db.session.get(Schedule, filters["id"])
         if not schedule:
             return {"error": f"Schedule with ID {filters['id']} not found"}
 
@@ -734,7 +734,7 @@ class CRUDOperationsTools:
 
         from src.backend.models import Schedule
 
-        schedule = Schedule.query.get(schedule_data["id"])
+        schedule = db.session.get(Schedule, schedule_data["id"])
         if not schedule:
             return {"error": f"Schedule with ID {schedule_data['id']} not found"}
 
@@ -782,7 +782,7 @@ class CRUDOperationsTools:
 
         from src.backend.models import Schedule
 
-        schedule = Schedule.query.get(filters["id"])
+        schedule = db.session.get(Schedule, filters["id"])
         if not schedule:
             return {"error": f"Schedule with ID {filters['id']} not found"}
 
@@ -883,7 +883,7 @@ class CRUDOperationsTools:
         from src.backend.models import Absence
 
         if filters and "id" in filters:
-            absence = Absence.query.get(filters["id"])
+            absence = db.session.get(Absence, filters["id"])
             if not absence:
                 return {"error": f"Absence with ID {filters['id']} not found"}
 
@@ -950,7 +950,7 @@ class CRUDOperationsTools:
 
         from src.backend.models import Absence
 
-        absence = Absence.query.get(absence_data["id"])
+        absence = db.session.get(Absence, absence_data["id"])
         if not absence:
             return {"error": f"Absence with ID {absence_data['id']} not found"}
 
@@ -996,7 +996,7 @@ class CRUDOperationsTools:
 
         from src.backend.models import Absence
 
-        absence = Absence.query.get(filters["id"])
+        absence = db.session.get(Absence, filters["id"])
         if not absence:
             return {"error": f"Absence with ID {filters['id']} not found"}
 
@@ -1079,7 +1079,7 @@ class CRUDOperationsTools:
 
         from src.backend.models import ShiftTemplate
 
-        template = ShiftTemplate.query.get(filters["id"])
+        template = db.session.get(ShiftTemplate, filters["id"])
         if not template:
             return {"error": f"Template with ID {filters['id']} not found"}
 
@@ -1143,7 +1143,7 @@ class CRUDOperationsTools:
 
         from src.backend.models import ShiftTemplate
 
-        template = ShiftTemplate.query.get(template_data["id"])
+        template = db.session.get(ShiftTemplate, template_data["id"])
         if not template:
             return {"error": f"Template with ID {template_data['id']} not found"}
 
@@ -1194,7 +1194,7 @@ class CRUDOperationsTools:
 
         from src.backend.models import ShiftTemplate
 
-        template = ShiftTemplate.query.get(filters["id"])
+        template = db.session.get(ShiftTemplate, filters["id"])
         if not template:
             return {"error": f"Template with ID {filters['id']} not found"}
 
