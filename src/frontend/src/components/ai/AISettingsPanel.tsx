@@ -13,6 +13,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getSettings, updateSettings } from "@/services/api";
 import {
   AlertTriangle,
   Brain,
@@ -104,13 +105,13 @@ interface AgentSettings {
 
 export const AISettingsPanel: React.FC = () => {
   const [aiSettings, setAISettings] = useState<AISettings>({
-    provider: "openai",
-    model: "gpt-4",
+    provider: "gemini",
+    model: "gemini-pro",
     temperature: 0.7,
     max_tokens: 2048,
     timeout: 30,
     fallback_enabled: true,
-    fallback_providers: ["anthropic", "gemini"],
+    fallback_providers: ["anthropic", "openai"],
     rate_limit: 100,
     cache_enabled: true,
     cache_ttl: 3600,
@@ -164,9 +165,89 @@ export const AISettingsPanel: React.FC = () => {
   const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
 
+  // Load settings from backend on mount
   useEffect(() => {
-    // Mark as having changes when settings are modified
-    setHasChanges(true);
+    const loadSettings = async () => {
+      try {
+        const settings = await getSettings();
+        if (settings.ai_scheduling) {
+          // Map backend settings structure to frontend structure
+          const aiSched = settings.ai_scheduling;
+          setAISettings({
+            provider: (aiSched.provider || "gemini") as "openai" | "anthropic" | "gemini",
+            model: aiSched.model || "gemini-pro",
+            temperature: aiSched.temperature || 0.7,
+            max_tokens: aiSched.max_tokens || 2048,
+            timeout: aiSched.timeout || 30,
+            fallback_enabled: aiSched.fallback_enabled ?? true,
+            fallback_providers: aiSched.fallback_providers || ["anthropic", "openai"],
+            rate_limit: aiSched.rate_limit || 100,
+            cache_enabled: aiSched.cache_enabled ?? true,
+            cache_ttl: aiSched.cache_ttl || 3600,
+            logging_level: (aiSched.logging_level || "info") as "debug" | "info" | "warning" | "error",
+            conversation_persistence: aiSched.conversation_persistence ?? true,
+            max_conversation_history: aiSched.max_conversation_history || 50,
+          });
+
+          // Load agent settings if available
+          if (aiSched.agents) {
+            setAgentSettings({
+              schedule_optimizer: {
+                enabled: aiSched.agents.schedule_optimizer?.enabled ?? true,
+                max_concurrent_requests: aiSched.agents.schedule_optimizer?.max_concurrent_requests || 5,
+                optimization_algorithms: [
+                  "genetic",
+                  "simulated_annealing",
+                  "constraint_satisfaction",
+                ],
+                constraint_weights: {
+                  workload_balance: 0.3,
+                  coverage_requirements: 0.4,
+                  employee_preferences: 0.2,
+                  cost_optimization: 0.1,
+                },
+              },
+              employee_manager: {
+                enabled: aiSched.agents.employee_manager?.enabled ?? true,
+                max_concurrent_requests: aiSched.agents.employee_manager?.max_concurrent_requests || 3,
+                preference_weight: 0.8,
+                availability_check_strict: true,
+              },
+              workflow_coordinator: {
+                enabled: aiSched.agents.workflow_coordinator?.enabled ?? true,
+                max_parallel_workflows: aiSched.agents.workflow_coordinator?.max_parallel_workflows || 3,
+                workflow_timeout: 600,
+                auto_recovery: true,
+              },
+            });
+          }
+
+          // Load system settings if available
+          if (aiSched.system) {
+            setSystemSettings({
+              mcp_server_url: aiSched.system.mcp_server_url || "http://localhost:8001",
+              mcp_server_timeout: aiSched.system.mcp_server_timeout || 30,
+              health_check_interval: aiSched.system.health_check_interval || 60,
+              auto_scaling_enabled: false,
+              max_system_load: 80,
+              maintenance_mode: aiSched.system.maintenance_mode ?? false,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load AI settings:", error);
+        toast.error("Failed to load AI settings");
+      }
+    };
+
+    loadSettings();
+  }, []);
+
+  useEffect(() => {
+    // Mark as having changes when settings are modified (skip initial load)
+    if (aiSettings.provider !== "gemini" || aiSettings.model !== "gemini-pro") {
+      setHasChanges(true);
+    }
   }, [aiSettings, agentSettings, systemSettings]);
 
   // Fetch provider status and system health
@@ -203,13 +284,52 @@ export const AISettingsPanel: React.FC = () => {
   const handleSaveSettings = async () => {
     setIsLoading(true);
     try {
-      // Simulate API call to save settings
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Map frontend settings structure to backend structure
+      const updatedSettings = {
+        ai_scheduling: {
+          enabled: true,
+          provider: aiSettings.provider,
+          model: aiSettings.model,
+          temperature: aiSettings.temperature,
+          max_tokens: aiSettings.max_tokens,
+          timeout: aiSettings.timeout,
+          fallback_enabled: aiSettings.fallback_enabled,
+          fallback_providers: aiSettings.fallback_providers,
+          rate_limit: aiSettings.rate_limit,
+          cache_enabled: aiSettings.cache_enabled,
+          cache_ttl: aiSettings.cache_ttl,
+          logging_level: aiSettings.logging_level,
+          conversation_persistence: aiSettings.conversation_persistence,
+          max_conversation_history: aiSettings.max_conversation_history,
+          agents: {
+            schedule_optimizer: {
+              enabled: agentSettings.schedule_optimizer.enabled,
+              max_concurrent_requests: agentSettings.schedule_optimizer.max_concurrent_requests,
+            },
+            employee_manager: {
+              enabled: agentSettings.employee_manager.enabled,
+              max_concurrent_requests: agentSettings.employee_manager.max_concurrent_requests,
+            },
+            workflow_coordinator: {
+              enabled: agentSettings.workflow_coordinator.enabled,
+              max_parallel_workflows: agentSettings.workflow_coordinator.max_parallel_workflows,
+            },
+          },
+          system: {
+            mcp_server_url: systemSettings.mcp_server_url,
+            mcp_server_timeout: systemSettings.mcp_server_timeout,
+            health_check_interval: systemSettings.health_check_interval,
+            maintenance_mode: systemSettings.maintenance_mode,
+          },
+        },
+      };
 
+      await updateSettings(updatedSettings);
       setHasChanges(false);
-      toast.success("Settings saved successfully");
-    } catch {
-      toast.error("Failed to save settings");
+      toast.success("AI settings saved successfully");
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+      toast.error("Failed to save AI settings");
     } finally {
       setIsLoading(false);
     }
@@ -218,13 +338,13 @@ export const AISettingsPanel: React.FC = () => {
   const handleResetSettings = () => {
     // Reset to default values
     setAISettings({
-      provider: "openai",
-      model: "gpt-4",
+      provider: "gemini",
+      model: "gemini-pro",
       temperature: 0.7,
       max_tokens: 2048,
       timeout: 30,
       fallback_enabled: true,
-      fallback_providers: ["anthropic", "gemini"],
+      fallback_providers: ["anthropic", "openai"],
       rate_limit: 100,
       cache_enabled: true,
       cache_ttl: 3600,
@@ -233,7 +353,8 @@ export const AISettingsPanel: React.FC = () => {
       max_conversation_history: 50,
     });
 
-    toast.success("Settings reset to defaults");
+    setHasChanges(true);
+    toast.success("Settings reset to defaults (click Save to apply)");
   };
 
   const getProviderModels = (provider: string) => {
@@ -243,7 +364,7 @@ export const AISettingsPanel: React.FC = () => {
       case "anthropic":
         return ["claude-3-opus", "claude-3-sonnet", "claude-3-haiku"];
       case "gemini":
-        return ["gemini-pro", "gemini-pro-vision"];
+        return ["gemini-pro", "gemini-1.5-pro", "gemini-1.5-flash"];
       default:
         return [];
     }
