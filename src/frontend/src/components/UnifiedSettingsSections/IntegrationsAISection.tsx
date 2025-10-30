@@ -140,7 +140,7 @@ const IntegrationsAISection: React.FC<IntegrationsAISectionProps> = ({
       case "anthropic":
         return ["claude-3-opus", "claude-3-sonnet", "claude-3-haiku"];
       case "gemini":
-        return ["gemini-pro", "gemini-pro-vision"];
+        return ["gemini-pro", "gemini-1.5-pro", "gemini-1.5-flash"];
       default:
         return [];
     }
