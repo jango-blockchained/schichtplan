@@ -18,6 +18,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Absence, AbsenceType, Employee } from "@/types";
 import { format } from "date-fns";
+import { Calendar, Check, Clock, FileText, User, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface VacationAbsenceModalProps {
@@ -76,11 +77,23 @@ export function VacationAbsenceModal({
     onSubmit(formData);
   };
 
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "approved":
+        return <Check className="h-4 w-4 text-emerald-600" />;
+      case "declined":
+        return <X className="h-4 w-4 text-red-600" />;
+      default:
+        return <Clock className="h-4 w-4 text-amber-600" />;
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="flex items-center gap-2 text-xl">
+            <Calendar className="h-5 w-5" />
             {absence ? "Abwesenheit bearbeiten" : "Neue Abwesenheit"}
           </DialogTitle>
         </DialogHeader>
@@ -88,7 +101,10 @@ export function VacationAbsenceModal({
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="employee">Mitarbeiter</Label>
+              <Label htmlFor="employee" className="flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Mitarbeiter
+              </Label>
               <Select
                 value={formData.employee_id.toString()}
                 onValueChange={(value) =>
@@ -110,7 +126,10 @@ export function VacationAbsenceModal({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="absence_type">Typ</Label>
+              <Label htmlFor="absence_type" className="flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Typ
+              </Label>
               <Select
                 value={formData.absence_type_id}
                 onValueChange={(value) =>
@@ -123,7 +142,13 @@ export function VacationAbsenceModal({
                 <SelectContent>
                   {absenceTypes.map((type) => (
                     <SelectItem key={type.id} value={type.id}>
-                      {type.name}
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: type.color }}
+                        />
+                        {type.name}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -132,7 +157,10 @@ export function VacationAbsenceModal({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="start_date">Von</Label>
+                <Label htmlFor="start_date" className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Von
+                </Label>
                 <Input
                   id="start_date"
                   type="date"
@@ -145,7 +173,10 @@ export function VacationAbsenceModal({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="end_date">Bis</Label>
+                <Label htmlFor="end_date" className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Bis
+                </Label>
                 <Input
                   id="end_date"
                   type="date"
@@ -159,7 +190,10 @@ export function VacationAbsenceModal({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
+              <Label htmlFor="status" className="flex items-center gap-2">
+                {getStatusIcon(formData.status)}
+                Status
+              </Label>
               <Select
                 value={formData.status}
                 onValueChange={(value) =>
@@ -170,15 +204,33 @@ export function VacationAbsenceModal({
                   <SelectValue placeholder="Status auswählen" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="requested">Beantragt</SelectItem>
-                  <SelectItem value="approved">Genehmigt</SelectItem>
-                  <SelectItem value="declined">Abgelehnt</SelectItem>
+                  <SelectItem value="requested">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-amber-600" />
+                      Beantragt
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="approved">
+                    <div className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-emerald-600" />
+                      Genehmigt
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="declined">
+                    <div className="flex items-center gap-2">
+                      <X className="h-4 w-4 text-red-600" />
+                      Abgelehnt
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="note">Notiz (optional)</Label>
+              <Label htmlFor="note" className="flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Notiz (optional)
+              </Label>
               <Textarea
                 id="note"
                 value={formData.note}

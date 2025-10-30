@@ -145,16 +145,30 @@ export default function CalendarEvent({
             )}
             layout="position"
           >
-            <p className={cn('font-bold truncate', month && 'text-xs')}>
-              {event.title}
-            </p>
-            <p className={cn('text-sm', month && 'text-xs')}>
-              <span>{format(event.start, 'h:mm a')}</span>
-              <span className={cn('mx-1', month && 'hidden')}>-</span>
-              <span className={cn(month && 'hidden')}>
-                {format(event.end, 'h:mm a')}
-              </span>
-            </p>
+            {/* Show title only on first day for multi-day events in month view */}
+            {month && isMultiDay ? (
+              isFirstDay ? (
+                <p className={cn('font-bold truncate', month && 'text-xs')}>
+                  {event.title}
+                </p>
+              ) : (
+                <div className="w-full" /> 
+              )
+            ) : (
+              <p className={cn('font-bold truncate', month && 'text-xs')}>
+                {event.title}
+              </p>
+            )}
+            {/* Only show time in day/week view, not month view */}
+            {!month && (
+              <p className={cn('text-sm')}>
+                <span>{format(event.start, 'h:mm a')}</span>
+                <span className={cn('mx-1')}>-</span>
+                <span>
+                  {format(event.end, 'h:mm a')}
+                </span>
+              </p>
+            )}
           </motion.div>
         </motion.div>
       </AnimatePresence>
