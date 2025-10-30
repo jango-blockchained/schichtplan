@@ -1,8 +1,8 @@
 import os
 from pathlib import Path
 
-# Define project root as src directory
-PROJECT_ROOT = Path(__file__).resolve().parent.parent  # src directory
+# Define project root as the main project directory (parent of src)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 class Config:
