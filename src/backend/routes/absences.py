@@ -191,6 +191,56 @@ def delete_absence(employee_id, absence_id):
         return jsonify({"error": str(e)}), 400
 
 
+@bp.route("/<int:absence_id>", methods=["PUT"])
+@bp.route("/absences/<int:absence_id>", methods=["PUT"])
+def update_absence_direct(absence_id):
+    """Update an absence directly from the /absences/{id} endpoint."""
+    absence = Absence.query.get_or_404(absence_id)
+
+    try:
+        data = request.get_json()
+        # Validate data using Pydantic schema
+        request_data = AbsenceUpdateRequest(**data)
+
+        # Validate dates (logical validation after Pydantic format check)
+        if (
+            request_data.start_date
+            and request_data.end_date
+            and request_data.end_date < request_data.start_date
+        ):
+            return jsonify({"error": "End date must be after start date"}), 400
+
+        # Update fields from validated data if provided
+        if request_data.start_date is not None:
+            absence.start_date = request_data.start_date
+        if request_data.end_date is not None:
+            absence.end_date = request_data.end_date
+        if request_data.absence_type_id is not None:
+            absence.absence_type_id = request_data.absence_type_id
+        if request_data.note is not None:
+            absence.note = request_data.note
+        if request_data.status is not None:
+            absence.status = request_data.status
+
+        db.session.commit()
+        return jsonify(absence.to_dict())
+
+    except ValidationError as e:  # Catch Pydantic validation errors
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Invalid input.",
+                    "details": e.errors(),
+                }
+            ),
+            400,
+        )
+    except Exception as e:  # Catch any other exceptions
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
 @bp.route(
     "/employees/<int:employee_id>/absences/<int:absence_id>",
     methods=["PUT"],

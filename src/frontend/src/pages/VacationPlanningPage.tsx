@@ -6,6 +6,17 @@ import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -49,6 +60,7 @@ import {
   CalendarDays,
   CalendarOff,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -62,12 +74,6 @@ import {
   X,
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 export default function VacationPlanningPage() {
   const queryClient = useQueryClient();
@@ -90,6 +96,8 @@ export default function VacationPlanningPage() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingData, setEditingData] = useState<Partial<Absence>>({});
+  const [isCalendarExpanded, setIsCalendarExpanded] = useState(true);
+  const [isListExpanded, setIsListExpanded] = useState(true);
 
   type SortField = "employee" | "type" | "status" | "start_date" | "end_date" | "days";
   type SortDirection = "asc" | "desc";
@@ -447,7 +455,7 @@ export default function VacationPlanningPage() {
     const currentYear = new Date().getFullYear();
     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
     let url = '';
-    
+
     switch (type) {
       case 'admin-yearly':
         url = `${apiBaseUrl}/api/v2/vacation-pdf/admin-yearly?year=${currentYear}`;
@@ -461,10 +469,10 @@ export default function VacationPlanningPage() {
       default:
         return;
     }
-    
+
     // Open PDF in new window
     window.open(url, '_blank');
-    
+
     toast({
       title: "PDF wird erstellt",
       description: "Das PDF wird in einem neuen Tab geöffnet.",
@@ -695,288 +703,311 @@ export default function VacationPlanningPage() {
       </Card>
 
       {/* Calendar View */}
-      <Card>
-        <CardContent className="pt-6">
-          <Calendar
-            events={calendarEvents}
-            setEvents={handleEventsChange}
-            mode={calendarMode}
-            setMode={setCalendarMode}
-            date={currentDate}
-            setDate={setCurrentDate}
-            calendarIconIsToday={true}
-          />
-        </CardContent>
-      </Card>
+      <Collapsible open={isCalendarExpanded} onOpenChange={setIsCalendarExpanded}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <div className="flex items-center justify-between p-6 cursor-pointer hover:bg-muted/50 transition-colors">
+              <CardTitle className="text-base">Kalender</CardTitle>
+              <ChevronDown
+                className={`h-5 w-5 transition-transform duration-200 ${isCalendarExpanded ? "rotate-180" : ""
+                  }`}
+              />
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0">
+              <Calendar
+                events={calendarEvents}
+                setEvents={handleEventsChange}
+                mode={calendarMode}
+                setMode={setCalendarMode}
+                date={currentDate}
+                setDate={setCurrentDate}
+                calendarIconIsToday={true}
+              />
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       {/* List View */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Abwesenheiten Liste</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{renderSortableHeader("Mitarbeiter", "employee")}</TableHead>
-                <TableHead>{renderSortableHeader("Typ", "type")}</TableHead>
-                <TableHead>{renderSortableHeader("Status", "status")}</TableHead>
-                <TableHead>{renderSortableHeader("Von", "start_date")}</TableHead>
-                <TableHead>{renderSortableHeader("Bis", "end_date")}</TableHead>
-                <TableHead>{renderSortableHeader("Tage", "days")}</TableHead>
-                <TableHead>Notiz</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedAbsences.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="py-8 text-center text-muted-foreground"
-                  >
-                    Keine Abwesenheiten im ausgewählten Zeitraum
-                  </TableCell>
-                </TableRow>
-              ) : (
-                (() => {
-                  let lastEmployeeId: number | null = null;
-
-                  return paginatedAbsences.map((absence) => {
-                    const typeInfo = getAbsenceTypeInfo(absence.absence_type_id);
-                    const days =
-                      differenceInDays(
-                        new Date(absence.end_date),
-                        new Date(absence.start_date),
-                      ) + 1;
-                    const employeeName = getEmployeeDisplayName(absence.employee_id);
-                    const showGroupHeader = groupByEmployee && absence.employee_id !== lastEmployeeId;
-                    lastEmployeeId = absence.employee_id;
-
-                    return (
-                      <Fragment key={absence.id}>
-                        {showGroupHeader && (
-                          <TableRow className="bg-muted/30">
-                            <TableCell colSpan={8} className="font-medium">
-                              {employeeName}
-                            </TableCell>
-                          </TableRow>
-                        )}
-                        <TableRow className={editingId === absence.id ? "bg-muted/50" : ""}>
-                          <TableCell>{employeeName}</TableCell>
-                          <TableCell>
-                            {editingId === absence.id ? (
-                              <Select
-                                value={editingData.absence_type_id || absence.absence_type_id}
-                                onValueChange={(value) =>
-                                  setEditingData({
-                                    ...editingData,
-                                    absence_type_id: value,
-                                  })
-                                }
-                              >
-                                <SelectTrigger className="w-full">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {absenceTypesArray.map((type) => (
-                                    <SelectItem key={type.id} value={type.id}>
-                                      {type.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <Badge
-                                variant="outline"
-                                style={{
-                                  borderColor: typeInfo.color,
-                                  color: typeInfo.color,
-                                }}
-                              >
-                                {typeInfo.name}
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {editingId === absence.id ? (
-                              <Select
-                                value={editingData.status || absence.status}
-                                onValueChange={(value) =>
-                                  setEditingData({
-                                    ...editingData,
-                                    status: value,
-                                  })
-                                }
-                              >
-                                <SelectTrigger className="w-full">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="requested">Beantragt</SelectItem>
-                                  <SelectItem value="approved">Genehmigt</SelectItem>
-                                  <SelectItem value="declined">Abgelehnt</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              (() => {
-                                const statusInfo = getStatusInfo(absence.status);
-                                return (
-                                  <Badge className={statusInfo.className} variant="secondary">
-                                    {statusInfo.label}
-                                  </Badge>
-                                );
-                              })()
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {editingId === absence.id ? (
-                              <Input
-                                type="date"
-                                value={
-                                  editingData.start_date
-                                    ? format(new Date(editingData.start_date), "yyyy-MM-dd")
-                                    : format(new Date(absence.start_date), "yyyy-MM-dd")
-                                }
-                                onChange={(e) =>
-                                  setEditingData({
-                                    ...editingData,
-                                    start_date: e.target.value,
-                                  })
-                                }
-                              />
-                            ) : (
-                              format(new Date(absence.start_date), "dd.MM.yyyy")
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {editingId === absence.id ? (
-                              <Input
-                                type="date"
-                                value={
-                                  editingData.end_date
-                                    ? format(new Date(editingData.end_date), "yyyy-MM-dd")
-                                    : format(new Date(absence.end_date), "yyyy-MM-dd")
-                                }
-                                onChange={(e) =>
-                                  setEditingData({
-                                    ...editingData,
-                                    end_date: e.target.value,
-                                  })
-                                }
-                              />
-                            ) : (
-                              format(new Date(absence.end_date), "dd.MM.yyyy")
-                            )}
-                          </TableCell>
-                          <TableCell>{days}</TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {editingId === absence.id ? (
-                              <Input
-                                value={editingData.note || absence.note || ""}
-                                onChange={(e) =>
-                                  setEditingData({
-                                    ...editingData,
-                                    note: e.target.value,
-                                  })
-                                }
-                                placeholder="Notiz..."
-                              />
-                            ) : (
-                              absence.note || "–"
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {editingId === absence.id ? (
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleSave(absence.id)}
-                                  disabled={updateAbsenceMutation.isPending}
-                                >
-                                  <Check className="h-4 w-4 text-green-600" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={handleCancel}
-                                >
-                                  <X className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </div>
-                            ) : (
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleEdit(absence)}
-                                >
-                                  Bearbeiten
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => deleteAbsenceMutation.mutate(absence.id)}
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </div>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      </Fragment>
-                    );
-                  });
-                })()
-              )}
-            </TableBody>
-          </Table>
-
-          <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <p className="text-sm text-muted-foreground">
-              Zeige {paginatedAbsences.length} von {processedAbsences.length} Abwesenheiten
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage(1)}
-                disabled={currentPage === 1}
-              >
-                <ChevronsLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Seite {currentPage} von {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                disabled={currentPage === totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage(totalPages)}
-                disabled={currentPage === totalPages}
-              >
-                <ChevronsRight className="h-4 w-4" />
-              </Button>
+      <Collapsible open={isListExpanded} onOpenChange={setIsListExpanded}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <div className="flex items-center justify-between p-6 cursor-pointer hover:bg-muted/50 transition-colors border-b">
+              <CardTitle className="text-base">Abwesenheiten Liste</CardTitle>
+              <ChevronDown
+                className={`h-5 w-5 transition-transform duration-200 ${isListExpanded ? "rotate-180" : ""
+                  }`}
+              />
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-6">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{renderSortableHeader("Mitarbeiter", "employee")}</TableHead>
+                    <TableHead>{renderSortableHeader("Typ", "type")}</TableHead>
+                    <TableHead>{renderSortableHeader("Status", "status")}</TableHead>
+                    <TableHead>{renderSortableHeader("Von", "start_date")}</TableHead>
+                    <TableHead>{renderSortableHeader("Bis", "end_date")}</TableHead>
+                    <TableHead>{renderSortableHeader("Tage", "days")}</TableHead>
+                    <TableHead>Notiz</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedAbsences.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={8}
+                        className="py-8 text-center text-muted-foreground"
+                      >
+                        Keine Abwesenheiten im ausgewählten Zeitraum
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    (() => {
+                      let lastEmployeeId: number | null = null;
+
+                      return paginatedAbsences.map((absence) => {
+                        const typeInfo = getAbsenceTypeInfo(absence.absence_type_id);
+                        const days =
+                          differenceInDays(
+                            new Date(absence.end_date),
+                            new Date(absence.start_date),
+                          ) + 1;
+                        const employeeName = getEmployeeDisplayName(absence.employee_id);
+                        const showGroupHeader = groupByEmployee && absence.employee_id !== lastEmployeeId;
+                        lastEmployeeId = absence.employee_id;
+
+                        return (
+                          <Fragment key={absence.id}>
+                            {showGroupHeader && (
+                              <TableRow className="bg-muted/30">
+                                <TableCell colSpan={8} className="font-medium">
+                                  {employeeName}
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            <TableRow className={editingId === absence.id ? "bg-muted/50" : ""}>
+                              <TableCell>{employeeName}</TableCell>
+                              <TableCell>
+                                {editingId === absence.id ? (
+                                  <Select
+                                    value={editingData.absence_type_id || absence.absence_type_id}
+                                    onValueChange={(value) =>
+                                      setEditingData({
+                                        ...editingData,
+                                        absence_type_id: value,
+                                      })
+                                    }
+                                  >
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {absenceTypesArray.map((type) => (
+                                        <SelectItem key={type.id} value={type.id}>
+                                          {type.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <Badge
+                                    variant="outline"
+                                    style={{
+                                      borderColor: typeInfo.color,
+                                      color: typeInfo.color,
+                                    }}
+                                  >
+                                    {typeInfo.name}
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {editingId === absence.id ? (
+                                  <Select
+                                    value={editingData.status || absence.status}
+                                    onValueChange={(value) =>
+                                      setEditingData({
+                                        ...editingData,
+                                        status: value,
+                                      })
+                                    }
+                                  >
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="requested">Beantragt</SelectItem>
+                                      <SelectItem value="approved">Genehmigt</SelectItem>
+                                      <SelectItem value="declined">Abgelehnt</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  (() => {
+                                    const statusInfo = getStatusInfo(absence.status);
+                                    return (
+                                      <Badge className={statusInfo.className} variant="secondary">
+                                        {statusInfo.label}
+                                      </Badge>
+                                    );
+                                  })()
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {editingId === absence.id ? (
+                                  <Input
+                                    type="date"
+                                    value={
+                                      editingData.start_date
+                                        ? format(new Date(editingData.start_date), "yyyy-MM-dd")
+                                        : format(new Date(absence.start_date), "yyyy-MM-dd")
+                                    }
+                                    onChange={(e) =>
+                                      setEditingData({
+                                        ...editingData,
+                                        start_date: e.target.value,
+                                      })
+                                    }
+                                  />
+                                ) : (
+                                  format(new Date(absence.start_date), "dd.MM.yyyy")
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {editingId === absence.id ? (
+                                  <Input
+                                    type="date"
+                                    value={
+                                      editingData.end_date
+                                        ? format(new Date(editingData.end_date), "yyyy-MM-dd")
+                                        : format(new Date(absence.end_date), "yyyy-MM-dd")
+                                    }
+                                    onChange={(e) =>
+                                      setEditingData({
+                                        ...editingData,
+                                        end_date: e.target.value,
+                                      })
+                                    }
+                                  />
+                                ) : (
+                                  format(new Date(absence.end_date), "dd.MM.yyyy")
+                                )}
+                              </TableCell>
+                              <TableCell>{days}</TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {editingId === absence.id ? (
+                                  <Input
+                                    value={editingData.note || absence.note || ""}
+                                    onChange={(e) =>
+                                      setEditingData({
+                                        ...editingData,
+                                        note: e.target.value,
+                                      })
+                                    }
+                                    placeholder="Notiz..."
+                                  />
+                                ) : (
+                                  absence.note || "–"
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {editingId === absence.id ? (
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleSave(absence.id)}
+                                      disabled={updateAbsenceMutation.isPending}
+                                    >
+                                      <Check className="h-4 w-4 text-green-600" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={handleCancel}
+                                    >
+                                      <X className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleEdit(absence)}
+                                    >
+                                      Bearbeiten
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => deleteAbsenceMutation.mutate(absence.id)}
+                                    >
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </div>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          </Fragment>
+                        );
+                      });
+                    })()
+                  )}
+                </TableBody>
+              </Table>
+
+              <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Zeige {paginatedAbsences.length} von {processedAbsences.length} Abwesenheiten
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Seite {currentPage} von {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       {/* Absence Modal */}
       <VacationAbsenceModal
