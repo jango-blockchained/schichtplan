@@ -414,6 +414,13 @@ class Logger:
 
             # Log to console handler (text output)
             if self.console_handler:
+                # Handle exc_info=True by getting current exception info
+                actual_exc_info = exc_info
+                if exc_info is True:
+                    actual_exc_info = sys.exc_info()
+                elif exc_info is False or exc_info is None:
+                    actual_exc_info = None
+                
                 # Create a temporary LogRecord for the console handler to format
                 record = logging.LogRecord(
                     name=self.logger_name,
@@ -422,7 +429,7 @@ class Logger:
                     lineno=0,
                     msg=full_message,  # Use the constructed full_message
                     args=(),
-                    exc_info=exc_info,  # Pass exc_info
+                    exc_info=actual_exc_info,  # Pass resolved exc_info
                     func="",
                 )
                 # Assign stack_info - it must be a string or None, not bool
@@ -451,6 +458,13 @@ class Logger:
 
             # Log to file handler (JSON output)
             if self.file_handler:
+                # Handle exc_info=True by getting current exception info
+                actual_exc_info = exc_info
+                if exc_info is True:
+                    actual_exc_info = sys.exc_info()
+                elif exc_info is False or exc_info is None:
+                    actual_exc_info = None
+                    
                 # Create a temporary LogRecord for the file handler
                 record = logging.LogRecord(
                     name=self.logger_name,
@@ -459,7 +473,7 @@ class Logger:
                     lineno=0,
                     msg=str(log_entry),  # Pass the whole dict for JSON
                     args=(),
-                    exc_info=exc_info,  # Pass exc_info
+                    exc_info=actual_exc_info,  # Pass resolved exc_info
                     func="",
                 )
                 # Assign stack_info - it must be a string or None, not bool

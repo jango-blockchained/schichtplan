@@ -12,9 +12,8 @@ class Config:
 
     SQLALCHEMY_DATABASE_URI = f"sqlite:///{INSTANCE_DIR}/app.db"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # SQLite uses StaticPool by default and doesn't support pool_size/pool_recycle
     SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_size": 10,
-        "pool_recycle": 3600,  # Recycle connections every hour
         "pool_pre_ping": True,  # Test connections before using them
         "connect_args": {"timeout": 15, "check_same_thread": False},
     }
