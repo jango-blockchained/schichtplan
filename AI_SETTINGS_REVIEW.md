@@ -7,17 +7,19 @@ This document summarizes the review and corrections made to the AI settings and 
 ## Issues Identified and Fixed
 
 ### 1. Hardcoded AI Provider in ConversationalAIChat
-**Issue**: The `ConversationalAIChat.tsx` component was hardcoding the AI provider to "gemini" instead of loading it from backend settings.
+**Issue**: The `ConversationalAIChat.tsx` component was hardcoding the AI provider to "gemini" and never loading it from backend settings, meaning user configuration changes were ignored.
 
 **Files Affected**:
 - `src/frontend/src/components/ai/ConversationalAIChat.tsx`
 
 **Fix Applied**:
+The component now loads the AI provider from settings on mount and updates the state accordingly:
+
 ```typescript
-// Before: Hardcoded provider
+// Before: Hardcoded provider that never changed
 const [aiProvider] = useState<"openai" | "anthropic" | "gemini">("gemini");
 
-// After: Load from settings
+// After: Load from settings with ability to update
 const [aiProvider, setAiProvider] = useState<"openai" | "anthropic" | "gemini">("gemini");
 
 useEffect(() => {
@@ -34,6 +36,8 @@ useEffect(() => {
   loadAISettings();
 }, []);
 ```
+
+The key change is that `aiProvider` can now be updated via `setAiProvider` and is loaded from backend settings on component mount.
 
 ### 2. Simulated API Calls in AISettingsPanel
 **Issue**: The `AISettingsPanel.tsx` component was simulating API calls with a timeout instead of actually saving settings to the backend.
@@ -105,14 +109,16 @@ case "gemini":
 ```
 
 ### 4. Default Provider Inconsistency
-**Issue**: Frontend default provider was "openai" while backend default was "gemini".
+**Issue**: The AISettingsPanel frontend component had "openai" as the default provider in the initial state definition, while the backend Settings model defaults to "gemini". Although the component loads from backend on mount, having a consistent default prevents confusion during the loading phase.
 
 **Files Affected**:
 - `src/frontend/src/components/ai/AISettingsPanel.tsx`
 
 **Fix Applied**:
-- Changed frontend default to match backend: "gemini"
+- Changed frontend initial state default to match backend: "gemini"
 - Changed default model to: "gemini-pro"
+
+This ensures consistency between frontend and backend defaults, reducing potential confusion during component initialization.
 
 ## Settings Structure Mapping
 
@@ -247,13 +253,15 @@ The following endpoints are used and working correctly:
    - Verify the change takes effect immediately
    - Check that schedules reflect the new week configuration
 
-### Automated Testing
+### Pre-existing Issues
 
-Pre-existing TypeScript errors (7 total) are unrelated to this work:
-- `AbsenceModal.tsx` - Missing `status` property in Absence type
-- Test files - Mock configuration issues
+**TypeScript Errors (7 total)** - These existed before this PR and are unrelated to AI settings:
 
-These should be addressed separately.
+1. `src/__tests__/setup.ts` (lines 664, 667, 670, 673) - Cannot assign to read-only properties in test mocks
+2. `src/components/AbsenceModal.tsx` (lines 58, 102) - Missing 'status' property in Absence type
+3. `src/pages/__tests__/EmployeesPage.test.tsx` (line 12) - Missing 'vacation_per_year' property in Employee test data
+
+These should be addressed in a separate PR focused on TypeScript type definitions and test infrastructure.
 
 ## Configuration Best Practices
 
