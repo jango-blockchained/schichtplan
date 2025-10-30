@@ -294,6 +294,34 @@ class Settings(db.Model):
             },
         ],
     )
+    
+    event_types = Column(
+        JSON,
+        nullable=True,
+        default=lambda: [
+            {
+                "id": "SPECIAL_OFFER",
+                "name": "Sonderangebot",
+                "color": "#9C27B0",
+                "description": "Special offer day - informational only",
+                "type": "event_type",
+            },
+            {
+                "id": "INVENTORY",
+                "name": "Inventur",
+                "color": "#607D8B",
+                "description": "Inventory day",
+                "type": "event_type",
+            },
+            {
+                "id": "TRAINING",
+                "name": "Schulung",
+                "color": "#009688",
+                "description": "Training event",
+                "type": "event_type",
+            },
+        ],
+    )
 
     # Actions Settings
     _actions_demo_data = deferred(
@@ -585,6 +613,7 @@ class Settings(db.Model):
                 "employee_types": self.employee_types or [],  # Ensure not None
                 "shift_types": self.shift_types or [],  # Ensure not None
                 "absence_types": self.absence_types or [],  # Ensure not None
+                "event_types": self.event_types or [],  # Ensure not None
             },
             "availability_types": self.availability_types
             if self.availability_types is not None
@@ -990,6 +1019,11 @@ class Settings(db.Model):
                         and values["absence_types"] is not None
                     ):
                         settings.absence_types = values["absence_types"]
+                    if (
+                        "event_types" in values
+                        and values["event_types"] is not None
+                    ):
+                        settings.event_types = values["event_types"]
             elif category == "availability_types":
                 # settings.availability_types is a JSON column expecting a dict like {"types": [...]}
                 # values is expected to be {"types": [...]}

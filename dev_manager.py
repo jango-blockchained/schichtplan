@@ -484,9 +484,15 @@ class DevManagerApp(App):
             try:
                 stats_table = self.query_one("#stats-table", DataTable)
                 stats_table.clear()
+                
+                health_table = self.query_one("#health-table", DataTable)
+                health_table.clear()
 
                 for service_id, service in self.services.items():
-                    if service.process and service.process.poll() is None:
+                    # Check if service is running
+                    is_running = service.process and service.process.poll() is None
+                    
+                    if is_running:
                         try:
                             proc = psutil.Process(service.pid)
                             cpu = proc.cpu_percent(interval=0.1)
@@ -498,6 +504,7 @@ class DevManagerApp(App):
                             )
                             uptime_str = str(uptime).split(".")[0] if uptime else "N/A"
 
+                            # Update stats table
                             stats_table.add_row(
                                 service.name,
                                 str(service.pid),
@@ -505,8 +512,57 @@ class DevManagerApp(App):
                                 f"{memory:.1f}",
                                 uptime_str,
                             )
+                            
+                            # Update health table with service health
+                            # Try to check if the service is responding on its port
+                            import socket
+                            response_time = "N/A"
+                            status_emoji = "🟢"
+                            status_text = "Running"
+                            
+                            try:
+                                start = datetime.now()
+                                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                                sock.settimeout(1)
+                                result = sock.connect_ex(('localhost', service.port))
+                                sock.close()
+                                
+                                if result == 0:
+                                    response_time = f"{(datetime.now() - start).total_seconds() * 1000:.0f}ms"
+                                    status_text = "✓ Healthy"
+                                else:
+                                    status_emoji = "🟡"
+                                    status_text = "Starting"
+                            except:
+                                status_emoji = "🟡"
+                                status_text = "No Response"
+                            
+                            health_table.add_row(
+                                f"{status_emoji} {service.name}",
+                                status_text,
+                                str(service.port),
+                                response_time,
+                                datetime.now().strftime('%H:%M:%S')
+                            )
+                            
                         except (psutil.NoSuchProcess, psutil.AccessDenied):
-                            pass
+                            # Process exists but can't access it
+                            health_table.add_row(
+                                f"⚠️ {service.name}",
+                                "Access Denied",
+                                str(service.port),
+                                "N/A",
+                                datetime.now().strftime('%H:%M:%S')
+                            )
+                    else:
+                        # Service is not running
+                        health_table.add_row(
+                            f"⭕ {service.name}",
+                            "Stopped",
+                            str(service.port),
+                            "N/A",
+                            datetime.now().strftime('%H:%M:%S')
+                        )
 
                 await asyncio.sleep(5)
 

@@ -14,7 +14,7 @@ from flask import (
 )
 from flask_cors import CORS
 
-from src.backend.models import MessageType, Settings
+from src.backend.models import MessageType, Settings, db
 from src.backend.services.ai_agents import AgentRegistry, WorkflowCoordinator
 from src.backend.services.ai_integration import create_ai_orchestrator
 from src.backend.services.background_task_manager import (
@@ -1711,26 +1711,42 @@ def execute_mcp_tool():
 @track_performance
 def get_ai_settings():
     """
-    Get AI system settings
+    Get AI system settings from database
     """
     try:
-        # Mock settings data
+        # Get settings from database
+        settings_obj = Settings.query.first()
+        if not settings_obj:
+            settings_obj = Settings.get_default_settings()
+            db.session.add(settings_obj)
+            db.session.commit()
+        
+        ai_config = settings_obj.ai_scheduling or {}
+        api_keys = ai_config.get("api_keys", {})
+        agents_config = ai_config.get("agents", {})
+        workflow_config = ai_config.get("workflow", {})
+        chat_config = ai_config.get("chat", {})
+        
+        # Format response to match frontend expectations
         settings = {
             "providers": {
-                "gemini_api_key": "***configured***",
-                "openai_api_key": None,
-                "anthropic_api_key": None,
+                "gemini_api_key": api_keys.get("gemini", ""),
+                "openai_api_key": api_keys.get("openai", ""),
+                "anthropic_api_key": api_keys.get("anthropic", ""),
             },
             "agents": {
-                "schedule_agent_enabled": True,
-                "analytics_agent_enabled": True,
-                "notification_agent_enabled": False,
+                "schedule_agent_enabled": agents_config.get("schedule_agent_enabled", True),
+                "analytics_agent_enabled": agents_config.get("analytics_agent_enabled", True),
+                "notification_agent_enabled": agents_config.get("notification_agent_enabled", False),
             },
-            "workflow": {"auto_approval_enabled": False, "max_concurrent_workflows": 5},
+            "workflow": {
+                "auto_approval_enabled": workflow_config.get("auto_approval_enabled", False),
+                "max_concurrent_workflows": workflow_config.get("max_concurrent_workflows", 3),
+            },
             "chat": {
-                "max_conversation_length": 50,
-                "enable_suggestions": True,
-                "enable_feedback": True,
+                "max_conversation_length": chat_config.get("max_conversation_length", 50),
+                "enable_suggestions": chat_config.get("enable_suggestions", True),
+                "enable_feedback": chat_config.get("enable_feedback", True),
             },
         }
 
@@ -1745,14 +1761,61 @@ def get_ai_settings():
 @track_performance
 def update_ai_settings():
     """
-    Update AI system settings
+    Update AI system settings in database
     """
     try:
         data = request.get_json()
         if not data:
             return jsonify({"error": "No settings data provided"}), 400
 
-        # Mock settings update
+        # Get or create settings
+        settings_obj = Settings.query.first()
+        if not settings_obj:
+            settings_obj = Settings.get_default_settings()
+            db.session.add(settings_obj)
+        
+        # Get current AI config or initialize
+        ai_config = settings_obj.ai_scheduling or {}
+        if not isinstance(ai_config, dict):
+            ai_config = {}
+        
+        # Update providers/API keys
+        if "providers" in data:
+            if "api_keys" not in ai_config:
+                ai_config["api_keys"] = {}
+            
+            providers = data["providers"]
+            if "gemini_api_key" in providers:
+                ai_config["api_keys"]["gemini"] = providers["gemini_api_key"]
+            if "openai_api_key" in providers:
+                ai_config["api_keys"]["openai"] = providers["openai_api_key"]
+            if "anthropic_api_key" in providers:
+                ai_config["api_keys"]["anthropic"] = providers["anthropic_api_key"]
+        
+        # Update agents
+        if "agents" in data:
+            if "agents" not in ai_config:
+                ai_config["agents"] = {}
+            ai_config["agents"].update(data["agents"])
+        
+        # Update workflow
+        if "workflow" in data:
+            if "workflow" not in ai_config:
+                ai_config["workflow"] = {}
+            ai_config["workflow"].update(data["workflow"])
+        
+        # Update chat
+        if "chat" in data:
+            if "chat" not in ai_config:
+                ai_config["chat"] = {}
+            ai_config["chat"].update(data["chat"])
+        
+        # Save to database
+        settings_obj.ai_scheduling = ai_config
+        db.session.commit()
+        
+        logger.app_logger.info("AI settings updated successfully")
+
         return jsonify(
             {
                 "success": True,
@@ -1762,6 +1825,7 @@ def update_ai_settings():
         )
 
     except Exception as e:
+        db.session.rollback()
         logger.app_logger.error(f"Update AI settings error: {str(e)}")
         return jsonify({"error": f"Failed to update AI settings: {str(e)}"}), 500
 
