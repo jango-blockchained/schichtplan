@@ -1,13 +1,31 @@
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, FileSpreadsheet, FileText, UserPlus } from "lucide-react";
+import { Calendar, FileSpreadsheet, FileText, UserPlus, FileDown } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+import { useQuery } from "@tanstack/react-query";
+import { getEmployees } from "@/services/api";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useState } from "react";
 
 const formulars = [
   {
-    id: "time-off-request",
+    id: "vacation-request",
     title: "Urlaubsantrag",
-    description: "Beantragen Sie Ihren Urlaub",
+    description: "Urlaubsantrag für Mitarbeiter ausfüllen",
+    icon: Calendar,
+    requiresEmployee: true,
+  },
+  {
+    id: "time-off-request",
+    title: "Abwesenheitsantrag",
+    description: "Beantragen Sie eine Abwesenheit",
     icon: Calendar,
   },
   {
@@ -31,9 +49,43 @@ const formulars = [
 ];
 
 export default function FormularsPage() {
+  const { toast } = useToast();
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
+  
+  // Fetch employees for vacation request form
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employees"],
+    queryFn: getEmployees,
+  });
+
   const handleFormularClick = (formularId: string) => {
-    // TODO: Implement navigation or modal opening for each formular
-    console.log(`Clicked formular: ${formularId}`);
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+    
+    if (formularId === "vacation-request") {
+      if (!selectedEmployeeId) {
+        toast({
+          title: "Bitte Mitarbeiter auswählen",
+          description: "Wählen Sie einen Mitarbeiter für den Urlaubsantrag aus.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      const url = `${apiBaseUrl}/api/v2/vacation-pdf/employee-request?employee_id=${selectedEmployeeId}`;
+      window.open(url, '_blank');
+      
+      toast({
+        title: "PDF wird erstellt",
+        description: "Der Urlaubsantrag wird in einem neuen Tab geöffnet.",
+      });
+    } else {
+      // TODO: Implement other formulars
+      toast({
+        title: "Formular noch nicht verfügbar",
+        description: `Das Formular "${formulars.find(f => f.id === formularId)?.title}" ist noch nicht implementiert.`,
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -42,6 +94,28 @@ export default function FormularsPage() {
         title="Formulare"
         description="Zugriff auf alle verfügbaren Formulare"
       />
+      
+      {/* Employee Selection for Vacation Request */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Mitarbeiter auswählen (für Urlaubsantrag)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+            <SelectTrigger className="w-full max-w-md">
+              <SelectValue placeholder="Mitarbeiter auswählen..." />
+            </SelectTrigger>
+            <SelectContent>
+              {employees.map((emp) => (
+                <SelectItem key={emp.id} value={emp.id.toString()}>
+                  {emp.first_name} {emp.last_name} ({emp.employee_id})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+      
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {formulars.map((formular) => (
           <Card
@@ -62,7 +136,9 @@ export default function FormularsPage() {
                 variant="outline"
                 className="w-full"
                 onClick={() => handleFormularClick(formular.id)}
+                disabled={formular.requiresEmployee && !selectedEmployeeId}
               >
+                <FileDown className="h-4 w-4 mr-2" />
                 Formular öffnen
               </Button>
             </CardContent>

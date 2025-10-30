@@ -51,6 +51,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Download,
   Info,
   Plus,
   Trash2,
@@ -58,6 +59,12 @@ import {
   Users,
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function VacationPlanningPage() {
   const queryClient = useQueryClient();
@@ -398,6 +405,35 @@ export default function VacationPlanningPage() {
     );
   };
 
+  // PDF Export Functions
+  const handleExportPDF = (type: string) => {
+    const currentYear = new Date().getFullYear();
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+    let url = '';
+    
+    switch (type) {
+      case 'admin-yearly':
+        url = `${apiBaseUrl}/api/v2/vacation-pdf/admin-yearly?year=${currentYear}`;
+        break;
+      case 'overview':
+        url = `${apiBaseUrl}/api/v2/vacation-pdf/overview?year=${currentYear}`;
+        break;
+      case 'yearly-calendar':
+        url = `${apiBaseUrl}/api/v2/vacation-pdf/yearly-calendar?year=${currentYear}`;
+        break;
+      default:
+        return;
+    }
+    
+    // Open PDF in new window
+    window.open(url, '_blank');
+    
+    toast({
+      title: "PDF wird erstellt",
+      description: "Das PDF wird in einem neuen Tab geöffnet.",
+    });
+  };
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <PageHeader
@@ -405,6 +441,25 @@ export default function VacationPlanningPage() {
         description="Verwalten Sie Urlaubsanträge und Abwesenheiten"
         actions={
           <div className="flex gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Download className="h-4 w-4 mr-2" />
+                  PDF Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExportPDF('admin-yearly')}>
+                  Jahresplanung (Admin)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportPDF('overview')}>
+                  Übersicht (Alle Mitarbeiter)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportPDF('yearly-calendar')}>
+                  Jahreskalender
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               variant="outline"
               onClick={() => setShowBulkModal(true)}

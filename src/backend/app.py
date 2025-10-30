@@ -62,6 +62,7 @@ from src.backend.routes.schedules import schedules
 from src.backend.routes.settings import settings
 from src.backend.routes.shifts import shifts
 from src.backend.routes.special_days import special_days as special_days_bp
+from src.backend.routes.vacation_pdf import bp as vacation_pdf_bp
 from src.backend.utils.logger import (
     CustomFormatter,
     logger as global_logger,
@@ -219,6 +220,7 @@ def create_app(config_class=Config):
         api_schedules_bp, name="api_schedules"
     )  # Register with unique name to avoid conflict
     app.register_blueprint(week_navigation_bp)  # Register week navigation
+    app.register_blueprint(vacation_pdf_bp, url_prefix="/api/v2")  # Register vacation PDF routes
 
     # Compatibility middleware: rewrite legacy /api/* paths (without /v2)
     # to the current /api/v2/* endpoints so older tests keep working.
