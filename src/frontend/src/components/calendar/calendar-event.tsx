@@ -152,7 +152,7 @@ export default function CalendarEvent({
                   {event.title}
                 </p>
               ) : (
-                <div className="w-full" /> 
+                <div className="w-full" aria-hidden="true" role="presentation" /> 
               )
             ) : (
               <p className={cn('font-bold truncate', month && 'text-xs')}>

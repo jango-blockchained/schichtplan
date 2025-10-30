@@ -987,7 +987,7 @@ export default function VacationPlanningPage() {
                                     </Button>
                                   </div>
                                 ) : (
-                                  <div className="flex gap-1">
+                                  <div className="flex gap-2">
                                     <Button
                                       size="sm"
                                       variant="ghost"
@@ -1002,7 +1002,7 @@ export default function VacationPlanningPage() {
                                       onClick={() => handleMove(absence)}
                                       title="Verschieben"
                                     >
-                                      <MoveHorizontal className="h-4 w-4 text-blue-600" />
+                                      <MoveHorizontal className="h-4 w-4 text-primary" />
                                     </Button>
                                     <Button
                                       size="sm"
