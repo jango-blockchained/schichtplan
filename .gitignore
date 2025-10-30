@@ -113,6 +113,9 @@ debug_*.py
 simple_debug.py
 test_csv_api.py
 !tests/**
+# PDF test output
+pdf_test_output/
+!test_vacation_pdfs_manual.py
 
 # Backup files
 backup/
