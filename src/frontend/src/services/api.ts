@@ -1,18 +1,18 @@
 import { API_TIMEOUT } from "@/constants";
 import type {
-    Absence,
-    AiImportResponse,
-    ApplicableShift,
-    CoverageProfile,
-    DailyCoverage,
-    Employee,
-    EmployeeAvailabilityStatus,
-    ScheduleUpdate,
-    Settings,
-    Shift,
-    SpecialDay,
-    Schedule as TSchedule,
-    ScheduleResponse as TScheduleResponse,
+  Absence,
+  AiImportResponse,
+  ApplicableShift,
+  CoverageProfile,
+  DailyCoverage,
+  Employee,
+  EmployeeAvailabilityStatus,
+  ScheduleUpdate,
+  Settings,
+  Shift,
+  SpecialDay,
+  Schedule as TSchedule,
+  ScheduleResponse as TScheduleResponse,
 } from "@/types/index";
 import type { PDFLayoutConfig } from "@/types/pdf";
 import axios, { AxiosError } from "axios";
@@ -865,6 +865,21 @@ export const createAbsence = async (
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to create absence: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const updateAbsence = async (
+  id: number,
+  data: Partial<Absence>,
+): Promise<Absence> => {
+  try {
+    const response = await api.put<Absence>(`/api/v2/absences/${id}`, data);
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to update absence with ID ${id}: ${error.message}`);
     }
     throw error;
   }

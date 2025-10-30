@@ -32,6 +32,7 @@ import {
   getAbsencesByRange,
   getEmployees,
   getSettings,
+  updateAbsence,
 } from "@/services/api";
 import { Absence, Employee, Settings } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -47,6 +48,7 @@ import {
   ArrowUpDown,
   CalendarDays,
   CalendarOff,
+  Check,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -57,6 +59,7 @@ import {
   Trash2,
   UserCheck,
   Users,
+  X,
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -85,6 +88,8 @@ export default function VacationPlanningPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [pageSize, setPageSize] = useState<number>(10);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingData, setEditingData] = useState<Partial<Absence>>({});
 
   type SortField = "employee" | "type" | "status" | "start_date" | "end_date" | "days";
   type SortDirection = "asc" | "desc";
@@ -233,6 +238,24 @@ export default function VacationPlanningPage() {
     onError: (error) => {
       toast({
         title: "Fehler beim Löschen",
+        description: error instanceof Error ? error.message : "Unbekannter Fehler",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateAbsenceMutation = useMutation({
+    mutationFn: (data: { id: number; updates: Partial<Absence> }) =>
+      updateAbsence(data.id, data.updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["absences"] });
+      toast({ title: "Abwesenheit erfolgreich aktualisiert" });
+      setEditingId(null);
+      setEditingData({});
+    },
+    onError: (error) => {
+      toast({
+        title: "Fehler beim Aktualisieren",
         description: error instanceof Error ? error.message : "Unbekannter Fehler",
         variant: "destructive",
       });
@@ -403,6 +426,20 @@ export default function VacationPlanningPage() {
         />
       </Button>
     );
+  };
+
+  const handleEdit = (absence: Absence) => {
+    setEditingId(absence.id);
+    setEditingData({ ...absence });
+  };
+
+  const handleSave = (id: number) => {
+    updateAbsenceMutation.mutate({ id, updates: editingData });
+  };
+
+  const handleCancel = () => {
+    setEditingId(null);
+    setEditingData({});
   };
 
   // PDF Export Functions
@@ -720,52 +757,172 @@ export default function VacationPlanningPage() {
                       <Fragment key={absence.id}>
                         {showGroupHeader && (
                           <TableRow className="bg-muted/30">
-                            <TableCell colSpan={7} className="font-medium">
+                            <TableCell colSpan={8} className="font-medium">
                               {employeeName}
                             </TableCell>
                           </TableRow>
                         )}
-                        <TableRow>
+                        <TableRow className={editingId === absence.id ? "bg-muted/50" : ""}>
                           <TableCell>{employeeName}</TableCell>
                           <TableCell>
-                            <Badge
-                              variant="outline"
-                              style={{
-                                borderColor: typeInfo.color,
-                                color: typeInfo.color,
-                              }}
-                            >
-                              {typeInfo.name}
-                            </Badge>
+                            {editingId === absence.id ? (
+                              <Select
+                                value={editingData.absence_type_id || absence.absence_type_id}
+                                onValueChange={(value) =>
+                                  setEditingData({
+                                    ...editingData,
+                                    absence_type_id: value,
+                                  })
+                                }
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {absenceTypesArray.map((type) => (
+                                    <SelectItem key={type.id} value={type.id}>
+                                      {type.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                style={{
+                                  borderColor: typeInfo.color,
+                                  color: typeInfo.color,
+                                }}
+                              >
+                                {typeInfo.name}
+                              </Badge>
+                            )}
                           </TableCell>
                           <TableCell>
-                            {(() => {
-                              const statusInfo = getStatusInfo(absence.status);
-                              return (
-                                <Badge className={statusInfo.className} variant="secondary">
-                                  {statusInfo.label}
-                                </Badge>
-                              );
-                            })()}
+                            {editingId === absence.id ? (
+                              <Select
+                                value={editingData.status || absence.status}
+                                onValueChange={(value) =>
+                                  setEditingData({
+                                    ...editingData,
+                                    status: value,
+                                  })
+                                }
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="requested">Beantragt</SelectItem>
+                                  <SelectItem value="approved">Genehmigt</SelectItem>
+                                  <SelectItem value="declined">Abgelehnt</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              (() => {
+                                const statusInfo = getStatusInfo(absence.status);
+                                return (
+                                  <Badge className={statusInfo.className} variant="secondary">
+                                    {statusInfo.label}
+                                  </Badge>
+                                );
+                              })()
+                            )}
                           </TableCell>
                           <TableCell>
-                            {format(new Date(absence.start_date), "dd.MM.yyyy")}
+                            {editingId === absence.id ? (
+                              <Input
+                                type="date"
+                                value={
+                                  editingData.start_date
+                                    ? format(new Date(editingData.start_date), "yyyy-MM-dd")
+                                    : format(new Date(absence.start_date), "yyyy-MM-dd")
+                                }
+                                onChange={(e) =>
+                                  setEditingData({
+                                    ...editingData,
+                                    start_date: e.target.value,
+                                  })
+                                }
+                              />
+                            ) : (
+                              format(new Date(absence.start_date), "dd.MM.yyyy")
+                            )}
                           </TableCell>
                           <TableCell>
-                            {format(new Date(absence.end_date), "dd.MM.yyyy")}
+                            {editingId === absence.id ? (
+                              <Input
+                                type="date"
+                                value={
+                                  editingData.end_date
+                                    ? format(new Date(editingData.end_date), "yyyy-MM-dd")
+                                    : format(new Date(absence.end_date), "yyyy-MM-dd")
+                                }
+                                onChange={(e) =>
+                                  setEditingData({
+                                    ...editingData,
+                                    end_date: e.target.value,
+                                  })
+                                }
+                              />
+                            ) : (
+                              format(new Date(absence.end_date), "dd.MM.yyyy")
+                            )}
                           </TableCell>
                           <TableCell>{days}</TableCell>
                           <TableCell className="text-muted-foreground">
-                            {absence.note || "–"}
+                            {editingId === absence.id ? (
+                              <Input
+                                value={editingData.note || absence.note || ""}
+                                onChange={(e) =>
+                                  setEditingData({
+                                    ...editingData,
+                                    note: e.target.value,
+                                  })
+                                }
+                                placeholder="Notiz..."
+                              />
+                            ) : (
+                              absence.note || "–"
+                            )}
                           </TableCell>
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => deleteAbsenceMutation.mutate(absence.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            {editingId === absence.id ? (
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleSave(absence.id)}
+                                  disabled={updateAbsenceMutation.isPending}
+                                >
+                                  <Check className="h-4 w-4 text-green-600" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={handleCancel}
+                                >
+                                  <X className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleEdit(absence)}
+                                >
+                                  Bearbeiten
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => deleteAbsenceMutation.mutate(absence.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            )}
                           </TableCell>
                         </TableRow>
                       </Fragment>
