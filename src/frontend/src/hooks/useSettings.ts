@@ -231,6 +231,29 @@ export const DEFAULT_SETTINGS: Settings = {
         type: "absence_type" as const,
       },
     ],
+    event_types: [
+      {
+        id: "SPECIAL_OFFER",
+        name: "Sonderangebot",
+        color: "#9C27B0",
+        description: "Special offer day - informational only",
+        type: "event_type" as const,
+      },
+      {
+        id: "INVENTORY",
+        name: "Inventur",
+        color: "#607D8B",
+        description: "Inventory day",
+        type: "event_type" as const,
+      },
+      {
+        id: "TRAINING",
+        name: "Schulung",
+        color: "#009688",
+        description: "Training event",
+        type: "event_type" as const,
+      },
+    ],
   },
   actions: {
     demo_data: {

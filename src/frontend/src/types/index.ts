@@ -309,6 +309,13 @@ export interface Settings {
       color: string;
       type: "absence_type" | "absence";
     }> | null;
+    event_types: Array<{
+      id: string;
+      name: string;
+      color: string;
+      description?: string | null;
+      type: "event_type";
+    }> | null;
   } | null;
   availability_types: {
     types: Array<{
@@ -457,7 +464,15 @@ export interface AbsenceType {
   type: "absence_type";
 }
 
-export type GroupType = EmployeeType | AbsenceType;
+export interface EventType {
+  id: string;
+  name: string;
+  color: string;
+  description?: string;
+  type: "event_type";
+}
+
+export type GroupType = EmployeeType | AbsenceType | EventType;
 
 export interface WeeklyShift {
   day: number;
