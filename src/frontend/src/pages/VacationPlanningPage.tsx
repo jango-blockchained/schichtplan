@@ -1,6 +1,7 @@
 import { BulkVacationInputModal } from "@/components/BulkVacationInputModal";
 import Calendar from "@/components/calendar/calendar";
 import type { CalendarEvent, Mode } from "@/components/calendar/calendar-types";
+import { MultistepVacationPlanningModal } from "@/components/MultistepVacationPlanningModal";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,7 @@ export default function VacationPlanningPage() {
   );
   const [showAbsenceModal, setShowAbsenceModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [showMultistepModal, setShowMultistepModal] = useState(false);
   const [absenceTypeFilter, setAbsenceTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -236,13 +238,16 @@ export default function VacationPlanningPage() {
       absence_type_id: string;
       start_date: string;
       end_date: string;
+      status?: string;
+      note?: string;
     }>) => {
       // Create all absences concurrently
       return Promise.all(
         absences.map((absence) =>
           createAbsence({
             ...absence,
-            note: "",
+            status: absence.status || "requested",
+            note: absence.note || "",
           })
         )
       );
@@ -405,11 +410,20 @@ export default function VacationPlanningPage() {
               onClick={() => setShowBulkModal(true)}
             >
               <Plus className="h-4 w-4 mr-2" />
-              Bulk Input
+              Schnell-Eingabe
             </Button>
-            <Button onClick={() => setShowAbsenceModal(true)}>
+            <Button
+              onClick={() => setShowMultistepModal(true)}
+            >
               <Plus className="h-4 w-4 mr-2" />
-              Neue Abwesenheit
+              Mehrstufige Planung
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowAbsenceModal(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Einzelne Abwesenheit
             </Button>
           </div>
         }
@@ -768,6 +782,17 @@ export default function VacationPlanningPage() {
         onOpenChange={setShowBulkModal}
         employees={activeEmployees}
         absenceTypes={absenceTypesArray}
+        onSubmit={(absences) => bulkCreateAbsenceMutation.mutate(absences)}
+        isLoading={bulkCreateAbsenceMutation.isPending}
+      />
+
+      {/* Multistep Vacation Planning Modal */}
+      <MultistepVacationPlanningModal
+        open={showMultistepModal}
+        onOpenChange={setShowMultistepModal}
+        employees={activeEmployees}
+        absenceTypes={absenceTypesArray}
+        existingAbsences={filteredAbsences}
         onSubmit={(absences) => bulkCreateAbsenceMutation.mutate(absences)}
         isLoading={bulkCreateAbsenceMutation.isPending}
       />
