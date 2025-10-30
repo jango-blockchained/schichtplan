@@ -53,9 +53,28 @@ class ConversationalSchichtplanMCPService:
         self._register_lifecycle_hooks()
 
     def _build_full_prompt(self, user_prompt: str) -> str:
-        """Build the full prompt by combining user AI prompt with specific request."""
+        """Build the full prompt by combining user AI prompt with task.
+
+        This method ensures that the system-level AI assistant prompt is
+        prepended to the task-specific prompt, providing the AI with:
+        1. Role and personality definition
+        2. Core capabilities and guidelines
+        3. Important notes about the scheduling system
+
+        Args:
+            user_prompt: Task-specific or conversational prompt
+
+        Returns:
+            Full prompt combining system context and task
+        """
         if self.user_ai_prompt:
-            return f"{self.user_ai_prompt}\n\n---\n\n{user_prompt}"
+            full_prompt = f"{self.user_ai_prompt}\n\n---\n\n{user_prompt}"
+            self.logger.debug(
+                f"Built full prompt: {len(self.user_ai_prompt)} chars "
+                f"(system) + {len(user_prompt)} chars (task)"
+            )
+            return full_prompt
+        self.logger.warning("No system AI prompt available, using task prompt only")
         return user_prompt
 
     def _register_conversational_tools(self):
@@ -414,36 +433,71 @@ class ConversationalSchichtplanMCPService:
     async def _generate_initial_response(
         self, context: ConversationContext
     ) -> dict[str, Any]:
-        """Generate initial AI response for new conversation."""
+        """Generate initial AI response for new conversation with context."""
 
-        # Prepare initial prompt
+        # Prepare initial goals
         initial_goals = [goal.description for goal in context.goals]
 
-        prompt = f"""Hello! I'm your AI scheduling assistant. I'm here to help you with:
+        # Build dynamic initial prompt based on goals and context
+        if initial_goals:
+            goals_list = "\n".join(f"- {goal}" for goal in initial_goals)
+            goals_section = f"I'm here to help you with:\n{goals_list}"
+        else:
+            goals_section = "I'm here to assist you with any scheduling tasks."
 
-{", ".join(initial_goals) if initial_goals else "Any scheduling tasks you need assistance with"}
+        # Build capabilities section based on available tools
+        capabilities = [
+            "Schedule optimization and conflict resolution",
+            "Employee workload analysis and balancing",
+            "Coverage requirement analysis and gap identification",
+            "What-if scenario planning and comparison",
+            "Policy and compliance checking",
+            "Employee availability and preference management",
+            "Shift distribution optimization",
+            "AI-driven insights and recommendations",
+        ]
 
+        capabilities_list = "\n".join(f"- {cap}" for cap in capabilities)
+
+        prompt = f"""Hello! I'm your Schichtplan AI scheduling assistant.
+
+{goals_section}
+
+**My Capabilities:**
 I can help you with:
-- Schedule optimization and conflict resolution
-- Employee workload analysis and balancing  
-- Coverage requirement analysis
-- What-if scenario planning
-- Policy and compliance checking
+{capabilities_list}
 
-What would you like to work on today? Feel free to describe your scheduling challenge or ask me any questions."""
+**How I Work:**
+1. I analyze your current schedules and constraints
+2. I identify issues, gaps, and opportunities
+3. I provide data-driven recommendations
+4. I can help implement changes and verify results
+5. I support multi-step optimization workflows
 
-        # Create AI request
-        ai_request = AIRequest(
-            conversation_id=context.conversation_id,
-            prompt=self._build_full_prompt(prompt),
-            context={
-                "conversation_type": "initial_greeting",
-                "goals": initial_goals,
-                "personality": context.ai_personality,
-            },
+**Conversation Context:**
+- Active Goals: {len(context.goals)} goal(s) to track
+- Personality: {context.ai_personality}
+- Tools Available: Schedule analysis, employee management,
+  coverage optimization, schedule management, time tracking
+- User Preferences: {len(context.user_preferences)}
+  preference(s) loaded
+
+What would you like to work on today? Feel free to describe
+your scheduling challenge or ask me any questions. You can
+request specific analyses, generate optimized schedules,
+or ask about any scheduling aspect of your organization."""
+
+        # Log the initial response generation with context
+        self.logger.debug(
+            f"Generating initial response for conversation "
+            f"{context.conversation_id} with {len(initial_goals)} goals"
         )
 
-        # Generate response (this is a simple initial response, no tool calls needed)
+        # Prepare full prompt with system context
+        full_initial_prompt = self._build_full_prompt(prompt)
+        self.logger.debug(f"Full prompt length: {len(full_initial_prompt)} characters")
+
+        # Generate response (structured initial response)
         return {
             "content": prompt,
             "tool_calls": [],

@@ -86,12 +86,39 @@ export const ConversationalAIChat: React.FC = () => {
   }, [messages]);
 
   useEffect(() => {
-    // Initialize with a welcome message
+    // Initialize with a context-aware welcome message
+    // Build dynamic welcome based on current page context
+    let welcomeContent =
+      "Welcome to the AI-powered scheduling assistant! I can help you optimize schedules, manage employees, resolve conflicts, and much more.";
+
+    if (pageContext.route.includes("schedule")) {
+      welcomeContent =
+        "Welcome! I can help you analyze, optimize, and manage your schedules efficiently. Let me know what scheduling challenges you'd like to tackle.";
+    } else if (pageContext.route.includes("employee")) {
+      welcomeContent =
+        "Welcome! I'm here to help you with employee management, workload balancing, and availability planning. What would you like to focus on?";
+    } else if (pageContext.route.includes("coverage")) {
+      welcomeContent =
+        "Welcome! I can assist with coverage analysis, gap identification, and optimization. How can I help improve your coverage?";
+    }
+
+    // Add schedule context if available
+    if (pageContext.scheduleContext?.start_date) {
+      welcomeContent += `\n\nI see you're working with a schedule from ${pageContext.scheduleContext.start_date} to ${pageContext.scheduleContext.end_date}. `;
+      if (pageContext.scheduleContext.current_conflicts) {
+        welcomeContent += `There are ${pageContext.scheduleContext.current_conflicts} conflict(s) to address.`;
+      } else {
+        welcomeContent += "The schedule looks good so far.";
+      }
+    }
+
+    welcomeContent +=
+      "\n\nWhat would you like to work on today? Feel free to describe your scheduling challenge or ask me any questions.";
+
     const welcomeMessage: ConversationMessage = {
       id: "welcome",
       type: "system",
-      content:
-        "Welcome to the AI-powered scheduling assistant! I can help you optimize schedules, manage employees, resolve conflicts, and much more. What would you like to work on today?",
+      content: welcomeContent,
       timestamp: new Date(),
       metadata: {
         agent: "system",
@@ -112,7 +139,7 @@ export const ConversationalAIChat: React.FC = () => {
     };
     setCurrentSession(initialSession);
     setSessions([initialSession]);
-  }, []);
+  }, [pageContext, getContextString]);
 
   const handleSendMessage = async () => {
     if (!currentInput.trim() || isLoading) return;

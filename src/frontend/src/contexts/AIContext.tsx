@@ -19,6 +19,20 @@ export interface PageContext {
   };
   searchQuery?: string;
   customData: Record<string, unknown>;
+  // Enhanced scheduling context
+  scheduleContext?: {
+    start_date?: string;
+    end_date?: string;
+    selected_version_id?: number;
+    coverage_metrics?: {
+      current_coverage: number;
+      required_coverage: number;
+      gaps_identified: number;
+    };
+    employee_count?: number;
+    current_conflicts?: number;
+    last_update?: string;
+  };
 }
 
 export interface AIContextType {
@@ -29,6 +43,9 @@ export interface AIContextType {
   setFilter: (key: string, value: unknown) => void;
   clearFilters: () => void;
   setCustomData: (key: string, value: unknown) => void;
+  updateScheduleContext: (
+    updates: Partial<PageContext["scheduleContext"]>,
+  ) => void;
   getContextSummary: () => PageContextSummary;
   getContextString: () => string; // Helper for legacy code
 }
@@ -59,6 +76,15 @@ export const AIContextProvider: React.FC<AIContextProviderProps> = ({
     filters: {},
     viewMode: "default",
     customData: {},
+    scheduleContext: {
+      current_conflicts: 0,
+      employee_count: 0,
+      coverage_metrics: {
+        current_coverage: 0,
+        required_coverage: 0,
+        gaps_identified: 0,
+      },
+    },
   });
 
   // Update route when location changes
@@ -122,6 +148,16 @@ export const AIContextProvider: React.FC<AIContextProviderProps> = ({
     setPageContext((prev) => ({
       ...prev,
       customData: { ...prev.customData, [key]: value },
+    }));
+  };
+
+  // New method to update schedule-specific context
+  const updateScheduleContext = (
+    updates: Partial<PageContext["scheduleContext"]>,
+  ) => {
+    setPageContext((prev) => ({
+      ...prev,
+      scheduleContext: { ...prev.scheduleContext, ...updates },
     }));
   };
 
@@ -192,6 +228,33 @@ export const AIContextProvider: React.FC<AIContextProviderProps> = ({
       summary += `View mode: ${context.viewMode}\n`;
     }
 
+    // Add schedule context if available
+    if (context.scheduleContext) {
+      const sc = context.scheduleContext;
+      if (sc.start_date || sc.end_date) {
+        summary += `Schedule period: ${sc.start_date || "N/A"} to ${sc.end_date || "N/A"
+          }\n`;
+      }
+      if (sc.employee_count) {
+        summary += `Active employees: ${sc.employee_count}\n`;
+      }
+      if (sc.current_conflicts) {
+        summary += `Current conflicts: ${sc.current_conflicts}\n`;
+      }
+      if (sc.coverage_metrics) {
+        const { current_coverage, required_coverage, gaps_identified } =
+          sc.coverage_metrics;
+        if (current_coverage || required_coverage) {
+          summary += `Coverage: ${current_coverage}/${required_coverage} `;
+          if (gaps_identified) {
+            summary += `(${gaps_identified} gaps identified)\n`;
+          } else {
+            summary += "(optimal)\n";
+          }
+        }
+      }
+    }
+
     return summary.trim();
   };
 
@@ -203,6 +266,7 @@ export const AIContextProvider: React.FC<AIContextProviderProps> = ({
     setFilter,
     clearFilters,
     setCustomData,
+    updateScheduleContext,
     getContextSummary,
     getContextString,
   };
