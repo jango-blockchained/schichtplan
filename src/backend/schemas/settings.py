@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, RootModel, validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator
 
 # --- Existing/Verified Models (with minor adjustments if needed) ---
 
@@ -12,7 +12,8 @@ class SpecialDayCustomHours(BaseModel):
     opening: str = Field(..., description="Opening time in HH:MM format.")
     closing: str = Field(..., description="Closing time in HH:MM format.")
 
-    @validator("opening", "closing")
+    @field_validator("opening", "closing")
+    @classmethod
     def validate_time_format(cls, v):
         """Validate time is in HH:MM format."""
         try:
@@ -138,7 +139,8 @@ class GeneralSettings(BaseModel):  # Modified as per plan
     )
     # Removed break_duration_minutes from here, will be in SchedulingSettingsSchema
 
-    @validator("store_opening", "store_closing")
+    @field_validator("store_opening", "store_closing")
+    @classmethod
     def validate_time_format_optional(cls, v):
         if v is not None:
             try:
@@ -147,7 +149,8 @@ class GeneralSettings(BaseModel):  # Modified as per plan
                 raise ValueError(f"Time must be in HH:MM format, got {v}")
         return v
 
-    @validator("special_days")
+    @field_validator("special_days")
+    @classmethod
     def validate_special_days_date_keys(cls, v):
         if v is not None:
             for date_str in v.keys():
@@ -685,6 +688,8 @@ class AISchedulingSettingsSchema(BaseModel):
 class CompleteSettings(BaseModel):
     """Schema for the complete settings object. All fields are optional for partial updates."""
 
+    model_config = ConfigDict(validate_assignment=True)
+
     general: GeneralSettings | None = Field(
         None, description="General store and application settings."
     )
@@ -718,9 +723,6 @@ class CompleteSettings(BaseModel):
         None, description="Settings for week-based navigation."
     )
 
-    class Config:
-        validate_assignment = True  # Useful for models where attributes might be updated post-initialization
-
 
 # --- Utility Schemas (from original file, if still needed) ---
 
@@ -743,11 +745,12 @@ class SettingValue(
 class CategorySettings(RootModel[dict[str, Any]]):
     """Settings for a specific category, represented as a dictionary."""
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "description": "Settings for a specific category, represented as a dictionary.",
             "example": {"some_setting": "some_value", "another_setting": True},
         }
+    )
 
 
 # The original AdvancedSettings can be removed if all its fields are integrated or deprecated.

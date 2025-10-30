@@ -251,7 +251,7 @@ def update_settings():
     try:
         settings_schema = CompleteSettings(**data)
         # Convert Pydantic model to dict
-        validated_data = settings_schema.dict(exclude_none=True)
+        validated_data = settings_schema.model_dump(exclude_none=True)
     except ValidationError as e:
         return jsonify(
             {"error": "Invalid input data", "details": e.errors()}
@@ -313,25 +313,25 @@ def update_category_settings(category):
     # Validate based on category
     try:
         if category == "general":
-            validated_data = GeneralSettings(**data).dict(exclude_none=True)
+            validated_data = GeneralSettings(**data).model_dump(exclude_none=True)
         elif category == "scheduling":
-            validated_data = SchedulingSettingsSchema(**data).dict(exclude_none=True)
+            validated_data = SchedulingSettingsSchema(**data).model_dump(exclude_none=True)
         elif category == "display":
-            validated_data = DisplaySettingsSchema(**data).dict(exclude_none=True)
+            validated_data = DisplaySettingsSchema(**data).model_dump(exclude_none=True)
         elif category == "pdf_layout":
-            validated_data = PDFLayoutSettingsSchema(**data).dict(exclude_none=True)
+            validated_data = PDFLayoutSettingsSchema(**data).model_dump(exclude_none=True)
         elif category == "employee_groups":
-            validated_data = EmployeeGroupsSettingsSchema(**data).dict(
+            validated_data = EmployeeGroupsSettingsSchema(**data).model_dump(
                 exclude_none=True
             )
         elif category == "availability_types":
-            validated_data = AvailabilityTypesSettingsSchema(**data).dict(
+            validated_data = AvailabilityTypesSettingsSchema(**data).model_dump(
                 exclude_none=True
             )
         elif category == "actions":
-            validated_data = ActionsSettingsSchema(**data).dict(exclude_none=True)
+            validated_data = ActionsSettingsSchema(**data).model_dump(exclude_none=True)
         elif category == "ai_scheduling":
-            validated_data = AISchedulingSettingsSchema(**data).dict(exclude_none=True)
+            validated_data = AISchedulingSettingsSchema(**data).model_dump(exclude_none=True)
         else:
             return jsonify(
                 {"error": f"Unknown or unsupported settings category: {category}"}
@@ -612,7 +612,7 @@ def update_generation_settings():
         # Validate input using Pydantic schema
         try:
             generation_settings = GenerationRequirements(**data)
-            validated_data = generation_settings.dict(exclude_none=True)
+            validated_data = generation_settings.model_dump(exclude_none=True)
         except ValidationError as e:
             return jsonify(
                 {"error": "Invalid input data", "details": e.errors()}

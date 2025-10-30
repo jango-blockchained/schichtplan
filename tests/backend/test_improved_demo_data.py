@@ -5,18 +5,21 @@ This version directly implements the data generation functions in the script
 to avoid conflicts with the demo_data blueprint in the app.
 """
 
-from src.backend.app import create_app
-from datetime import date, timedelta
-import sys
 import logging
 import random
+import sys
+from datetime import date, timedelta
+
+import pytest
+
+from src.backend.app import create_app
 from src.backend.models import (
-    db,
-    Settings,
-    Employee,
     Coverage,
+    Employee,
     EmployeeAvailability,
+    Settings,
     ShiftTemplate,
+    db,
 )
 from src.backend.models.employee import AvailabilityType
 from src.backend.models.fixed_shift import ShiftType
@@ -639,17 +642,17 @@ def test_improved_demo_data():
                 for day, count in sorted(days_with_shifts.items()):
                     logger.info(f"  {day}: {count} shifts")
 
-                return True
+                # Test passed - shifts were assigned
             else:
                 logger.warning("WARNING: No shifts were assigned in the schedule!")
-                return False
+                pytest.fail("No shifts were assigned in the schedule")
 
         except Exception as e:
             logger.error(f"Error: {e}")
             import traceback
 
             traceback.print_exc()
-            return False
+            pytest.fail(f"Exception during test: {e}")
 
 
 if __name__ == "__main__":
