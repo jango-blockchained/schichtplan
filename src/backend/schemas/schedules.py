@@ -1,11 +1,13 @@
 from datetime import date as datetime_date
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class GenerationOptions(BaseModel):
     """Optional generation flags forwarded from the frontend."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     keep_existing_assignments: bool | None = Field(
         None,
@@ -43,9 +45,6 @@ class GenerationOptions(BaseModel):
         alias="phaseMode",
         description="Active multi-phase mode for this generation request.",
     )
-
-    class Config:
-        allow_population_by_field_name = True
 
 
 class ScheduleGenerateRequest(BaseModel):

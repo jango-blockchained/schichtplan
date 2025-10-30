@@ -1,11 +1,25 @@
 from datetime import date
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AIScheduleGenerateRequest(BaseModel):
     """Schema for the AI schedule generation request."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "start_date": "2023-10-26",
+                    "end_date": "2023-11-01",
+                    "version_id": 5,
+                    "ai_model_params": {"temperature": 0.7, "max_tokens": 1500},
+                    "seniority_weight": 0.5,
+                }
+            ]
+        }
+    )
 
     start_date: date = Field(
         ..., description="Start date of the schedule in YYYY-MM-DD format."
@@ -27,33 +41,12 @@ class AIScheduleGenerateRequest(BaseModel):
         description="Weight for seniority scoring (0-1). Higher values prioritize senior employees more.",
     )
 
-    class Config:
-        json_schema_extra = {
-            "examples": [
-                {
-                    "start_date": "2023-10-26",
-                    "end_date": "2023-11-01",
-                    "version_id": 5,
-                    "ai_model_params": {"temperature": 0.7, "max_tokens": 1500},
-                    "seniority_weight": 0.5,
-                }
-            ]
-        }
-
 
 class AIScheduleFeedbackRequest(BaseModel):
     """Schema for receiving feedback on AI schedule assignments."""
 
-    version_id: int = Field(
-        ..., description="The version ID of the schedule being reviewed."
-    )
-    manual_assignments: list[dict[str, Any]] = Field(
-        ..., description="List of manual assignments or modifications made by the user."
-    )
-    # Add other relevant feedback fields as needed, e.g., comments, ratings, etc.
-
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "version_id": 5,
@@ -64,3 +57,12 @@ class AIScheduleFeedbackRequest(BaseModel):
                 }
             ]
         }
+    )
+
+    version_id: int = Field(
+        ..., description="The version ID of the schedule being reviewed."
+    )
+    manual_assignments: list[dict[str, Any]] = Field(
+        ..., description="List of manual assignments or modifications made by the user."
+    )
+    # Add other relevant feedback fields as needed, e.g., comments, ratings, etc.
