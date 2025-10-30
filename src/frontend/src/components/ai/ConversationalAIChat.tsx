@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAIContext } from "@/contexts/AIContext";
 import { cn } from "@/lib/utils";
 import { aiService } from "@/services/aiService";
+import { getSettings } from "@/services/api";
 import {
   Bot,
   CheckCircle2,
@@ -71,11 +72,26 @@ export const ConversationalAIChat: React.FC = () => {
   const [currentSession, setCurrentSession] =
     useState<ConversationSession | null>(null);
   const [sessions, setSessions] = useState<ConversationSession[]>([]);
-  const [aiProvider] = useState<"openai" | "anthropic" | "gemini">("gemini");
+  const [aiProvider, setAiProvider] = useState<"openai" | "anthropic" | "gemini">("gemini");
   const [showContext, setShowContext] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load AI provider from settings
+  useEffect(() => {
+    const loadAISettings = async () => {
+      try {
+        const settings = await getSettings();
+        if (settings.ai_scheduling?.provider) {
+          setAiProvider(settings.ai_scheduling.provider as "openai" | "anthropic" | "gemini");
+        }
+      } catch (error) {
+        console.warn("Failed to load AI settings, using default provider:", error);
+      }
+    };
+    loadAISettings();
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -135,11 +151,11 @@ export const ConversationalAIChat: React.FC = () => {
       last_message_at: new Date(),
       message_count: 1,
       status: "active",
-      ai_provider: "gemini", // Default AI provider
+      ai_provider: aiProvider, // Use loaded AI provider
     };
     setCurrentSession(initialSession);
     setSessions([initialSession]);
-  }, [pageContext, getContextString]);
+  }, [pageContext, getContextString, aiProvider]);
 
   const handleSendMessage = async () => {
     if (!currentInput.trim() || isLoading) return;
@@ -351,7 +367,7 @@ export const ConversationalAIChat: React.FC = () => {
       last_message_at: new Date(),
       message_count: 0,
       status: "active",
-      ai_provider: "gemini", // Default AI provider
+      ai_provider: aiProvider, // Use current AI provider from settings
     };
 
     setCurrentSession(newSession);
