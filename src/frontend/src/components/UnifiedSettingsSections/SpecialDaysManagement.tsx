@@ -237,13 +237,27 @@ export const SpecialDaysManagement: React.FC<SpecialDaysManagementProps> = ({
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Special Days & Holidays</CardTitle>
+          <CardTitle>Special Days & Store Closures</CardTitle>
           <CardDescription>
-            Manage special days and holidays when your store has different hours
-            or is closed
+            Define days when your store is closed (e.g., national holidays, 
+            special events) or has different operating hours. These settings 
+            help with accurate schedule planning and employee management.
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <h4 className="font-semibold mb-2 flex items-center gap-2">
+              <CalendarPlus className="h-4 w-4" />
+              Quick Guide
+            </h4>
+            <ul className="text-sm space-y-1 text-muted-foreground">
+              <li>• <strong>Closed Days:</strong> Mark national holidays and special closure days</li>
+              <li>• <strong>Modified Hours:</strong> Set custom opening hours for special events</li>
+              <li>• <strong>Import Holidays:</strong> Quickly add standard national holidays for your country</li>
+              <li>• <strong>Planning:</strong> These dates will be considered during schedule generation</li>
+            </ul>
+          </div>
+          
           <div className="flex justify-between mb-4">
             <div className="flex items-center gap-2">
               <Label htmlFor="year-select">Year:</Label>

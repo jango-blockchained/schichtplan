@@ -222,6 +222,12 @@ export default function UnifiedSettingsPage() {
             ? fetchedData.employee_groups.absence_types
             : DEFAULT_SETTINGS.employee_groups?.absence_types || []
           ).map((at) => ({ ...at, type: "absence_type" as const })),
+          
+          event_types: (fetchedData.employee_groups?.event_types &&
+          fetchedData.employee_groups.event_types.length > 0
+            ? fetchedData.employee_groups.event_types
+            : DEFAULT_SETTINGS.employee_groups?.event_types || []
+          ).map((et) => ({ ...et, type: "event_type" as const })),
         },
         availability_types: {
           ...DEFAULT_SETTINGS.availability_types, // Base defaults for availability_types structure
