@@ -1,5 +1,5 @@
 import { useCalendarContext } from '../../calendar-context'
-import { isSameDay } from 'date-fns'
+import { isWithinInterval } from 'date-fns'
 import { hours } from './calendar-body-margin-day-margin'
 import CalendarBodyHeader from '../calendar-body-header'
 import CalendarEvent from '../../calendar-event'
@@ -7,7 +7,13 @@ import CalendarEvent from '../../calendar-event'
 export default function CalendarBodyDayContent({ date }: { date: Date }) {
   const { events } = useCalendarContext()
 
-  const dayEvents = events.filter((event) => isSameDay(event.start, date))
+  // Show events that span across this day, not just start on this day
+  const dayEvents = events.filter((event) => 
+    isWithinInterval(date, {
+      start: event.start,
+      end: event.end,
+    })
+  )
 
   return (
     <div className="flex flex-col flex-grow">

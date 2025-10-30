@@ -12,6 +12,14 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -65,8 +73,11 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Clock,
   Download,
+  Edit,
   Info,
+  MoveHorizontal,
   Plus,
   Trash2,
   UserCheck,
@@ -98,6 +109,9 @@ export default function VacationPlanningPage() {
   const [editingData, setEditingData] = useState<Partial<Absence>>({});
   const [isCalendarExpanded, setIsCalendarExpanded] = useState(true);
   const [isListExpanded, setIsListExpanded] = useState(true);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [movingAbsence, setMovingAbsence] = useState<Absence | null>(null);
+  const [moveData, setMoveData] = useState({ start_date: "", end_date: "" });
 
   type SortField = "employee" | "type" | "status" | "start_date" | "end_date" | "days";
   type SortDirection = "asc" | "desc";
@@ -182,11 +196,23 @@ export default function VacationPlanningPage() {
   const getStatusInfo = useCallback((status: string) => {
     switch (status) {
       case "approved":
-        return { label: "Genehmigt", className: "bg-emerald-100 text-emerald-700" };
+        return { 
+          label: "Genehmigt", 
+          className: "bg-emerald-100 text-emerald-700",
+          icon: <Check className="h-3 w-3" />
+        };
       case "declined":
-        return { label: "Abgelehnt", className: "bg-destructive/10 text-destructive" };
+        return { 
+          label: "Abgelehnt", 
+          className: "bg-destructive/10 text-destructive",
+          icon: <X className="h-3 w-3" />
+        };
       default:
-        return { label: "Beantragt", className: "bg-amber-100 text-amber-800" };
+        return { 
+          label: "Beantragt", 
+          className: "bg-amber-100 text-amber-800",
+          icon: <Clock className="h-3 w-3" />
+        };
     }
   }, []);
 
@@ -448,6 +474,29 @@ export default function VacationPlanningPage() {
   const handleCancel = () => {
     setEditingId(null);
     setEditingData({});
+  };
+
+  const handleMove = (absence: Absence) => {
+    setMovingAbsence(absence);
+    setMoveData({
+      start_date: absence.start_date,
+      end_date: absence.end_date,
+    });
+    setShowMoveDialog(true);
+  };
+
+  const handleMoveSubmit = () => {
+    if (!movingAbsence) return;
+    
+    updateAbsenceMutation.mutate({
+      id: movingAbsence.id,
+      updates: {
+        start_date: moveData.start_date,
+        end_date: moveData.end_date,
+      },
+    });
+    setShowMoveDialog(false);
+    setMovingAbsence(null);
   };
 
   // PDF Export Functions
@@ -852,7 +901,10 @@ export default function VacationPlanningPage() {
                                     const statusInfo = getStatusInfo(absence.status);
                                     return (
                                       <Badge className={statusInfo.className} variant="secondary">
-                                        {statusInfo.label}
+                                        <span className="flex items-center gap-1">
+                                          {statusInfo.icon}
+                                          {statusInfo.label}
+                                        </span>
                                       </Badge>
                                     );
                                   })()
@@ -940,13 +992,23 @@ export default function VacationPlanningPage() {
                                       size="sm"
                                       variant="ghost"
                                       onClick={() => handleEdit(absence)}
+                                      title="Bearbeiten"
                                     >
-                                      Bearbeiten
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleMove(absence)}
+                                      title="Verschieben"
+                                    >
+                                      <MoveHorizontal className="h-4 w-4 text-primary" />
                                     </Button>
                                     <Button
                                       size="sm"
                                       variant="ghost"
                                       onClick={() => deleteAbsenceMutation.mutate(absence.id)}
+                                      title="Löschen"
                                     >
                                       <Trash2 className="h-4 w-4 text-destructive" />
                                     </Button>
@@ -1039,6 +1101,73 @@ export default function VacationPlanningPage() {
         onSubmit={(absences) => bulkCreateAbsenceMutation.mutate(absences)}
         isLoading={bulkCreateAbsenceMutation.isPending}
       />
+
+      {/* Move Absence Dialog */}
+      <Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MoveHorizontal className="h-5 w-5" />
+              Abwesenheit verschieben
+            </DialogTitle>
+            <DialogDescription>
+              Verschieben Sie die Abwesenheit auf neue Daten
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {movingAbsence && (
+              <div className="p-3 bg-muted rounded-md">
+                <p className="text-sm font-medium">
+                  {getEmployeeDisplayName(movingAbsence.employee_id)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {getAbsenceTypeInfo(movingAbsence.absence_type_id).name}
+                </p>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="move_start_date">Von</Label>
+                <Input
+                  id="move_start_date"
+                  type="date"
+                  value={moveData.start_date}
+                  onChange={(e) =>
+                    setMoveData({ ...moveData, start_date: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="move_end_date">Bis</Label>
+                <Input
+                  id="move_end_date"
+                  type="date"
+                  value={moveData.end_date}
+                  onChange={(e) =>
+                    setMoveData({ ...moveData, end_date: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowMoveDialog(false)}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              type="button"
+              onClick={handleMoveSubmit}
+              disabled={updateAbsenceMutation.isPending}
+            >
+              Verschieben
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
