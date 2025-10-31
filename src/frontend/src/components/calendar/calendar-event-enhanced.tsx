@@ -118,8 +118,6 @@ function calculateEventPosition(
     }
 }
 
-Yearly.()
-
 export default function CalendarEventEnhanced({
     event,
     month = false,

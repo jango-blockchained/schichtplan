@@ -103,58 +103,73 @@ export default function CalendarBodyMonth() {
           {/* Multi-day events rendered as spanning bars */}
           <div className="absolute inset-0 pointer-events-none">
             {visibleEvents
-              .filter((event) => isSameDay(event.start, event.start)) // Process each event once
-              .map((event) => {
+              .filter((event) => !isSameDay(event.start, event.end)) // Only multi-day events
+              .flatMap((event) => {
                 // Find start and end day indices
                 const startIndex = calendarDays.findIndex((day) => isSameDay(day, event.start))
                 const endIndex = calendarDays.findIndex((day) => isSameDay(day, event.end))
 
-                if (startIndex === -1) return null
+                if (startIndex === -1) return []
 
-                // Calculate position and span
-                const cellWidth = 100 / 7
-                const weekRow = Math.floor(startIndex / 7)
-                const cellsInThisWeek = Math.min(7 - (startIndex % 7), (endIndex - startIndex) + 1)
-                const columnStart = startIndex % 7
+                const actualEndIndex = endIndex === -1 ? calendarDays.length - 1 : endIndex
 
-                // Determine if this is first and last day
-                const isFirstDay = true
-                const isLastDay = isSameDay(event.end, event.start) ||
-                  weekRow !== Math.floor(endIndex / 7) ||
-                  endIndex === startIndex
+                // Calculate which weeks this event spans
+                const startWeek = Math.floor(startIndex / 7)
+                const endWeek = Math.floor(actualEndIndex / 7)
 
-                const left = (columnStart * cellWidth)
-                const width = (cellsInThisWeek * cellWidth)
-                const topOffset = 56 // Below day number
+                // Create a segment for each week the event spans
+                const segments = []
+                for (let weekRow = startWeek; weekRow <= endWeek; weekRow++) {
+                  const weekStart = weekRow * 7
+                  const weekEnd = Math.min(weekStart + 6, calendarDays.length - 1)
 
-                return (
-                  <div
-                    key={`event-${event.id}-${weekRow}`}
-                    className="absolute"
-                    style={{
-                      left: `${left}%`,
-                      width: `${width}%`,
-                      top: `${weekRow * (100 / Math.ceil(calendarDays.length / 7))}%`,
-                      height: `${100 / Math.ceil(calendarDays.length / 7)}%`,
-                      paddingTop: `${topOffset}px`,
-                      paddingLeft: '4px',
-                      paddingRight: '4px',
-                      pointerEvents: 'auto',
-                      zIndex: 10,
-                    }}
-                  >
-                    <CalendarEventEnhanced
-                      event={event}
-                      month
-                      isFirstDay={isFirstDay}
-                      isLastDay={isLastDay}
-                      className="w-full"
-                      status={event.metadata?.status}
-                      onUpdate={onEventUpdate}
-                      onDelete={onEventDelete}
-                    />
-                  </div>
-                )
+                  // Calculate segment bounds within this week
+                  const segmentStart = weekRow === startWeek ? startIndex : weekStart
+                  const segmentEnd = weekRow === endWeek ? actualEndIndex : weekEnd
+
+                  const columnStart = segmentStart % 7
+                  const cellsInSegment = (segmentEnd - segmentStart) + 1
+
+                  const cellWidth = 100 / 7
+                  const left = (columnStart * cellWidth)
+                  const width = (cellsInSegment * cellWidth)
+                  const topOffset = 56 // Below day number
+
+                  // Determine if this segment is the first or last
+                  const isFirstSegment = weekRow === startWeek
+                  const isLastSegment = weekRow === endWeek
+
+                  segments.push(
+                    <div
+                      key={`event-${event.id}-week-${weekRow}`}
+                      className="absolute"
+                      style={{
+                        left: `${left}%`,
+                        width: `${width}%`,
+                        top: `${weekRow * (100 / Math.ceil(calendarDays.length / 7))}%`,
+                        height: `${100 / Math.ceil(calendarDays.length / 7)}%`,
+                        paddingTop: `${topOffset}px`,
+                        paddingLeft: '4px',
+                        paddingRight: '4px',
+                        pointerEvents: 'auto',
+                        zIndex: 10,
+                      }}
+                    >
+                      <CalendarEventEnhanced
+                        event={event}
+                        month
+                        isFirstDay={isFirstSegment}
+                        isLastDay={isLastSegment}
+                        className="w-full"
+                        status={event.metadata?.status}
+                        onUpdate={onEventUpdate}
+                        onDelete={onEventDelete}
+                      />
+                    </div>
+                  )
+                }
+
+                return segments
               })}
           </div>
 
