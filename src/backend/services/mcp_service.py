@@ -828,11 +828,9 @@ You are Schichtplan Assistant, a helpful workforce management companion.
     async def run_sse(self, host: str = "127.0.0.1", port: int = 8001):
         """Run the MCP server in SSE mode."""
         try:
-            from fastmcp.transports.sse import sse_transport
-
             self.logger.info(f"Starting MCP server in SSE mode on {host}:{port}...")
-            # Use run_async() since we're already in an async context
-            await self.mcp.run_async(transport=sse_transport(port=port))
+            # Use FastMCP's built-in run_sse_async method
+            await self.mcp.run_sse_async(host=host, port=port)
         except Exception as e:
             self.logger.error(f"Error running SSE server: {e}", exc_info=True)
             raise
@@ -840,11 +838,9 @@ You are Schichtplan Assistant, a helpful workforce management companion.
     async def run_streamable_http(self, host: str = "127.0.0.1", port: int = 8002):
         """Run the MCP server in streamable HTTP mode."""
         try:
-            from fastmcp.transports.http import http_transport
-
             self.logger.info(f"Starting MCP server in HTTP mode on {host}:{port}...")
-            # Use run_async() since we're already in an async context
-            await self.mcp.run_async(transport=http_transport(port=port))
+            # Use FastMCP's built-in run_streamable_http_async method
+            await self.mcp.run_streamable_http_async(host=host, port=port)
         except Exception as e:
             self.logger.error(f"Error running HTTP server: {e}", exc_info=True)
             raise
