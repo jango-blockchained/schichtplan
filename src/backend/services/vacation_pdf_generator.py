@@ -2062,3 +2062,158 @@ class VacationPDFGenerator:
             "abgelehnt": "Abgelehnt",
         }
         return status_map.get(status.lower(), status)
+
+    def generate_employee_vacation_entitlement_list(
+        self,
+        employees: list[Employee],
+        settings: Settings | None = None,
+    ) -> io.BytesIO:
+        """
+        Generate a simple list of all employees with their yearly vacation entitlement.
+
+        Args:
+            employees: List of employees
+            settings: Optional settings object
+
+        Returns:
+            BytesIO buffer containing the generated PDF
+        """
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            leftMargin=self.MARGIN,
+            rightMargin=self.MARGIN,
+            topMargin=self.MARGIN,
+            bottomMargin=self.MARGIN,
+        )
+
+        story = []
+
+        # Title
+        story.append(
+            Paragraph(
+                "Mitarbeiter Urlaubsanspruch - Jahresübersicht", self.title_style
+            )
+        )
+        story.append(Spacer(1, 10))
+
+        # Store info if available
+        if settings:
+            info_text = f"<b>Filiale:</b> {settings.store_name}"
+            if settings.store_address:
+                info_text += f" | <b>Adresse:</b> {settings.store_address}"
+            story.append(Paragraph(info_text, self.normal_style))
+            story.append(Spacer(1, 15))
+
+        # Description
+        story.append(
+            Paragraph(
+                "Diese Übersicht zeigt alle aktiven Mitarbeiter mit ihrem jährlichen Urlaubsanspruch.",
+                self.normal_style,
+            )
+        )
+        story.append(Spacer(1, 15))
+
+        # Table headers
+        table_data = [
+            [
+                Paragraph("<b>Nr.</b>", self.normal_style),
+                Paragraph("<b>Personal-Nr.</b>", self.normal_style),
+                Paragraph("<b>Name</b>", self.normal_style),
+                Paragraph("<b>Vorname</b>", self.normal_style),
+                Paragraph("<b>Gruppe</b>", self.normal_style),
+                Paragraph("<b>Urlaubstage/Jahr</b>", self.normal_style),
+            ]
+        ]
+
+        # Add employee rows
+        for idx, employee in enumerate(employees, start=1):
+            table_data.append(
+                [
+                    str(idx),
+                    employee.employee_id,
+                    employee.last_name,
+                    employee.first_name,
+                    employee.employee_group.value if employee.employee_group else "-",
+                    str(employee.vacation_per_year),
+                ]
+            )
+
+        # Add total row
+        total_vacation_days = sum(emp.vacation_per_year for emp in employees)
+        avg_vacation_days = (
+            total_vacation_days / len(employees) if employees else 0
+        )
+        table_data.append(
+            [
+                Paragraph("<b>Gesamt</b>", self.normal_style),
+                "",
+                f"{len(employees)} Mitarbeiter",
+                "",
+                "",
+                Paragraph(
+                    f"<b>Ø {avg_vacation_days:.1f} Tage</b>", self.normal_style
+                ),
+            ]
+        )
+
+        # Create table
+        col_widths = [
+            15 * mm,  # Nr.
+            25 * mm,  # Personal-Nr.
+            40 * mm,  # Name
+            40 * mm,  # Vorname
+            25 * mm,  # Gruppe
+            30 * mm,  # Urlaubstage/Jahr
+        ]
+        table = Table(table_data, colWidths=col_widths, repeatRows=1)
+
+        # Table style
+        table_style = TableStyle(
+            [
+                # Header
+                ("BACKGROUND", (0, 0), (-1, 0), lightgrey),
+                ("TEXTCOLOR", (0, 0), (-1, 0), black),
+                ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), self.NORMAL_FONT_SIZE),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+                # Body
+                ("ALIGN", (0, 1), (0, -2), "CENTER"),  # Nr. column
+                ("ALIGN", (1, 1), (1, -2), "CENTER"),  # Personal-Nr. column
+                ("ALIGN", (4, 1), (5, -2), "CENTER"),  # Gruppe and Urlaubstage columns
+                ("FONTNAME", (0, 1), (-1, -2), "Helvetica"),
+                ("FONTSIZE", (0, 1), (-1, -2), self.NORMAL_FONT_SIZE),
+                ("GRID", (0, 0), (-1, -1), 0.5, black),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                (
+                    "ROWBACKGROUNDS",
+                    (0, 1),
+                    (-1, -2),
+                    [white, colors.Color(0.95, 0.95, 0.95)],
+                ),
+                # Total row
+                ("BACKGROUND", (0, -1), (-1, -1), colors.Color(0.85, 0.85, 0.85)),
+                ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+                ("SPAN", (0, -1), (1, -1)),  # Merge first two cells
+                ("SPAN", (2, -1), (4, -1)),  # Merge middle cells
+            ]
+        )
+
+        table.setStyle(table_style)
+        story.append(table)
+        story.append(Spacer(1, 20))
+
+        # Footer with date
+        story.append(
+            Paragraph(
+                f"<i>Erstellt am: {datetime.now().strftime('%d.%m.%Y %H:%M')}</i>",
+                self.small_style,
+            )
+        )
+
+        # Build PDF
+        doc.build(story)
+        buffer.seek(0)
+        return buffer

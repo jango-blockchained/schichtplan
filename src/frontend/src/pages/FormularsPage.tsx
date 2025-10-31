@@ -111,6 +111,16 @@ const formulars: FormularItem[] = [
     subcategory: "Berichte",
     type: "yearly",
   },
+  {
+    id: "employee-vacation-entitlement",
+    title: "Mitarbeiter Urlaubsanspruch",
+    description: "Liste aller Mitarbeiter mit ihren jährlichen Urlaubstagen",
+    icon: <Users className="h-5 w-5" />,
+    requiresEmployee: false,
+    category: "Jahresübersichten",
+    subcategory: "Berichte",
+    type: "yearly",
+  },
 
   // Legacy forms
   {
@@ -210,6 +220,10 @@ export default function FormularsPage() {
 
       case "vacation-yearly-calendar":
         url = `${apiBaseUrl}/api/v2/vacation-pdf/yearly-calendar?year=${new Date().getFullYear()}`;
+        break;
+
+      case "employee-vacation-entitlement":
+        url = `${apiBaseUrl}/api/v2/vacation-pdf/employee-vacation-entitlement`;
         break;
 
       case "time-off-request":
