@@ -154,12 +154,12 @@ export default function CalendarEvent({
       <AnimatePresence mode="wait">
         <motion.div
           className={cn(
-            'px-3 py-1.5 cursor-pointer transition-all duration-300 border rounded-md',
+            'px-2 py-1 cursor-pointer transition-all duration-300 border rounded-md',
             colorStyle.bg,
             colorStyle.border,
             'hover:opacity-75',
             !month && 'absolute z-10',
-            month && 'truncate',
+            month && 'block overflow-hidden',
             month && isMultiDay && [
               isFirstDay ? 'rounded-l-md' : 'rounded-none',
               isLastDay ? 'rounded-r-md' : 'rounded-none',
@@ -207,9 +207,9 @@ export default function CalendarEvent({
         >
           <motion.div
             className={cn(
-              'flex flex-col w-full',
+              'flex flex-col w-full gap-0.5',
               colorStyle.text,
-              month && 'flex-row items-center justify-between'
+              month && 'flex-col items-start justify-start'
             )}
             layout="position"
           >
@@ -223,7 +223,7 @@ export default function CalendarEvent({
                 <div className="w-full" aria-hidden="true" role="presentation" />
               )
             ) : (
-              <p className={cn('font-semibold text-xs sm:text-sm')}>
+              <p className={cn('font-semibold text-xs sm:text-sm leading-tight')}>
                 {event.title}
               </p>
             )}

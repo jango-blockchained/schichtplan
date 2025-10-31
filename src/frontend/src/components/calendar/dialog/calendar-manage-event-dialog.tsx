@@ -1,4 +1,4 @@
-import { ColorPicker } from '@/components/form/color-picker'
+wimport { ColorPicker } from '@/components/form/color-picker'
 import { DateTimePicker } from '@/components/form/date-time-picker'
 import {
   AlertDialog,
