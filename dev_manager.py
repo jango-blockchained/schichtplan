@@ -305,6 +305,7 @@ class DevManagerApp(App):
 
         self.service_cards: dict[str, ServiceCard] = {}
         self.monitoring_task: asyncio.Task | None = None
+        self.log_reading_task: asyncio.Task | None = None
 
     def compose(self) -> ComposeResult:
         """Create child widgets"""
@@ -345,6 +346,9 @@ class DevManagerApp(App):
         # Start monitoring
         self.monitoring_task = asyncio.create_task(self.monitor_services())
 
+        # Start log reading
+        self.log_reading_task = asyncio.create_task(self.read_service_logs())
+
         # Log startup
         log_viewer = self.query_one("#log-viewer", Log)
         log_viewer.write_line(
@@ -353,6 +357,62 @@ class DevManagerApp(App):
         log_viewer.write_line(
             f"[{datetime.now().strftime('%H:%M:%S')}] Project root: {self.project_root}"
         )
+
+    async def read_service_logs(self) -> None:
+        """Background task to read and display service logs and
+        stdout/stderr."""
+        log_viewer = self.query_one("#log-viewer", Log)
+
+        # Track file positions for log files
+        log_files = {
+            "mcp": self.project_root / "mcp_server.log",
+            "backend": (self.project_root / "instance" / "logs" / "app.log"),
+        }
+        file_positions = {name: 0 for name in log_files}
+
+        while True:
+            try:
+                # Read service stdout/stderr
+                for service_id, service in self.services.items():
+                    if service.process and service.process.poll() is None:
+                        # Try to read available stdout
+                        try:
+                            import select
+
+                            ready, _, _ = select.select(
+                                [service.process.stdout], [], [], 0.1
+                            )
+                            if ready:
+                                line = service.process.stdout.readline()
+                                if line:
+                                    line = line.rstrip()
+                                    log_viewer.write_line(f"[{service.name}] {line}")
+                        except (AttributeError, OSError):
+                            pass
+
+                # Read log files
+                for name, log_path in log_files.items():
+                    if log_path.exists():
+                        try:
+                            with open(log_path) as f:
+                                f.seek(file_positions.get(name, 0))
+                                new_lines = f.readlines()
+                                for line in new_lines:
+                                    log_viewer.write_line(
+                                        f"[{name.upper()}] {line.rstrip()}"
+                                    )
+                                file_positions[name] = f.tell()
+                        except OSError:
+                            pass
+
+                await asyncio.sleep(0.5)
+
+            except Exception as e:
+                try:
+                    log_viewer.write_line(f"[LOG_READER] Error: {e}")
+                except Exception:
+                    pass
+                await asyncio.sleep(1)
 
     @on(Button.Pressed, "#start-*")
     async def on_start_service(self, event: Button.Pressed) -> None:
@@ -484,14 +544,14 @@ class DevManagerApp(App):
             try:
                 stats_table = self.query_one("#stats-table", DataTable)
                 stats_table.clear()
-                
+
                 health_table = self.query_one("#health-table", DataTable)
                 health_table.clear()
 
                 for service_id, service in self.services.items():
                     # Check if service is running
                     is_running = service.process and service.process.poll() is None
-                    
+
                     if is_running:
                         try:
                             proc = psutil.Process(service.pid)
@@ -512,21 +572,22 @@ class DevManagerApp(App):
                                 f"{memory:.1f}",
                                 uptime_str,
                             )
-                            
+
                             # Update health table with service health
                             # Try to check if the service is responding on its port
                             import socket
+
                             response_time = "N/A"
                             status_emoji = "🟢"
                             status_text = "Running"
-                            
+
                             try:
                                 start = datetime.now()
                                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                                 sock.settimeout(1)
-                                result = sock.connect_ex(('localhost', service.port))
+                                result = sock.connect_ex(("localhost", service.port))
                                 sock.close()
-                                
+
                                 if result == 0:
                                     response_time = f"{(datetime.now() - start).total_seconds() * 1000:.0f}ms"
                                     status_text = "✓ Healthy"
@@ -536,15 +597,15 @@ class DevManagerApp(App):
                             except:
                                 status_emoji = "🟡"
                                 status_text = "No Response"
-                            
+
                             health_table.add_row(
                                 f"{status_emoji} {service.name}",
                                 status_text,
                                 str(service.port),
                                 response_time,
-                                datetime.now().strftime('%H:%M:%S')
+                                datetime.now().strftime("%H:%M:%S"),
                             )
-                            
+
                         except (psutil.NoSuchProcess, psutil.AccessDenied):
                             # Process exists but can't access it
                             health_table.add_row(
@@ -552,7 +613,7 @@ class DevManagerApp(App):
                                 "Access Denied",
                                 str(service.port),
                                 "N/A",
-                                datetime.now().strftime('%H:%M:%S')
+                                datetime.now().strftime("%H:%M:%S"),
                             )
                     else:
                         # Service is not running
@@ -561,7 +622,7 @@ class DevManagerApp(App):
                             "Stopped",
                             str(service.port),
                             "N/A",
-                            datetime.now().strftime('%H:%M:%S')
+                            datetime.now().strftime("%H:%M:%S"),
                         )
 
                 await asyncio.sleep(5)
@@ -609,13 +670,17 @@ class DevManagerApp(App):
         if self.monitoring_task:
             self.monitoring_task.cancel()
 
+        # Stop log reading
+        if self.log_reading_task:
+            self.log_reading_task.cancel()
+
         # Stop all services
         for service in self.services.values():
             if service.process and service.process.poll() is None:
                 try:
                     service.process.terminate()
                     service.process.wait(timeout=5)
-                except:
+                except Exception:
                     service.process.kill()
 
 
