@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/PageHeader";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -17,101 +17,153 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import { PageLayout } from "@/layouts";
 import { getEmployees } from "@/services/api";
 import { useQuery } from "@tanstack/react-query";
-import { Calendar, FileDown, FileSpreadsheet, FileText, UserPlus } from "lucide-react";
+import {
+  Calendar,
+  CheckCircle2,
+  FileDown,
+  FileSpreadsheet,
+  FileText,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import { useState } from "react";
 
-const formulars = [
+// Formular categories with professional grouping
+interface FormularItem {
+  id: string;
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  requiresEmployee: boolean;
+  category: string;
+  subcategory?: string;
+  type: "single" | "bulk" | "filtered" | "yearly";
+  badge?: string;
+}
+
+const formulars: FormularItem[] = [
+  // Vacation Request Forms (Urlaubsanträge)
   {
-    id: "vacation-request",
-    title: "Urlaubsantrag",
-    description: "Urlaubsantrag für Mitarbeiter ausfüllen",
-    icon: Calendar,
+    id: "vacation-request-single",
+    title: "Urlaubsantrag - Einzelexport",
+    description: "Urlaubsantrag für einen Mitarbeiter ausfüllen",
+    icon: <Calendar className="h-5 w-5" />,
     requiresEmployee: true,
-    category: "Urlaub",
+    category: "Urlaubsanträge",
+    subcategory: "Anträge",
+    type: "single",
   },
+  {
+    id: "vacation-request-bulk",
+    title: "Urlaubsanträge - Bulk Export",
+    description: "Urlaubsanträge für alle Mitarbeiter exportieren",
+    icon: <Users className="h-5 w-5" />,
+    requiresEmployee: false,
+    category: "Urlaubsanträge",
+    subcategory: "Anträge",
+    type: "bulk",
+  },
+
+  // Vacation Approval Forms (Urlaubsgenehmigung)
+  {
+    id: "vacation-approval-single",
+    title: "Urlaubsgenehmigung - Einzelexport",
+    description: "Genehmigungsformular für einen Mitarbeiter",
+    icon: <CheckCircle2 className="h-5 w-5" />,
+    requiresEmployee: true,
+    category: "Urlaubsgenehmigung",
+    subcategory: "Genehmigungen",
+    type: "single",
+  },
+  {
+    id: "vacation-approval-bulk",
+    title: "Urlaubsgenehmigung - Bulk Export",
+    description: "Alle Genehmigungen mit erweiterten Filteroptionen exportieren",
+    icon: <FileSpreadsheet className="h-5 w-5" />,
+    requiresEmployee: false,
+    category: "Urlaubsgenehmigung",
+    subcategory: "Genehmigungen",
+    type: "filtered",
+    badge: "Filter",
+  },
+
+  // Yearly Overview
+  {
+    id: "vacation-yearly",
+    title: "Jahresurlaub Übersicht",
+    description: "Alle Urlaubseinträge für ein Jahr mit vollständigen Details",
+    icon: <FileText className="h-5 w-5" />,
+    requiresEmployee: false,
+    category: "Jahresübersichten",
+    subcategory: "Berichte",
+    type: "yearly",
+  },
+
+  // Legacy forms
   {
     id: "time-off-request",
     title: "Abwesenheitsantrag",
     description: "Beantragen Sie eine Abwesenheit (Krankheit, Sonstiges)",
-    icon: Calendar,
+    icon: <Calendar className="h-5 w-5" />,
     requiresEmployee: true,
-    category: "Abwesenheit",
+    category: "Weitere Formulare",
+    subcategory: "Abwesenheit",
+    type: "single",
   },
   {
     id: "employee-registration",
     title: "Mitarbeiter Registrierung",
     description: "Registrieren Sie einen neuen Mitarbeiter",
-    icon: UserPlus,
+    icon: <UserPlus className="h-5 w-5" />,
     requiresEmployee: false,
-    category: "Verwaltung",
-  },
-  {
-    id: "shift-report",
-    title: "Schichtbericht",
-    description: "Erstellen Sie einen detaillierten Schichtbericht",
-    icon: FileText,
-    requiresEmployee: true,
-    category: "Berichte",
-  },
-  {
-    id: "shift-transfer",
-    title: "Schicht Übertragung",
-    description: "Beantragen Sie die Übertragung einer Schicht",
-    icon: FileSpreadsheet,
-    requiresEmployee: true,
-    category: "Schichten",
-  },
-  {
-    id: "expense-report",
-    title: "Spesenabrechnung",
-    description: "Reichen Sie Ihre Spesen ein",
-    icon: FileSpreadsheet,
-    requiresEmployee: true,
-    category: "Finanzen",
+    category: "Weitere Formulare",
+    subcategory: "Verwaltung",
+    type: "single",
   },
 ];
 
 export default function FormularsPage() {
   const { toast } = useToast();
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
-  const [selectedFormular, setSelectedFormular] = useState<string | null>(null);
-  const [showDialog, setShowDialog] = useState(false);
+  const [selectedFormular, setSelectedFormular] = useState<FormularItem | null>(null);
+  const [showEmployeeDialog, setShowEmployeeDialog] = useState(false);
+  const [showFilterDialog, setShowFilterDialog] = useState(false);
+  const [tempEmployeeId, setTempEmployeeId] = useState<string>("");
 
-  // Fetch employees for vacation request form
+  // Fetch employees
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],
     queryFn: getEmployees,
   });
 
-  const handleFormularClick = (formularId: string) => {
-    const formular = formulars.find(f => f.id === formularId);
+  // Handle formular click - opens employee selection if needed
+  const handleFormularClick = (formularItem: FormularItem) => {
+    setSelectedFormular(formularItem);
 
-    if (formular?.requiresEmployee && !selectedEmployeeId) {
-      toast({
-        title: "Bitte Mitarbeiter auswählen",
-        description: "Wählen Sie einen Mitarbeiter für dieses Formular aus.",
-        variant: "destructive",
-      });
-      return;
+    if (formularItem.type === "filtered") {
+      // For filtered forms, open filter dialog
+      setShowFilterDialog(true);
+    } else if (formularItem.requiresEmployee) {
+      // For single employee forms, open employee selection
+      setTempEmployeeId("");
+      setShowEmployeeDialog(true);
+    } else {
+      // For forms that don't require employee, generate directly
+      generatePDF(formularItem, "");
     }
-
-    setSelectedFormular(formularId);
-    setShowDialog(true);
   };
 
-  const handleGeneratePDF = () => {
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-    const formular = formulars.find(f => f.id === selectedFormular);
+  const generatePDF = (formularItem: FormularItem | null, employeeId: string = "") => {
+    if (!formularItem) return;
 
-    if (!formular) return;
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+    let url = "";
 
-    let url = '';
-
-    switch (selectedFormular) {
-      case 'vacation-request':
-        if (!selectedEmployeeId) {
+    switch (formularItem.id) {
+      case "vacation-request-single":
+        if (!employeeId) {
           toast({
             title: "Fehler",
             description: "Bitte wählen Sie einen Mitarbeiter aus.",
@@ -119,10 +171,15 @@ export default function FormularsPage() {
           });
           return;
         }
-        url = `${apiBaseUrl}/api/v2/vacation-pdf/employee-request?employee_id=${selectedEmployeeId}`;
+        url = `${apiBaseUrl}/api/v2/vacation-pdf/employee-request?employee_id=${employeeId}`;
         break;
-      case 'time-off-request':
-        if (!selectedEmployeeId) {
+
+      case "vacation-request-bulk":
+        url = `${apiBaseUrl}/api/v2/vacation-pdf/bulk-requests?year=${new Date().getFullYear()}`;
+        break;
+
+      case "vacation-approval-single":
+        if (!employeeId) {
           toast({
             title: "Fehler",
             description: "Bitte wählen Sie einen Mitarbeiter aus.",
@@ -130,44 +187,33 @@ export default function FormularsPage() {
           });
           return;
         }
-        url = `${apiBaseUrl}/api/v2/absence-pdf/employee-request?employee_id=${selectedEmployeeId}`;
+        url = `${apiBaseUrl}/api/v2/vacation-pdf/approval?employee_id=${employeeId}`;
         break;
-      case 'employee-registration':
+
+      case "vacation-approval-bulk":
+        url = `${apiBaseUrl}/api/v2/vacation-pdf/approvals-bulk?year=${new Date().getFullYear()}`;
+        break;
+
+      case "vacation-yearly":
+        url = `${apiBaseUrl}/api/v2/vacation-pdf/yearly-overview?year=${new Date().getFullYear()}`;
+        break;
+
+      case "time-off-request":
+        if (!employeeId) {
+          toast({
+            title: "Fehler",
+            description: "Bitte wählen Sie einen Mitarbeiter aus.",
+            variant: "destructive",
+          });
+          return;
+        }
+        url = `${apiBaseUrl}/api/v2/absence-pdf/employee-request?employee_id=${employeeId}`;
+        break;
+
+      case "employee-registration":
         url = `${apiBaseUrl}/api/v2/registration-pdf/employee-form`;
         break;
-      case 'shift-report':
-        if (!selectedEmployeeId) {
-          toast({
-            title: "Fehler",
-            description: "Bitte wählen Sie einen Mitarbeiter aus.",
-            variant: "destructive",
-          });
-          return;
-        }
-        url = `${apiBaseUrl}/api/v2/shift-pdf/report?employee_id=${selectedEmployeeId}`;
-        break;
-      case 'shift-transfer':
-        if (!selectedEmployeeId) {
-          toast({
-            title: "Fehler",
-            description: "Bitte wählen Sie einen Mitarbeiter aus.",
-            variant: "destructive",
-          });
-          return;
-        }
-        url = `${apiBaseUrl}/api/v2/shift-pdf/transfer?employee_id=${selectedEmployeeId}`;
-        break;
-      case 'expense-report':
-        if (!selectedEmployeeId) {
-          toast({
-            title: "Fehler",
-            description: "Bitte wählen Sie einen Mitarbeiter aus.",
-            variant: "destructive",
-          });
-          return;
-        }
-        url = `${apiBaseUrl}/api/v2/expense-pdf/report?employee_id=${selectedEmployeeId}`;
-        break;
+
       default:
         toast({
           title: "Fehler",
@@ -178,146 +224,233 @@ export default function FormularsPage() {
     }
 
     if (url) {
-      window.open(url, '_blank');
+      window.open(url, "_blank");
       toast({
         title: "PDF wird erstellt",
-        description: `Das Formular "${formular.title}" wird in einem neuen Tab geöffnet.`,
+        description: `Das Formular "${formularItem.title}" wird in einem neuen Tab geöffnet.`,
       });
-      setShowDialog(false);
+      setShowEmployeeDialog(false);
+      setShowFilterDialog(false);
+      setSelectedFormular(null);
     }
   };
 
-  const selectedFormularData = formulars.find(f => f.id === selectedFormular);
+  // Handle employee selection confirmation
+  const handleEmployeeConfirm = () => {
+    if (!tempEmployeeId && selectedFormular?.requiresEmployee) {
+      toast({
+        title: "Fehler",
+        description: "Bitte wählen Sie einen Mitarbeiter aus.",
+        variant: "destructive",
+      });
+      return;
+    }
+    generatePDF(selectedFormular, tempEmployeeId);
+  };
+
+  // Group formulars by category
+  const categories = Array.from(new Set(formulars.map((f) => f.category)));
 
   return (
-    <div className="container mx-auto py-6 space-y-8">
-      <PageHeader
-        title="Formulare"
-        description="Zugriff auf alle verfügbaren Formulare"
-      />
+    <PageLayout
+      title="Formulare"
+      description="Zugriff auf professionelle Formulare für Urlaubsmanagement und Verwaltung"
+      breadcrumbs={[
+        { href: "/", label: "Home" },
+        { label: "Formulare", isCurrentPage: true },
+      ]}
+    >
+      {/* Main Content */}
+      <div className="space-y-8">
+        {/* Categories */}
+        {categories.map((category) => (
+          <div key={category} className="space-y-4">
+            {/* Category Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-foreground">{category}</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {category === "Urlaubsanträge" &&
+                    "Antragsformulare für Urlaubsverwaltung"}
+                  {category === "Urlaubsgenehmigung" &&
+                    "Genehmigungsformulare und Übersichten"}
+                  {category === "Jahresübersichten" &&
+                    "Umfassende Jahresberichte"}
+                  {category === "Weitere Formulare" &&
+                    "Zusätzliche Verwaltungsformulare"}
+                </p>
+              </div>
+            </div>
 
-      {/* Employee Selection Card */}
-      <Card className="border-blue-200 bg-blue-50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileDown className="h-5 w-5" />
-            Mitarbeiter auswählen
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground mb-4">
-            Wählen Sie einen Mitarbeiter aus, um personalisierte Formulare zu generieren.
-          </p>
-          <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-            <SelectTrigger className="w-full max-w-md bg-white">
-              <SelectValue placeholder="Mitarbeiter auswählen..." />
-            </SelectTrigger>
-            <SelectContent>
-              {employees.map((emp) => (
-                <SelectItem key={emp.id} value={emp.id.toString()}>
-                  {emp.first_name} {emp.last_name} ({emp.employee_id})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {selectedEmployeeId && (
-            <p className="text-sm text-green-700 mt-3">
-              ✓ Mitarbeiter ausgewählt: {employees.find(e => e.id.toString() === selectedEmployeeId)?.first_name} {employees.find(e => e.id.toString() === selectedEmployeeId)?.last_name}
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Formulars Grid organized by Category */}
-      {Array.from(new Set(formulars.map(f => f.category))).map((category) => (
-        <div key={category} className="space-y-4">
-          <h3 className="text-lg font-semibold text-primary">{category}</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {formulars.filter(f => f.category === category).map((formular) => (
-              <Card
-                key={formular.id}
-                className="hover:shadow-lg transition-all hover:scale-105 cursor-pointer border-l-4 border-l-primary"
-              >
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    {formular.title}
-                  </CardTitle>
-                  <formular.icon className="h-5 w-5 text-primary" />
-                </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-muted-foreground mb-4">
-                    {formular.description}
-                  </p>
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => handleFormularClick(formular.id)}
-                    disabled={formular.requiresEmployee && !selectedEmployeeId}
+            {/* Formulars Grid */}
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+              {formulars
+                .filter((f) => f.category === category)
+                .map((formular) => (
+                  <Card
+                    key={formular.id}
+                    className="hover:shadow-md transition-all duration-200 border hover:border-primary/50 cursor-pointer group"
                   >
-                    <FileDown className="h-4 w-4 mr-2" />
-                    Formular öffnen
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3 flex-1">
+                          <div className="text-primary mt-1">{formular.icon}</div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <CardTitle className="text-base">
+                                {formular.title}
+                              </CardTitle>
+                              {formular.badge && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {formular.badge}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {formular.description}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <Button
+                        onClick={() => handleFormularClick(formular)}
+                        className="w-full"
+                        variant="default"
+                        size="sm"
+                      >
+                        <FileDown className="h-4 w-4 mr-2" />
+                        {formular.type === "single" && "Exportieren"}
+                        {formular.type === "bulk" && "Alle exportieren"}
+                        {formular.type === "filtered" && "Mit Filter exportieren"}
+                        {formular.type === "yearly" && "Jahresbericht"}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
 
-      {/* PDF Export Dialog */}
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+      {/* Employee Selection Dialog */}
+      <Dialog open={showEmployeeDialog} onOpenChange={setShowEmployeeDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <FileDown className="h-5 w-5 text-primary" />
-              PDF Formular generieren
+              <Users className="h-5 w-5 text-primary" />
+              Mitarbeiter auswählen
             </DialogTitle>
             <DialogDescription>
-              {selectedFormularData && (
-                <div className="space-y-2 mt-2">
+              {selectedFormular && (
+                <div className="space-y-2 mt-3">
                   <p className="font-medium text-foreground">
-                    {selectedFormularData.title}
+                    {selectedFormular.title}
                   </p>
-                  <p className="text-sm">
-                    {selectedFormularData.description}
+                  <p className="text-sm text-muted-foreground">
+                    {selectedFormular.description}
                   </p>
-                  {selectedFormularData.requiresEmployee && selectedEmployeeId && (
-                    <p className="text-sm text-green-700 bg-green-50 p-2 rounded">
-                      ✓ Formular für: {employees.find(e => e.id.toString() === selectedEmployeeId)?.first_name} {employees.find(e => e.id.toString() === selectedEmployeeId)?.last_name}
-                    </p>
-                  )}
                 </div>
               )}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="bg-muted p-3 rounded-md text-sm">
-              <p className="font-medium mb-2">Verfügbare Formate:</p>
-              <ul className="space-y-1 text-xs">
-                <li>• PDF (zum Ausdrucken und Unterschreiben)</li>
-                <li>• Optimiert für A4 Drucker</li>
-              </ul>
+          <div className="space-y-4 py-4">
+            <Select value={tempEmployeeId} onValueChange={setTempEmployeeId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Mitarbeiter auswählen..." />
+              </SelectTrigger>
+              <SelectContent>
+                {employees.map((emp) => (
+                  <SelectItem key={emp.id} value={emp.id.toString()}>
+                    {emp.first_name} {emp.last_name} ({emp.employee_id})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowEmployeeDialog(false)}
+            >
+              Abbrechen
+            </Button>
+            <Button onClick={handleEmployeeConfirm} className="gap-2">
+              <FileDown className="h-4 w-4" />
+              Exportieren
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Filter Dialog for Approval Forms */}
+      <Dialog open={showFilterDialog} onOpenChange={setShowFilterDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-primary" />
+              Filteroptionen
+            </DialogTitle>
+            <DialogDescription>
+              {selectedFormular && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  {selectedFormular.description}
+                </p>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Statusfilter</label>
+              <Select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Alle Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Status</SelectItem>
+                  <SelectItem value="pending">Ausstehend</SelectItem>
+                  <SelectItem value="approved">Genehmigt</SelectItem>
+                  <SelectItem value="rejected">Abgelehnt</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Zeitraum</label>
+              <Select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Aktuelles Jahr" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="current">Aktuelles Jahr</SelectItem>
+                  <SelectItem value="last">Letztes Jahr</SelectItem>
+                  <SelectItem value="all">Alle Jahre</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
               variant="outline"
-              onClick={() => setShowDialog(false)}
+              onClick={() => setShowFilterDialog(false)}
             >
               Abbrechen
             </Button>
             <Button
-              onClick={() => handleGeneratePDF()}
+              onClick={() => generatePDF(selectedFormular)}
               className="gap-2"
             >
               <FileDown className="h-4 w-4" />
-              PDF generieren
+              Mit Filtern exportieren
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageLayout>
   );
 }

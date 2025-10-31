@@ -157,6 +157,7 @@ def test_delete_shift(client, session):
 
 import pytest
 
+
 @pytest.mark.skip(reason="Skipping due to Blueprint 'shifts' not having a valid prefix")
 def test_create_default_shifts(client):
     """Test creating default shifts"""
@@ -165,7 +166,9 @@ def test_create_default_shifts(client):
     assert "Default shifts created" in response.json["message"]
 
 
-@pytest.mark.skip(reason="Store config endpoint not implemented - use settings API instead")
+@pytest.mark.skip(
+    reason="Store config endpoint not implemented - use settings API instead"
+)
 def test_get_store_config(client, session):
     """Test getting store configuration"""
     response = client.get("/api/v2/store/config")
@@ -174,7 +177,9 @@ def test_get_store_config(client, session):
     assert "closing_time" in response.json
 
 
-@pytest.mark.skip(reason="Store config endpoint not implemented - use settings API instead")
+@pytest.mark.skip(
+    reason="Store config endpoint not implemented - use settings API instead"
+)
 def test_update_store_config(client):
     """Test updating store configuration"""
     data = {"opening_time": "09:00", "closing_time": "21:00", "break_duration": 45}

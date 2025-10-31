@@ -1720,13 +1720,13 @@ def get_ai_settings():
             settings_obj = Settings.get_default_settings()
             db.session.add(settings_obj)
             db.session.commit()
-        
+
         ai_config = settings_obj.ai_scheduling or {}
         api_keys = ai_config.get("api_keys", {})
         agents_config = ai_config.get("agents", {})
         workflow_config = ai_config.get("workflow", {})
         chat_config = ai_config.get("chat", {})
-        
+
         # Format response to match frontend expectations
         settings = {
             "providers": {
@@ -1735,16 +1735,28 @@ def get_ai_settings():
                 "anthropic_api_key": api_keys.get("anthropic", ""),
             },
             "agents": {
-                "schedule_agent_enabled": agents_config.get("schedule_agent_enabled", True),
-                "analytics_agent_enabled": agents_config.get("analytics_agent_enabled", True),
-                "notification_agent_enabled": agents_config.get("notification_agent_enabled", False),
+                "schedule_agent_enabled": agents_config.get(
+                    "schedule_agent_enabled", True
+                ),
+                "analytics_agent_enabled": agents_config.get(
+                    "analytics_agent_enabled", True
+                ),
+                "notification_agent_enabled": agents_config.get(
+                    "notification_agent_enabled", False
+                ),
             },
             "workflow": {
-                "auto_approval_enabled": workflow_config.get("auto_approval_enabled", False),
-                "max_concurrent_workflows": workflow_config.get("max_concurrent_workflows", 3),
+                "auto_approval_enabled": workflow_config.get(
+                    "auto_approval_enabled", False
+                ),
+                "max_concurrent_workflows": workflow_config.get(
+                    "max_concurrent_workflows", 3
+                ),
             },
             "chat": {
-                "max_conversation_length": chat_config.get("max_conversation_length", 50),
+                "max_conversation_length": chat_config.get(
+                    "max_conversation_length", 50
+                ),
                 "enable_suggestions": chat_config.get("enable_suggestions", True),
                 "enable_feedback": chat_config.get("enable_feedback", True),
             },
@@ -1773,17 +1785,17 @@ def update_ai_settings():
         if not settings_obj:
             settings_obj = Settings.get_default_settings()
             db.session.add(settings_obj)
-        
+
         # Get current AI config or initialize
         ai_config = settings_obj.ai_scheduling or {}
         if not isinstance(ai_config, dict):
             ai_config = {}
-        
+
         # Update providers/API keys
         if "providers" in data:
             if "api_keys" not in ai_config:
                 ai_config["api_keys"] = {}
-            
+
             providers = data["providers"]
             if "gemini_api_key" in providers:
                 ai_config["api_keys"]["gemini"] = providers["gemini_api_key"]
@@ -1791,29 +1803,29 @@ def update_ai_settings():
                 ai_config["api_keys"]["openai"] = providers["openai_api_key"]
             if "anthropic_api_key" in providers:
                 ai_config["api_keys"]["anthropic"] = providers["anthropic_api_key"]
-        
+
         # Update agents
         if "agents" in data:
             if "agents" not in ai_config:
                 ai_config["agents"] = {}
             ai_config["agents"].update(data["agents"])
-        
+
         # Update workflow
         if "workflow" in data:
             if "workflow" not in ai_config:
                 ai_config["workflow"] = {}
             ai_config["workflow"].update(data["workflow"])
-        
+
         # Update chat
         if "chat" in data:
             if "chat" not in ai_config:
                 ai_config["chat"] = {}
             ai_config["chat"].update(data["chat"])
-        
+
         # Save to database
         settings_obj.ai_scheduling = ai_config
         db.session.commit()
-        
+
         logger.app_logger.info("AI settings updated successfully")
 
         return jsonify(
@@ -1839,23 +1851,39 @@ def health_check():
     try:
         # Get settings to check AI configuration
         settings = Settings.query.first()
-        ai_settings = settings.ai_scheduling if settings and settings.ai_scheduling else {}
-        
+        ai_settings = (
+            settings.ai_scheduling if settings and settings.ai_scheduling else {}
+        )
+
         # Check if AI is enabled
         ai_enabled = ai_settings.get("enabled", False)
-        
+
         # Determine overall system health
         services_status = {
-            "mcp_service": {"status": "initialized" if mcp_service else "not_initialized", "initialized": mcp_service is not None},
-            "agent_registry": {"status": "initialized" if agent_registry else "not_initialized", "initialized": agent_registry is not None},
-            "workflow_coordinator": {"status": "initialized" if workflow_coordinator else "not_initialized", "initialized": workflow_coordinator is not None},
-            "conversation_manager": {"status": "initialized" if conversation_manager else "not_initialized", "initialized": conversation_manager is not None},
+            "mcp_service": {
+                "status": "initialized" if mcp_service else "not_initialized",
+                "initialized": mcp_service is not None,
+            },
+            "agent_registry": {
+                "status": "initialized" if agent_registry else "not_initialized",
+                "initialized": agent_registry is not None,
+            },
+            "workflow_coordinator": {
+                "status": "initialized" if workflow_coordinator else "not_initialized",
+                "initialized": workflow_coordinator is not None,
+            },
+            "conversation_manager": {
+                "status": "initialized" if conversation_manager else "not_initialized",
+                "initialized": conversation_manager is not None,
+            },
         }
-        
+
         # Count initialized services
-        initialized_count = sum(1 for svc in services_status.values() if svc["initialized"])
+        initialized_count = sum(
+            1 for svc in services_status.values() if svc["initialized"]
+        )
         total_count = len(services_status)
-        
+
         # Determine overall status
         if not ai_enabled:
             overall_status = "disabled"
@@ -1865,7 +1893,7 @@ def health_check():
             overall_status = "degraded"
         else:
             overall_status = "healthy"
-        
+
         health_status = {
             "status": overall_status,
             "ai_enabled": ai_enabled,
@@ -1878,11 +1906,13 @@ def health_check():
 
     except Exception as e:
         logger.app_logger.error(f"AI health check error: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "error": f"Health check failed: {str(e)}",
-            "timestamp": datetime.now().isoformat(),
-        }), 500
+        return jsonify(
+            {
+                "status": "error",
+                "error": f"Health check failed: {str(e)}",
+                "timestamp": datetime.now().isoformat(),
+            }
+        ), 500
 
 
 @ai_bp.route("/chat/history/<conversation_id>", methods=["GET"])
@@ -2063,9 +2093,11 @@ def get_services_status():
     try:
         # Get settings to check for API keys
         settings = Settings.query.first()
-        ai_settings = settings.ai_scheduling if settings and settings.ai_scheduling else {}
+        ai_settings = (
+            settings.ai_scheduling if settings and settings.ai_scheduling else {}
+        )
         api_keys = ai_settings.get("api_keys", {})
-        
+
         # Check provider status based on API keys
         providers = []
         provider_configs = [
@@ -2073,16 +2105,18 @@ def get_services_status():
             {"provider": "openai", "key": api_keys.get("openai", "")},
             {"provider": "anthropic", "key": api_keys.get("anthropic", "")},
         ]
-        
+
         for config in provider_configs:
             has_key = bool(config["key"] and config["key"].strip())
-            providers.append({
-                "provider": config["provider"],
-                "status": "available" if has_key else "unavailable",
-                "has_api_key": has_key,
-                "last_checked": datetime.now().isoformat(),
-            })
-        
+            providers.append(
+                {
+                    "provider": config["provider"],
+                    "status": "available" if has_key else "unavailable",
+                    "has_api_key": has_key,
+                    "last_checked": datetime.now().isoformat(),
+                }
+            )
+
         status = {
             "overall_health": "healthy",
             "timestamp": datetime.now().isoformat(),

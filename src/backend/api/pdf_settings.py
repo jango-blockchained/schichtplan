@@ -25,21 +25,41 @@ def get_layout():
                 "period_fields": {
                     "month_year": {"label": "Monat/Jahr", "value": ""},
                     "week_from": {"label": "Woche vom:", "value": ""},
-                    "week_to": {"label": "bis:", "value": ""}
+                    "week_to": {"label": "bis:", "value": ""},
                 },
-                "storage_note": {"text": "Aufbewahrung in der Filiale: 2 Jahre", "position": "right"}
+                "storage_note": {
+                    "text": "Aufbewahrung in der Filiale: 2 Jahre",
+                    "position": "right",
+                },
             },
             "styling": {
-                "fonts": {"header_font": "Helvetica", "header_size": 11, "table_font": "Helvetica", "table_size": 7, "footer_font": "Helvetica", "footer_size": 6},
-                "colors": {"header_bg": "#FFFFFF", "header_text": "#000000", "table_border": "#000000", "table_bg": "#FFFFFF", "table_text": "#000000"},
+                "fonts": {
+                    "header_font": "Helvetica",
+                    "header_size": 11,
+                    "table_font": "Helvetica",
+                    "table_size": 7,
+                    "footer_font": "Helvetica",
+                    "footer_size": 6,
+                },
+                "colors": {
+                    "header_bg": "#FFFFFF",
+                    "header_text": "#000000",
+                    "table_border": "#000000",
+                    "table_bg": "#FFFFFF",
+                    "table_text": "#000000",
+                },
                 "spacing": {"page_margin": 15, "section_spacing": 6, "row_height": 12},
-                "table_style": {"border_width": 0.5, "grid_style": "solid", "cell_padding": 2}
+                "table_style": {
+                    "border_width": 0.5,
+                    "grid_style": "solid",
+                    "cell_padding": 2,
+                },
             },
             "pageSetup": {
                 "size": "A4",
                 "orientation": "portrait",
-                "margins": {"top": 15, "right": 15, "bottom": 15, "left": 15}
-            }
+                "margins": {"top": 15, "right": 15, "bottom": 15, "left": 15},
+            },
         }
         return jsonify(default_config), HTTPStatus.OK
     except Exception as e:
@@ -77,21 +97,21 @@ def preview_layout():
 
         # Generate SVG preview that reflects the actual configuration
         svg_content = generate_preview_svg(config)
-        
+
         # Return SVG with proper headers for browser compatibility
         response = Response(
             svg_content,
-            mimetype='image/svg+xml',
+            mimetype="image/svg+xml",
             headers={
-                'Content-Disposition': 'inline; filename="preview.svg"',
-                'Cache-Control': 'no-cache',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type'
-            }
+                "Content-Disposition": 'inline; filename="preview.svg"',
+                "Cache-Control": "no-cache",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type",
+            },
         )
         return response
-        
+
     except Exception as e:
         print(f"Preview error: {e}")  # Debug logging
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
@@ -99,23 +119,32 @@ def preview_layout():
 
 def generate_preview_svg(config):
     """Generate SVG representation of the MEP layout"""
-    header = config.get('header', {})
-    styling = config.get('styling', {}).get('fonts', {})
-    colors = config.get('styling', {}).get('colors', {})
-    
+    header = config.get("header", {})
+    styling = config.get("styling", {}).get("fonts", {})
+    colors = config.get("styling", {}).get("colors", {})
+
     # Extract configuration values with proper defaults
-    title = header.get('title', 'Mitarbeiter-Einsatz-Planung (MEP)')
-    store_label = header.get('store_field', {}).get('label', 'Filiale:')
-    store_value = header.get('store_field', {}).get('value', '[Store Name]') or '[Store Name]'
-    month_year_label = header.get('period_fields', {}).get('month_year', {}).get('label', 'Monat/Jahr:')
-    month_year_value = header.get('period_fields', {}).get('month_year', {}).get('value', 'Juni 2025') or 'Juni 2025'
-    
+    title = header.get("title", "Mitarbeiter-Einsatz-Planung (MEP)")
+    store_label = header.get("store_field", {}).get("label", "Filiale:")
+    store_value = (
+        header.get("store_field", {}).get("value", "[Store Name]") or "[Store Name]"
+    )
+    month_year_label = (
+        header.get("period_fields", {})
+        .get("month_year", {})
+        .get("label", "Monat/Jahr:")
+    )
+    month_year_value = (
+        header.get("period_fields", {}).get("month_year", {}).get("value", "Juni 2025")
+        or "Juni 2025"
+    )
+
     # Ensure safe values for SVG attributes
-    header_bg = colors.get('header_bg', '#FFFFFF')
-    header_text = colors.get('header_text', '#000000')
-    table_border = colors.get('table_border', '#000000')
-    table_bg = colors.get('table_bg', '#FFFFFF')
-    
+    header_bg = colors.get("header_bg", "#FFFFFF")
+    header_text = colors.get("header_text", "#000000")
+    table_border = colors.get("table_border", "#000000")
+    table_bg = colors.get("table_bg", "#FFFFFF")
+
     # SVG preview with proper XML declaration
     svg = f'''<?xml version="1.0" encoding="UTF-8"?>
 <svg width="600" height="400" xmlns="http://www.w3.org/2000/svg">
@@ -177,7 +206,7 @@ def generate_preview_svg(config):
     <!-- Preview Label -->
     <text x="300" y="380" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#666">Live Preview: {title}</text>
 </svg>'''
-    
+
     return svg
 
 
@@ -189,12 +218,12 @@ def get_presets():
         default_presets = {
             "mep_standard": {
                 "name": "MEP Standard",
-                "description": "Standardformat der deutschen Mitarbeiter-Einsatz-Planung"
+                "description": "Standardformat der deutschen Mitarbeiter-Einsatz-Planung",
             },
             "mep_compact": {
-                "name": "MEP Kompakt", 
-                "description": "Platzsparende Version für mehr Mitarbeiter pro Seite"
-            }
+                "name": "MEP Kompakt",
+                "description": "Platzsparende Version für mehr Mitarbeiter pro Seite",
+            },
         }
         return jsonify(default_presets), HTTPStatus.OK
     except Exception as e:

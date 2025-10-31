@@ -97,7 +97,7 @@ class ShiftTemplate(db.Model):
             except RuntimeError:
                 # No app context available, skip settings lookup
                 settings = None
-                
+
             if settings and hasattr(settings, "shift_types") and settings.shift_types:
                 # Determine the shift type ID and enum based on time
                 if start_hour < 11:
@@ -199,7 +199,7 @@ class ShiftTemplate(db.Model):
         except RuntimeError:
             # No app context available, skip validation
             return
-            
+
         if not settings:
             settings = Settings.get_default_settings()
 

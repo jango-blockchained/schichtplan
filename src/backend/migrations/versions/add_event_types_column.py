@@ -18,7 +18,7 @@ depends_on = None
 
 def upgrade():
     """Add event_types column to settings table."""
-    
+
     # Add event_types column with default values
     op.add_column(
         "settings",
@@ -51,7 +51,7 @@ def upgrade():
             ],
         ),
     )
-    
+
     # Update existing settings records to have default event types
     op.execute(
         """

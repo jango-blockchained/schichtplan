@@ -420,7 +420,7 @@ class Logger:
                     actual_exc_info = sys.exc_info()
                 elif exc_info is False or exc_info is None:
                     actual_exc_info = None
-                
+
                 # Create a temporary LogRecord for the console handler to format
                 record = logging.LogRecord(
                     name=self.logger_name,
@@ -464,7 +464,7 @@ class Logger:
                     actual_exc_info = sys.exc_info()
                 elif exc_info is False or exc_info is None:
                     actual_exc_info = None
-                    
+
                 # Create a temporary LogRecord for the file handler
                 record = logging.LogRecord(
                     name=self.logger_name,

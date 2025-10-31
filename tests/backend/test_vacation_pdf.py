@@ -41,13 +41,13 @@ def sample_employees(app):
                 is_active=True,
             ),
         ]
-        
+
         for emp in employees:
             db.session.add(emp)
         db.session.commit()
-        
+
         yield employees
-        
+
         # Cleanup
         for emp in employees:
             db.session.delete(emp)
@@ -82,13 +82,13 @@ def sample_absences(app, sample_employees):
                 status="approved",
             ),
         ]
-        
+
         for absence in absences:
             db.session.add(absence)
         db.session.commit()
-        
+
         yield absences
-        
+
         # Cleanup
         for absence in absences:
             db.session.delete(absence)
@@ -100,20 +100,20 @@ def test_admin_yearly_form_generation(app, sample_employees, sample_absences):
     with app.app_context():
         generator = VacationPDFGenerator()
         settings = Settings.query.first()
-        
+
         pdf_buffer = generator.generate_admin_yearly_form(
             year=2024,
             employees=sample_employees,
             absences=sample_absences,
             settings=settings,
         )
-        
+
         assert pdf_buffer is not None
         assert pdf_buffer.tell() == 0  # Buffer is at the start
-        
+
         # Read some content to verify it's a valid PDF
         content = pdf_buffer.read(10)
-        assert content.startswith(b'%PDF-')  # PDF magic number
+        assert content.startswith(b"%PDF-")  # PDF magic number
 
 
 def test_employee_request_form_generation(app, sample_employees, sample_absences):
@@ -121,17 +121,17 @@ def test_employee_request_form_generation(app, sample_employees, sample_absences
     with app.app_context():
         generator = VacationPDFGenerator()
         settings = Settings.query.first()
-        
+
         # Test with absence data
         pdf_buffer = generator.generate_employee_request_form(
             employee=sample_employees[0],
             absence=sample_absences[0],
             settings=settings,
         )
-        
+
         assert pdf_buffer is not None
         content = pdf_buffer.read(10)
-        assert content.startswith(b'%PDF-')
+        assert content.startswith(b"%PDF-")
 
 
 def test_employee_request_form_blank(app, sample_employees):
@@ -139,17 +139,17 @@ def test_employee_request_form_blank(app, sample_employees):
     with app.app_context():
         generator = VacationPDFGenerator()
         settings = Settings.query.first()
-        
+
         # Test without absence data (blank form)
         pdf_buffer = generator.generate_employee_request_form(
             employee=sample_employees[0],
             absence=None,
             settings=settings,
         )
-        
+
         assert pdf_buffer is not None
         content = pdf_buffer.read(10)
-        assert content.startswith(b'%PDF-')
+        assert content.startswith(b"%PDF-")
 
 
 def test_overview_form_generation(app, sample_employees, sample_absences):
@@ -157,17 +157,17 @@ def test_overview_form_generation(app, sample_employees, sample_absences):
     with app.app_context():
         generator = VacationPDFGenerator()
         settings = Settings.query.first()
-        
+
         pdf_buffer = generator.generate_overview_form(
             employees=sample_employees,
             absences=sample_absences,
             year=2024,
             settings=settings,
         )
-        
+
         assert pdf_buffer is not None
         content = pdf_buffer.read(10)
-        assert content.startswith(b'%PDF-')
+        assert content.startswith(b"%PDF-")
 
 
 def test_yearly_calendar_generation(app, sample_employees, sample_absences):
@@ -175,24 +175,24 @@ def test_yearly_calendar_generation(app, sample_employees, sample_absences):
     with app.app_context():
         generator = VacationPDFGenerator()
         settings = Settings.query.first()
-        
+
         pdf_buffer = generator.generate_yearly_calendar(
             year=2024,
             employees=sample_employees,
             absences=sample_absences,
             settings=settings,
         )
-        
+
         assert pdf_buffer is not None
         content = pdf_buffer.read(10)
-        assert content.startswith(b'%PDF-')
+        assert content.startswith(b"%PDF-")
 
 
 def test_status_text_conversion(app):
     """Test status text conversion to German."""
     with app.app_context():
         generator = VacationPDFGenerator()
-        
+
         assert generator._get_status_text("requested") == "Beantragt"
         assert generator._get_status_text("approved") == "Genehmigt"
         assert generator._get_status_text("declined") == "Abgelehnt"

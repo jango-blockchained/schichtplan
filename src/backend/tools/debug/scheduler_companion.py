@@ -41,15 +41,15 @@ class MockEmployee:
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
             setattr(self, key, value)
-        
+
         # Add default attributes that the scheduler expects
-        if not hasattr(self, 'preferences'):
+        if not hasattr(self, "preferences"):
             self.preferences = {}
-        if not hasattr(self, 'preferred_shift_types'):
+        if not hasattr(self, "preferred_shift_types"):
             self.preferred_shift_types = []
-        if not hasattr(self, 'skills'):
+        if not hasattr(self, "skills"):
             self.skills = []
-        if not hasattr(self, 'availability'):
+        if not hasattr(self, "availability"):
             self.availability = []
 
 
@@ -316,7 +316,7 @@ def load_availability_from_db(db_path: str) -> List[dict]:
     """Load availability data from the database"""
     try:
         conn, cursor = get_connection(db_path)
-        
+
         # Load availability data
         cursor.execute("""
             SELECT employee_id, day_of_week, start_time, end_time, 
@@ -331,12 +331,12 @@ def load_availability_from_db(db_path: str) -> List[dict]:
                 "start_time": row["start_time"],
                 "end_time": row["end_time"],
                 "availability_type": row["availability_type"],
-                "notes": row["notes"] if row["notes"] else ""
+                "notes": row["notes"] if row["notes"] else "",
             }
             availabilities.append(avail)
-        
+
         return availabilities
-        
+
     except sqlite3.Error as e:
         print(f"Database error loading availability: {e}")
         return []
@@ -344,7 +344,9 @@ def load_availability_from_db(db_path: str) -> List[dict]:
         conn.close()
 
 
-def load_resources_from_db(db_path: str) -> Tuple[List[Any], List[Any], List[Any], List[dict]]:
+def load_resources_from_db(
+    db_path: str,
+) -> Tuple[List[Any], List[Any], List[Any], List[dict]]:
     """Load resources from the database"""
     try:
         conn, cursor = get_connection(db_path)
@@ -373,11 +375,11 @@ def load_resources_from_db(db_path: str) -> Tuple[List[Any], List[Any], List[Any
                     "preferred_shifts": [],
                     "avoid_shifts": [],
                     "preferred_days": [],
-                    "avoid_days": []
+                    "avoid_days": [],
                 },
                 preferred_shift_types=[],
                 skills=[],
-                availability=[]
+                availability=[],
             )
             employees.append(emp)
 
@@ -501,7 +503,9 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
                 """Mock implementation - no employees are on leave"""
                 return False
 
-            def is_employee_available(self, employee_id, date_to_check, start_hour, end_hour):
+            def is_employee_available(
+                self, employee_id, date_to_check, start_hour, end_hour
+            ):
                 """Mock implementation - check availability based on mock data"""
                 # Add logging for input parameters
                 self.logger.debug(
@@ -912,13 +916,19 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
                 "notes": "Saturday LATE shift",
             },
         ]
-        
+
         # Use real availability data instead of mock data
         resources = CustomScheduleResources(
-            employees, shifts, coverage, availabilities, logger=logging.getLogger("schedule")
+            employees,
+            shifts,
+            coverage,
+            availabilities,
+            logger=logging.getLogger("schedule"),
         )
 
-        print(f"Created custom resource container with {len(availabilities)} real availability records")
+        print(
+            f"Created custom resource container with {len(availabilities)} real availability records"
+        )
 
         # Create scheduler
         generator = ScheduleGenerator(resources=resources)

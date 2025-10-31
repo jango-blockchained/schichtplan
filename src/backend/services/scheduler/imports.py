@@ -41,11 +41,16 @@ def _attempt_imports():
     """Attempt to import all required model classes using different import paths."""
     global _models_imported, _import_error
     global Employee, ShiftTemplate, Settings, Coverage, db, Absence
-    global EmployeeAvailability, Schedule, ScheduleAssignment, AvailabilityType, EmployeeGroup
-    
+    global \
+        EmployeeAvailability, \
+        Schedule, \
+        ScheduleAssignment, \
+        AvailabilityType, \
+        EmployeeGroup
+
     if _models_imported:
         return True
-    
+
     import_attempts = [
         # Attempt 1: Standard src.backend structure
         lambda: _import_from_src_backend(),
@@ -54,7 +59,7 @@ def _attempt_imports():
         # Attempt 3: Direct models structure
         lambda: _import_from_models(),
     ]
-    
+
     for attempt_func in import_attempts:
         try:
             attempt_func()
@@ -64,7 +69,7 @@ def _attempt_imports():
         except ImportError as e:
             _import_error = e
             continue
-    
+
     # All attempts failed
     logger.error(f"All import attempts failed. Last error: {_import_error}")
     _create_mock_classes()
@@ -75,10 +80,21 @@ def _attempt_imports():
 def _import_from_src_backend():
     """Import from src.backend structure."""
     global Employee, ShiftTemplate, Settings, Coverage, db, Absence
-    global EmployeeAvailability, Schedule, ScheduleAssignment, AvailabilityType, EmployeeGroup
-    
+    global \
+        EmployeeAvailability, \
+        Schedule, \
+        ScheduleAssignment, \
+        AvailabilityType, \
+        EmployeeGroup
+
     from src.backend.models import (
-        Employee, ShiftTemplate, Settings, Coverage, db, Absence, EmployeeAvailability
+        Employee,
+        ShiftTemplate,
+        Settings,
+        Coverage,
+        db,
+        Absence,
+        EmployeeAvailability,
     )
     from src.backend.models.schedule import Schedule, ScheduleAssignment
     from src.backend.models.employee import AvailabilityType, EmployeeGroup
@@ -87,10 +103,21 @@ def _import_from_src_backend():
 def _import_from_backend():
     """Import from backend structure."""
     global Employee, ShiftTemplate, Settings, Coverage, db, Absence
-    global EmployeeAvailability, Schedule, ScheduleAssignment, AvailabilityType, EmployeeGroup
-    
+    global \
+        EmployeeAvailability, \
+        Schedule, \
+        ScheduleAssignment, \
+        AvailabilityType, \
+        EmployeeGroup
+
     from backend.models import (
-        Employee, ShiftTemplate, Settings, Coverage, db, Absence, EmployeeAvailability
+        Employee,
+        ShiftTemplate,
+        Settings,
+        Coverage,
+        db,
+        Absence,
+        EmployeeAvailability,
     )
     from backend.models.schedule import Schedule, ScheduleAssignment
     from backend.models.employee import AvailabilityType, EmployeeGroup
@@ -99,10 +126,21 @@ def _import_from_backend():
 def _import_from_models():
     """Import from models structure."""
     global Employee, ShiftTemplate, Settings, Coverage, db, Absence
-    global EmployeeAvailability, Schedule, ScheduleAssignment, AvailabilityType, EmployeeGroup
-    
+    global \
+        EmployeeAvailability, \
+        Schedule, \
+        ScheduleAssignment, \
+        AvailabilityType, \
+        EmployeeGroup
+
     from models import (
-        Employee, ShiftTemplate, Settings, Coverage, db, Absence, EmployeeAvailability
+        Employee,
+        ShiftTemplate,
+        Settings,
+        Coverage,
+        db,
+        Absence,
+        EmployeeAvailability,
     )
     from models.schedule import Schedule, ScheduleAssignment
     from models.employee import AvailabilityType, EmployeeGroup
@@ -111,30 +149,38 @@ def _import_from_models():
 def _create_mock_classes():
     """Create mock classes when all imports fail."""
     global Employee, ShiftTemplate, Settings, Coverage, db, Absence
-    global EmployeeAvailability, Schedule, ScheduleAssignment, AvailabilityType, EmployeeGroup
-    
+    global \
+        EmployeeAvailability, \
+        Schedule, \
+        ScheduleAssignment, \
+        AvailabilityType, \
+        EmployeeGroup
+
     logger.warning("Creating mock classes due to import failures")
-    
+
     class MockAvailabilityType:
         """Mock enum for AvailabilityType"""
+
         AVAILABLE = "AVAILABLE"
         PREFERRED = "PREFERRED"
         UNAVAILABLE = "UNAVAILABLE"
         FIXED = "FIXED"
-        
+
         @classmethod
         def value(cls):
             return cls.AVAILABLE
-    
+
     class MockEmployeeGroup:
         """Mock enum for EmployeeGroup"""
+
         VZ = "VZ"  # Full-time
         TZ = "TZ"  # Part-time
         GFB = "GFB"  # Mini-job
         TL = "TL"  # Team leader
-    
+
     class MockEmployee:
         """Mock Employee class"""
+
         def __init__(self):
             self.id = 0
             self.name = "Mock Employee"
@@ -144,7 +190,7 @@ def _create_mock_classes():
             self.contracted_hours = 40.0
             self.preferences = {}
             self.availability = []
-        
+
         @staticmethod
         def query():
             class MockQuery:
@@ -154,11 +200,14 @@ def _create_mock_classes():
                         @staticmethod
                         def all():
                             return []
+
                     return MockFilterResult()
+
             return MockQuery()
-    
+
     class MockShiftTemplate:
         """Mock ShiftTemplate class"""
+
         def __init__(self):
             self.id = 0
             self.name = "Mock Shift"
@@ -167,24 +216,27 @@ def _create_mock_classes():
             self.active_days = [0, 1, 2, 3, 4]
             self.shift_type = "STANDARD"
             self.duration_hours = 8.0
-        
+
         @staticmethod
         def query():
             class MockQuery:
                 @staticmethod
                 def all():
                     return []
+
             return MockQuery()
-    
+
     class MockSettings:
         """Mock Settings class"""
+
         def __init__(self):
             self.special_days = {}
             self.special_hours = {}
             self.id = 0
-    
+
     class MockCoverage:
         """Mock Coverage class"""
+
         def __init__(self):
             self.id = 0
             self.day_index = 0
@@ -193,33 +245,37 @@ def _create_mock_classes():
             self.min_employees = 1
             self.max_employees = 3
             self.requires_keyholder = False
-        
+
         @staticmethod
         def query():
             class MockQuery:
                 @staticmethod
                 def all():
                     return []
+
             return MockQuery()
-    
+
     class MockAbsence:
         """Mock Absence class"""
+
         def __init__(self):
             self.id = 0
             self.employee_id = 0
             self.start_date = None
             self.end_date = None
-        
+
         @staticmethod
         def query():
             class MockQuery:
                 @staticmethod
                 def all():
                     return []
+
             return MockQuery()
-    
+
     class MockEmployeeAvailability:
         """Mock EmployeeAvailability class"""
+
         def __init__(self):
             self.id = 0
             self.employee_id = 0
@@ -227,17 +283,19 @@ def _create_mock_classes():
             self.hour = 9
             self.is_available = True
             self.availability_type = None
-        
+
         @staticmethod
         def query():
             class MockQuery:
                 @staticmethod
                 def all():
                     return []
+
             return MockQuery()
-    
+
     class MockSchedule:
         """Mock Schedule class"""
+
         def __init__(self):
             self.id = 0
             self.employee_id = 0
@@ -245,50 +303,53 @@ def _create_mock_classes():
             self.date = None
             self.status = "DRAFT"
             self.version = 1
-        
+
         @staticmethod
         def query():
             class MockQuery:
                 @staticmethod
                 def all():
                     return []
+
             return MockQuery()
-    
+
     class MockScheduleAssignment:
         """Mock ScheduleAssignment class"""
+
         def __init__(self, **kwargs):
             self.id = 0
-            self.employee_id = kwargs.get('employee_id', 0)
-            self.shift_id = kwargs.get('shift_id', 0)
-            self.date = kwargs.get('date')
-            self.status = kwargs.get('status', 'PENDING')
-            self.version = kwargs.get('version', 1)
-            self.start_time = kwargs.get('start_time')
-            self.end_time = kwargs.get('end_time')
-            self.shift_type = kwargs.get('shift_type')
-            self.break_start = kwargs.get('break_start')
-            self.break_end = kwargs.get('break_end')
-            self.notes = kwargs.get('notes')
-    
+            self.employee_id = kwargs.get("employee_id", 0)
+            self.shift_id = kwargs.get("shift_id", 0)
+            self.date = kwargs.get("date")
+            self.status = kwargs.get("status", "PENDING")
+            self.version = kwargs.get("version", 1)
+            self.start_time = kwargs.get("start_time")
+            self.end_time = kwargs.get("end_time")
+            self.shift_type = kwargs.get("shift_type")
+            self.break_start = kwargs.get("break_start")
+            self.break_end = kwargs.get("break_end")
+            self.notes = kwargs.get("notes")
+
     class MockDb:
         """Mock database class"""
+
         class session:
             @staticmethod
             def add(obj):
                 pass
-            
+
             @staticmethod
             def commit():
                 pass
-            
+
             @staticmethod
             def rollback():
                 pass
-            
+
             @staticmethod
             def bulk_save_objects(objects):
                 pass
-    
+
     # Assign mock classes
     Employee = MockEmployee
     ShiftTemplate = MockShiftTemplate
@@ -306,15 +367,24 @@ def _create_mock_classes():
 def get_models():
     """
     Get all imported model classes.
-    
+
     Returns:
-        tuple: (Employee, ShiftTemplate, Settings, Coverage, db, Absence, 
+        tuple: (Employee, ShiftTemplate, Settings, Coverage, db, Absence,
                 EmployeeAvailability, Schedule, ScheduleAssignment, AvailabilityType, EmployeeGroup)
     """
     _attempt_imports()
     return (
-        Employee, ShiftTemplate, Settings, Coverage, db, Absence,
-        EmployeeAvailability, Schedule, ScheduleAssignment, AvailabilityType, EmployeeGroup
+        Employee,
+        ShiftTemplate,
+        Settings,
+        Coverage,
+        db,
+        Absence,
+        EmployeeAvailability,
+        Schedule,
+        ScheduleAssignment,
+        AvailabilityType,
+        EmployeeGroup,
     )
 
 
@@ -361,4 +431,4 @@ def is_using_mocks():
 
 
 # Initialize imports when module is loaded
-_attempt_imports() 
+_attempt_imports()

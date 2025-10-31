@@ -9,7 +9,7 @@ from http import HTTPStatus
 
 from flask import Blueprint, jsonify, request, send_file
 
-from src.backend.models import Absence, Employee, Settings
+from src.backend.models import Absence, Employee, Settings, db
 from src.backend.services.vacation_pdf_generator import VacationPDFGenerator
 from src.backend.utils.logger import logger
 
@@ -357,6 +357,305 @@ def get_yearly_calendar():
 
     except Exception as e:
         logger.error(f"Error generating yearly calendar: {str(e)}", exc_info=True)
+        return jsonify(
+            {"status": "error", "message": f"Failed to generate PDF: {str(e)}"}
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route("/vacation-pdf/bulk-requests", methods=["GET"])
+def get_bulk_vacation_requests():
+    """
+    Generate bulk vacation request forms for all employees.
+
+    Query parameters:
+        year (required): Year for vacation requests (e.g., 2024)
+
+    Returns:
+        PDF file for download
+    """
+    try:
+        # Get year parameter
+        year_str = request.args.get("year")
+        if not year_str:
+            return jsonify(
+                {"status": "error", "message": "year parameter is required"}
+            ), HTTPStatus.BAD_REQUEST
+
+        try:
+            year = int(year_str)
+        except ValueError:
+            return jsonify(
+                {"status": "error", "message": "year must be a valid integer"}
+            ), HTTPStatus.BAD_REQUEST
+
+        # Validate year
+        current_year = datetime.now().year
+        max_year = current_year + MAX_YEAR_OFFSET
+        if year < MIN_YEAR or year > max_year:
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": f"year must be between {MIN_YEAR} and {max_year}",
+                }
+            ), HTTPStatus.BAD_REQUEST
+
+        # Fetch employees
+        employees = Employee.query.filter_by(is_active=True).all()
+        logger.info(f"Loaded {len(employees)} active employees for bulk requests")
+
+        # Get settings
+        settings = Settings.query.first()
+
+        # Generate PDF
+        generator = VacationPDFGenerator()
+        pdf_buffer = generator.generate_bulk_vacation_requests(
+            employees=employees, year=year, settings=settings
+        )
+
+        logger.info(f"Successfully generated bulk vacation requests for year {year}")
+
+        return send_file(
+            pdf_buffer,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=f"urlaubsantraege_bulk_{year}.pdf",
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Error generating bulk vacation requests: {str(e)}", exc_info=True
+        )
+        return jsonify(
+            {"status": "error", "message": f"Failed to generate PDF: {str(e)}"}
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route("/vacation-pdf/approval", methods=["GET"])
+def get_vacation_approval_form():
+    """
+    Generate vacation approval form for a single employee.
+
+    Query parameters:
+        employee_id (required): Employee ID
+
+    Returns:
+        PDF file for download
+    """
+    try:
+        # Get employee_id parameter
+        employee_id_str = request.args.get("employee_id")
+        if not employee_id_str:
+            return jsonify(
+                {"status": "error", "message": "employee_id parameter is required"}
+            ), HTTPStatus.BAD_REQUEST
+
+        try:
+            employee_id = int(employee_id_str)
+        except ValueError:
+            return jsonify(
+                {"status": "error", "message": "employee_id must be a valid integer"}
+            ), HTTPStatus.BAD_REQUEST
+
+        # Fetch employee
+        employee = db.session.get(Employee, employee_id)
+        if not employee:
+            logger.warning(f"Employee with ID {employee_id} not found")
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": f"Employee with ID {employee_id} not found",
+                }
+            ), HTTPStatus.NOT_FOUND
+
+        logger.info(
+            f"Loaded employee {employee.employee_id}: "
+            f"{employee.first_name} {employee.last_name}"
+        )
+
+        # Get settings
+        settings = Settings.query.first()
+
+        # Generate PDF
+        generator = VacationPDFGenerator()
+        pdf_buffer = generator.generate_vacation_approval_form(
+            employee=employee, settings=settings
+        )
+
+        logger.info(
+            f"Generated vacation approval form for employee {employee.employee_id}"
+        )
+
+        filename = f"urlaubsgenehmigung_{employee.employee_id}.pdf"
+
+        return send_file(
+            pdf_buffer,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=filename,
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Error generating vacation approval form: {str(e)}", exc_info=True
+        )
+        return jsonify(
+            {"status": "error", "message": f"Failed to generate PDF: {str(e)}"}
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route("/vacation-pdf/approvals-bulk", methods=["GET"])
+def get_bulk_vacation_approvals():
+    """
+    Generate bulk vacation approval forms for all employees.
+
+    Query parameters:
+        year (required): Year for vacation approvals (e.g., 2024)
+
+    Returns:
+        PDF file for download
+    """
+    try:
+        # Get year parameter
+        year_str = request.args.get("year")
+        if not year_str:
+            return jsonify(
+                {"status": "error", "message": "year parameter is required"}
+            ), HTTPStatus.BAD_REQUEST
+
+        try:
+            year = int(year_str)
+        except ValueError:
+            return jsonify(
+                {"status": "error", "message": "year must be a valid integer"}
+            ), HTTPStatus.BAD_REQUEST
+
+        # Validate year
+        current_year = datetime.now().year
+        max_year = current_year + MAX_YEAR_OFFSET
+        if year < MIN_YEAR or year > max_year:
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": f"year must be between {MIN_YEAR} and {max_year}",
+                }
+            ), HTTPStatus.BAD_REQUEST
+
+        # Fetch employees
+        employees = Employee.query.filter_by(is_active=True).all()
+        logger.info(f"Loaded {len(employees)} active employees for bulk approvals")
+
+        # Fetch vacation absences for the year
+        start_date = datetime(year, 1, 1).date()
+        end_date = datetime(year, 12, 31).date()
+
+        absences = Absence.query.filter(
+            Absence.absence_type_id == "vacation",
+            Absence.start_date <= end_date,
+            Absence.end_date >= start_date,
+        ).all()
+        logger.info(f"Loaded {len(absences)} vacation absences for year {year}")
+
+        # Get settings
+        settings = Settings.query.first()
+
+        # Generate PDF
+        generator = VacationPDFGenerator()
+        pdf_buffer = generator.generate_bulk_vacation_approvals(
+            employees=employees, absences=absences, year=year, settings=settings
+        )
+
+        logger.info(f"Successfully generated bulk vacation approvals for year {year}")
+
+        return send_file(
+            pdf_buffer,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=f"urlaubsgenehmigungen_bulk_{year}.pdf",
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Error generating bulk vacation approvals: {str(e)}", exc_info=True
+        )
+        return jsonify(
+            {"status": "error", "message": f"Failed to generate PDF: {str(e)}"}
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route("/vacation-pdf/yearly-overview", methods=["GET"])
+def get_yearly_vacation_overview():
+    """
+    Generate yearly vacation overview with all employees and entries.
+
+    Query parameters:
+        year (required): Year for vacation overview (e.g., 2024)
+
+    Returns:
+        PDF file for download
+    """
+    try:
+        # Get year parameter
+        year_str = request.args.get("year")
+        if not year_str:
+            return jsonify(
+                {"status": "error", "message": "year parameter is required"}
+            ), HTTPStatus.BAD_REQUEST
+
+        try:
+            year = int(year_str)
+        except ValueError:
+            return jsonify(
+                {"status": "error", "message": "year must be a valid integer"}
+            ), HTTPStatus.BAD_REQUEST
+
+        # Validate year
+        current_year = datetime.now().year
+        max_year = current_year + MAX_YEAR_OFFSET
+        if year < MIN_YEAR or year > max_year:
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": f"year must be between {MIN_YEAR} and {max_year}",
+                }
+            ), HTTPStatus.BAD_REQUEST
+
+        # Fetch employees
+        employees = Employee.query.filter_by(is_active=True).all()
+        logger.info(f"Loaded {len(employees)} active employees")
+
+        # Fetch vacation absences for the year
+        start_date = datetime(year, 1, 1).date()
+        end_date = datetime(year, 12, 31).date()
+
+        absences = Absence.query.filter(
+            Absence.absence_type_id == "vacation",
+            Absence.start_date <= end_date,
+            Absence.end_date >= start_date,
+        ).all()
+        logger.info(f"Loaded {len(absences)} vacation absences for year {year}")
+
+        # Get settings
+        settings = Settings.query.first()
+
+        # Generate PDF using existing overview form
+        generator = VacationPDFGenerator()
+        pdf_buffer = generator.generate_overview_form(
+            employees=employees, absences=absences, year=year, settings=settings
+        )
+
+        logger.info(f"Successfully generated yearly vacation overview for {year}")
+
+        return send_file(
+            pdf_buffer,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=f"jahresurlaub_uebersicht_{year}.pdf",
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Error generating yearly vacation overview: {str(e)}", exc_info=True
+        )
         return jsonify(
             {"status": "error", "message": f"Failed to generate PDF: {str(e)}"}
         ), HTTPStatus.INTERNAL_SERVER_ERROR

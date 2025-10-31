@@ -896,7 +896,9 @@ def update_schedule(schedule_id):
 
                     # If we're setting a shift_id, also update shift times from the template
                     if schedule.shift_id is not None:
-                        shift_template = db.session.get(ShiftTemplate, schedule.shift_id)
+                        shift_template = db.session.get(
+                            ShiftTemplate, schedule.shift_id
+                        )
                         if shift_template:
                             schedule.shift_start = shift_template.start_time
                             schedule.shift_end = shift_template.end_time

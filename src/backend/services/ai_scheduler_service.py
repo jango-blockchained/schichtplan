@@ -84,7 +84,6 @@ class AISchedulerService:
         """Load the Gemini API key from settings or environment variables each time"""
         api_key = self._load_api_key_from_settings()
         return api_key
-   
 
     def _load_api_key_from_settings(self):
         """Load Gemini API key from settings or environment variables"""

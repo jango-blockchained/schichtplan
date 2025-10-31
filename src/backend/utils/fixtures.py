@@ -1,7 +1,13 @@
 import json
 from pathlib import Path
 from typing import Dict, Any
-from src.backend.models import db, Settings, Employee, ShiftTemplate, EmployeeAvailability
+from src.backend.models import (
+    db,
+    Settings,
+    Employee,
+    ShiftTemplate,
+    EmployeeAvailability,
+)
 from models.employee import EmployeeGroup, AvailabilityType
 
 

@@ -294,7 +294,7 @@ class Settings(db.Model):
             },
         ],
     )
-    
+
     event_types = Column(
         JSON,
         nullable=True,
@@ -1019,10 +1019,7 @@ class Settings(db.Model):
                         and values["absence_types"] is not None
                     ):
                         settings.absence_types = values["absence_types"]
-                    if (
-                        "event_types" in values
-                        and values["event_types"] is not None
-                    ):
+                    if "event_types" in values and values["event_types"] is not None:
                         settings.event_types = values["event_types"]
             elif category == "availability_types":
                 # settings.availability_types is a JSON column expecting a dict like {"types": [...]}

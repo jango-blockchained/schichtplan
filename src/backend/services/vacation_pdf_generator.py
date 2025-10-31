@@ -31,7 +31,7 @@ from ..models import Absence, Employee, Settings
 class VacationPDFGenerator:
     """
     Generator for vacation planning PDF documents.
-    
+
     Creates various forms for vacation planning and management.
     """
 
@@ -100,16 +100,16 @@ class VacationPDFGenerator:
     ) -> io.BytesIO:
         """
         Generate admin yearly vacation planning form.
-        
+
         This form is used by administrators to plan and track yearly vacations
         for all employees, including approval status and remaining vacation days.
-        
+
         Args:
             year: The year for vacation planning
             employees: List of employees
             absences: List of vacation absences for the year
             settings: Optional settings object
-            
+
         Returns:
             BytesIO buffer containing the generated PDF
         """
@@ -126,10 +126,11 @@ class VacationPDFGenerator:
         story = []
 
         # Title
-        story.append(Paragraph(
-            f"Urlaubsplanung {year} - Administratorformular",
-            self.title_style
-        ))
+        story.append(
+            Paragraph(
+                f"Urlaubsplanung {year} - Administratorformular", self.title_style
+            )
+        )
         story.append(Spacer(1, 10))
 
         # Store info if available
@@ -197,58 +198,74 @@ class VacationPDFGenerator:
                 status = "OK"
                 status_color = colors.green
 
-            table_data.append([
-                f"{employee.last_name}, {employee.first_name}",
-                employee.employee_id,
-                str(total_entitlement),
-                str(taken_days),
-                str(planned_days),
-                str(remaining_days),
-                status,
-                "",  # Remarks column for manual notes
-            ])
+            table_data.append(
+                [
+                    f"{employee.last_name}, {employee.first_name}",
+                    employee.employee_id,
+                    str(total_entitlement),
+                    str(taken_days),
+                    str(planned_days),
+                    str(remaining_days),
+                    status,
+                    "",  # Remarks column for manual notes
+                ]
+            )
 
         # Create table
-        col_widths = [50*mm, 25*mm, 20*mm, 20*mm, 20*mm, 25*mm, 20*mm, 70*mm]
+        col_widths = [
+            50 * mm,
+            25 * mm,
+            20 * mm,
+            20 * mm,
+            20 * mm,
+            25 * mm,
+            20 * mm,
+            70 * mm,
+        ]
         table = Table(table_data, colWidths=col_widths, repeatRows=1)
 
         # Table style
-        table_style = TableStyle([
-            # Header
-            ('BACKGROUND', (0, 0), (-1, 0), lightgrey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), black),
-            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), self.NORMAL_FONT_SIZE),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-
-            # Body
-            ('ALIGN', (2, 1), (6, -1), 'CENTER'),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), self.SMALL_FONT_SIZE),
-            ('GRID', (0, 0), (-1, -1), 0.5, black),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [white, colors.Color(0.95, 0.95, 0.95)]),
-        ])
+        table_style = TableStyle(
+            [
+                # Header
+                ("BACKGROUND", (0, 0), (-1, 0), lightgrey),
+                ("TEXTCOLOR", (0, 0), (-1, 0), black),
+                ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), self.NORMAL_FONT_SIZE),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+                # Body
+                ("ALIGN", (2, 1), (6, -1), "CENTER"),
+                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 1), (-1, -1), self.SMALL_FONT_SIZE),
+                ("GRID", (0, 0), (-1, -1), 0.5, black),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                (
+                    "ROWBACKGROUNDS",
+                    (0, 1),
+                    (-1, -1),
+                    [white, colors.Color(0.95, 0.95, 0.95)],
+                ),
+            ]
+        )
 
         table.setStyle(table_style)
         story.append(table)
 
         # Footer with instructions
         story.append(Spacer(1, 15))
-        story.append(Paragraph(
-            "<b>Hinweise:</b>",
-            self.header_style
-        ))
-        story.append(Paragraph(
-            "• Jahresanspruch gemäß Arbeitsvertrag<br/>"
-            "• Genommen: Bereits genommener Urlaub (genehmigt und vergangen)<br/>"
-            "• Geplant: Genehmigter aber zukünftiger Urlaub<br/>"
-            "• Verbleibend: Noch verfügbare Urlaubstage<br/>"
-            "• Bitte prüfen Sie regelmäßig die Urlaubsplanung und achten Sie auf "
-            "ausreichende Personaldeckung",
-            self.small_style
-        ))
+        story.append(Paragraph("<b>Hinweise:</b>", self.header_style))
+        story.append(
+            Paragraph(
+                "• Jahresanspruch gemäß Arbeitsvertrag<br/>"
+                "• Genommen: Bereits genommener Urlaub (genehmigt und vergangen)<br/>"
+                "• Geplant: Genehmigter aber zukünftiger Urlaub<br/>"
+                "• Verbleibend: Noch verfügbare Urlaubstage<br/>"
+                "• Bitte prüfen Sie regelmäßig die Urlaubsplanung und achten Sie auf "
+                "ausreichende Personaldeckung",
+                self.small_style,
+            )
+        )
 
         # Build PDF
         doc.build(story)
@@ -263,15 +280,15 @@ class VacationPDFGenerator:
     ) -> io.BytesIO:
         """
         Generate employee vacation request form.
-        
+
         This form is filled out by employees to request vacation time.
         Includes fields for signatures and dates.
-        
+
         Args:
             employee: Employee requesting vacation
             absence: Optional existing absence to pre-fill
             settings: Optional settings object
-            
+
         Returns:
             BytesIO buffer containing the generated PDF
         """
@@ -288,18 +305,14 @@ class VacationPDFGenerator:
         story = []
 
         # Title
-        story.append(Paragraph(
-            "Urlaubsantrag",
-            self.title_style
-        ))
+        story.append(Paragraph("Urlaubsantrag", self.title_style))
         story.append(Spacer(1, 10))
 
         # Store info
         if settings:
-            story.append(Paragraph(
-                f"<b>Filiale:</b> {settings.store_name}",
-                self.normal_style
-            ))
+            story.append(
+                Paragraph(f"<b>Filiale:</b> {settings.store_name}", self.normal_style)
+            )
             story.append(Spacer(1, 15))
 
         # Employee information section
@@ -312,14 +325,18 @@ class VacationPDFGenerator:
             ["Jahresurlaubsanspruch:", f"{employee.vacation_per_year} Tage"],
         ]
 
-        emp_table = Table(emp_data, colWidths=[50*mm, 100*mm])
-        emp_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ]))
+        emp_table = Table(emp_data, colWidths=[50 * mm, 100 * mm])
+        emp_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ]
+            )
+        )
         story.append(emp_table)
         story.append(Spacer(1, 20))
 
@@ -344,17 +361,20 @@ class VacationPDFGenerator:
         ]
 
         request_table = Table(
-            request_data,
-            colWidths=[35*mm, 55*mm, 25*mm, 55*mm]
+            request_data, colWidths=[35 * mm, 55 * mm, 25 * mm, 55 * mm]
         )
-        request_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-            ('SPAN', (1, 2), (3, 2)),
-        ]))
+        request_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                    ("SPAN", (1, 2), (3, 2)),
+                ]
+            )
+        )
         story.append(request_table)
         story.append(Spacer(1, 30))
 
@@ -368,18 +388,24 @@ class VacationPDFGenerator:
             ["Ort, Datum", "Unterschrift Mitarbeiter"],
         ]
 
-        sig_table = Table(sig_data, colWidths=[85*mm, 85*mm])
-        sig_table.setStyle(TableStyle([
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-            ('ALIGN', (0, 2), (-1, 2), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 30),
-        ]))
+        sig_table = Table(sig_data, colWidths=[85 * mm, 85 * mm])
+        sig_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ("ALIGN", (0, 2), (-1, 2), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 30),
+                ]
+            )
+        )
         story.append(sig_table)
         story.append(Spacer(1, 30))
 
         # Approval section
-        story.append(Paragraph("<b>Genehmigung durch Vorgesetzten</b>", self.header_style))
+        story.append(
+            Paragraph("<b>Genehmigung durch Vorgesetzten</b>", self.header_style)
+        )
         story.append(Spacer(1, 10))
 
         approval_data = [
@@ -389,23 +415,29 @@ class VacationPDFGenerator:
             ["Ort, Datum", "Unterschrift Vorgesetzter"],
         ]
 
-        approval_table = Table(approval_data, colWidths=[85*mm, 85*mm])
-        approval_table.setStyle(TableStyle([
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-            ('ALIGN', (0, 3), (-1, 3), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('BOTTOMPADDING', (0, 0), (-1, 1), 30),
-        ]))
+        approval_table = Table(approval_data, colWidths=[85 * mm, 85 * mm])
+        approval_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ("ALIGN", (0, 3), (-1, 3), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BOTTOMPADDING", (0, 0), (-1, 1), 30),
+                ]
+            )
+        )
         story.append(approval_table)
 
         # Footer note
         story.append(Spacer(1, 20))
-        story.append(Paragraph(
-            "<i>Hinweis: Dieser Antrag muss mindestens 2 Wochen vor Urlaubsbeginn "
-            "eingereicht werden. Die Genehmigung erfolgt unter Vorbehalt der "
-            "betrieblichen Erfordernisse.</i>",
-            self.small_style
-        ))
+        story.append(
+            Paragraph(
+                "<i>Hinweis: Dieser Antrag muss mindestens 2 Wochen vor Urlaubsbeginn "
+                "eingereicht werden. Die Genehmigung erfolgt unter Vorbehalt der "
+                "betrieblichen Erfordernisse.</i>",
+                self.small_style,
+            )
+        )
 
         # Build PDF
         doc.build(story)
@@ -421,16 +453,16 @@ class VacationPDFGenerator:
     ) -> io.BytesIO:
         """
         Generate comprehensive overview form with all employees and details.
-        
+
         Shows all vacation requests, dates, status, and remaining days for
         all employees in a comprehensive table format.
-        
+
         Args:
             employees: List of all employees
             absences: List of vacation absences
             year: Year to display
             settings: Optional settings object
-            
+
         Returns:
             BytesIO buffer containing the generated PDF
         """
@@ -447,17 +479,18 @@ class VacationPDFGenerator:
         story = []
 
         # Title
-        story.append(Paragraph(
-            f"Urlaubsübersicht {year} - Alle Mitarbeiter",
-            self.title_style
-        ))
+        story.append(
+            Paragraph(f"Urlaubsübersicht {year} - Alle Mitarbeiter", self.title_style)
+        )
         story.append(Spacer(1, 10))
 
         # Store info and generation date
         info_parts = []
         if settings:
             info_parts.append(f"<b>Filiale:</b> {settings.store_name}")
-        info_parts.append(f"<b>Erstellt am:</b> {datetime.now().strftime('%d.%m.%Y %H:%M')}")
+        info_parts.append(
+            f"<b>Erstellt am:</b> {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+        )
         story.append(Paragraph(" | ".join(info_parts), self.normal_style))
         story.append(Spacer(1, 15))
 
@@ -503,36 +536,40 @@ class VacationPDFGenerator:
 
             if not emp_absences:
                 # Employee with no vacation entries
-                table_data.append([
-                    str(row_num),
-                    f"{employee.last_name}, {employee.first_name}",
-                    employee.employee_id,
-                    str(total_entitlement),
-                    "-",
-                    "-",
-                    "0",
-                    "-",
-                    str(remaining),
-                    "",
-                ])
+                table_data.append(
+                    [
+                        str(row_num),
+                        f"{employee.last_name}, {employee.first_name}",
+                        employee.employee_id,
+                        str(total_entitlement),
+                        "-",
+                        "-",
+                        "0",
+                        "-",
+                        str(remaining),
+                        "",
+                    ]
+                )
                 row_num += 1
             else:
                 # First absence row for employee
                 first_absence = emp_absences[0]
                 days = (first_absence.end_date - first_absence.start_date).days + 1
 
-                table_data.append([
-                    str(row_num),
-                    f"{employee.last_name}, {employee.first_name}",
-                    employee.employee_id,
-                    str(total_entitlement),
-                    first_absence.start_date.strftime("%d.%m.%y"),
-                    first_absence.end_date.strftime("%d.%m.%y"),
-                    str(days),
-                    self._get_status_text(first_absence.status),
-                    str(remaining) if len(emp_absences) == 1 else "",
-                    first_absence.note or "",
-                ])
+                table_data.append(
+                    [
+                        str(row_num),
+                        f"{employee.last_name}, {employee.first_name}",
+                        employee.employee_id,
+                        str(total_entitlement),
+                        first_absence.start_date.strftime("%d.%m.%y"),
+                        first_absence.end_date.strftime("%d.%m.%y"),
+                        str(days),
+                        self._get_status_text(first_absence.status),
+                        str(remaining) if len(emp_absences) == 1 else "",
+                        first_absence.note or "",
+                    ]
+                )
                 row_num += 1
 
                 # Additional absence rows for same employee
@@ -540,42 +577,61 @@ class VacationPDFGenerator:
                     days = (absence.end_date - absence.start_date).days + 1
                     is_last = absence == emp_absences[-1]
 
-                    table_data.append([
-                        "",
-                        "",
-                        "",
-                        "",
-                        absence.start_date.strftime("%d.%m.%y"),
-                        absence.end_date.strftime("%d.%m.%y"),
-                        str(days),
-                        self._get_status_text(absence.status),
-                        str(remaining) if is_last else "",
-                        absence.note or "",
-                    ])
+                    table_data.append(
+                        [
+                            "",
+                            "",
+                            "",
+                            "",
+                            absence.start_date.strftime("%d.%m.%y"),
+                            absence.end_date.strftime("%d.%m.%y"),
+                            str(days),
+                            self._get_status_text(absence.status),
+                            str(remaining) if is_last else "",
+                            absence.note or "",
+                        ]
+                    )
 
         # Create table
-        col_widths = [12*mm, 40*mm, 20*mm, 18*mm, 18*mm, 18*mm, 12*mm, 18*mm, 18*mm, 50*mm]
+        col_widths = [
+            12 * mm,
+            40 * mm,
+            20 * mm,
+            18 * mm,
+            18 * mm,
+            18 * mm,
+            12 * mm,
+            18 * mm,
+            18 * mm,
+            50 * mm,
+        ]
         table = Table(table_data, colWidths=col_widths, repeatRows=1)
 
         # Table style
-        table_style = TableStyle([
-            # Header
-            ('BACKGROUND', (0, 0), (-1, 0), lightgrey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), black),
-            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), self.SMALL_FONT_SIZE),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-
-            # Body
-            ('ALIGN', (0, 1), (0, -1), 'CENTER'),
-            ('ALIGN', (3, 1), (8, -1), 'CENTER'),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), self.SMALL_FONT_SIZE),
-            ('GRID', (0, 0), (-1, -1), 0.5, black),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [white, colors.Color(0.95, 0.95, 0.95)]),
-        ])
+        table_style = TableStyle(
+            [
+                # Header
+                ("BACKGROUND", (0, 0), (-1, 0), lightgrey),
+                ("TEXTCOLOR", (0, 0), (-1, 0), black),
+                ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), self.SMALL_FONT_SIZE),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+                # Body
+                ("ALIGN", (0, 1), (0, -1), "CENTER"),
+                ("ALIGN", (3, 1), (8, -1), "CENTER"),
+                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 1), (-1, -1), self.SMALL_FONT_SIZE),
+                ("GRID", (0, 0), (-1, -1), 0.5, black),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                (
+                    "ROWBACKGROUNDS",
+                    (0, 1),
+                    (-1, -1),
+                    [white, colors.Color(0.95, 0.95, 0.95)],
+                ),
+            ]
+        )
 
         table.setStyle(table_style)
         story.append(table)
@@ -589,11 +645,13 @@ class VacationPDFGenerator:
             if abs.absence_type_id == "vacation" and abs.status == "approved"
         )
 
-        story.append(Paragraph(
-            f"<b>Zusammenfassung:</b> {total_employees} Mitarbeiter | "
-            f"{total_vacation_days} genehmigte Urlaubstage",
-            self.normal_style
-        ))
+        story.append(
+            Paragraph(
+                f"<b>Zusammenfassung:</b> {total_employees} Mitarbeiter | "
+                f"{total_vacation_days} genehmigte Urlaubstage",
+                self.normal_style,
+            )
+        )
 
         # Build PDF
         doc.build(story)
@@ -609,17 +667,17 @@ class VacationPDFGenerator:
     ) -> io.BytesIO:
         """
         Generate yearly calendar with 6 months per page (6 columns).
-        
+
         Displays vacation periods with rotated text (90°) when multiple
         employees have vacation on the same date range.
-        
+
         Args:
             year: Year to display
             employees: List of employees
             absences: List of vacation absences
             year: Year for the calendar
             settings: Optional settings object
-            
+
         Returns:
             BytesIO buffer containing the generated PDF
         """
@@ -628,9 +686,9 @@ class VacationPDFGenerator:
 
         # Filter vacation absences for the year
         vacation_absences = [
-            abs for abs in absences
-            if abs.absence_type_id == "vacation"
-            and abs.start_date.year == year
+            abs
+            for abs in absences
+            if abs.absence_type_id == "vacation" and abs.start_date.year == year
         ]
 
         # Sort absences by date
@@ -651,9 +709,7 @@ class VacationPDFGenerator:
             title = f"Urlaubskalender {year} - {'Januar bis Juni' if page_num == 0 else 'Juli bis Dezember'}"
             c.setFont("Helvetica-Bold", 14)
             c.drawCentredString(
-                self.PAGE_WIDTH_LANDSCAPE / 2,
-                self.PAGE_HEIGHT_LANDSCAPE - 30,
-                title
+                self.PAGE_WIDTH_LANDSCAPE / 2, self.PAGE_HEIGHT_LANDSCAPE - 30, title
             )
 
             # Store info
@@ -662,7 +718,7 @@ class VacationPDFGenerator:
                 c.drawString(
                     self.MARGIN,
                     self.PAGE_HEIGHT_LANDSCAPE - 50,
-                    f"Filiale: {settings.store_name}"
+                    f"Filiale: {settings.store_name}",
                 )
 
             # Calculate column width
@@ -680,11 +736,7 @@ class VacationPDFGenerator:
                 # Month header
                 month_name = datetime(year, month, 1).strftime("%B")
                 c.setFont("Helvetica-Bold", 10)
-                c.drawCentredString(
-                    x_pos + col_width / 2,
-                    y_pos,
-                    month_name
-                )
+                c.drawCentredString(x_pos + col_width / 2, y_pos, month_name)
 
                 # Draw calendar grid
                 y_pos -= 20
@@ -696,9 +748,7 @@ class VacationPDFGenerator:
 
                 for day_idx, day_name in enumerate(days):
                     c.drawCentredString(
-                        x_pos + (day_idx + 0.5) * day_width,
-                        y_pos,
-                        day_name
+                        x_pos + (day_idx + 0.5) * day_width, y_pos, day_name
                     )
 
                 # Draw day cells with vacation indicators
@@ -755,7 +805,9 @@ class VacationPDFGenerator:
                             # If multiple employees, use rotated text
                             if len(employees_on_vacation) > 1:
                                 c.saveState()
-                                c.translate(cell_x + day_width/2, cell_y - cell_height + 2)
+                                c.translate(
+                                    cell_x + day_width / 2, cell_y - cell_height + 2
+                                )
                                 c.rotate(90)
                                 c.setFont("Helvetica", 5)
                                 text = ",".join(employees_on_vacation[:3])  # Max 3 IDs
@@ -768,9 +820,9 @@ class VacationPDFGenerator:
                                 c.setFont("Helvetica", 5)
                                 c.setFillColorRGB(0.3, 0.3, 0.8)
                                 c.drawCentredString(
-                                    cell_x + day_width/2,
+                                    cell_x + day_width / 2,
                                     cell_y - cell_height + 3,
-                                    employees_on_vacation[0]
+                                    employees_on_vacation[0],
                                 )
                                 c.setFillColorRGB(0, 0, 0)
 
@@ -824,24 +876,18 @@ class VacationPDFGenerator:
         story = []
 
         # Title
-        story.append(Paragraph(
-            "Abwesenheitsantrag",
-            self.title_style
-        ))
+        story.append(Paragraph("Abwesenheitsantrag", self.title_style))
         story.append(Spacer(1, 10))
 
         # Store info
         if settings:
-            story.append(Paragraph(
-                f"<b>Filiale:</b> {settings.store_name}",
-                self.normal_style
-            ))
+            story.append(
+                Paragraph(f"<b>Filiale:</b> {settings.store_name}", self.normal_style)
+            )
             story.append(Spacer(1, 15))
 
         # Employee information section
-        story.append(
-            Paragraph("<b>Mitarbeiterdaten</b>", self.header_style)
-        )
+        story.append(Paragraph("<b>Mitarbeiterdaten</b>", self.header_style))
 
         emp_data = [
             ["Name:", f"{employee.first_name} {employee.last_name}"],
@@ -849,21 +895,23 @@ class VacationPDFGenerator:
             ["E-Mail:", employee.email or ""],
         ]
 
-        emp_table = Table(emp_data, colWidths=[50*mm, 100*mm])
-        emp_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ]))
+        emp_table = Table(emp_data, colWidths=[50 * mm, 100 * mm])
+        emp_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ]
+            )
+        )
         story.append(emp_table)
         story.append(Spacer(1, 20))
 
         # Absence request section
-        story.append(
-            Paragraph("<b>Abwesenheitsantrag</b>", self.header_style)
-        )
+        story.append(Paragraph("<b>Abwesenheitsantrag</b>", self.header_style))
 
         if absence:
             start_date = absence.start_date.strftime("%d.%m.%Y")
@@ -886,24 +934,24 @@ class VacationPDFGenerator:
         ]
 
         request_table = Table(
-            request_data,
-            colWidths=[35*mm, 55*mm, 25*mm, 55*mm]
+            request_data, colWidths=[35 * mm, 55 * mm, 25 * mm, 55 * mm]
         )
-        request_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ]))
+        request_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ]
+            )
+        )
         story.append(request_table)
         story.append(Spacer(1, 30))
 
         # Signature section for employee
-        story.append(
-            Paragraph("<b>Unterschrift Mitarbeiter</b>",
-                      self.header_style)
-        )
+        story.append(Paragraph("<b>Unterschrift Mitarbeiter</b>", self.header_style))
         story.append(Spacer(1, 10))
 
         sig_data = [
@@ -912,13 +960,17 @@ class VacationPDFGenerator:
             ["Ort, Datum", "Unterschrift Mitarbeiter"],
         ]
 
-        sig_table = Table(sig_data, colWidths=[85*mm, 85*mm])
-        sig_table.setStyle(TableStyle([
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-            ('ALIGN', (0, 2), (-1, 2), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 30),
-        ]))
+        sig_table = Table(sig_data, colWidths=[85 * mm, 85 * mm])
+        sig_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ("ALIGN", (0, 2), (-1, 2), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 30),
+                ]
+            )
+        )
         story.append(sig_table)
 
         # Build PDF
@@ -952,50 +1004,46 @@ class VacationPDFGenerator:
         story = []
 
         # Title
-        story.append(Paragraph(
-            "Mitarbeiter Registrierungsformular",
-            self.title_style
-        ))
+        story.append(Paragraph("Mitarbeiter Registrierungsformular", self.title_style))
         story.append(Spacer(1, 10))
 
         # Store info
         if settings:
-            story.append(Paragraph(
-                f"<b>Filiale:</b> {settings.store_name}",
-                self.normal_style
-            ))
+            story.append(
+                Paragraph(f"<b>Filiale:</b> {settings.store_name}", self.normal_style)
+            )
             story.append(Spacer(1, 15))
 
         # Personal information
+        story.append(Paragraph("<b>Persönliche Daten</b>", self.header_style))
         story.append(
-            Paragraph("<b>Persönliche Daten</b>", self.header_style)
+            Paragraph(
+                "Vorname: _________________________ "
+                "Nachname: _________________________",
+                self.normal_style,
+            )
         )
-        story.append(Paragraph(
-            "Vorname: _________________________ "
-            "Nachname: _________________________",
-            self.normal_style
-        ))
         story.append(Spacer(1, 10))
 
         # Contact information
+        story.append(Paragraph("<b>Kontaktdaten</b>", self.header_style))
         story.append(
-            Paragraph("<b>Kontaktdaten</b>", self.header_style)
+            Paragraph(
+                "E-Mail: _________________________________________________",
+                self.normal_style,
+            )
         )
-        story.append(Paragraph(
-            "E-Mail: _________________________________________________",
-            self.normal_style
-        ))
         story.append(Spacer(1, 8))
-        story.append(Paragraph(
-            "Telefon: ________________________________________________",
-            self.normal_style
-        ))
+        story.append(
+            Paragraph(
+                "Telefon: ________________________________________________",
+                self.normal_style,
+            )
+        )
         story.append(Spacer(1, 15))
 
         # Employment information
-        story.append(
-            Paragraph("<b>Anstellungsdaten</b>", self.header_style)
-        )
+        story.append(Paragraph("<b>Anstellungsdaten</b>", self.header_style))
         emp_reg_data = [
             ["Anfangsdatum:", "_______________"],
             ["Position:", "_______________"],
@@ -1003,20 +1051,22 @@ class VacationPDFGenerator:
             ["Jahresurlaubstage:", "_______________"],
         ]
 
-        emp_reg_table = Table(emp_reg_data, colWidths=[50*mm, 100*mm])
-        emp_reg_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ]))
+        emp_reg_table = Table(emp_reg_data, colWidths=[50 * mm, 100 * mm])
+        emp_reg_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ]
+            )
+        )
         story.append(emp_reg_table)
         story.append(Spacer(1, 20))
 
         # Signature section
-        story.append(
-            Paragraph("<b>Bestätigung</b>", self.header_style)
-        )
+        story.append(Paragraph("<b>Bestätigung</b>", self.header_style))
         story.append(Spacer(1, 10))
 
         sig_data = [
@@ -1025,13 +1075,17 @@ class VacationPDFGenerator:
             ["Ort, Datum", "Unterschrift Leiter"],
         ]
 
-        sig_table = Table(sig_data, colWidths=[85*mm, 85*mm])
-        sig_table.setStyle(TableStyle([
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-            ('ALIGN', (0, 2), (-1, 2), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 30),
-        ]))
+        sig_table = Table(sig_data, colWidths=[85 * mm, 85 * mm])
+        sig_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ("ALIGN", (0, 2), (-1, 2), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 30),
+                ]
+            )
+        )
         story.append(sig_table)
 
         # Build PDF
@@ -1067,42 +1121,38 @@ class VacationPDFGenerator:
         story = []
 
         # Title
-        story.append(Paragraph(
-            "Schichtbericht",
-            self.title_style
-        ))
+        story.append(Paragraph("Schichtbericht", self.title_style))
         story.append(Spacer(1, 10))
 
         # Store info
         if settings:
-            story.append(Paragraph(
-                f"<b>Filiale:</b> {settings.store_name}",
-                self.normal_style
-            ))
+            story.append(
+                Paragraph(f"<b>Filiale:</b> {settings.store_name}", self.normal_style)
+            )
             story.append(Spacer(1, 15))
 
         # Employee info
-        story.append(
-            Paragraph("<b>Mitarbeiterdaten</b>", self.header_style)
-        )
+        story.append(Paragraph("<b>Mitarbeiterdaten</b>", self.header_style))
 
         emp_data = [
             ["Name:", f"{employee.first_name} {employee.last_name}"],
             ["Personal-Nr.:", employee.employee_id],
         ]
 
-        emp_table = Table(emp_data, colWidths=[50*mm, 100*mm])
-        emp_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-        ]))
+        emp_table = Table(emp_data, colWidths=[50 * mm, 100 * mm])
+        emp_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                ]
+            )
+        )
         story.append(emp_table)
         story.append(Spacer(1, 20))
 
         # Shift details
-        story.append(
-            Paragraph("<b>Schichtdaten</b>", self.header_style)
-        )
+        story.append(Paragraph("<b>Schichtdaten</b>", self.header_style))
 
         shift_data = [
             ["Datum:", "_______________"],
@@ -1110,30 +1160,30 @@ class VacationPDFGenerator:
             ["Pausenzeit:", "_______________", "Pausengrund:", "_______________"],
         ]
 
-        shift_table = Table(
-            shift_data,
-            colWidths=[40*mm, 50*mm, 40*mm, 50*mm]
+        shift_table = Table(shift_data, colWidths=[40 * mm, 50 * mm, 40 * mm, 50 * mm])
+        shift_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ]
+            )
         )
-        shift_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ]))
         story.append(shift_table)
         story.append(Spacer(1, 20))
 
         # Remarks
         story.append(
-            Paragraph("<b>Beobachtungen / Besonderheiten</b>",
-                      self.header_style)
+            Paragraph("<b>Beobachtungen / Besonderheiten</b>", self.header_style)
         )
-        story.append(Paragraph(
-            "_" * 100 + "<br/>" + "_" * 100 + "<br/>" +
-            "_" * 100,
-            self.normal_style
-        ))
+        story.append(
+            Paragraph(
+                "_" * 100 + "<br/>" + "_" * 100 + "<br/>" + "_" * 100, self.normal_style
+            )
+        )
         story.append(Spacer(1, 20))
 
         # Signature section
@@ -1143,13 +1193,17 @@ class VacationPDFGenerator:
             ["Ort, Datum", "Unterschrift Mitarbeiter"],
         ]
 
-        sig_table = Table(sig_data, colWidths=[85*mm, 85*mm])
-        sig_table.setStyle(TableStyle([
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-            ('ALIGN', (0, 2), (-1, 2), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 30),
-        ]))
+        sig_table = Table(sig_data, colWidths=[85 * mm, 85 * mm])
+        sig_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ("ALIGN", (0, 2), (-1, 2), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 30),
+                ]
+            )
+        )
         story.append(sig_table)
 
         # Build PDF
@@ -1185,44 +1239,39 @@ class VacationPDFGenerator:
         story = []
 
         # Title
-        story.append(Paragraph(
-            "Schicht Übertragungsantrag",
-            self.title_style
-        ))
+        story.append(Paragraph("Schicht Übertragungsantrag", self.title_style))
         story.append(Spacer(1, 10))
 
         # Store info
         if settings:
-            story.append(Paragraph(
-                f"<b>Filiale:</b> {settings.store_name}",
-                self.normal_style
-            ))
+            story.append(
+                Paragraph(f"<b>Filiale:</b> {settings.store_name}", self.normal_style)
+            )
             story.append(Spacer(1, 15))
 
         # Employee info
-        story.append(
-            Paragraph("<b>Mitarbeiterdaten</b>", self.header_style)
-        )
+        story.append(Paragraph("<b>Mitarbeiterdaten</b>", self.header_style))
 
         emp_data = [
             ["Name:", f"{employee.first_name} {employee.last_name}"],
             ["Personal-Nr.:", employee.employee_id],
         ]
 
-        emp_table = Table(emp_data, colWidths=[50*mm, 100*mm])
-        emp_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-        ]))
+        emp_table = Table(emp_data, colWidths=[50 * mm, 100 * mm])
+        emp_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                ]
+            )
+        )
         story.append(emp_table)
         story.append(Spacer(1, 20))
 
         # Shift transfer request
         story.append(
-            Paragraph(
-                "<b>Schicht, die übertragen werden soll</b>",
-                self.header_style
-            )
+            Paragraph("<b>Schicht, die übertragen werden soll</b>", self.header_style)
         )
 
         transfer_data = [
@@ -1230,41 +1279,39 @@ class VacationPDFGenerator:
             ["Uhrzeit:", "Von ________ bis ________"],
         ]
 
-        transfer_table = Table(transfer_data, colWidths=[50*mm, 100*mm])
-        transfer_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ]))
+        transfer_table = Table(transfer_data, colWidths=[50 * mm, 100 * mm])
+        transfer_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ]
+            )
+        )
         story.append(transfer_table)
         story.append(Spacer(1, 20))
 
         # Transfer to employee
+        story.append(Paragraph("<b>Übertragung auf Mitarbeiter</b>", self.header_style))
         story.append(
             Paragraph(
-                "<b>Übertragung auf Mitarbeiter</b>",
-                self.header_style
+                "Name: ________________________________________________",
+                self.normal_style,
             )
         )
-        story.append(Paragraph(
-            "Name: ________________________________________________",
-            self.normal_style
-        ))
         story.append(Spacer(1, 10))
-        story.append(Paragraph(
-            "Personal-Nr.: _________________________________________",
-            self.normal_style
-        ))
+        story.append(
+            Paragraph(
+                "Personal-Nr.: _________________________________________",
+                self.normal_style,
+            )
+        )
         story.append(Spacer(1, 15))
 
         # Reason
-        story.append(
-            Paragraph("<b>Grund der Übertragung</b>", self.header_style)
-        )
-        story.append(Paragraph(
-            "_" * 100 + "<br/>" + "_" * 100,
-            self.normal_style
-        ))
+        story.append(Paragraph("<b>Grund der Übertragung</b>", self.header_style))
+        story.append(Paragraph("_" * 100 + "<br/>" + "_" * 100, self.normal_style))
         story.append(Spacer(1, 20))
 
         # Signature section
@@ -1274,13 +1321,17 @@ class VacationPDFGenerator:
             ["Ort, Datum", "Unterschrift"],
         ]
 
-        sig_table = Table(sig_data, colWidths=[85*mm, 85*mm])
-        sig_table.setStyle(TableStyle([
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-            ('ALIGN', (0, 2), (-1, 2), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 30),
-        ]))
+        sig_table = Table(sig_data, colWidths=[85 * mm, 85 * mm])
+        sig_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ("ALIGN", (0, 2), (-1, 2), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 30),
+                ]
+            )
+        )
         story.append(sig_table)
 
         # Build PDF
@@ -1316,24 +1367,18 @@ class VacationPDFGenerator:
         story = []
 
         # Title
-        story.append(Paragraph(
-            "Spesenabrechnung",
-            self.title_style
-        ))
+        story.append(Paragraph("Spesenabrechnung", self.title_style))
         story.append(Spacer(1, 10))
 
         # Store info
         if settings:
-            story.append(Paragraph(
-                f"<b>Filiale:</b> {settings.store_name}",
-                self.normal_style
-            ))
+            story.append(
+                Paragraph(f"<b>Filiale:</b> {settings.store_name}", self.normal_style)
+            )
             story.append(Spacer(1, 15))
 
         # Employee info
-        story.append(
-            Paragraph("<b>Mitarbeiterdaten</b>", self.header_style)
-        )
+        story.append(Paragraph("<b>Mitarbeiterdaten</b>", self.header_style))
 
         emp_data = [
             ["Name:", f"{employee.first_name} {employee.last_name}"],
@@ -1341,19 +1386,21 @@ class VacationPDFGenerator:
             ["E-Mail:", employee.email or ""],
         ]
 
-        emp_table = Table(emp_data, colWidths=[50*mm, 100*mm])
-        emp_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ]))
+        emp_table = Table(emp_data, colWidths=[50 * mm, 100 * mm])
+        emp_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ]
+            )
+        )
         story.append(emp_table)
         story.append(Spacer(1, 20))
 
         # Expense table
-        story.append(
-            Paragraph("<b>Spesenaufstellung</b>", self.header_style)
-        )
+        story.append(Paragraph("<b>Spesenaufstellung</b>", self.header_style))
 
         expense_data = [
             [
@@ -1362,46 +1409,58 @@ class VacationPDFGenerator:
                 Paragraph("<b>Betrag (€)</b>", self.normal_style),
                 Paragraph("<b>Belegnr.</b>", self.normal_style),
             ],
-            ["_______________", "_______________",
-             "_______________", "_______________"],
-            ["_______________", "_______________",
-             "_______________", "_______________"],
-            ["_______________", "_______________",
-             "_______________", "_______________"],
-            ["_______________", "_______________",
-             "_______________", "_______________"],
             [
-                Paragraph("<b>Gesamtsumme:</b>",
-                          self.normal_style),
+                "_______________",
+                "_______________",
+                "_______________",
+                "_______________",
+            ],
+            [
+                "_______________",
+                "_______________",
+                "_______________",
+                "_______________",
+            ],
+            [
+                "_______________",
+                "_______________",
+                "_______________",
+                "_______________",
+            ],
+            [
+                "_______________",
+                "_______________",
+                "_______________",
+                "_______________",
+            ],
+            [
+                Paragraph("<b>Gesamtsumme:</b>", self.normal_style),
                 "",
-                Paragraph("<b>_______________€</b>",
-                          self.normal_style),
-                ""
+                Paragraph("<b>_______________€</b>", self.normal_style),
+                "",
             ],
         ]
 
         expense_table = Table(
-            expense_data,
-            colWidths=[30*mm, 50*mm, 30*mm, 40*mm]
+            expense_data, colWidths=[30 * mm, 50 * mm, 30 * mm, 40 * mm]
         )
-        expense_table.setStyle(TableStyle([
-            ('GRID', (0, 0), (-1, -1), 0.5, black),
-            ('BACKGROUND', (0, 0), (-1, 0), lightgrey),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-        ]))
+        expense_table.setStyle(
+            TableStyle(
+                [
+                    ("GRID", (0, 0), (-1, -1), 0.5, black),
+                    ("BACKGROUND", (0, 0), (-1, 0), lightgrey),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                ]
+            )
+        )
         story.append(expense_table)
         story.append(Spacer(1, 20))
 
         # Remarks
-        story.append(
-            Paragraph("<b>Bemerkungen</b>", self.header_style)
-        )
-        story.append(Paragraph(
-            "_" * 100 + "<br/>" + "_" * 100,
-            self.normal_style
-        ))
+        story.append(Paragraph("<b>Bemerkungen</b>", self.header_style))
+        story.append(Paragraph("_" * 100 + "<br/>" + "_" * 100, self.normal_style))
         story.append(Spacer(1, 20))
 
         # Signature section
@@ -1411,20 +1470,21 @@ class VacationPDFGenerator:
             ["Ort, Datum", "Unterschrift Mitarbeiter"],
         ]
 
-        sig_table = Table(sig_data, colWidths=[85*mm, 85*mm])
-        sig_table.setStyle(TableStyle([
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-            ('ALIGN', (0, 2), (-1, 2), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 30),
-        ]))
+        sig_table = Table(sig_data, colWidths=[85 * mm, 85 * mm])
+        sig_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ("ALIGN", (0, 2), (-1, 2), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 30),
+                ]
+            )
+        )
         story.append(sig_table)
         story.append(Spacer(1, 15))
 
-        story.append(
-            Paragraph("<b>Genehmigung durch Leiter</b>",
-                      self.header_style)
-        )
+        story.append(Paragraph("<b>Genehmigung durch Leiter</b>", self.header_style))
 
         approval_sig_data = [
             ["", ""],
@@ -1432,17 +1492,573 @@ class VacationPDFGenerator:
             ["Ort, Datum", "Unterschrift Leiter"],
         ]
 
-        approval_sig_table = Table(approval_sig_data,
-                                   colWidths=[85*mm, 85*mm])
-        approval_sig_table.setStyle(TableStyle([
-            ('FONTSIZE', (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-            ('ALIGN', (0, 2), (-1, 2), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 30),
-        ]))
+        approval_sig_table = Table(approval_sig_data, colWidths=[85 * mm, 85 * mm])
+        approval_sig_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ("ALIGN", (0, 2), (-1, 2), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 30),
+                ]
+            )
+        )
         story.append(approval_sig_table)
 
         # Build PDF
         doc.build(story)
         buffer.seek(0)
         return buffer
+
+    def generate_bulk_vacation_requests(
+        self,
+        employees: list[Employee],
+        year: int,
+        settings: Settings | None = None,
+    ) -> io.BytesIO:
+        """
+        Generate bulk vacation request forms for all employees.
+
+        Creates one form per page for each employee.
+
+        Args:
+            employees: List of all employees
+            year: Year for which to generate forms
+            settings: Optional settings object
+
+        Returns:
+            BytesIO buffer containing the generated PDF
+        """
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            leftMargin=self.MARGIN,
+            rightMargin=self.MARGIN,
+            topMargin=self.MARGIN,
+            bottomMargin=self.MARGIN,
+        )
+
+        story = []
+
+        # Title page
+        story.append(
+            Paragraph(f"Urlaubsanträge {year} - Alle Mitarbeiter", self.title_style)
+        )
+        story.append(Spacer(1, 10))
+
+        if settings:
+            story.append(
+                Paragraph(f"<b>Filiale:</b> {settings.store_name}", self.normal_style)
+            )
+
+        story.append(Spacer(1, 30))
+
+        # Generate a form for each employee
+        for i, employee in enumerate(sorted(employees, key=lambda e: e.last_name)):
+            if i > 0:
+                story.append(Spacer(1, 20))
+
+            # Employee info section
+            emp_data = [
+                [
+                    Paragraph("<b>Name:</b>", self.normal_style),
+                    Paragraph(
+                        f"{employee.first_name} {employee.last_name}", self.normal_style
+                    ),
+                ],
+                [
+                    Paragraph("<b>Personal-Nr.:</b>", self.normal_style),
+                    Paragraph(employee.employee_id, self.normal_style),
+                ],
+                [
+                    Paragraph("<b>E-Mail:</b>", self.normal_style),
+                    Paragraph(employee.email or "", self.normal_style),
+                ],
+                [
+                    Paragraph("<b>Jahresurlaubsanspruch:</b>", self.normal_style),
+                    Paragraph(f"{employee.vacation_per_year} Tage", self.normal_style),
+                ],
+            ]
+
+            emp_table = Table(emp_data, colWidths=[40 * mm, 130 * mm])
+            emp_table.setStyle(
+                TableStyle(
+                    [
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                        ("BACKGROUND", (0, 0), (0, -1), colors.lightgrey),
+                        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                        ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ]
+                )
+            )
+            story.append(emp_table)
+            story.append(Spacer(1, 12))
+
+            # Vacation request section
+            story.append(Paragraph("<b>Urlaubsantrag</b>", self.header_style))
+            request_data = [
+                [
+                    Paragraph("<b>Von:</b>", self.normal_style),
+                    Paragraph("_______________", self.normal_style),
+                    Paragraph("<b>Bis:</b>", self.normal_style),
+                    Paragraph("_______________", self.normal_style),
+                ],
+                [
+                    Paragraph("<b>Anzahl Tage:</b>", self.normal_style),
+                    Paragraph("____", self.normal_style),
+                    Paragraph("<b>Bemerkungen:</b>", self.normal_style),
+                    Paragraph("_______________", self.normal_style),
+                ],
+            ]
+
+            request_table = Table(
+                request_data, colWidths=[30 * mm, 40 * mm, 30 * mm, 70 * mm]
+            )
+            request_table.setStyle(
+                TableStyle(
+                    [
+                        ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                    ]
+                )
+            )
+            story.append(request_table)
+            story.append(Spacer(1, 8))
+
+            # Signature section
+            story.append(Paragraph("<b>Unterschriften</b>", self.header_style))
+            sig_data = [
+                ["", ""],
+                [
+                    Paragraph("_" * 40, self.small_style),
+                    Paragraph("_" * 40, self.small_style),
+                ],
+                [
+                    Paragraph("Ort, Datum", self.small_style),
+                    Paragraph("Unterschrift Mitarbeiter", self.small_style),
+                ],
+            ]
+
+            sig_table = Table(sig_data, colWidths=[85 * mm, 85 * mm])
+            sig_table.setStyle(
+                TableStyle(
+                    [
+                        ("FONTSIZE", (0, 0), (-1, -1), self.SMALL_FONT_SIZE),
+                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("BOTTOMPADDING", (0, 0), (-1, 0), 20),
+                    ]
+                )
+            )
+            story.append(sig_table)
+            story.append(Spacer(1, 8))
+
+            # Approval section
+            approval_data = [
+                [
+                    Paragraph("☐ Genehmigt", self.normal_style),
+                    Paragraph("☐ Abgelehnt", self.normal_style),
+                ],
+            ]
+
+            approval_table = Table(approval_data, colWidths=[85 * mm, 85 * mm])
+            approval_table.setStyle(
+                TableStyle(
+                    [
+                        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                        ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ]
+                )
+            )
+            story.append(approval_table)
+            story.append(Spacer(1, 8))
+
+            # Approval signature
+            approval_sig_data = [
+                ["", ""],
+                [
+                    Paragraph("_" * 40, self.small_style),
+                    Paragraph("_" * 40, self.small_style),
+                ],
+                [
+                    Paragraph("Ort, Datum", self.small_style),
+                    Paragraph("Unterschrift Leiter", self.small_style),
+                ],
+            ]
+
+            approval_sig_table = Table(approval_sig_data, colWidths=[85 * mm, 85 * mm])
+            approval_sig_table.setStyle(
+                TableStyle(
+                    [
+                        ("FONTSIZE", (0, 0), (-1, -1), self.SMALL_FONT_SIZE),
+                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("BOTTOMPADDING", (0, 0), (-1, 0), 20),
+                    ]
+                )
+            )
+            story.append(approval_sig_table)
+
+        # Build PDF
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+
+    def generate_vacation_approval_form(
+        self,
+        employee: Employee,
+        settings: Settings | None = None,
+    ) -> io.BytesIO:
+        """
+        Generate vacation approval/acknowledgment form for a single employee.
+
+        Args:
+            employee: Employee for the form
+            settings: Optional settings object
+
+        Returns:
+            BytesIO buffer containing the generated PDF
+        """
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            leftMargin=self.MARGIN,
+            rightMargin=self.MARGIN,
+            topMargin=self.MARGIN,
+            bottomMargin=self.MARGIN,
+        )
+
+        story = []
+
+        # Title
+        story.append(Paragraph("Urlaubsgenehmigung / -Bestätigung", self.title_style))
+        story.append(Spacer(1, 10))
+
+        # Store info
+        if settings:
+            story.append(
+                Paragraph(f"<b>Filiale:</b> {settings.store_name}", self.normal_style)
+            )
+
+        story.append(Spacer(1, 20))
+
+        # Employee data
+        emp_data = [
+            [
+                Paragraph("<b>Name:</b>", self.normal_style),
+                Paragraph(
+                    f"{employee.first_name} {employee.last_name}", self.normal_style
+                ),
+            ],
+            [
+                Paragraph("<b>Personal-Nr.:</b>", self.normal_style),
+                Paragraph(employee.employee_id, self.normal_style),
+            ],
+            [
+                Paragraph("<b>E-Mail:</b>", self.normal_style),
+                Paragraph(employee.email or "", self.normal_style),
+            ],
+            [
+                Paragraph("<b>Jahresurlaubsanspruch:</b>", self.normal_style),
+                Paragraph(f"{employee.vacation_per_year} Tage", self.normal_style),
+            ],
+        ]
+
+        emp_table = Table(emp_data, colWidths=[50 * mm, 120 * mm])
+        emp_table.setStyle(
+            TableStyle(
+                [
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("BACKGROUND", (0, 0), (0, -1), colors.lightgrey),
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ]
+            )
+        )
+        story.append(emp_table)
+        story.append(Spacer(1, 20))
+
+        # Approval section
+        story.append(Paragraph("<b>Genehmigungsstatus</b>", self.header_style))
+
+        status_data = [
+            [
+                Paragraph("☐ Genehmigt", self.normal_style),
+                Paragraph("☐ Ausstehend", self.normal_style),
+                Paragraph("☐ Abgelehnt", self.normal_style),
+            ],
+        ]
+
+        status_table = Table(status_data, colWidths=[60 * mm, 60 * mm, 60 * mm])
+        status_table.setStyle(
+            TableStyle(
+                [
+                    ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                ]
+            )
+        )
+        story.append(status_table)
+        story.append(Spacer(1, 20))
+
+        # Vacation details
+        story.append(Paragraph("<b>Urlaubszeiträume</b>", self.header_style))
+
+        vacation_data = [
+            [
+                Paragraph("<b>Vom</b>", self.normal_style),
+                Paragraph("<b>Bis</b>", self.normal_style),
+                Paragraph("<b>Tage</b>", self.normal_style),
+            ],
+            ["_______________", "_______________", "____"],
+            ["_______________", "_______________", "____"],
+            ["_______________", "_______________", "____"],
+        ]
+
+        vacation_table = Table(vacation_data, colWidths=[60 * mm, 60 * mm, 40 * mm])
+        vacation_table.setStyle(
+            TableStyle(
+                [
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ]
+            )
+        )
+        story.append(vacation_table)
+        story.append(Spacer(1, 20))
+
+        # Remarks
+        story.append(Paragraph("<b>Bemerkungen</b>", self.header_style))
+        story.append(Paragraph("_" * 100 + "<br/>" + "_" * 100, self.normal_style))
+        story.append(Spacer(1, 20))
+
+        # Approval signatures
+        story.append(Paragraph("<b>Genehmigung durch Leiter</b>", self.header_style))
+
+        approval_sig_data = [
+            ["", ""],
+            [
+                Paragraph("_" * 40, self.small_style),
+                Paragraph("_" * 40, self.small_style),
+            ],
+            [
+                Paragraph("Ort, Datum", self.small_style),
+                Paragraph("Unterschrift Leiter", self.small_style),
+            ],
+        ]
+
+        approval_sig_table = Table(approval_sig_data, colWidths=[85 * mm, 85 * mm])
+        approval_sig_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTSIZE", (0, 0), (-1, -1), self.SMALL_FONT_SIZE),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 30),
+                ]
+            )
+        )
+        story.append(approval_sig_table)
+
+        # Build PDF
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+
+    def generate_bulk_vacation_approvals(
+        self,
+        employees: list[Employee],
+        absences: list[Absence],
+        year: int,
+        settings: Settings | None = None,
+    ) -> io.BytesIO:
+        """
+        Generate bulk vacation approval forms for all employees.
+
+        Creates a comprehensive overview with approval status for each employee.
+
+        Args:
+            employees: List of all employees
+            absences: List of vacation absences
+            year: Year for which to generate forms
+            settings: Optional settings object
+
+        Returns:
+            BytesIO buffer containing the generated PDF
+        """
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=landscape(A4),
+            leftMargin=self.MARGIN,
+            rightMargin=self.MARGIN,
+            topMargin=self.MARGIN,
+            bottomMargin=self.MARGIN,
+        )
+
+        story = []
+
+        # Title
+        story.append(
+            Paragraph(
+                f"Urlausbsgenehmigungen {year} - Alle Mitarbeiter", self.title_style
+            )
+        )
+        story.append(Spacer(1, 10))
+
+        if settings:
+            story.append(
+                Paragraph(f"<b>Filiale:</b> {settings.store_name}", self.normal_style)
+            )
+
+        story.append(Spacer(1, 20))
+
+        # Build table with all employees and their vacation status
+        table_data = [
+            [
+                Paragraph("<b>Nr.</b>", self.normal_style),
+                Paragraph("<b>Mitarbeiter</b>", self.normal_style),
+                Paragraph("<b>Personal-Nr.</b>", self.normal_style),
+                Paragraph("<b>Anspruch</b>", self.normal_style),
+                Paragraph("<b>Von</b>", self.normal_style),
+                Paragraph("<b>Bis</b>", self.normal_style),
+                Paragraph("<b>Tage</b>", self.normal_style),
+                Paragraph("<b>Status</b>", self.normal_style),
+                Paragraph("<b>Genehmigt?</b>", self.normal_style),
+            ],
+        ]
+
+        sorted_employees = sorted(employees, key=lambda e: e.last_name)
+        row_num = 1
+
+        for emp in sorted_employees:
+            emp_absences = [a for a in absences if a.employee_id == emp.id]
+
+            if not emp_absences:
+                # Add row even for employees without absences
+                table_data.append(
+                    [
+                        Paragraph(str(row_num), self.small_style),
+                        Paragraph(
+                            f"{emp.first_name} {emp.last_name}", self.small_style
+                        ),
+                        Paragraph(emp.employee_id, self.small_style),
+                        Paragraph(str(emp.vacation_per_year), self.small_style),
+                        Paragraph("-", self.small_style),
+                        Paragraph("-", self.small_style),
+                        Paragraph("-", self.small_style),
+                        Paragraph("-", self.small_style),
+                        Paragraph("☐", self.small_style),
+                    ]
+                )
+                row_num += 1
+            else:
+                for i, absence in enumerate(emp_absences):
+                    num_days = (absence.end_date - absence.start_date).days + 1
+                    status = self._format_status(absence.status)
+
+                    table_data.append(
+                        [
+                            Paragraph(str(row_num) if i == 0 else "", self.small_style),
+                            Paragraph(
+                                f"{emp.first_name} {emp.last_name}" if i == 0 else "",
+                                self.small_style,
+                            ),
+                            Paragraph(
+                                emp.employee_id if i == 0 else "", self.small_style
+                            ),
+                            Paragraph(
+                                str(emp.vacation_per_year) if i == 0 else "",
+                                self.small_style,
+                            ),
+                            Paragraph(
+                                absence.start_date.strftime("%d.%m.%Y"),
+                                self.small_style,
+                            ),
+                            Paragraph(
+                                absence.end_date.strftime("%d.%m.%Y"), self.small_style
+                            ),
+                            Paragraph(str(num_days), self.small_style),
+                            Paragraph(status, self.small_style),
+                            Paragraph("☐", self.small_style),
+                        ]
+                    )
+                    row_num += 1
+
+        # Create table with column widths
+        table = Table(
+            table_data,
+            colWidths=[
+                10 * mm,
+                30 * mm,
+                20 * mm,
+                15 * mm,
+                20 * mm,
+                20 * mm,
+                12 * mm,
+                20 * mm,
+                15 * mm,
+            ],
+        )
+
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, 0), self.NORMAL_FONT_SIZE),
+                    ("FONTSIZE", (0, 1), (-1, -1), self.SMALL_FONT_SIZE),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 5),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    (
+                        "ROWBACKGROUNDS",
+                        (0, 1),
+                        (-1, -1),
+                        [colors.white, colors.lightgrey],
+                    ),
+                ]
+            )
+        )
+
+        story.append(table)
+        story.append(Spacer(1, 20))
+
+        # Footer with date
+        story.append(
+            Paragraph(
+                f"<i>Erstellt am: {datetime.now().strftime('%d.%m.%Y %H:%M')}</i>",
+                self.small_style,
+            )
+        )
+
+        # Build PDF
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+
+    def _format_status(self, status: str) -> str:
+        """Format absence status for display."""
+        status_map = {
+            "pending": "Ausstehend",
+            "approved": "Genehmigt",
+            "rejected": "Abgelehnt",
+            "beantragt": "Beantragt",
+            "genehmigt": "Genehmigt",
+            "abgelehnt": "Abgelehnt",
+        }
+        return status_map.get(status.lower(), status)

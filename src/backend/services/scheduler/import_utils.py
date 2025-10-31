@@ -22,22 +22,24 @@ logger = logging.getLogger(__name__)
 
 class ImportError(Exception):
     """Custom exception for import failures"""
+
     pass
 
 
 class ModelImportError(ImportError):
     """Specific exception for model import failures"""
+
     pass
 
 
 def import_models() -> Tuple[Any, ...]:
     """
     Import all required model classes with standardized fallback handling.
-    
+
     Returns:
-        Tuple containing: (Employee, ShiftTemplate, Settings, Coverage, db, 
+        Tuple containing: (Employee, ShiftTemplate, Settings, Coverage, db,
                           Absence, EmployeeAvailability, Schedule, AvailabilityType, EmployeeGroup)
-    
+
     Raises:
         ModelImportError: If all import attempts fail
     """
@@ -49,9 +51,9 @@ def import_models() -> Tuple[Any, ...]:
         # Attempt 3: Standard package layout
         lambda: _import_from_backend_models(),
     ]
-    
+
     errors = []
-    
+
     for attempt_func in import_attempts:
         try:
             result = attempt_func()
@@ -60,7 +62,7 @@ def import_models() -> Tuple[Any, ...]:
         except ImportError as e:
             errors.append(str(e))
             continue
-    
+
     # All imports failed
     error_msg = f"All model import attempts failed: {'; '.join(errors)}"
     logger.critical(error_msg)
@@ -70,43 +72,94 @@ def import_models() -> Tuple[Any, ...]:
 def _import_from_backend_models():
     """Import from backend.models package"""
     from backend.models import (
-        Employee, ShiftTemplate, Settings, Coverage, db,
-        Absence, EmployeeAvailability, Schedule
+        Employee,
+        ShiftTemplate,
+        Settings,
+        Coverage,
+        db,
+        Absence,
+        EmployeeAvailability,
+        Schedule,
     )
     from backend.models.employee import AvailabilityType, EmployeeGroup
-    return (Employee, ShiftTemplate, Settings, Coverage, db,
-            Absence, EmployeeAvailability, Schedule, AvailabilityType, EmployeeGroup)
+
+    return (
+        Employee,
+        ShiftTemplate,
+        Settings,
+        Coverage,
+        db,
+        Absence,
+        EmployeeAvailability,
+        Schedule,
+        AvailabilityType,
+        EmployeeGroup,
+    )
 
 
 def _import_from_models():
     """Import from models package"""
     from models import (
-        Employee, ShiftTemplate, Settings, Coverage, db,
-        Absence, EmployeeAvailability, Schedule
+        Employee,
+        ShiftTemplate,
+        Settings,
+        Coverage,
+        db,
+        Absence,
+        EmployeeAvailability,
+        Schedule,
     )
     from models.employee import AvailabilityType, EmployeeGroup
-    return (Employee, ShiftTemplate, Settings, Coverage, db,
-            Absence, EmployeeAvailability, Schedule, AvailabilityType, EmployeeGroup)
+
+    return (
+        Employee,
+        ShiftTemplate,
+        Settings,
+        Coverage,
+        db,
+        Absence,
+        EmployeeAvailability,
+        Schedule,
+        AvailabilityType,
+        EmployeeGroup,
+    )
 
 
 def _import_from_src_backend_models():
     """Import from src.backend.models package"""
     from src.backend.models import (
-        Employee, ShiftTemplate, Settings, Coverage, db,
-        Absence, EmployeeAvailability, Schedule
+        Employee,
+        ShiftTemplate,
+        Settings,
+        Coverage,
+        db,
+        Absence,
+        EmployeeAvailability,
+        Schedule,
     )
     from src.backend.models.employee import AvailabilityType, EmployeeGroup
-    return (Employee, ShiftTemplate, Settings, Coverage, db,
-            Absence, EmployeeAvailability, Schedule, AvailabilityType, EmployeeGroup)
+
+    return (
+        Employee,
+        ShiftTemplate,
+        Settings,
+        Coverage,
+        db,
+        Absence,
+        EmployeeAvailability,
+        Schedule,
+        AvailabilityType,
+        EmployeeGroup,
+    )
 
 
 def import_availability_type() -> Type:
     """
     Import AvailabilityType enum with fallback handling.
-    
+
     Returns:
         AvailabilityType enum class
-        
+
     Raises:
         ModelImportError: If all import attempts fail
     """
@@ -115,16 +168,16 @@ def import_availability_type() -> Type:
         lambda: _import_availability_from_backend(),
         lambda: _import_availability_from_src_backend(),
     ]
-    
+
     errors = []
-    
+
     for attempt_func in import_attempts:
         try:
             return attempt_func()
         except ImportError as e:
             errors.append(str(e))
             continue
-    
+
     # All imports failed, create fallback
     logger.warning("Creating fallback AvailabilityType enum")
     return _create_fallback_availability_type()
@@ -133,46 +186,51 @@ def import_availability_type() -> Type:
 def _import_availability_from_models():
     """Import AvailabilityType from models.employee"""
     from models.employee import AvailabilityType
+
     return AvailabilityType
 
 
 def _import_availability_from_backend():
     """Import AvailabilityType from backend.models.employee"""
     from backend.models.employee import AvailabilityType
+
     return AvailabilityType
 
 
 def _import_availability_from_src_backend():
     """Import AvailabilityType from src.backend.models.employee"""
     from src.backend.models.employee import AvailabilityType
+
     return AvailabilityType
 
 
 def _create_fallback_availability_type():
     """Create a fallback AvailabilityType enum for testing"""
     from enum import Enum
-    
+
     class AvailabilityType(str, Enum):
         """Fallback enum for availability types"""
+
         AVAILABLE = "AVAILABLE"
         FIXED = "FIXED"
         PREFERRED = "PREFERRED"
         UNAVAILABLE = "UNAVAILABLE"
-    
+
     return AvailabilityType
 
 
 def create_mock_models() -> Dict[str, Type]:
     """
     Create mock model classes for testing when real models are unavailable.
-    
+
     Returns:
         Dictionary mapping model names to mock classes
     """
     from datetime import date
-    
+
     class MockSettings:
         """Fallback Settings class for when imports fail"""
+
         def __init__(self):
             self.special_days = {}
             self.special_hours = {}
@@ -180,6 +238,7 @@ def create_mock_models() -> Dict[str, Type]:
 
     class MockCoverage:
         """Fallback Coverage class for when imports fail"""
+
         def __init__(self):
             self.id = 0
             self.day_index = 0
@@ -195,10 +254,12 @@ def create_mock_models() -> Dict[str, Type]:
                 @staticmethod
                 def all():
                     return []
+
             return MockQuery()
 
     class MockEmployee:
         """Fallback Employee class for when imports fail"""
+
         def __init__(self):
             self.id = 0
             self.name = "Mock Employee"
@@ -216,11 +277,14 @@ def create_mock_models() -> Dict[str, Type]:
                         @staticmethod
                         def all():
                             return []
+
                     return MockFilterResult()
+
             return MockQuery()
 
     class MockShiftTemplate:
         """Fallback ShiftTemplate class for when imports fail"""
+
         def __init__(self):
             self.id = 0
             self.name = "Mock Shift"
@@ -236,10 +300,12 @@ def create_mock_models() -> Dict[str, Type]:
                 @staticmethod
                 def all():
                     return []
+
             return MockQuery()
 
     class MockAbsence:
         """Fallback Absence class for when imports fail"""
+
         def __init__(self):
             self.id = 0
             self.employee_id = 0
@@ -252,10 +318,12 @@ def create_mock_models() -> Dict[str, Type]:
                 @staticmethod
                 def all():
                     return []
+
             return MockQuery()
 
     class MockEmployeeAvailability:
         """Fallback EmployeeAvailability class for when imports fail"""
+
         def __init__(self):
             self.id = 0
             self.employee_id = 0
@@ -270,10 +338,12 @@ def create_mock_models() -> Dict[str, Type]:
                 @staticmethod
                 def all():
                     return []
+
             return MockQuery()
 
     class MockSchedule:
         """Fallback Schedule class for when imports fail"""
+
         def __init__(self):
             self.id = 0
             self.employee_id = 0
@@ -288,10 +358,12 @@ def create_mock_models() -> Dict[str, Type]:
                 @staticmethod
                 def all():
                     return []
+
             return MockQuery()
 
     class MockEmployeeGroup:
         """Fallback EmployeeGroup enum for when imports fail"""
+
         VZ = "VZ"  # Full-time
         TZ = "TZ"  # Part-time
         GFB = "GFB"  # Mini-job
@@ -299,6 +371,7 @@ def create_mock_models() -> Dict[str, Type]:
 
     class MockDb:
         """Fallback database session for when imports fail"""
+
         class session:
             @staticmethod
             def add(obj):
@@ -313,29 +386,29 @@ def create_mock_models() -> Dict[str, Type]:
                 pass
 
     return {
-        'Settings': MockSettings,
-        'Coverage': MockCoverage,
-        'Employee': MockEmployee,
-        'ShiftTemplate': MockShiftTemplate,
-        'Absence': MockAbsence,
-        'EmployeeAvailability': MockEmployeeAvailability,
-        'Schedule': MockSchedule,
-        'EmployeeGroup': MockEmployeeGroup,
-        'db': MockDb,
-        'AvailabilityType': _create_fallback_availability_type(),
+        "Settings": MockSettings,
+        "Coverage": MockCoverage,
+        "Employee": MockEmployee,
+        "ShiftTemplate": MockShiftTemplate,
+        "Absence": MockAbsence,
+        "EmployeeAvailability": MockEmployeeAvailability,
+        "Schedule": MockSchedule,
+        "EmployeeGroup": MockEmployeeGroup,
+        "db": MockDb,
+        "AvailabilityType": _create_fallback_availability_type(),
     }
 
 
 def safe_import_models(use_mocks_on_failure: bool = True) -> Tuple[Any, ...]:
     """
     Safely import models with optional fallback to mocks.
-    
+
     Args:
         use_mocks_on_failure: If True, return mock classes when real imports fail
-        
+
     Returns:
         Tuple of model classes (real or mock)
-        
+
     Raises:
         ModelImportError: If imports fail and use_mocks_on_failure is False
     """
@@ -346,10 +419,16 @@ def safe_import_models(use_mocks_on_failure: bool = True) -> Tuple[Any, ...]:
             logger.warning("Using mock models due to import failure")
             mocks = create_mock_models()
             return (
-                mocks['Employee'], mocks['ShiftTemplate'], mocks['Settings'],
-                mocks['Coverage'], mocks['db'], mocks['Absence'],
-                mocks['EmployeeAvailability'], mocks['Schedule'],
-                mocks['AvailabilityType'], mocks['EmployeeGroup']
+                mocks["Employee"],
+                mocks["ShiftTemplate"],
+                mocks["Settings"],
+                mocks["Coverage"],
+                mocks["db"],
+                mocks["Absence"],
+                mocks["EmployeeAvailability"],
+                mocks["Schedule"],
+                mocks["AvailabilityType"],
+                mocks["EmployeeGroup"],
             )
         else:
             raise
@@ -359,6 +438,7 @@ def get_flask_app_context():
     """Get Flask application context if available"""
     try:
         from flask import current_app
+
         return current_app
     except (ImportError, RuntimeError):
         logger.warning("Flask application context not available")
@@ -374,4 +454,4 @@ def validate_imports():
         return True
     except Exception as e:
         logger.error(f"Import validation failed: {e}")
-        return False 
+        return False

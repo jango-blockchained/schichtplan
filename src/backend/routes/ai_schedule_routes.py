@@ -263,7 +263,9 @@ def preview_ai_data():
         # Collect optimized AI data
         ai_service = AISchedulerService()
         try:
-            collected_data_text = ai_service._collect_data_for_ai_prompt(start_date, end_date)
+            collected_data_text = ai_service._collect_data_for_ai_prompt(
+                start_date, end_date
+            )
             collected_data = json.loads(collected_data_text)
 
             # Add metadata about the optimization
@@ -292,7 +294,9 @@ def preview_ai_data():
             return jsonify({"error": f"Failed to collect AI data: {str(e)}"}), 500
 
     except Exception as e:
-        logger.app_logger.error(f"Unexpected error in AI data preview: {e}", exc_info=True)
+        logger.app_logger.error(
+            f"Unexpected error in AI data preview: {e}", exc_info=True
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
