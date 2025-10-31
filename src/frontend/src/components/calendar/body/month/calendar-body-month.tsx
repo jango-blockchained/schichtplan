@@ -12,10 +12,10 @@ import {
 } from 'date-fns'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useCalendarContext } from '../../calendar-context'
-import CalendarEvent from '../../calendar-event'
+import CalendarEventEnhanced from '../../calendar-event-enhanced'
 
 export default function CalendarBodyMonth() {
-  const { date, events, setDate, setMode } = useCalendarContext()
+  const { date, events, setDate, setMode, onEventUpdate, onEventDelete } = useCalendarContext()
 
   // Get the first day of the month
   const monthStart = startOfMonth(date)
@@ -143,12 +143,15 @@ export default function CalendarBodyMonth() {
                       zIndex: 10,
                     }}
                   >
-                    <CalendarEvent
+                    <CalendarEventEnhanced
                       event={event}
                       month
                       isFirstDay={isFirstDay}
                       isLastDay={isLastDay}
                       className="w-full"
+                      status={event.metadata?.status}
+                      onUpdate={onEventUpdate}
+                      onDelete={onEventDelete}
                     />
                   </div>
                 )
@@ -187,13 +190,16 @@ export default function CalendarBodyMonth() {
                 }}
               >
                 {dayEvents.map((event) => (
-                  <CalendarEvent
+                  <CalendarEventEnhanced
                     key={event.id}
                     event={event}
                     month
                     isFirstDay={true}
                     isLastDay={true}
                     className="w-full text-xs"
+                    status={event.metadata?.status}
+                    onUpdate={onEventUpdate}
+                    onDelete={onEventDelete}
                   />
                 ))}
               </div>

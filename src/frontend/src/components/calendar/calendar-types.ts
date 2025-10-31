@@ -6,6 +6,8 @@ export type CalendarProps = {
   date: Date
   setDate: (date: Date) => void
   calendarIconIsToday?: boolean
+  onEventUpdate?: (eventId: string, updates: { start: Date; end: Date }) => void
+  onEventDelete?: (eventId: string) => void
 }
 
 export type CalendarContextType = CalendarProps & {
@@ -22,6 +24,12 @@ export type CalendarEvent = {
   color: string
   start: Date
   end: Date
+  metadata?: {
+    absenceId?: number
+    employeeId?: number
+    status?: 'approved' | 'requested' | 'declined'
+    note?: string
+  }
 }
 
 export const calendarModes = ['day', 'week', 'month', 'year'] as const

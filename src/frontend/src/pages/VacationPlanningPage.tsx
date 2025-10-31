@@ -252,7 +252,7 @@ export default function VacationPlanningPage() {
     return 'blue';
   }, []);
 
-  // Convert absences to calendar events
+  // Convert absences to calendar events with enhanced metadata
   const calendarEvents = useMemo<CalendarEvent[]>(() => {
     return filteredAbsences.map((absence) => {
       const employee = employeeMap.get(absence.employee_id);
@@ -269,18 +269,18 @@ export default function VacationPlanningPage() {
         color: mapColorToCalendarColor(typeInfo.color),
         start: new Date(absence.start_date),
         end: new Date(absence.end_date),
+        // Add metadata for enhanced event component
+        metadata: {
+          absenceId: absence.id,
+          employeeId: absence.employee_id,
+          status: (absence.status || 'requested') as 'approved' | 'requested' | 'declined',
+          note: absence.note,
+        },
       };
     });
   }, [filteredAbsences, employeeMap, absenceTypesArray, mapColorToCalendarColor]);
 
   // Get absence type info for table display
-
-  // Handler for calendar events changes (not directly editable in this view)
-  const handleEventsChange = (events: CalendarEvent[]) => {
-    // This is called when events are modified through the calendar
-    // For now, we'll handle create/delete through our modals
-    console.log("Calendar events changed:", events);
-  };
 
   // Mutations
   const createAbsenceMutation = useMutation({
@@ -332,7 +332,41 @@ export default function VacationPlanningPage() {
     },
   });
 
-  const bulkCreateAbsenceMutation = useMutation({
+  // Handler for calendar event updates (drag & drop, resize)
+  const handleEventUpdate = useCallback(
+    (eventId: string, updates: { start: Date; end: Date }) => {
+      const absenceId = Number(eventId);
+      const absence = filteredAbsences.find((a) => a.id === absenceId);
+
+      if (!absence) return;
+
+      // Update backend
+      updateAbsenceMutation.mutate({
+        id: absenceId,
+        updates: {
+          start_date: format(updates.start, "yyyy-MM-dd"),
+          end_date: format(updates.end, "yyyy-MM-dd"),
+        },
+      });
+    },
+    [filteredAbsences, updateAbsenceMutation]
+  );
+
+  // Handler for calendar event deletion
+  const handleEventDelete = useCallback(
+    (eventId: string) => {
+      const absenceId = Number(eventId);
+      deleteAbsenceMutation.mutate(absenceId);
+    },
+    [deleteAbsenceMutation]
+  );
+
+  // Handler for calendar events changes (for compatibility)
+  const handleEventsChange = (events: CalendarEvent[]) => {
+    // This is called when events are modified through the calendar
+    // Updates are now handled through handleEventUpdate
+    console.log("Calendar events changed:", events);
+  }; const bulkCreateAbsenceMutation = useMutation({
     mutationFn: async (absences: Array<{
       employee_id: number;
       absence_type_id: string;
@@ -809,6 +843,8 @@ export default function VacationPlanningPage() {
                 date={currentDate}
                 setDate={setCurrentDate}
                 calendarIconIsToday={true}
+                onEventUpdate={handleEventUpdate}
+                onEventDelete={handleEventDelete}
               />
             </CardContent>
           </CollapsibleContent>
