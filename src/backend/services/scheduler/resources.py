@@ -159,8 +159,9 @@ class ScheduleResources:
                 settings = Settings.query.first()
 
             if not settings:
-                self.logger.error("No settings found in database, will use defaults")
-                return None
+                self.logger.warning("No settings found in database, using defaults")
+                settings = Settings.get_default_settings()
+                self.logger.info("Default settings created successfully")
 
             self.logger.info("Settings loaded successfully")
             return settings
@@ -185,7 +186,7 @@ class ScheduleResources:
                 # Try to generate demo coverage data
                 self.logger.info("Attempting to generate demo coverage data...")
                 try:
-                    from api.demo_data import generate_coverage_data
+                    from src.backend.api.demo_data import generate_coverage_data
 
                     coverage_slots = generate_coverage_data()
                     app_context = (
@@ -279,7 +280,7 @@ class ScheduleResources:
                 shifts = ShiftTemplate.query.all()
 
             if not shifts:
-                self.logger.error("No shift templates found in database")
+                self.logger.warning("No shift templates found in database")
                 return []
 
             self.logger.info(
@@ -349,6 +350,10 @@ class ScheduleResources:
             with ctx:
                 # Use order_by().all() chain to align with tests' mocked expectations
                 employees = Employee.query.filter_by(is_active=True).order_by().all()
+
+            if not employees:
+                self.logger.warning("No active employees found in database")
+                return []
 
             self.logger.debug(f"Loaded {len(employees)} active employees from database")
             return employees
