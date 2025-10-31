@@ -101,6 +101,16 @@ const formulars: FormularItem[] = [
     subcategory: "Berichte",
     type: "yearly",
   },
+  {
+    id: "vacation-yearly-calendar",
+    title: "Jahresurlaub Kalender",
+    description: "Kalenderansicht mit 6 Monaten pro Seite und Urlaubseinträgen",
+    icon: <Calendar className="h-5 w-5" />,
+    requiresEmployee: false,
+    category: "Jahresübersichten",
+    subcategory: "Berichte",
+    type: "yearly",
+  },
 
   // Legacy forms
   {
@@ -196,6 +206,10 @@ export default function FormularsPage() {
 
       case "vacation-yearly":
         url = `${apiBaseUrl}/api/v2/vacation-pdf/yearly-overview?year=${new Date().getFullYear()}`;
+        break;
+
+      case "vacation-yearly-calendar":
+        url = `${apiBaseUrl}/api/v2/vacation-pdf/yearly-calendar?year=${new Date().getFullYear()}`;
         break;
 
       case "time-off-request":
