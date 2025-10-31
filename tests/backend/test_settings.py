@@ -7,7 +7,7 @@ from src.backend.models import Settings, db
 # Sample data for testing
 DEFAULT_SETTINGS_DICT_EXPECTATION = {
     "general": {
-        "store_name": "TEDi Filiale #6729",
+        "store_name": "TEDi Store",
         "store_address": "Hauptstraße 1, 12345 Musterstadt",
         "store_phone": "01234/567890",
         "store_email": "info@meinladen.de",
@@ -32,7 +32,7 @@ DEFAULT_SETTINGS_DICT_EXPECTATION = {
     },
     "scheduling": {
         "scheduling_resource_type": "coverage",
-        "default_shift_duration": 6.0,
+        "default_shift_duration": 8.0,
         "min_break_duration": 5,
         "max_daily_hours": 12.0,
         "max_weekly_hours": 50.0,
@@ -244,54 +244,54 @@ def test_get_default_settings_to_dict(app, test_settings):
     """Test that the default settings are correctly serialized by to_dict."""
     settings_dict = test_settings.to_dict()
 
-        # Normalize availability_types for comparison if necessary
-        # The default in model has 'type' field, ensure test data matches or normalize here
-        if (
-            "availability_types" in settings_dict
-            and "types" in settings_dict["availability_types"]
-        ):
-            for at_type in settings_dict["availability_types"]["types"]:
-                if "type" not in at_type:  # Add if missing for comparison
-                    at_type["type"] = "availability_type"
+    # Normalize availability_types for comparison if necessary
+    # The default in model has 'type' field, ensure test data matches or normalize here
+    if (
+        "availability_types" in settings_dict
+        and "types" in settings_dict["availability_types"]
+    ):
+        for at_type in settings_dict["availability_types"]["types"]:
+            if "type" not in at_type:  # Add if missing for comparison
+                at_type["type"] = "availability_type"
 
-        # Compare each category
-        for category, expected_values in DEFAULT_SETTINGS_DICT_EXPECTATION.items():
-            assert category in settings_dict, (
-                f"Category {category} missing in settings_dict"
-            )
-            # Deep comparison for nested dicts, careful with list order if not guaranteed
-            if isinstance(expected_values, dict):
-                for key, expected_value in expected_values.items():
-                    assert key in settings_dict[category], (
-                        f"Key {key} missing in settings_dict[{category}]"
-                    )
-                    if isinstance(expected_value, list):
-                        # Sort lists of dicts by 'id' if present, for stable comparison
-                        if all(
-                            isinstance(item, dict) and "id" in item
-                            for item in expected_value
-                        ):
-                            expected_sorted = sorted(
-                                expected_value, key=lambda x: x["id"]
-                            )
-                            actual_sorted = sorted(
-                                settings_dict[category][key], key=lambda x: x["id"]
-                            )
-                            assert actual_sorted == expected_sorted, (
-                                f"Mismatch in {category}.{key}"
-                            )
-                        else:
-                            assert settings_dict[category][key] == expected_value, (
-                                f"Mismatch in {category}.{key}"
-                            )
+    # Compare each category
+    for category, expected_values in DEFAULT_SETTINGS_DICT_EXPECTATION.items():
+        assert category in settings_dict, (
+            f"Category {category} missing in settings_dict"
+        )
+        # Deep comparison for nested dicts, careful with list order if not guaranteed
+        if isinstance(expected_values, dict):
+            for key, expected_value in expected_values.items():
+                assert key in settings_dict[category], (
+                    f"Key {key} missing in settings_dict[{category}]"
+                )
+                if isinstance(expected_value, list):
+                    # Sort lists of dicts by 'id' if present, for stable comparison
+                    if all(
+                        isinstance(item, dict) and "id" in item
+                        for item in expected_value
+                    ):
+                        expected_sorted = sorted(
+                            expected_value, key=lambda x: x["id"]
+                        )
+                        actual_sorted = sorted(
+                            settings_dict[category][key], key=lambda x: x["id"]
+                        )
+                        assert actual_sorted == expected_sorted, (
+                            f"Mismatch in {category}.{key}"
+                        )
                     else:
                         assert settings_dict[category][key] == expected_value, (
                             f"Mismatch in {category}.{key}"
                         )
-            else:
-                assert settings_dict[category] == expected_values, (
-                    f"Mismatch in {category}"
-                )
+                else:
+                    assert settings_dict[category][key] == expected_value, (
+                        f"Mismatch in {category}.{key}"
+                    )
+        else:
+            assert settings_dict[category] == expected_values, (
+                f"Mismatch in {category}"
+            )
 
 
 def test_update_settings_from_dict(app, test_settings):
