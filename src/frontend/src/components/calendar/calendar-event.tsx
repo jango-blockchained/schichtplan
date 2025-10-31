@@ -11,63 +11,19 @@ interface EventPosition {
   height: string
 }
 
-// Color scheme mapping for dynamic styling
-const colorStyles: Record<string, { bg: string; border: string; text: string }> = {
-  blue: {
-    bg: 'bg-blue-500/10',
-    border: 'border-blue-500',
-    text: 'text-blue-700 dark:text-blue-400',
-  },
-  red: {
-    bg: 'bg-red-500/10',
-    border: 'border-red-500',
-    text: 'text-red-700 dark:text-red-400',
-  },
-  green: {
-    bg: 'bg-green-500/10',
-    border: 'border-green-500',
-    text: 'text-green-700 dark:text-green-400',
-  },
-  yellow: {
-    bg: 'bg-yellow-500/10',
-    border: 'border-yellow-500',
-    text: 'text-yellow-700 dark:text-yellow-400',
-  },
-  purple: {
-    bg: 'bg-purple-500/10',
-    border: 'border-purple-500',
-    text: 'text-purple-700 dark:text-purple-400',
-  },
-  pink: {
-    bg: 'bg-pink-500/10',
-    border: 'border-pink-500',
-    text: 'text-pink-700 dark:text-pink-400',
-  },
-  indigo: {
-    bg: 'bg-indigo-500/10',
-    border: 'border-indigo-500',
-    text: 'text-indigo-700 dark:text-indigo-400',
-  },
-  cyan: {
-    bg: 'bg-cyan-500/10',
-    border: 'border-cyan-500',
-    text: 'text-cyan-700 dark:text-cyan-400',
-  },
-  orange: {
-    bg: 'bg-orange-500/10',
-    border: 'border-orange-500',
-    text: 'text-orange-700 dark:text-orange-400',
-  },
-  amber: {
-    bg: 'bg-amber-500/10',
-    border: 'border-amber-500',
-    text: 'text-amber-700 dark:text-amber-400',
-  },
-  emerald: {
-    bg: 'bg-emerald-500/10',
-    border: 'border-emerald-500',
-    text: 'text-emerald-700 dark:text-emerald-400',
-  },
+// Color scheme mapping - only for indicator bar, not background
+const colorStyles: Record<string, string> = {
+  blue: 'bg-blue-500',
+  red: 'bg-red-500',
+  green: 'bg-green-500',
+  yellow: 'bg-yellow-500',
+  purple: 'bg-purple-500',
+  pink: 'bg-pink-500',
+  indigo: 'bg-indigo-500',
+  cyan: 'bg-cyan-500',
+  orange: 'bg-orange-500',
+  amber: 'bg-amber-500',
+  emerald: 'bg-emerald-500',
 }
 
 function getColorStyle(color: string) {
@@ -127,47 +83,48 @@ export default function CalendarEvent({
   event,
   month = false,
   className,
-  currentDay,
+  spanColumns = 1,
+  isFirstDay: propIsFirstDay = true,
+  isLastDay: propIsLastDay = true,
 }: {
   event: CalendarEventType
   month?: boolean
   className?: string
-  currentDay?: Date
+  spanColumns?: number
+  isFirstDay?: boolean
+  isLastDay?: boolean
 }) {
   const { events, setSelectedEvent, setManageEventDialogOpen, date } =
     useCalendarContext()
   const positionStyle = month ? {} : calculateEventPosition(event, events)
-  const colorStyle = getColorStyle(event.color)
 
   // Generate a unique key that includes the current month to prevent animation conflicts
   const isEventInCurrentMonth = isSameMonth(event.start, date)
   const animationKey = `${event.id}-${isEventInCurrentMonth ? 'current' : 'adjacent'
     }`
 
-  // Determine if this is the first or last day of a multi-day vacation
-  const isFirstDay = !currentDay || isSameDay(event.start, currentDay)
-  const isLastDay = !currentDay || isSameDay(event.end, currentDay)
-  const isMultiDay = !isSameDay(event.start, event.end)
+  // Use provided props
+  const isFirstDay = propIsFirstDay
+  const isLastDay = propIsLastDay
 
   return (
     <MotionConfig reducedMotion="user">
       <AnimatePresence mode="wait">
         <motion.div
           className={cn(
-            'px-1 py-0.5 cursor-pointer transition-all duration-300 border rounded-md min-h-fit',
-            colorStyle.bg,
-            colorStyle.border,
-            'hover:opacity-75',
-            !month && 'absolute z-10',
-            month && 'block overflow-visible',
-            month && isMultiDay && [
-              isFirstDay ? 'rounded-l-md' : 'rounded-none',
-              isLastDay ? 'rounded-r-md' : 'rounded-none',
-            ],
-            month && !isMultiDay && 'rounded-md',
+            'flex items-start gap-1.5 cursor-pointer transition-all duration-300 rounded-md min-h-fit',
+            'bg-background border border-border hover:border-foreground/50',
+            !month && 'absolute z-10 p-2',
+            month && 'p-1.5 overflow-visible',
+            month && isFirstDay && spanColumns > 1 && 'rounded-l-md',
+            month && isLastDay && spanColumns > 1 && 'rounded-r-md col-span-1',
             className
           )}
-          style={positionStyle}
+          style={{
+            ...positionStyle,
+            ...(month && spanColumns > 1 && isFirstDay && { gridColumn: `span ${spanColumns}` }),
+            ...(month && isLastDay && spanColumns > 1 && { justifySelf: 'end' }),
+          }}
           onClick={(e) => {
             e.stopPropagation()
             setSelectedEvent(event)
@@ -205,22 +162,31 @@ export default function CalendarEvent({
           }}
           layoutId={`event-${animationKey}-${month ? 'month' : 'day'}`}
         >
-          <motion.div
+          {/* Color indicator bar */}
+          <div
             className={cn(
-              'w-full',
-              colorStyle.text,
+              'flex-shrink-0 w-1 rounded-full',
+              month ? 'h-full min-h-6' : 'h-full'
             )}
+            style={{
+              backgroundColor: getColorStyle(event.color),
+            }}
+          />
+
+          {/* Content */}
+          <motion.div
+            className="flex-1 min-w-0"
             layout="position"
           >
             {/* Always show title */}
-            <p style={{ color: 'inherit', fontSize: '12px', fontWeight: '600' }}>
+            <p className="text-xs font-medium text-foreground truncate">
               {event.title}
             </p>
             {/* Only show time in day/week view, not month view */}
             {!month && (
-              <p className={cn('text-sm')}>
+              <p className="text-xs text-muted-foreground">
                 <span>{format(event.start, 'h:mm a')}</span>
-                <span className={cn('mx-1')}>-</span>
+                <span className="mx-1">-</span>
                 <span>
                   {format(event.end, 'h:mm a')}
                 </span>
