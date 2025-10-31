@@ -11,6 +11,54 @@ interface EventPosition {
   height: string
 }
 
+// Color scheme mapping for dynamic styling
+const colorStyles: Record<string, { bg: string; border: string; text: string }> = {
+  blue: {
+    bg: 'bg-blue-500/10',
+    border: 'border-blue-500',
+    text: 'text-blue-500',
+  },
+  red: {
+    bg: 'bg-red-500/10',
+    border: 'border-red-500',
+    text: 'text-red-500',
+  },
+  green: {
+    bg: 'bg-green-500/10',
+    border: 'border-green-500',
+    text: 'text-green-500',
+  },
+  yellow: {
+    bg: 'bg-yellow-500/10',
+    border: 'border-yellow-500',
+    text: 'text-yellow-500',
+  },
+  purple: {
+    bg: 'bg-purple-500/10',
+    border: 'border-purple-500',
+    text: 'text-purple-500',
+  },
+  pink: {
+    bg: 'bg-pink-500/10',
+    border: 'border-pink-500',
+    text: 'text-pink-500',
+  },
+  indigo: {
+    bg: 'bg-indigo-500/10',
+    border: 'border-indigo-500',
+    text: 'text-indigo-500',
+  },
+  cyan: {
+    bg: 'bg-cyan-500/10',
+    border: 'border-cyan-500',
+    text: 'text-cyan-500',
+  },
+}
+
+function getColorStyle(color: string) {
+  return colorStyles[color] || colorStyles.blue
+}
+
 function getOverlappingEvents(
   currentEvent: CalendarEventType,
   events: CalendarEventType[]
@@ -73,7 +121,8 @@ export default function CalendarEvent({
 }) {
   const { events, setSelectedEvent, setManageEventDialogOpen, date } =
     useCalendarContext()
-  const style = month ? {} : calculateEventPosition(event, events)
+  const positionStyle = month ? {} : calculateEventPosition(event, events)
+  const colorStyle = getColorStyle(event.color)
 
   // Generate a unique key that includes the current month to prevent animation conflicts
   const isEventInCurrentMonth = isSameMonth(event.start, date)
@@ -90,8 +139,11 @@ export default function CalendarEvent({
       <AnimatePresence mode="wait">
         <motion.div
           className={cn(
-            `px-3 py-1.5 cursor-pointer transition-all duration-300 bg-${event.color}-500/10 hover:bg-${event.color}-500/20 border border-${event.color}-500`,
-            !month && 'absolute',
+            'px-3 py-1.5 cursor-pointer transition-all duration-300 border rounded-md',
+            colorStyle.bg,
+            colorStyle.border,
+            'hover:opacity-75',
+            !month && 'absolute z-10',
             month && 'truncate',
             month && isMultiDay && [
               isFirstDay ? 'rounded-l-md' : 'rounded-none',
@@ -100,7 +152,7 @@ export default function CalendarEvent({
             month && !isMultiDay && 'rounded-md',
             className
           )}
-          style={style}
+          style={positionStyle}
           onClick={(e) => {
             e.stopPropagation()
             setSelectedEvent(event)
@@ -140,7 +192,8 @@ export default function CalendarEvent({
         >
           <motion.div
             className={cn(
-              `flex flex-col w-full text-${event.color}-500`,
+              'flex flex-col w-full',
+              colorStyle.text,
               month && 'flex-row items-center justify-between'
             )}
             layout="position"
@@ -152,7 +205,7 @@ export default function CalendarEvent({
                   {event.title}
                 </p>
               ) : (
-                <div className="w-full" aria-hidden="true" role="presentation" /> 
+                <div className="w-full" aria-hidden="true" role="presentation" />
               )
             ) : (
               <p className={cn('font-bold truncate', month && 'text-xs')}>

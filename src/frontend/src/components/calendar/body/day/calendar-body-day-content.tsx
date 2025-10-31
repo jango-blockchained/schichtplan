@@ -1,14 +1,14 @@
-import { useCalendarContext } from '../../calendar-context'
 import { isWithinInterval } from 'date-fns'
-import { hours } from './calendar-body-margin-day-margin'
-import CalendarBodyHeader from '../calendar-body-header'
+import { useCalendarContext } from '../../calendar-context'
 import CalendarEvent from '../../calendar-event'
+import CalendarBodyHeader from '../calendar-body-header'
+import { hours } from './calendar-body-margin-day-margin'
 
 export default function CalendarBodyDayContent({ date }: { date: Date }) {
   const { events } = useCalendarContext()
 
   // Show events that span across this day, not just start on this day
-  const dayEvents = events.filter((event) => 
+  const dayEvents = events.filter((event) =>
     isWithinInterval(date, {
       start: event.start,
       end: event.end,
@@ -19,14 +19,18 @@ export default function CalendarBodyDayContent({ date }: { date: Date }) {
     <div className="flex flex-col flex-grow">
       <CalendarBodyHeader date={date} />
 
-      <div className="flex-1 relative">
+      <div className="flex-1 relative overflow-hidden">
         {hours.map((hour) => (
           <div key={hour} className="h-32 border-b border-border/50 group" />
         ))}
 
-        {dayEvents.map((event) => (
-          <CalendarEvent key={event.id} event={event} />
-        ))}
+        <div className="absolute inset-0 pointer-events-none">
+          {dayEvents.map((event) => (
+            <div key={event.id} className="absolute inset-0 pointer-events-auto">
+              <CalendarEvent event={event} currentDay={date} />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
