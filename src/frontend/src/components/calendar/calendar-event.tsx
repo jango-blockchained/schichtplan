@@ -154,12 +154,12 @@ export default function CalendarEvent({
       <AnimatePresence mode="wait">
         <motion.div
           className={cn(
-            'px-2 py-1 cursor-pointer transition-all duration-300 border rounded-md',
+            'px-1 py-0.5 cursor-pointer transition-all duration-300 border rounded-md min-h-fit',
             colorStyle.bg,
             colorStyle.border,
             'hover:opacity-75',
             !month && 'absolute z-10',
-            month && 'block overflow-hidden',
+            month && 'block overflow-visible',
             month && isMultiDay && [
               isFirstDay ? 'rounded-l-md' : 'rounded-none',
               isLastDay ? 'rounded-r-md' : 'rounded-none',
@@ -207,26 +207,15 @@ export default function CalendarEvent({
         >
           <motion.div
             className={cn(
-              'flex flex-col w-full gap-0.5',
+              'w-full',
               colorStyle.text,
-              month && 'flex-col items-start justify-start'
             )}
             layout="position"
           >
-            {/* Show title only on first day for multi-day events in month view */}
-            {month && isMultiDay ? (
-              isFirstDay ? (
-                <p className={cn('font-semibold truncate text-xs sm:text-sm')}>
-                  {event.title}
-                </p>
-              ) : (
-                <div className="w-full" aria-hidden="true" role="presentation" />
-              )
-            ) : (
-              <p className={cn('font-semibold text-xs sm:text-sm leading-tight')}>
-                {event.title}
-              </p>
-            )}
+            {/* Always show title */}
+            <p style={{ color: 'inherit', fontSize: '12px', fontWeight: '600' }}>
+              {event.title}
+            </p>
             {/* Only show time in day/week view, not month view */}
             {!month && (
               <p className={cn('text-sm')}>
