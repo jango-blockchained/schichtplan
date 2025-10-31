@@ -659,3 +659,45 @@ def get_yearly_vacation_overview():
         return jsonify(
             {"status": "error", "message": f"Failed to generate PDF: {str(e)}"}
         ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route("/vacation-pdf/employee-vacation-entitlement", methods=["GET"])
+def get_employee_vacation_entitlement():
+    """
+    Generate employee vacation entitlement list showing all employees and their yearly vacation days.
+
+    Returns:
+        PDF file for download
+    """
+    try:
+        # Fetch all active employees
+        employees = Employee.query.filter_by(is_active=True).order_by(
+            Employee.last_name, Employee.first_name
+        ).all()
+        logger.info(f"Loaded {len(employees)} active employees for vacation entitlement list")
+
+        # Get settings
+        settings = Settings.query.first()
+
+        # Generate PDF
+        generator = VacationPDFGenerator()
+        pdf_buffer = generator.generate_employee_vacation_entitlement_list(
+            employees=employees, settings=settings
+        )
+
+        logger.info("Successfully generated employee vacation entitlement list")
+
+        return send_file(
+            pdf_buffer,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name="mitarbeiter_urlaubsanspruch.pdf",
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Error generating employee vacation entitlement list: {str(e)}", exc_info=True
+        )
+        return jsonify(
+            {"status": "error", "message": f"Failed to generate PDF: {str(e)}"}
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
