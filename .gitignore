@@ -194,3 +194,8 @@ coverage.xml
 *.appimage
 *.AppImage.zsync
 *.AppDir/
+
+# Test files
+test_vacation_pdfs.py
+generate_sample_calendar.py
+sample_*.pdf
