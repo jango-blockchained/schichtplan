@@ -16,42 +16,57 @@ const colorStyles: Record<string, { bg: string; border: string; text: string }> 
   blue: {
     bg: 'bg-blue-500/10',
     border: 'border-blue-500',
-    text: 'text-blue-500',
+    text: 'text-blue-700 dark:text-blue-400',
   },
   red: {
     bg: 'bg-red-500/10',
     border: 'border-red-500',
-    text: 'text-red-500',
+    text: 'text-red-700 dark:text-red-400',
   },
   green: {
     bg: 'bg-green-500/10',
     border: 'border-green-500',
-    text: 'text-green-500',
+    text: 'text-green-700 dark:text-green-400',
   },
   yellow: {
     bg: 'bg-yellow-500/10',
     border: 'border-yellow-500',
-    text: 'text-yellow-500',
+    text: 'text-yellow-700 dark:text-yellow-400',
   },
   purple: {
     bg: 'bg-purple-500/10',
     border: 'border-purple-500',
-    text: 'text-purple-500',
+    text: 'text-purple-700 dark:text-purple-400',
   },
   pink: {
     bg: 'bg-pink-500/10',
     border: 'border-pink-500',
-    text: 'text-pink-500',
+    text: 'text-pink-700 dark:text-pink-400',
   },
   indigo: {
     bg: 'bg-indigo-500/10',
     border: 'border-indigo-500',
-    text: 'text-indigo-500',
+    text: 'text-indigo-700 dark:text-indigo-400',
   },
   cyan: {
     bg: 'bg-cyan-500/10',
     border: 'border-cyan-500',
-    text: 'text-cyan-500',
+    text: 'text-cyan-700 dark:text-cyan-400',
+  },
+  orange: {
+    bg: 'bg-orange-500/10',
+    border: 'border-orange-500',
+    text: 'text-orange-700 dark:text-orange-400',
+  },
+  amber: {
+    bg: 'bg-amber-500/10',
+    border: 'border-amber-500',
+    text: 'text-amber-700 dark:text-amber-400',
+  },
+  emerald: {
+    bg: 'bg-emerald-500/10',
+    border: 'border-emerald-500',
+    text: 'text-emerald-700 dark:text-emerald-400',
   },
 }
 
@@ -201,14 +216,14 @@ export default function CalendarEvent({
             {/* Show title only on first day for multi-day events in month view */}
             {month && isMultiDay ? (
               isFirstDay ? (
-                <p className={cn('font-bold truncate', month && 'text-xs')}>
+                <p className={cn('font-semibold truncate text-xs sm:text-sm')}>
                   {event.title}
                 </p>
               ) : (
                 <div className="w-full" aria-hidden="true" role="presentation" />
               )
             ) : (
-              <p className={cn('font-bold truncate', month && 'text-xs')}>
+              <p className={cn('font-semibold text-xs sm:text-sm')}>
                 {event.title}
               </p>
             )}

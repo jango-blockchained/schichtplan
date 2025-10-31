@@ -196,24 +196,60 @@ export default function VacationPlanningPage() {
   const getStatusInfo = useCallback((status: string) => {
     switch (status) {
       case "approved":
-        return { 
-          label: "Genehmigt", 
+        return {
+          label: "Genehmigt",
           className: "bg-emerald-100 text-emerald-700",
           icon: <Check className="h-3 w-3" />
         };
       case "declined":
-        return { 
-          label: "Abgelehnt", 
+        return {
+          label: "Abgelehnt",
           className: "bg-destructive/10 text-destructive",
           icon: <X className="h-3 w-3" />
         };
       default:
-        return { 
-          label: "Beantragt", 
+        return {
+          label: "Beantragt",
           className: "bg-amber-100 text-amber-800",
           icon: <Clock className="h-3 w-3" />
         };
     }
+  }, []);
+
+  // Helper function to map hex colors to calendar-compatible color names
+  const mapColorToCalendarColor = useCallback((hexColor: string): string => {
+    const colorMap: Record<string, string> = {
+      // Demo absence types
+      '#FF9800': 'orange',   // Urlaub (vacation)
+      '#F44336': 'red',      // Abwesend (absent)
+      '#4CAF50': 'green',    // Schulung (training)
+
+      // Common colors
+      '#808080': 'blue',     // Default gray
+      '#FF0000': 'red',      // Red
+      '#00FF00': 'green',    // Green
+      '#0000FF': 'blue',     // Blue
+      '#FFFF00': 'yellow',   // Yellow
+      '#FFA500': 'orange',   // Orange
+      '#800080': 'purple',   // Purple
+      '#FFC0CB': 'pink',     // Pink
+      '#DC143C': 'red',      // Crimson
+      '#228B22': 'green',    // Forest Green
+      '#4169E1': 'indigo',   // Royal Blue
+      '#FFD700': 'amber',    // Gold
+      '#32CD32': 'emerald',  // Lime Green
+    };
+
+    // Normalize hex color to uppercase
+    const normalizedHex = hexColor.toUpperCase();
+
+    // Check exact match first
+    if (colorMap[normalizedHex]) {
+      return colorMap[normalizedHex];
+    }
+
+    // Default to blue if no match found
+    return 'blue';
   }, []);
 
   // Convert absences to calendar events
@@ -230,12 +266,12 @@ export default function VacationPlanningPage() {
       return {
         id: absence.id.toString(),
         title: `${employeeName} - ${typeInfo.name}`,
-        color: typeInfo.color,
+        color: mapColorToCalendarColor(typeInfo.color),
         start: new Date(absence.start_date),
         end: new Date(absence.end_date),
       };
     });
-  }, [filteredAbsences, employeeMap, absenceTypesArray]);
+  }, [filteredAbsences, employeeMap, absenceTypesArray, mapColorToCalendarColor]);
 
   // Get absence type info for table display
 
@@ -487,7 +523,7 @@ export default function VacationPlanningPage() {
 
   const handleMoveSubmit = () => {
     if (!movingAbsence) return;
-    
+
     updateAbsenceMutation.mutate({
       id: movingAbsence.id,
       updates: {
