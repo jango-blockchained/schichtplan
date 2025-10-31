@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { PageLayout } from "@/layouts";
-import { getEmployees } from "@/services/api";
+import { getAbsences, getEmployees, type Absence } from "@/services/api";
 import { useQuery } from "@tanstack/react-query";
 import {
   Calendar,
@@ -149,14 +149,28 @@ export default function FormularsPage() {
   const { toast } = useToast();
   const [selectedFormular, setSelectedFormular] = useState<FormularItem | null>(null);
   const [showEmployeeDialog, setShowEmployeeDialog] = useState(false);
+  const [showAbsenceDialog, setShowAbsenceDialog] = useState(false);
   const [showFilterDialog, setShowFilterDialog] = useState(false);
   const [tempEmployeeId, setTempEmployeeId] = useState<string>("");
+  const [tempAbsenceId, setTempAbsenceId] = useState<string>("");
 
   // Fetch employees
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],
     queryFn: getEmployees,
   });
+
+  // Fetch absences for selected employee
+  const { data: absences = [], isLoading: isLoadingAbsences } = useQuery({
+    queryKey: ["absences", tempEmployeeId],
+    queryFn: () => getAbsences(parseInt(tempEmployeeId)),
+    enabled: !!tempEmployeeId && showAbsenceDialog,
+  });
+
+  // Filter vacation absences only
+  const vacationAbsences = absences.filter(
+    (abs: Absence) => abs.absence_type_id === "vacation"
+  );
 
   // Handle formular click - opens employee selection if needed
   const handleFormularClick = (formularItem: FormularItem) => {
@@ -165,17 +179,26 @@ export default function FormularsPage() {
     if (formularItem.type === "filtered") {
       // For filtered forms, open filter dialog
       setShowFilterDialog(true);
+    } else if (formularItem.id === "vacation-approval-single") {
+      // For approval form, first select employee, then select absence
+      setTempEmployeeId("");
+      setTempAbsenceId("");
+      setShowEmployeeDialog(true);
     } else if (formularItem.requiresEmployee) {
       // For single employee forms, open employee selection
       setTempEmployeeId("");
       setShowEmployeeDialog(true);
     } else {
       // For forms that don't require employee, generate directly
-      generatePDF(formularItem, "");
+      generatePDF(formularItem, "", "");
     }
   };
 
-  const generatePDF = (formularItem: FormularItem | null, employeeId: string = "") => {
+  const generatePDF = (
+    formularItem: FormularItem | null,
+    employeeId: string = "",
+    absenceId: string = ""
+  ) => {
     if (!formularItem) return;
 
     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
@@ -199,15 +222,15 @@ export default function FormularsPage() {
         break;
 
       case "vacation-approval-single":
-        if (!employeeId) {
+        if (!absenceId) {
           toast({
             title: "Fehler",
-            description: "Bitte wählen Sie einen Mitarbeiter aus.",
+            description: "Bitte wählen Sie einen Urlaubsantrag aus.",
             variant: "destructive",
           });
           return;
         }
-        url = `${apiBaseUrl}/api/v2/vacation-pdf/approval?employee_id=${employeeId}`;
+        url = `${apiBaseUrl}/api/v2/vacation-pdf/approval?absence_id=${absenceId}`;
         break;
 
       case "vacation-approval-bulk":
@@ -273,7 +296,27 @@ export default function FormularsPage() {
       });
       return;
     }
-    generatePDF(selectedFormular, tempEmployeeId);
+
+    // For approval form, show absence selection dialog
+    if (selectedFormular?.id === "vacation-approval-single") {
+      setShowEmployeeDialog(false);
+      setShowAbsenceDialog(true);
+    } else {
+      generatePDF(selectedFormular, tempEmployeeId, "");
+    }
+  };
+
+  // Handle absence selection confirmation
+  const handleAbsenceConfirm = () => {
+    if (!tempAbsenceId) {
+      toast({
+        title: "Fehler",
+        description: "Bitte wählen Sie einen Urlaubsantrag aus.",
+        variant: "destructive",
+      });
+      return;
+    }
+    generatePDF(selectedFormular, tempEmployeeId, tempAbsenceId);
   };
 
   // Group formulars by category
@@ -407,6 +450,75 @@ export default function FormularsPage() {
               Abbrechen
             </Button>
             <Button onClick={handleEmployeeConfirm} className="gap-2">
+              <FileDown className="h-4 w-4" />
+              Exportieren
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Absence Selection Dialog for Approval Forms */}
+      <Dialog open={showAbsenceDialog} onOpenChange={setShowAbsenceDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-primary" />
+              Urlaubsantrag auswählen
+            </DialogTitle>
+            <DialogDescription>
+              <div className="space-y-2 mt-3">
+                <p className="font-medium text-foreground">
+                  Bitte wählen Sie den Urlaubsantrag aus, für den die Genehmigung erstellt werden soll:
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {isLoadingAbsences ? (
+              <p className="text-sm text-muted-foreground">Lade Urlaubsanträge...</p>
+            ) : vacationAbsences.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Keine Urlaubsanträge für diesen Mitarbeiter gefunden.
+              </p>
+            ) : (
+              <Select value={tempAbsenceId} onValueChange={setTempAbsenceId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Urlaubsantrag auswählen..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {vacationAbsences.map((abs: Absence) => (
+                    <SelectItem key={abs.id} value={abs.id.toString()}>
+                      {new Date(abs.start_date).toLocaleDateString("de-DE")} -{" "}
+                      {new Date(abs.end_date).toLocaleDateString("de-DE")} (
+                      {abs.status === "requested"
+                        ? "Beantragt"
+                        : abs.status === "approved"
+                          ? "Genehmigt"
+                          : "Abgelehnt"}
+                      )
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAbsenceDialog(false);
+                setShowEmployeeDialog(true);
+              }}
+            >
+              Zurück
+            </Button>
+            <Button
+              onClick={handleAbsenceConfirm}
+              disabled={!tempAbsenceId || vacationAbsences.length === 0}
+              className="gap-2"
+            >
               <FileDown className="h-4 w-4" />
               Exportieren
             </Button>

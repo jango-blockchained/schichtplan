@@ -433,42 +433,65 @@ def get_bulk_vacation_requests():
 @bp.route("/vacation-pdf/approval", methods=["GET"])
 def get_vacation_approval_form():
     """
-    Generate vacation approval form for a single employee.
+    Generate vacation approval form for a specific absence request.
 
     Query parameters:
-        employee_id (required): Employee ID
+        absence_id (required): Absence ID to generate approval form for
 
     Returns:
         PDF file for download
     """
     try:
-        # Get employee_id parameter
-        employee_id_str = request.args.get("employee_id")
-        if not employee_id_str:
-            return jsonify(
-                {"status": "error", "message": "employee_id parameter is required"}
-            ), HTTPStatus.BAD_REQUEST
-
-        try:
-            employee_id = int(employee_id_str)
-        except ValueError:
-            return jsonify(
-                {"status": "error", "message": "employee_id must be a valid integer"}
-            ), HTTPStatus.BAD_REQUEST
-
-        # Fetch employee
-        employee = db.session.get(Employee, employee_id)
-        if not employee:
-            logger.warning(f"Employee with ID {employee_id} not found")
+        # Get absence_id parameter
+        absence_id_str = request.args.get("absence_id")
+        if not absence_id_str:
             return jsonify(
                 {
                     "status": "error",
-                    "message": f"Employee with ID {employee_id} not found",
+                    "message": "absence_id parameter is required",
+                }
+            ), HTTPStatus.BAD_REQUEST
+
+        try:
+            absence_id = int(absence_id_str)
+        except ValueError:
+            return jsonify(
+                {"status": "error", "message": "absence_id must be a valid integer"}
+            ), HTTPStatus.BAD_REQUEST
+
+        # Fetch absence
+        absence = db.session.get(Absence, absence_id)
+        if not absence:
+            logger.warning(f"Absence with ID {absence_id} not found")
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": f"Absence with ID {absence_id} not found",
+                }
+            ), HTTPStatus.NOT_FOUND
+
+        # Verify it's a vacation type absence
+        if absence.absence_type_id != "vacation":
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": "This absence is not a vacation request",
+                }
+            ), HTTPStatus.BAD_REQUEST
+
+        # Fetch employee
+        employee = db.session.get(Employee, absence.employee_id)
+        if not employee:
+            logger.warning(f"Employee with ID {absence.employee_id} not found")
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": "Employee not found for this absence",
                 }
             ), HTTPStatus.NOT_FOUND
 
         logger.info(
-            f"Loaded employee {employee.employee_id}: "
+            f"Loaded absence {absence_id} for employee {employee.employee_id}: "
             f"{employee.first_name} {employee.last_name}"
         )
 
@@ -478,14 +501,18 @@ def get_vacation_approval_form():
         # Generate PDF
         generator = VacationPDFGenerator()
         pdf_buffer = generator.generate_vacation_approval_form(
-            employee=employee, settings=settings
+            employee=employee, absence=absence, settings=settings
         )
 
         logger.info(
-            f"Generated vacation approval form for employee {employee.employee_id}"
+            f"Generated vacation approval form for absence {absence_id}, "
+            f"employee {employee.employee_id}"
         )
 
-        filename = f"urlaubsgenehmigung_{employee.employee_id}.pdf"
+        filename = (
+            f"urlaubsgenehmigung_{employee.employee_id}_"
+            f"{absence.start_date.strftime('%Y%m%d')}.pdf"
+        )
 
         return send_file(
             pdf_buffer,
@@ -664,17 +691,46 @@ def get_yearly_vacation_overview():
 @bp.route("/vacation-pdf/employee-vacation-entitlement", methods=["GET"])
 def get_employee_vacation_entitlement():
     """
-    Generate employee vacation entitlement list showing all employees and their yearly vacation days.
+    Generate comprehensive employee vacation entitlement with usage data.
+
+    Query parameters:
+        year (optional): Year for the report (defaults to current year)
 
     Returns:
         PDF file for download
     """
     try:
+        # Get year parameter (default to current year)
+        year_str = request.args.get("year")
+        if year_str:
+            try:
+                year = int(year_str)
+            except ValueError:
+                year = datetime.now().year
+        else:
+            year = datetime.now().year
+
         # Fetch all active employees
-        employees = Employee.query.filter_by(is_active=True).order_by(
-            Employee.last_name, Employee.first_name
+        employees = (
+            Employee.query.filter_by(is_active=True)
+            .order_by(Employee.last_name, Employee.first_name)
+            .all()
+        )
+        logger.info(
+            f"Loaded {len(employees)} active employees for "
+            f"vacation entitlement list {year}"
+        )
+
+        # Fetch vacation absences for the year
+        start_date = datetime(year, 1, 1).date()
+        end_date = datetime(year, 12, 31).date()
+
+        absences = Absence.query.filter(
+            Absence.absence_type_id == "vacation",
+            Absence.start_date <= end_date,
+            Absence.end_date >= start_date,
         ).all()
-        logger.info(f"Loaded {len(employees)} active employees for vacation entitlement list")
+        logger.info(f"Loaded {len(absences)} vacation absences for year {year}")
 
         # Get settings
         settings = Settings.query.first()
@@ -682,21 +738,27 @@ def get_employee_vacation_entitlement():
         # Generate PDF
         generator = VacationPDFGenerator()
         pdf_buffer = generator.generate_employee_vacation_entitlement_list(
-            employees=employees, settings=settings
+            employees=employees,
+            absences=absences,
+            year=year,
+            settings=settings,
         )
 
-        logger.info("Successfully generated employee vacation entitlement list")
+        logger.info(
+            f"Successfully generated employee vacation entitlement list for {year}"
+        )
 
         return send_file(
             pdf_buffer,
             mimetype="application/pdf",
             as_attachment=True,
-            download_name="mitarbeiter_urlaubsanspruch.pdf",
+            download_name=f"mitarbeiter_urlaubsanspruch_{year}.pdf",
         )
 
     except Exception as e:
         logger.error(
-            f"Error generating employee vacation entitlement list: {str(e)}", exc_info=True
+            f"Error generating employee vacation entitlement list: {str(e)}",
+            exc_info=True,
         )
         return jsonify(
             {"status": "error", "message": f"Failed to generate PDF: {str(e)}"}
