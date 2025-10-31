@@ -70,6 +70,7 @@ export default function CalendarBodyMonth() {
             ease: 'easeInOut',
           }}
         >
+          {/* Day cells */}
           {calendarDays.map((day) => {
             const isToday = isSameDay(day, today)
             const isCurrentMonth = isSameMonth(day, date)
@@ -78,7 +79,7 @@ export default function CalendarBodyMonth() {
               <div
                 key={day.toISOString()}
                 className={cn(
-                  'relative flex flex-col border-b border-r p-2 aspect-square cursor-pointer',
+                  'relative border-b border-r p-2 cursor-pointer min-h-32',
                   !isCurrentMonth && 'bg-muted/50 hidden md:flex'
                 )}
                 onClick={(e) => {
@@ -89,7 +90,7 @@ export default function CalendarBodyMonth() {
               >
                 <div
                   className={cn(
-                    'text-sm font-medium w-fit p-1 flex flex-col items-center justify-center rounded-full aspect-square',
+                    'text-sm font-medium w-fit p-1 flex flex-col items-center justify-center rounded-full aspect-square absolute top-2 left-2',
                     isToday && 'bg-primary text-background'
                   )}
                 >
@@ -99,62 +100,105 @@ export default function CalendarBodyMonth() {
             )
           })}
 
-          {/* Render events on top of the grid */}
-          <AnimatePresence mode="wait">
-            <div className="absolute inset-0 pointer-events-none">
-              {visibleEvents
-                .filter((event) => isSameDay(event.start, event.start))  // Only first day of each event
-                .map((event) => {
-                  // Find the starting day index
-                  const startDayIndex = calendarDays.findIndex((day) => isSameDay(day, event.start))
-                  if (startDayIndex === -1) return null
+          {/* Multi-day events rendered as spanning bars */}
+          <div className="absolute inset-0 pointer-events-none">
+            {visibleEvents
+              .filter((event) => isSameDay(event.start, event.start)) // Process each event once
+              .map((event) => {
+                // Find start and end day indices
+                const startIndex = calendarDays.findIndex((day) => isSameDay(day, event.start))
+                const endIndex = calendarDays.findIndex((day) => isSameDay(day, event.end))
 
-                  // Calculate how many days this event spans
-                  const eventDuration = Math.ceil(
-                    (event.end.getTime() - event.start.getTime()) / (1000 * 60 * 60 * 24)
-                  ) + 1
+                if (startIndex === -1) return null
 
-                  // Calculate how many columns to span (remaining in week + weeks after)
-                  const weekStartIndex = Math.floor(startDayIndex / 7) * 7
-                  const daysToEndOfWeek = 7 - (startDayIndex - weekStartIndex)
-                  const spanColumns = Math.min(eventDuration, daysToEndOfWeek)
+                // Calculate position and span
+                const cellWidth = 100 / 7
+                const weekRow = Math.floor(startIndex / 7)
+                const cellsInThisWeek = Math.min(7 - (startIndex % 7), (endIndex - startIndex) + 1)
+                const columnStart = startIndex % 7
 
-                  // Calculate row and column position
-                  const rowIndex = Math.floor(startDayIndex / 7)
-                  const columnIndex = startDayIndex % 7
+                // Determine if this is first and last day
+                const isFirstDay = true
+                const isLastDay = isSameDay(event.end, event.start) ||
+                  weekRow !== Math.floor(endIndex / 7) ||
+                  endIndex === startIndex
 
-                  // Calculate pixel position based on grid layout
-                  const cellWidth = 100 / 7  // 7 columns
-                  const cellHeight = 100 / Math.ceil(calendarDays.length / 7)  // rows
-                  const left = (columnIndex * cellWidth)
-                  const top = (rowIndex * cellHeight) + 16  // 16px offset for day number
-                  const width = (spanColumns * cellWidth)
+                const left = (columnStart * cellWidth)
+                const width = (cellsInThisWeek * cellWidth)
+                const topOffset = 56 // Below day number
 
-                  return (
-                    <div
-                      key={`event-${event.id}`}
-                      style={{
-                        position: 'absolute',
-                        left: `${left}%`,
-                        top: `${top}px`,
-                        width: `${width}%`,
-                        pointerEvents: 'auto',
-                        zIndex: 10,
-                      }}
-                    >
-                      <CalendarEvent
-                        event={event}
-                        className="w-full"
-                        month
-                        spanColumns={spanColumns}
-                        isFirstDay={true}
-                        isLastDay={spanColumns === eventDuration}
-                      />
-                    </div>
-                  )
-                })}
-            </div>
-          </AnimatePresence>
+                return (
+                  <div
+                    key={`event-${event.id}-${weekRow}`}
+                    className="absolute"
+                    style={{
+                      left: `${left}%`,
+                      width: `${width}%`,
+                      top: `${weekRow * (100 / Math.ceil(calendarDays.length / 7))}%`,
+                      height: `${100 / Math.ceil(calendarDays.length / 7)}%`,
+                      paddingTop: `${topOffset}px`,
+                      paddingLeft: '4px',
+                      paddingRight: '4px',
+                      pointerEvents: 'auto',
+                      zIndex: 10,
+                    }}
+                  >
+                    <CalendarEvent
+                      event={event}
+                      month
+                      isFirstDay={isFirstDay}
+                      isLastDay={isLastDay}
+                      className="w-full"
+                    />
+                  </div>
+                )
+              })}
+          </div>
+
+          {/* Single-day events */}
+          {calendarDays.map((day) => {
+            // Get single-day events only
+            const dayEvents = visibleEvents.filter((event) =>
+              isSameDay(event.start, day) && isSameDay(event.end, day)
+            )
+
+            if (dayEvents.length === 0) return null
+
+            const cellWidth = 100 / 7
+            const dayIndex = calendarDays.findIndex((d) => isSameDay(d, day))
+            const weekRow = Math.floor(dayIndex / 7)
+            const columnStart = dayIndex % 7
+
+            return (
+              <div
+                key={`single-${day.toISOString()}`}
+                className="absolute flex flex-col gap-1"
+                style={{
+                  left: `${(columnStart * cellWidth) + 2}%`,
+                  width: `${cellWidth - 4}%`,
+                  top: `${weekRow * (100 / Math.ceil(calendarDays.length / 7)) + 5}%`,
+                  height: `${100 / Math.ceil(calendarDays.length / 7) - 5}%`,
+                  paddingTop: '32px',
+                  paddingLeft: '4px',
+                  paddingRight: '4px',
+                  overflow: 'hidden',
+                  pointerEvents: 'auto',
+                  zIndex: 20,
+                }}
+              >
+                {dayEvents.map((event) => (
+                  <CalendarEvent
+                    key={event.id}
+                    event={event}
+                    month
+                    isFirstDay={true}
+                    isLastDay={true}
+                    className="w-full text-xs"
+                  />
+                ))}
+              </div>
+            )
+          })}
         </motion.div>
       </AnimatePresence>
     </div>

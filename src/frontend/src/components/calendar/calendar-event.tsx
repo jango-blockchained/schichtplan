@@ -3,6 +3,8 @@ import { CalendarEvent as CalendarEventType } from '@/components/calendar/calend
 import { cn } from '@/lib/utils'
 import { format, isSameDay, isSameMonth } from 'date-fns'
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
+import { Edit2, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 
 interface EventPosition {
   left: string
@@ -83,19 +85,18 @@ export default function CalendarEvent({
   event,
   month = false,
   className,
-  spanColumns = 1,
-  isFirstDay: propIsFirstDay = true,
-  isLastDay: propIsLastDay = true,
+  isFirstDay = true,
+  isLastDay = true,
 }: {
   event: CalendarEventType
   month?: boolean
   className?: string
-  spanColumns?: number
   isFirstDay?: boolean
   isLastDay?: boolean
 }) {
-  const { events, setSelectedEvent, setManageEventDialogOpen, date } =
+  const { events, setSelectedEvent, setManageEventDialogOpen, date, setEvents } =
     useCalendarContext()
+  const [showActions, setShowActions] = useState(false)
   const positionStyle = month ? {} : calculateEventPosition(event, events)
 
   // Generate a unique key that includes the current month to prevent animation conflicts
@@ -103,28 +104,43 @@ export default function CalendarEvent({
   const animationKey = `${event.id}-${isEventInCurrentMonth ? 'current' : 'adjacent'
     }`
 
-  // Use provided props
-  const isFirstDay = propIsFirstDay
-  const isLastDay = propIsLastDay
+  // Calculate duration for month view
+  const duration = event.end.getHours() * 60 + event.end.getMinutes() -
+    (event.start.getHours() * 60 + event.start.getMinutes())
+  const durationHours = Math.floor(duration / 60)
+  const durationMinutes = duration % 60
+
+  // Format duration string
+  const durationStr = durationHours > 0
+    ? `${durationHours}h${durationMinutes > 0 ? ` ${durationMinutes}m` : ''}`
+    : `${durationMinutes}m`
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEvents(events.filter(ev => ev.id !== event.id))
+  }
+
+  // For multi-day events, only show time on first and last day
+  const showTimeInfo = !month || isFirstDay || isLastDay
 
   return (
     <MotionConfig reducedMotion="user">
       <AnimatePresence mode="wait">
         <motion.div
           className={cn(
-            'flex items-start gap-1.5 cursor-pointer transition-all duration-300 rounded-md min-h-fit',
-            'bg-background border border-border hover:border-foreground/50',
+            'flex items-center gap-1.5 cursor-pointer transition-all duration-300 rounded-md min-h-fit group',
+            'bg-background border border-border hover:border-foreground/50 hover:shadow-md',
             !month && 'absolute z-10 p-2',
-            month && 'p-1.5 overflow-visible',
-            month && isFirstDay && spanColumns > 1 && 'rounded-l-md',
-            month && isLastDay && spanColumns > 1 && 'rounded-r-md col-span-1',
+            month && 'p-1 overflow-visible w-full text-xs',
+            month && isFirstDay && 'rounded-l-md',
+            month && isLastDay && 'rounded-r-md',
             className
           )}
           style={{
             ...positionStyle,
-            ...(month && spanColumns > 1 && isFirstDay && { gridColumn: `span ${spanColumns}` }),
-            ...(month && isLastDay && spanColumns > 1 && { justifySelf: 'end' }),
           }}
+          onMouseEnter={() => month && setShowActions(true)}
+          onMouseLeave={() => month && setShowActions(false)}
           onClick={(e) => {
             e.stopPropagation()
             setSelectedEvent(event)
@@ -162,7 +178,7 @@ export default function CalendarEvent({
           }}
           layoutId={`event-${animationKey}-${month ? 'month' : 'day'}`}
         >
-          {/* Color indicator bar */}
+          {/* Color indicator bar - rounded on first/last day, full height */}
           <div
             className={cn(
               'flex-shrink-0 w-1 rounded-full',
@@ -173,17 +189,34 @@ export default function CalendarEvent({
             }}
           />
 
-          {/* Content */}
+          {/* Content Container */}
           <motion.div
-            className="flex-1 min-w-0"
+            className="flex-1 min-w-0 flex items-center gap-1"
             layout="position"
           >
-            {/* Always show title */}
-            <p className="text-xs font-medium text-foreground truncate">
+            {/* Title - always show and highlight */}
+            <p className="text-xs font-semibold text-foreground truncate leading-tight">
               {event.title}
             </p>
-            {/* Only show time in day/week view, not month view */}
-            {!month && (
+
+            {month ? (
+              <>
+                {/* Time info for month view - compact single line */}
+                {showTimeInfo && (
+                  <>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      {format(event.start, 'HH:mm')} - {format(event.end, 'HH:mm')}
+                    </span>
+
+                    {/* Duration badge for month view */}
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      ({durationStr})
+                    </span>
+                  </>
+                )}
+              </>
+            ) : (
+              /* Time display for day/week view */
               <p className="text-xs text-muted-foreground">
                 <span>{format(event.start, 'h:mm a')}</span>
                 <span className="mx-1">-</span>
@@ -193,6 +226,40 @@ export default function CalendarEvent({
               </p>
             )}
           </motion.div>
+
+          {/* Action buttons - only visible on hover in month view */}
+          {month && (
+            <AnimatePresence>
+              {showActions && (
+                <motion.div
+                  className="flex items-center gap-1 flex-shrink-0 ml-auto"
+                  initial={{ opacity: 0, x: 4 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 4 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelectedEvent(event)
+                      setManageEventDialogOpen(true)
+                    }}
+                    className="p-1 hover:bg-muted rounded-sm transition-colors"
+                    title="Edit"
+                  >
+                    <Edit2 className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    className="p-1 hover:bg-destructive/10 rounded-sm transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-3 h-3 text-muted-foreground hover:text-destructive" />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          )}
         </motion.div>
       </AnimatePresence>
     </MotionConfig>
