@@ -736,7 +736,7 @@ export default function VacationPlanningPage() {
                 onValueChange={(value) => setPageSize(Number(value))}
               >
                 <SelectTrigger id="page-size" className="w-[120px]">
-                  <SelectValue />
+                  <SelectValue placeholder="Wählen..." />
                 </SelectTrigger>
                 <SelectContent>
                   {[10, 25, 50].map((size) => (
