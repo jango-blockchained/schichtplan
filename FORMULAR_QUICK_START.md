@@ -7,10 +7,12 @@
 **Step 1:** Go to Formulare
 **Step 2:** Find "Urlaubsanträge" section
 **Step 3:** Choose:
+
 - **Einzelexport** = Single employee form
 - **Bulk Export** = Forms for all employees
 
-**Step 4:** 
+**Step 4:**
+
 - If you chose Einzelexport: Select employee from dialog
 - If you chose Bulk: PDF generates immediately
 
@@ -22,10 +24,12 @@
 **Step 1:** Go to Formulare
 **Step 2:** Find "Urlaubsgenehmigung" section
 **Step 3:** Choose:
+
 - **Einzelexport** = Single employee approval
 - **Bulk Export** = Overview with filters
 
 **Step 4:**
+
 - If Einzelexport: Select employee
 - If Bulk: Configure filters (Status, Period), then export
 
@@ -90,11 +94,13 @@ docs/
 ### Key Classes & Methods
 
 **Frontend:**
+
 - `FormularItem` - Interface for form definition
 - `handleFormularClick()` - Opens dialog
 - `generatePDF()` - Triggers PDF generation
 
 **Backend:**
+
 - `VacationPDFGenerator.generate_bulk_vacation_requests()`
 - `VacationPDFGenerator.generate_vacation_approval_form()`
 - `VacationPDFGenerator.generate_bulk_vacation_approvals()`
@@ -108,21 +114,25 @@ docs/
 ## Troubleshooting
 
 ### PDF not opening
+
 ✓ Check browser console for errors
 ✓ Verify employee_id/year parameters are valid
 ✓ Check backend logs for exceptions
 
 ### Employee not appearing in list
+
 ✓ Verify employee is marked as active in database
 ✓ Check employee record exists in database
 ✓ Clear browser cache and reload
 
 ### Form looks wrong
+
 ✓ Check PDF generation method for issues
 ✓ Verify reportlab is installed
 ✓ Check PDF margins and font settings
 
 ### Filters not working
+
 ✓ Backend needs to apply filter logic
 ✓ Currently filters are UI only
 ✓ Implement filter logic in backend
@@ -131,13 +141,13 @@ docs/
 
 ## Form Types Reference
 
-| Form | Type | Employee Required | Parameters | Use Case |
-|------|------|------------------|-----------|----------|
-| Request Single | Single | Yes | employee_id | Individual request |
-| Request Bulk | Bulk | No | year | Distribute to all |
-| Approval Single | Single | Yes | employee_id | One approval |
-| Approval Bulk | Filtered | No | year | Overview all |
-| Yearly Overview | Yearly | No | year | Annual report |
+| Form            | Type     | Employee Required | Parameters  | Use Case           |
+| --------------- | -------- | ----------------- | ----------- | ------------------ |
+| Request Single  | Single   | Yes               | employee_id | Individual request |
+| Request Bulk    | Bulk     | No                | year        | Distribute to all  |
+| Approval Single | Single   | Yes               | employee_id | One approval       |
+| Approval Bulk   | Filtered | No                | year        | Overview all       |
+| Yearly Overview | Yearly   | No                | year        | Annual report      |
 
 ---
 
@@ -145,18 +155,18 @@ docs/
 
 ```sql
 -- Active employees for dropdown
-SELECT * FROM employees 
-WHERE is_active = true 
+SELECT * FROM employees
+WHERE is_active = true
 ORDER BY last_name;
 
 -- Vacation entries for year
-SELECT * FROM absences 
+SELECT * FROM absences
 WHERE absence_type_id = 'vacation'
   AND YEAR(start_date) = 2024
 ORDER BY start_date;
 
 -- Employee vacation entitlement
-SELECT vacation_per_year FROM employees 
+SELECT vacation_per_year FROM employees
 WHERE id = ?;
 ```
 
@@ -165,6 +175,7 @@ WHERE id = ?;
 ## API Response Formats
 
 ### Success Response
+
 ```
 HTTP 200 OK
 Content-Type: application/pdf
@@ -173,6 +184,7 @@ Content-Disposition: attachment; filename="form_name.pdf"
 ```
 
 ### Error Response
+
 ```json
 {
   "status": "error",
@@ -181,6 +193,7 @@ Content-Disposition: attachment; filename="form_name.pdf"
 ```
 
 **Common Errors:**
+
 - `400 Bad Request` - Missing or invalid parameters
 - `404 Not Found` - Employee or resource not found
 - `500 Internal Server Error` - PDF generation failure
@@ -242,6 +255,7 @@ git push origin feature/week-navigation-only
 ## Support
 
 Questions? Check:
+
 1. Documentation files above
 2. Code comments in source files
 3. Backend route docstrings

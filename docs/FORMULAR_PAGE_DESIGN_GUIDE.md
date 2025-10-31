@@ -147,6 +147,7 @@ PDF generated with applied filters
 ## Color Scheme
 
 ### Professional Colors
+
 - **Primary**: Brand color for headers and buttons
 - **Muted**: Light backgrounds for sections
 - **Border**: Subtle dividing lines
@@ -155,6 +156,7 @@ PDF generated with applied filters
 - **Success**: Green for confirmations
 
 ### Card States
+
 - **Normal**: White background, subtle border
 - **Hover**: Light shadow, subtle border-primary highlight
 - **Active**: Primary color accent
@@ -184,6 +186,7 @@ Card description
 ## Responsive Behavior
 
 ### Desktop (≥1024px)
+
 ```
 2-column grid per category
 ┌──────────────────────┬──────────────────────┐
@@ -194,6 +197,7 @@ Card description
 ```
 
 ### Tablet (768px - 1024px)
+
 ```
 2-column grid per category
 ┌──────────────────────┬──────────────────────┐
@@ -205,6 +209,7 @@ Card description
 ```
 
 ### Mobile (<768px)
+
 ```
 1-column grid per category
 ┌──────────────────────┐
@@ -218,12 +223,12 @@ Card description
 
 ## Form Types Legend
 
-| Icon | Type | Behavior | Use Case |
-|------|------|----------|----------|
-| 📅 | Single | Employee selection required | Individual form |
-| 👥 | Bulk | No selection, all employees | Mass distribution |
-| 📄 | Yearly | No selection, annual data | Reporting |
-| 🔍 | Filtered | Filter options available | Selective export |
+| Icon | Type     | Behavior                    | Use Case          |
+| ---- | -------- | --------------------------- | ----------------- |
+| 📅   | Single   | Employee selection required | Individual form   |
+| 👥   | Bulk     | No selection, all employees | Mass distribution |
+| 📄   | Yearly   | No selection, annual data   | Reporting         |
+| 🔍   | Filtered | Filter options available    | Selective export  |
 
 ## Breadcrumb Navigation
 
@@ -277,6 +282,7 @@ New tab opens → PDF loads → Download begins
 ## Error Handling
 
 ### Missing Employee Selection
+
 ```
 Toast Notification (Error):
 ┌────────────────────────────────────┐
@@ -287,6 +293,7 @@ Toast Notification (Error):
 ```
 
 ### Invalid Year
+
 ```
 Toast Notification (Error):
 ┌────────────────────────────────────┐
@@ -299,20 +306,24 @@ Toast Notification (Error):
 ## Accessibility Features
 
 ✅ **Keyboard Navigation**
+
 - Tab through all interactive elements
 - Enter to activate buttons
 - Arrow keys in dropdowns
 
 ✅ **Screen Reader Support**
+
 - Semantic HTML structure
 - ARIA labels on interactive elements
 - Dialog announcements
 
 ✅ **Color Contrast**
+
 - All text meets WCAG AA standards
 - Not reliant on color alone for information
 
 ✅ **Focus Indicators**
+
 - Clear focus rings on interactive elements
 - High contrast indicators
 
