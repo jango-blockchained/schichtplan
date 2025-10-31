@@ -20,86 +20,53 @@ from src.backend.models.schedule import (
 
 
 @pytest.fixture
-def app():
-    """Create and configure a Flask app for testing."""
-    app = create_app()
-    app.config["TESTING"] = True
-
-    # Create tables
-    with app.app_context():
-        db.create_all()
-        # Ensure default settings exist
-        Settings.get_or_create_default()
-
-    yield app
-
-    # Clean up
-    with app.app_context():
-        db.session.remove()
-        db.drop_all()
-
-
-@pytest.fixture
-def client(app):
-    """A test client for the app."""
-    return app.test_client()
-
-
-@pytest.fixture
-def runner(app):
-    """A test CLI runner for the app."""
-    return app.test_cli_runner()
-
-
-@pytest.fixture
-def setup_test_data(app):
+def setup_test_data(session, app):
     """Set up test data for schedule generation tests."""
-    with app.app_context():
-        # Create store settings (using get_or_create_default)
-        settings = Settings.get_or_create_default()
-        # Update settings using update_from_dict
-        settings.update_from_dict(
-            {
-                "store_opening": "08:00",
-                "store_closing": "20:00",
-                "min_break_duration": 60,
-                "generation_requirements": {
-                    "enforce_keyholder_coverage": True,
-                    "enforce_rest_periods": 11,
-                    "enforce_max_hours": 40,
-                    # Add other relevant requirements as needed by tests
-                },
-            }
-        )
-        db.session.commit()  # Commit changes to settings
+    # Create store settings (using get_or_create_default)
+    settings = Settings.get_or_create_default()
+    # Update settings using update_from_dict
+    settings.update_from_dict(
+        {
+            "store_opening": "08:00",
+            "store_closing": "20:00",
+            "min_break_duration": 60,
+            "generation_requirements": {
+                "enforce_keyholder_coverage": True,
+                "enforce_rest_periods": 11,
+                "enforce_max_hours": 40,
+                # Add other relevant requirements as needed by tests
+            },
+        }
+    )
+    session.commit()  # Commit changes to settings
 
-        # Create shifts
-        # Using default active_days [0, 1, 2, 3, 4, 5] (Mon-Sat)
-        shifts = [
-            ShiftTemplate(
-                start_time="08:00",
-                end_time="16:00",
-                requires_break=True,
-                shift_type_id="EARLY",  # Explicitly set shift_type_id
-            ),
-            ShiftTemplate(
-                start_time="10:00",
-                end_time="18:00",
-                requires_break=True,
-                shift_type_id="MIDDLE",  # Explicitly set shift_type_id
-            ),
-            ShiftTemplate(
-                start_time="12:00",
-                end_time="20:00",
-                requires_break=True,
-                shift_type_id="LATE",  # Explicitly set shift_type_id
-            ),
-        ]
-        for shift in shifts:
-            db.session.add(shift)
+    # Create shifts
+    # Using default active_days [0, 1, 2, 3, 4, 5] (Mon-Sat)
+    shifts = [
+        ShiftTemplate(
+            start_time="08:00",
+            end_time="16:00",
+            requires_break=True,
+            shift_type_id="EARLY",  # Explicitly set shift_type_id
+        ),
+        ShiftTemplate(
+            start_time="10:00",
+            end_time="18:00",
+            requires_break=True,
+            shift_type_id="MIDDLE",  # Explicitly set shift_type_id
+        ),
+        ShiftTemplate(
+            start_time="12:00",
+            end_time="20:00",
+            requires_break=True,
+            shift_type_id="LATE",  # Explicitly set shift_type_id
+        ),
+    ]
+    for shift in shifts:
+        session.add(shift)
 
-        # Create employees
-        employees = [
+    # Create employees
+    employees = [
             Employee(
                 first_name="John",
                 last_name="Doe",
@@ -122,7 +89,7 @@ def setup_test_data(app):
                 first_name="Bob",
                 last_name="Johnson",
                 email="bob.johnson@example.com",
-                contracted_hours=20,
+                contracted_hours=10,
                 employee_group=EmployeeGroup.GFB,
                 is_active=True,
                 is_keyholder=False,
@@ -137,18 +104,19 @@ def setup_test_data(app):
                 is_keyholder=True,
             ),
         ]
-        for employee in employees:
-            db.session.add(employee)
 
-        # Create a version
-        today = datetime.now().date()
-        start_date = today - timedelta(days=today.weekday())  # Start from Monday
-        end_date = start_date + timedelta(days=6)  # End on Sunday
+    for employee in employees:
+        session.add(employee)
 
-        # Use the helper function to create or get the default version
-        create_default_version(db.session, start_date, end_date)
+    # Create a version
+    today = datetime.now().date()
+    start_date = today - timedelta(days=today.weekday())  # Start from Monday
+    end_date = start_date + timedelta(days=6)  # End on Sunday
 
-        db.session.commit()
+    # Use the helper function to create or get the default version
+    create_default_version(session, start_date, end_date)
+
+    session.commit()
 
 
 def create_default_version(

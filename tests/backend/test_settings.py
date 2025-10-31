@@ -232,28 +232,17 @@ DEFAULT_SETTINGS_DICT_EXPECTATION = {
 }
 
 
-@pytest.fixture(scope="module")
-def app():
-    app = create_app("testing")  # Use a testing configuration
-    with app.app_context():
-        db.create_all()
-        # Ensure default settings are created if not present
-        Settings.get_or_create_default()
-        yield app
-        db.session.remove()
-        db.drop_all()
+@pytest.fixture
+def test_settings(session):
+    """Get or create settings for testing."""
+    settings = Settings.get_or_create_default()
+    session.commit()
+    return settings
 
 
-@pytest.fixture(scope="module")
-def client(app: Flask):
-    return app.test_client()
-
-
-def test_get_default_settings_to_dict(app: Flask):
+def test_get_default_settings_to_dict(app, test_settings):
     """Test that the default settings are correctly serialized by to_dict."""
-    with app.app_context():
-        settings = Settings.get_or_create_default()
-        settings_dict = settings.to_dict()
+    settings_dict = test_settings.to_dict()
 
         # Normalize availability_types for comparison if necessary
         # The default in model has 'type' field, ensure test data matches or normalize here
@@ -305,13 +294,9 @@ def test_get_default_settings_to_dict(app: Flask):
                 )
 
 
-def test_update_settings_from_dict(app: Flask):
+def test_update_settings_from_dict(app, test_settings):
     """Test updating settings using update_from_dict method."""
-    with app.app_context():
-        # Start with default settings
-        Settings.get_or_create_default()
-
-        update_data = {
+    update_data = {
             "general": {
                 "store_name": "Updated Store Name",
                 "language": "en",
@@ -364,81 +349,74 @@ def test_update_settings_from_dict(app: Flask):
             },
             "ai_scheduling": {"enabled": True, "api_key": "test_key_123"},
         }
-        Settings.update_from_dict(update_data)
+    Settings.update_from_dict(update_data)
 
-        updated_settings = Settings.query.first()
-        updated_settings_dict = updated_settings.to_dict()
+    updated_settings = Settings.query.first()
+    updated_settings_dict = updated_settings.to_dict()
 
-        # General assertions
-        assert updated_settings_dict["general"]["store_name"] == "Updated Store Name"
-        assert updated_settings_dict["general"]["language"] == "en"
-        assert updated_settings_dict["general"]["opening_days"]["monday"] == False
-        assert (
-            updated_settings_dict["general"]["opening_days"]["tuesday"] == True
-        )  # Check if others preserved
-        assert "2025-12-25" in updated_settings_dict["general"]["special_days"]
+    # General assertions
+    assert updated_settings_dict["general"]["store_name"] == "Updated Store Name"
+    assert updated_settings_dict["general"]["language"] == "en"
+    assert updated_settings_dict["general"]["opening_days"]["monday"] == False
+    assert (
+        updated_settings_dict["general"]["opening_days"]["tuesday"] == True
+    )  # Check if others preserved
+    assert "2025-12-25" in updated_settings_dict["general"]["special_days"]
 
-        # Scheduling assertions
-        assert updated_settings_dict["scheduling"]["default_shift_duration"] == 7.5
-        assert (
-            updated_settings_dict["scheduling"]["generation_requirements"][
-                "enforce_max_hours"
-            ]
-            == False
-        )
-        assert (
-            updated_settings_dict["scheduling"]["generation_requirements"][
-                "enforce_minimum_coverage"
-            ]
-            == True
-        )  # Check preserved
+    # Scheduling assertions
+    assert updated_settings_dict["scheduling"]["default_shift_duration"] == 7.5
+    assert (
+        updated_settings_dict["scheduling"]["generation_requirements"][
+            "enforce_max_hours"
+        ]
+        == False
+    )
+    assert (
+        updated_settings_dict["scheduling"]["generation_requirements"][
+            "enforce_minimum_coverage"
+        ]
+        == True
+    )  # Check preserved
 
-        # Display assertions
-        assert updated_settings_dict["display"]["theme"] == "dark"
-        assert (
-            updated_settings_dict["display"]["dark_theme"]["primary_color"] == "#aabbcc"
-        )
+    # Display assertions
+    assert updated_settings_dict["display"]["theme"] == "dark"
+    assert (
+        updated_settings_dict["display"]["dark_theme"]["primary_color"] == "#aabbcc"
+    )
 
-        # PDF Layout assertions
-        assert updated_settings_dict["pdf_layout"]["orientation"] == "portrait"
-        assert updated_settings_dict["pdf_layout"]["margins"]["top"] == 10.0
+    # PDF Layout assertions
+    assert updated_settings_dict["pdf_layout"]["orientation"] == "portrait"
+    assert updated_settings_dict["pdf_layout"]["margins"]["top"] == 10.0
 
-        # Employee Groups assertions
-        assert len(updated_settings_dict["employee_groups"]["employee_types"]) == 1
-        assert (
-            updated_settings_dict["employee_groups"]["employee_types"][0]["id"]
-            == "NEW_VZ"
-        )
-        assert len(updated_settings_dict["employee_groups"]["absence_types"]) == 0
-        # Shift types should remain default as it wasn't in update_data["employee_groups"]
-        assert len(updated_settings_dict["employee_groups"]["shift_types"]) > 0
+    # Employee Groups assertions
+    assert len(updated_settings_dict["employee_groups"]["employee_types"]) == 1
+    assert (
+        updated_settings_dict["employee_groups"]["employee_types"][0]["id"]
+        == "NEW_VZ"
+    )
+    assert len(updated_settings_dict["employee_groups"]["absence_types"]) == 0
+    # Shift types should remain default as it wasn't in update_data["employee_groups"]
+    assert len(updated_settings_dict["employee_groups"]["shift_types"]) > 0
 
-        # Availability Types assertions
-        assert len(updated_settings_dict["availability_types"]["types"]) == 1
-        assert updated_settings_dict["availability_types"]["types"][0]["id"] == "WORK"
+    # Availability Types assertions
+    assert len(updated_settings_dict["availability_types"]["types"]) == 1
+    assert updated_settings_dict["availability_types"]["types"][0]["id"] == "WORK"
 
-        # Actions assertions
-        assert (
-            updated_settings_dict["actions"]["demo_data"]["selected_module"]
-            == "employees"
-        )
+    # Actions assertions
+    assert (
+        updated_settings_dict["actions"]["demo_data"]["selected_module"]
+        == "employees"
+    )
 
-        # AI Scheduling assertions
-        assert updated_settings_dict["ai_scheduling"]["enabled"] == True
-        assert updated_settings_dict["ai_scheduling"]["api_key"] == "test_key_123"
+    # AI Scheduling assertions
+    assert updated_settings_dict["ai_scheduling"]["enabled"] == True
+    assert updated_settings_dict["ai_scheduling"]["api_key"] == "test_key_123"
 
 
 # --- API Tests ---
 
 
-def test_get_settings_api(client):
-    """Test GET /api/v2/settings/ endpoint."""
-    # Reset settings to default before test
-    from src.backend.models import Settings
-
-    with client.application.app_context():
-        Settings.query.delete()
-        Settings.get_or_create_default()
+def test_get_settings_api(client, test_settings):
     response = client.get("/api/v2/settings/")
     assert response.status_code == 200
     data = response.json
@@ -452,7 +430,7 @@ def test_get_settings_api(client):
     )
 
 
-def test_update_settings_api(client):
+def test_update_settings_api(client, test_settings):
     """Test PUT /api/v2/settings/ endpoint."""
     update_payload = {
         "general": {"store_name": "API Updated Store"},
@@ -487,7 +465,7 @@ def test_update_settings_api(client):
     assert get_data["employee_groups"]["shift_types"][0]["id"] == "NIGHT"
 
 
-def test_update_settings_api_partial_employee_groups(client):
+def test_update_settings_api_partial_employee_groups(client, test_settings):
     """Test PUT /api/v2/settings/ with partial update to employee_groups."""
     # First, ensure we have some defaults
     client.get("/api/v2/settings/")  # This ensures defaults are loaded if db was empty

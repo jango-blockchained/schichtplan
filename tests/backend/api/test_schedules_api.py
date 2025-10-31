@@ -4,48 +4,12 @@ from http import HTTPStatus
 
 import pytest
 
-from src.backend.app import create_app
 from src.backend.models import Schedule, ScheduleVersionMeta, db
 from src.backend.models.schedule import ScheduleStatus
 
 
 @pytest.fixture
-def app():
-    """Create and configure a Flask app for testing."""
-    app = create_app()
-    app.config["TESTING"] = True
-
-    # Use in-memory SQLite for testing
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
-    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-    with app.app_context():
-        db.create_all()
-
-    yield app
-
-    with app.app_context():
-        db.session.remove()
-        db.drop_all()
-
-
-@pytest.fixture
-def client(app):
-    """A test client for the app."""
-    return app.test_client()
-
-
-@pytest.fixture
-def setup_db(app):
-    """Fixture to set up and tear down the database for each test function."""
-    with app.app_context():
-        db.create_all()
-        yield db
-        db.drop_all()
-
-
-@pytest.fixture
-def new_version_meta(setup_db):
+def new_version_meta(session):
     """Fixture to create a new ScheduleVersionMeta for testing."""
     version_meta = ScheduleVersionMeta(
         version=1,
@@ -55,12 +19,12 @@ def new_version_meta(setup_db):
         date_range_end=date.today() + timedelta(days=6),
         notes="Test Version",
     )
-    db.session.add(version_meta)
-    db.session.commit()
+    session.add(version_meta)
+    session.commit()
     return version_meta
 
 
-def test_get_schedules(client, setup_db, new_version_meta):
+def test_get_schedules(client, session, new_version_meta):
     """Test GET /api/schedules endpoint."""
     today = date.today()
     start_date = today - timedelta(days=today.weekday())
@@ -77,7 +41,7 @@ def test_get_schedules(client, setup_db, new_version_meta):
     assert "versions" in data  # API returns 'versions' not 'version_meta'
 
 
-def test_get_schedule(client, setup_db, new_version_meta):
+def test_get_schedule(client, session, new_version_meta):
     """Test GET /api/schedules/<schedule_id> endpoint."""
     # Create a test schedule first
     schedule = Schedule(
@@ -95,13 +59,13 @@ def test_get_schedule(client, setup_db, new_version_meta):
     assert data["id"] == schedule.id
 
 
-def test_get_schedule_not_found(client, setup_db):
+def test_get_schedule_not_found(client, session):
     """Test GET /api/schedules/<schedule_id> with non-existent ID."""
     response = client.get("/api/v2/schedules/999")  # Assuming 999 does not exist
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-def test_create_schedule(client, setup_db, new_version_meta):
+def test_create_schedule(client, session, new_version_meta):
     """Test creating a schedule via PUT /api/schedules/0."""
     schedule_data = {
         "employee_id": 1,
@@ -127,7 +91,7 @@ def test_create_schedule(client, setup_db, new_version_meta):
     assert created_schedule.version == new_version_meta.version
 
 
-def test_update_schedule(client, setup_db, new_version_meta):
+def test_update_schedule(client, session, new_version_meta):
     """Test updating an existing schedule via PUT /api/schedules/<schedule_id>."""
     # Create a test schedule first
     schedule = Schedule(
@@ -153,7 +117,7 @@ def test_update_schedule(client, setup_db, new_version_meta):
     assert updated_schedule.notes == "Updated Notes"
 
 
-def test_delete_schedule(client, setup_db, new_version_meta):
+def test_delete_schedule(client, session, new_version_meta):
     """Test DELETE /api/schedules/<schedule_id> endpoint."""
     # Create a test schedule first
     schedule = Schedule(
