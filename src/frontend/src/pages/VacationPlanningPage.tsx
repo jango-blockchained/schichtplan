@@ -282,7 +282,7 @@ export default function VacationPlanningPage() {
 
   // Get absence type info for table display
 
-  // Mutations
+  // Mutations (defined early for use in callbacks)
   const createAbsenceMutation = useMutation({
     mutationFn: createAbsence,
     onSuccess: () => {
@@ -332,6 +332,40 @@ export default function VacationPlanningPage() {
     },
   });
 
+  const bulkCreateAbsenceMutation = useMutation({
+    mutationFn: async (absences: Array<{
+      employee_id: number;
+      absence_type_id: string;
+      start_date: string;
+      end_date: string;
+      status?: string;
+      note?: string;
+    }>) => {
+      // Create all absences concurrently
+      return Promise.all(
+        absences.map((absence) =>
+          createAbsence({
+            ...absence,
+            status: absence.status || "requested",
+            note: absence.note || "",
+          })
+        )
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["absences"] });
+      toast({ title: `Abwesenheiten erfolgreich erstellt` });
+      setShowBulkModal(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Fehler beim Erstellen",
+        description: error instanceof Error ? error.message : "Unbekannter Fehler",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Handler for calendar event updates (drag & drop, resize)
   const handleEventUpdate = useCallback(
     (eventId: string, updates: { start: Date; end: Date }) => {
@@ -366,39 +400,7 @@ export default function VacationPlanningPage() {
     // This is called when events are modified through the calendar
     // Updates are now handled through handleEventUpdate
     console.log("Calendar events changed:", events);
-  }; const bulkCreateAbsenceMutation = useMutation({
-    mutationFn: async (absences: Array<{
-      employee_id: number;
-      absence_type_id: string;
-      start_date: string;
-      end_date: string;
-      status?: string;
-      note?: string;
-    }>) => {
-      // Create all absences concurrently
-      return Promise.all(
-        absences.map((absence) =>
-          createAbsence({
-            ...absence,
-            status: absence.status || "requested",
-            note: absence.note || "",
-          })
-        )
-      );
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["absences"] });
-      toast({ title: `Abwesenheiten erfolgreich erstellt` });
-      setShowBulkModal(false);
-    },
-    onError: (error) => {
-      toast({
-        title: "Fehler beim Erstellen",
-        description: error instanceof Error ? error.message : "Unbekannter Fehler",
-        variant: "destructive",
-      });
-    },
-  });
+  };
 
   const processedAbsences = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();

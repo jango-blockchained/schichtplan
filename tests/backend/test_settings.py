@@ -1,3 +1,5 @@
+from http import HTTPStatus
+
 import pytest
 from flask import Flask
 
@@ -548,3 +550,61 @@ def test_update_settings_api_partial_employee_groups(client):
 # - Test sending empty lists/dicts for fields like employee_types, special_days
 # - Test invalid data types for fields
 # - Test validation logic in update_from_dict (e.g., opening_days key conversion)
+
+
+def test_update_ai_scheduling_api_keys(client):
+    """Test that API keys can be saved correctly in ai_scheduling settings."""
+    # First, verify current settings
+    response = client.get("/api/v2/settings/")
+    assert response.status_code == 200
+
+    # Update API keys
+    update_payload = {
+        "ai_scheduling": {
+            "enabled": True,
+            "api_keys": {
+                "gemini": "test-gemini-key-123",
+                "openai": "test-openai-key-456",
+                "anthropic": "test-anthropic-key-789",
+            },
+            "provider": "gemini",
+            "model": "gemini-pro",
+        }
+    }
+
+    response = client.put("/api/v2/settings/", json=update_payload)
+    assert response.status_code == 200
+    data = response.json
+
+    # Verify API keys were saved
+    assert data["ai_scheduling"]["enabled"] is True
+    api_keys = data["ai_scheduling"]["api_keys"]
+    assert api_keys["gemini"] == "test-gemini-key-123"
+    assert api_keys["openai"] == "test-openai-key-456"
+    assert api_keys["anthropic"] == "test-anthropic-key-789"
+    assert data["ai_scheduling"]["provider"] == "gemini"
+    assert data["ai_scheduling"]["model"] == "gemini-pro"
+
+    # Verify with another GET
+    get_response = client.get("/api/v2/settings/")
+    get_data = get_response.json
+    assert get_data["ai_scheduling"]["enabled"] is True
+    get_api_keys = get_data["ai_scheduling"]["api_keys"]
+    assert get_api_keys["gemini"] == "test-gemini-key-123"
+    assert get_api_keys["openai"] == "test-openai-key-456"
+    assert get_api_keys["anthropic"] == "test-anthropic-key-789"
+
+
+def test_invalid_api_keys_type_validation(client):
+    """Test that api_keys must be a dict and is properly validated."""
+    # Try to update with invalid api_keys type (string instead of dict)
+    update_payload = {
+        "ai_scheduling": {
+            "api_keys": "invalid-string-key",  # Should be a dict
+        }
+    }
+
+    response = client.put("/api/v2/settings/", json=update_payload)
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert "api_keys" in response.json["error"]
+    assert "object" in response.json["error"].lower()

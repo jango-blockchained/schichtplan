@@ -1,10 +1,12 @@
-import os
-import json
 import datetime
-from flask import Blueprint, jsonify, request, send_file
-from src.backend.models import db, Settings
+import json
+import os
 from http import HTTPStatus
+
+from flask import Blueprint, jsonify, request, send_file
 from sqlalchemy import inspect
+
+from src.backend.models import Settings, db
 
 bp = Blueprint("settings", __name__, url_prefix="/api/v2/settings")
 
@@ -45,6 +47,49 @@ def get_settings():
             ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
+def _validate_settings_input(
+    data: dict,
+) -> tuple[str | None, HTTPStatus | None]:
+    """Validate settings input data.
+
+    Returns (error_message, status_code) or (None, None) if valid.
+    """
+    # Validation rules: path -> (expected_type, error_message)
+    validation_rules = {
+        "general": (dict, "Invalid input: 'general' must be an object"),
+        "ai_scheduling": (
+            dict,
+            "Invalid input: 'ai_scheduling' must be an object",
+        ),
+        "ai_scheduling.enabled": (
+            bool,
+            "Invalid input: 'ai_scheduling.enabled' must be a boolean",
+        ),
+        "ai_scheduling.api_keys": (
+            dict,
+            "Invalid input: 'ai_scheduling.api_keys' must be an object",
+        ),
+    }
+
+    for field_path, (expected_type, error_msg) in validation_rules.items():
+        if "." in field_path:
+            parts = field_path.split(".")
+            if len(parts) == 2:  # noqa: PLR2004
+                parent, child = parts
+                if (
+                    parent in data
+                    and isinstance(data[parent], dict)
+                    and child in data[parent]
+                ):
+                    value = data[parent][child]
+                    if not isinstance(value, expected_type):
+                        return error_msg, HTTPStatus.BAD_REQUEST
+        elif field_path in data and not isinstance(data[field_path], expected_type):
+            return error_msg, HTTPStatus.BAD_REQUEST
+
+    return None, None
+
+
 @bp.route("/", methods=["PUT"])
 def update_settings():
     """Update settings"""
@@ -55,31 +100,10 @@ def update_settings():
                 {"error": "Invalid input: No data provided"}
             ), HTTPStatus.BAD_REQUEST
 
-        # Basic validation examples (can be expanded based on Settings model)
-        if "general" in data and not isinstance(data["general"], dict):
-            return jsonify(
-                {"error": "Invalid input: 'general' must be an object"}
-            ), HTTPStatus.BAD_REQUEST
-        if "ai_scheduling" in data and not isinstance(data["ai_scheduling"], dict):
-            return jsonify(
-                {"error": "Invalid input: 'ai_scheduling' must be an object"}
-            ), HTTPStatus.BAD_REQUEST
-        if (
-            "ai_scheduling" in data
-            and "enabled" in data["ai_scheduling"]
-            and not isinstance(data["ai_scheduling"]["enabled"], bool)
-        ):
-            return jsonify(
-                {"error": "Invalid input: 'ai_scheduling.enabled' must be a boolean"}
-            ), HTTPStatus.BAD_REQUEST
-        if (
-            "ai_scheduling" in data
-            and "api_key" in data["ai_scheduling"]
-            and not isinstance(data["ai_scheduling"]["api_key"], str)
-        ):
-            return jsonify(
-                {"error": "Invalid input: 'ai_scheduling.api_key' must be a string"}
-            ), HTTPStatus.BAD_REQUEST
+        # Validate input
+        error_msg, status = _validate_settings_input(data)
+        if error_msg:
+            return jsonify({"error": error_msg}), status
 
         settings = Settings.query.first()
 
@@ -90,7 +114,8 @@ def update_settings():
         settings.update_from_dict(data)
         db.session.commit()
 
-        return jsonify(settings.to_dict())
+        result = settings.to_dict()
+        return jsonify(result)
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR

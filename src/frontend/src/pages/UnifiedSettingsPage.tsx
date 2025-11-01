@@ -31,17 +31,17 @@ function deepEqual(obj1: any, obj2: any): boolean {
   if (obj1 === obj2) return true;
   if (obj1 == null || obj2 == null) return false;
   if (typeof obj1 !== "object" || typeof obj2 !== "object") return false;
-  
+
   const keys1 = Object.keys(obj1);
   const keys2 = Object.keys(obj2);
-  
+
   if (keys1.length !== keys2.length) return false;
-  
+
   for (const key of keys1) {
     if (!keys2.includes(key)) return false;
     if (!deepEqual(obj1[key], obj2[key])) return false;
   }
-  
+
   return true;
 }
 
@@ -201,13 +201,13 @@ export default function UnifiedSettingsPage() {
 
           // For each type array, decide whether to use fetched or default
           employee_types: (fetchedData.employee_groups?.employee_types &&
-          fetchedData.employee_groups.employee_types.length > 0
+            fetchedData.employee_groups.employee_types.length > 0
             ? fetchedData.employee_groups.employee_types
             : DEFAULT_SETTINGS.employee_groups?.employee_types || []
           ).map((et) => ({ ...et, type: "employee_type" as const })),
 
           shift_types: (fetchedData.employee_groups?.shift_types &&
-          fetchedData.employee_groups.shift_types.length > 0
+            fetchedData.employee_groups.shift_types.length > 0
             ? fetchedData.employee_groups.shift_types
             : DEFAULT_SETTINGS.employee_groups?.shift_types || []
           ).map((st) => ({
@@ -218,13 +218,13 @@ export default function UnifiedSettingsPage() {
           })),
 
           absence_types: (fetchedData.employee_groups?.absence_types &&
-          fetchedData.employee_groups.absence_types.length > 0
+            fetchedData.employee_groups.absence_types.length > 0
             ? fetchedData.employee_groups.absence_types
             : DEFAULT_SETTINGS.employee_groups?.absence_types || []
           ).map((at) => ({ ...at, type: "absence_type" as const })),
-          
+
           event_types: (fetchedData.employee_groups?.event_types &&
-          fetchedData.employee_groups.event_types.length > 0
+            fetchedData.employee_groups.event_types.length > 0
             ? fetchedData.employee_groups.event_types
             : DEFAULT_SETTINGS.employee_groups?.event_types || []
           ).map((et) => ({ ...et, type: "event_type" as const })),
@@ -233,7 +233,7 @@ export default function UnifiedSettingsPage() {
           ...DEFAULT_SETTINGS.availability_types, // Base defaults for availability_types structure
           ...(fetchedData.availability_types || {}), // Overwrite with fetched availability_types structure if it exists
           types: (fetchedData.availability_types?.types &&
-          fetchedData.availability_types.types.length > 0
+            fetchedData.availability_types.types.length > 0
             ? fetchedData.availability_types.types // Use fetched if present and not empty
             : DEFAULT_SETTINGS.availability_types?.types || []
           ) // Otherwise, use default types or an empty array
@@ -290,7 +290,7 @@ export default function UnifiedSettingsPage() {
   // State to manage local edits before debounced save
   const [editableSettings, setEditableSettings] =
     useState<Settings>(DEFAULT_SETTINGS);
-  
+
   // Keep track of the last saved settings to detect actual changes
   const lastSavedSettingsRef = useRef<Settings>(DEFAULT_SETTINGS);
 
@@ -376,7 +376,7 @@ export default function UnifiedSettingsPage() {
       const currentCategoryState = prevSettings[category] || {};
       const newCategoryState = {
         ...(typeof currentCategoryState === "object" &&
-        currentCategoryState !== null
+          currentCategoryState !== null
           ? currentCategoryState
           : {}),
         [key]: parsedValue,
@@ -408,17 +408,21 @@ export default function UnifiedSettingsPage() {
 
   // Removed unused time and diagnostics helpers after UI refactor
 
-  const handleDisplaySettingChange = (
-    key: keyof Settings["display"],
-    value: string | number | boolean | Record<string, unknown> | null,
+  /**
+   * Unified handler for all setting category changes with immediate save.
+   * This replaces handleDisplaySettingChange, handleAiSchedulingChange, and handleWeekNavigationChange.
+   */
+  const handleCategoryChange = (
+    category: keyof Settings,
+    updates: Record<string, unknown>,
   ) => {
-    const updatedDisplaySettings = {
-      ...(editableSettings.display || DEFAULT_SETTINGS.display),
-      [key]: value,
+    const updatedCategorySettings = {
+      ...(editableSettings[category] || {}),
+      ...updates,
     };
-    const updatedSettings = {
+    const updatedSettings: Settings = {
       ...editableSettings,
-      display: updatedDisplaySettings,
+      [category]: updatedCategorySettings,
     };
     setEditableSettings(updatedSettings);
 
@@ -430,66 +434,31 @@ export default function UnifiedSettingsPage() {
         setEditableSettings(updatedData);
         toast({
           title: "Settings Saved",
-          description: "Display settings have been saved successfully.",
+          description: `${category} settings have been saved successfully.`,
         });
       },
     });
+  };
+
+  const handleDisplaySettingChange = (
+    key: keyof Settings["display"],
+    value: string | number | boolean | Record<string, unknown> | null,
+  ) => {
+    handleCategoryChange("display", { [key]: value });
   };
 
   const handleAiSchedulingChange = (
     key: keyof NonNullable<Settings["ai_scheduling"]>,
     value: string | number | boolean | Record<string, unknown> | null,
   ) => {
-    const updatedAiSettings = {
-      ...(editableSettings.ai_scheduling || DEFAULT_SETTINGS.ai_scheduling),
-      [key]: value,
-    };
-    const updatedSettings = {
-      ...editableSettings,
-      ai_scheduling: updatedAiSettings,
-    };
-    setEditableSettings(updatedSettings);
-
-    // Cancel any pending debounced updates and immediately save
-    debouncedUpdateSettings.cancel();
-    mutation.mutate(updatedSettings, {
-      onSuccess: (updatedData) => {
-        queryClient.setQueryData(["settings"], updatedData);
-        setEditableSettings(updatedData);
-        toast({
-          title: "Settings Saved",
-          description: "AI scheduling settings have been saved successfully.",
-        });
-      },
-    });
+    handleCategoryChange("ai_scheduling", { [key]: value });
   };
 
   const handleWeekNavigationChange = (
     key: keyof NonNullable<Settings["week_navigation"]>,
     value: boolean | string,
   ) => {
-    const updatedWeekNavSettings = {
-      ...(editableSettings.week_navigation || DEFAULT_SETTINGS.week_navigation),
-      [key]: value,
-    };
-    const updatedSettings = {
-      ...editableSettings,
-      week_navigation: updatedWeekNavSettings,
-    };
-    setEditableSettings(updatedSettings);
-
-    // Cancel any pending debounced updates and immediately save
-    debouncedUpdateSettings.cancel();
-    mutation.mutate(updatedSettings, {
-      onSuccess: (updatedData) => {
-        queryClient.setQueryData(["settings"], updatedData);
-        setEditableSettings(updatedData);
-        toast({
-          title: "Settings Saved",
-          description: "Week navigation settings have been saved successfully.",
-        });
-      },
-    });
+    handleCategoryChange("week_navigation", { [key]: value });
   };
 
   const renderSectionContent = () => {

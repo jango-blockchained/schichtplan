@@ -710,9 +710,7 @@ class VacationPDFGenerator:
     def generate_yearly_calendar(self, year: int) -> io.BytesIO:
         """
         Generate yearly vacation planning grid in DIN A4 landscape format.
-
-        6 months per page (2 pages total: Jan-Jun, Jul-Dec)
-        Displays a grid with months as columns and days (1-31) as rows.
+        Creates a calendar view with months and weekdays.
 
         Args:
             year: Year to display
@@ -731,62 +729,96 @@ class VacationPDFGenerator:
         )
 
         story = []
+        weekdays = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 
         for page_num in range(2):
-            # Title
-            story.append(Paragraph("Jahresurlaubsplanung", self.title_style))
+            # Title for the page
+            story.append(Paragraph(f"Jahresurlaubsplanung {year}", self.title_style))
             story.append(Spacer(1, 10))
 
-            # Table headers (Months)
+            # Main table to hold the 6 month calendars
+            main_table_data = []
+            month_row = []
+
             start_month = 1 + (page_num * 6)
-            month_names = [
-                datetime(year, m, 1).strftime("%B")
-                for m in range(start_month, start_month + 6)
-            ]
+            for i in range(6):
+                month_index = start_month + i
+                if month_index > 12:
+                    continue
 
-            header = [
-                Paragraph(f"<b>{name}</b>", self.normal_style) for name in month_names
-            ]
-            table_data = [header]
-
-            # Table rows (Days 1-31)
-            for day in range(1, 32):
-                row = []
-                day_exists_in_any_month = False
-                for i in range(6):
-                    month = start_month + i
-                    if month > 12:
-                        row.append("")
-                        continue
-
-                    days_in_month = self._days_in_month(year, month)
-                    if day <= days_in_month:
-                        row.append(str(day))
-                        day_exists_in_any_month = True
-                    else:
-                        row.append("")
-
-                if day_exists_in_any_month:
-                    table_data.append(row)
-
-            # Create table
-            col_width = (self.PAGE_WIDTH_LANDSCAPE - 2 * self.MARGIN) / 6
-            table = Table(table_data, colWidths=[col_width] * 6)
-
-            # Table style
-            style = TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), lightgrey),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), black),
-                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
-                    ("GRID", (0, 0), (-1, -1), 0.5, black),
+                # --- Create calendar for one month ---
+                month_name = datetime(year, month_index, 1).strftime("%B")
+                month_calendar_data = [
+                    [Paragraph(f"<b>{month_name}</b>", self.normal_style)]
                 ]
+
+                # Weekday headers
+                weekday_header = [
+                    Paragraph(f"<b>{day}</b>", self.small_style) for day in weekdays
+                ]
+                month_calendar_data.append(weekday_header)
+
+                # Get calendar data for the month
+                first_day_of_month, num_days = self._get_month_details(
+                    year, month_index
+                )
+
+                # Create day cells
+                day_cells = [""] * first_day_of_month
+                for day_num in range(1, num_days + 1):
+                    day_cells.append(str(day_num))
+
+                # Pad the end to make it a full grid
+                while len(day_cells) % 7 != 0:
+                    day_cells.append("")
+
+                # Reshape into weeks
+                weeks = [day_cells[j : j + 7] for j in range(0, len(day_cells), 7)]
+                for week in weeks:
+                    month_calendar_data.append(week)
+
+                # --- Create month table ---
+                col_width = (self.PAGE_WIDTH_LANDSCAPE - 2 * self.MARGIN) / 7
+                month_table = Table(
+                    month_calendar_data,
+                    colWidths=[col_width - 8 * mm] * 7,
+                    rowHeights=8 * mm,
+                )
+
+                month_table.setStyle(
+                    TableStyle(
+                        [
+                            # Month header
+                            ("SPAN", (0, 0), (-1, 0)),
+                            ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                            # Weekday headers
+                            ("ALIGN", (0, 1), (-1, 1), "CENTER"),
+                            ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
+                            ("BACKGROUND", (0, 1), (-1, 1), lightgrey),
+                            # Day cells
+                            ("ALIGN", (0, 2), (-1, -1), "CENTER"),
+                            ("FONTSIZE", (0, 1), (-1, -1), self.SMALL_FONT_SIZE),
+                            ("GRID", (0, 1), (-1, -1), 0.5, black),
+                            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ]
+                    )
+                )
+                month_row.append(month_table)
+
+                # Add a spacer between month tables
+                if i < 5:
+                    month_row.append(Spacer(15, 0))
+
+            main_table_data.append(month_row)
+
+            # Create the main table for the page
+            main_table = Table(
+                main_table_data, colWidths=[(col_width - 8 * mm) * 7 + 15] * 6
             )
-            table.setStyle(style)
-            story.append(table)
+            main_table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
+
+            story.append(main_table)
 
             if page_num == 0:
                 story.append(PageBreak())
@@ -814,6 +846,12 @@ class VacationPDFGenerator:
             "declined": "Abgelehnt",
         }
         return status_map.get(status, status)
+
+    def _get_month_details(self, year, month):
+        first_day = date(year, month, 1)
+        first_day_weekday = first_day.weekday()  # Monday is 0, Sunday is 6
+        num_days = self._days_in_month(year, month)
+        return first_day_weekday, num_days
 
     def generate_absence_request_form(
         self,
@@ -2097,7 +2135,7 @@ class VacationPDFGenerator:
                 [
                     ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
                     ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
-                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("ALIGN", (0, 0), (-1, 0), "CENTER"),
                     ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                     ("FONTSIZE", (0, 0), (-1, 0), self.NORMAL_FONT_SIZE),
                     ("FONTSIZE", (0, 1), (-1, -1), self.SMALL_FONT_SIZE),
@@ -2106,7 +2144,7 @@ class VacationPDFGenerator:
                     (
                         "ROWBACKGROUNDS",
                         (0, 1),
-                        (-1, -1),
+                        (-1, -2),
                         [colors.white, colors.lightgrey],
                     ),
                 ]

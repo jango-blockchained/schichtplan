@@ -335,7 +335,7 @@ class Settings(db.Model):
 
     # AI Scheduling Settings
     ai_scheduling = Column(
-        JSON,
+        MutableDict.as_mutable(JSON),
         nullable=True,
         default=lambda: {
             "enabled": False,
@@ -1041,7 +1041,19 @@ class Settings(db.Model):
                     current = getattr(settings, category) or {}
                     if not isinstance(current, dict):
                         current = {}
-                    merged = {**current, **values}
+                    # Perform a deep merge for nested dicts
+                    merged = {**current}
+                    for key, value in values.items():
+                        if (
+                            isinstance(value, dict)
+                            and key in merged
+                            and isinstance(merged[key], dict)
+                        ):
+                            # Deep merge for nested dicts like api_keys
+                            merged[key] = {**merged[key], **value}
+                        else:
+                            # Direct assignment for other values
+                            merged[key] = value
                     setattr(settings, category, merged)
             elif category == "week_navigation":
                 # Handle week navigation settings
