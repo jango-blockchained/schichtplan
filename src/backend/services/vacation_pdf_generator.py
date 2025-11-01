@@ -2174,11 +2174,14 @@ class VacationPDFGenerator:
         settings: Settings | None = None,
     ) -> io.BytesIO:
         """
-        Generate comprehensive list with vacation entitlement and actual usage.
+        Generate comprehensive list with vacation entitlement and absence usage.
+
+        Shows all approved absences (vacation, time-off, training, etc.) per
+        employee with entitlement calculations.
 
         Args:
             employees: List of employees
-            absences: List of vacation absences
+            absences: List of approved absences (all types)
             year: Year for the report
             settings: Optional settings object
 
@@ -2200,7 +2203,7 @@ class VacationPDFGenerator:
         # Title
         story.append(
             Paragraph(
-                f"Mitarbeiter Urlaubsanspruch - Jahresübersicht {year}",
+                f"Mitarbeiter Abwesenheitsübersicht - Jahresanspruch {year}",
                 self.title_style,
             )
         )
@@ -2218,7 +2221,7 @@ class VacationPDFGenerator:
         story.append(
             Paragraph(
                 f"Diese Übersicht zeigt alle aktiven Mitarbeiter mit "
-                f"Urlaubsanspruch und tatsächlicher Nutzung für {year}.",
+                f"genehmigten Abwesenheiten für {year}.",
                 self.normal_style,
             )
         )
@@ -2227,17 +2230,16 @@ class VacationPDFGenerator:
         # Calculate vacation data for each employee
         employee_vacation_data = {}
         for employee in employees:
-            # Filter absences for this employee and year
+            # Filter ALL approved absences for this employee and year
             emp_absences = [
                 abs
                 for abs in absences
                 if abs.employee_id == employee.id
-                and abs.absence_type_id == "vacation"
                 and abs.start_date.year <= year
                 and abs.end_date.year >= year
             ]
 
-            # Calculate taken days
+            # Calculate taken days (all types, all approved)
             taken_days = 0
             for absence in emp_absences:
                 # Calculate days that fall within the year

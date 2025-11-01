@@ -725,16 +725,18 @@ def get_employee_vacation_entitlement():
             f"vacation entitlement list {year}"
         )
 
-        # Fetch vacation absences for the year
+        # Fetch ALL approved absences (vacation, time-off, training, etc.) for the year
         start_date = datetime(year, 1, 1).date()
         end_date = datetime(year, 12, 31).date()
 
         absences = Absence.query.filter(
-            Absence.absence_type_id == "vacation",
+            Absence.status == "approved",
             Absence.start_date <= end_date,
             Absence.end_date >= start_date,
         ).all()
-        logger.info(f"Loaded {len(absences)} vacation absences for year {year}")
+        logger.info(
+            f"Loaded {len(absences)} approved absences (all types) for year {year}"
+        )
 
         # Get settings
         settings = Settings.query.first()

@@ -114,7 +114,7 @@ const formulars: FormularItem[] = [
   {
     id: "employee-vacation-entitlement",
     title: "Mitarbeiter Urlaubsanspruch",
-    description: "Liste aller Mitarbeiter mit ihren jährlichen Urlaubstagen",
+    description: "Liste aller Mitarbeiter mit Abwesenheiten (Urlaub, Abwesenheit, Schulung)",
     icon: <Users className="h-5 w-5" />,
     requiresEmployee: false,
     category: "Jahresübersichten",
