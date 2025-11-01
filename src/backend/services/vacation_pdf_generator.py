@@ -9,7 +9,7 @@ This module generates various PDF forms for vacation planning:
 """
 
 import io
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from reportlab.lib import colors
 from reportlab.lib.colors import black, lightgrey, white
@@ -730,10 +730,10 @@ class VacationPDFGenerator:
         approved_absences = []
         if absences:
             approved_absences = [
-                abs for abs in absences
-                if abs.status == "approved"
-                and abs.start_date.year <= year
-                and abs.end_date.year >= year
+                absence for absence in absences
+                if absence.status == "approved"
+                and absence.start_date.year <= year
+                and absence.end_date.year >= year
             ]
 
         # Create a mapping of dates to absence count for visualization
@@ -747,8 +747,7 @@ class VacationPDFGenerator:
             while current <= end:
                 date_key = (current.month, current.day)
                 absence_dates[date_key] = absence_dates.get(date_key, 0) + 1
-                current = date(current.year, current.month, current.day) + \
-                    __import__('datetime').timedelta(days=1)
+                current = current + timedelta(days=1)
 
         story = []
         weekdays = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
@@ -876,6 +875,7 @@ class VacationPDFGenerator:
                 story.append(Spacer(1, 15))
 
             # Add legend
+            # Note: German text is intentional - this is a German vacation management form
             story.append(Spacer(1, 10))
             legend_text = (
                 "<b>Legende:</b> • = Genehmigter Urlaubsantrag | "
