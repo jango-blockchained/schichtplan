@@ -156,7 +156,7 @@ class ProcessTracker:
         if self.current_step:
             try:
                 # Format complex data nicely for diagnostic log
-                if isinstance(data, dict) or isinstance(data, list):
+                if isinstance(data, (dict, list)):
                     # Limit depth/size for very large structures if necessary
                     data_str = json.dumps(data, default=str, indent=2)
                 else:

@@ -266,7 +266,7 @@ def main(args):
         if args.clear:
             clear_all_data()
 
-        settings = seed_settings()
+        seed_settings()
         employees = seed_employees(args.num_employees)
 
         if not employees:
@@ -275,7 +275,7 @@ def main(args):
             )
             return
 
-        admin_user = seed_admin_user(employees)
+        seed_admin_user(employees)
         seed_shift_templates()
         seed_coverage()
         seed_availability(employees)

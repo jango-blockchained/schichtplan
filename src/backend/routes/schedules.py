@@ -1177,10 +1177,7 @@ def export_schedule():
                 ), HTTPStatus.INTERNAL_SERVER_ERROR
 
         # Determine filename based on format
-        if export_format.lower() == "mep":
-            filename_prefix = "MEP"
-        else:
-            filename_prefix = "schedule"
+        filename_prefix = "MEP" if export_format.lower() == "mep" else "schedule"
 
         return send_file(
             pdf_buffer,
@@ -2470,8 +2467,8 @@ def generate_ai_schedule():
 
             # Also fetch recurring availabilities
             recurring_availabilities = EmployeeAvailability.query.filter(
-                (EmployeeAvailability.start_date == None)
-                | (EmployeeAvailability.is_recurring == True)
+                (EmployeeAvailability.start_date is None)
+                | (EmployeeAvailability.is_recurring)
             ).all()
 
             # Apply same filtering for recurring availabilities
@@ -2514,7 +2511,7 @@ def generate_ai_schedule():
         logger.info("Structuring collected data...")
 
         # Convert fetched objects to dictionaries for JSON serialization
-        structured_data = {
+        {
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
             "version": data.get("version"),

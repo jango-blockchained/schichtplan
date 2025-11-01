@@ -232,7 +232,6 @@ class ScheduleResources:
                 )
 
             # Log coverage requirements by day
-            by_day = {}
             for day_idx in range(7):
                 day_name = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][day_idx]
                 # Filter coverage for the current day

@@ -448,8 +448,8 @@ def get_flask_app_context():
 def validate_imports():
     """Validate that all required imports are working"""
     try:
-        models = import_models()
-        availability_type = import_availability_type()
+        import_models()
+        import_availability_type()
         logger.info("All imports validated successfully")
         return True
     except Exception as e:

@@ -36,10 +36,10 @@ with app.app_context():
     for version in versions:
         version_count = Schedule.query.filter_by(version=version).count()
         with_shifts = Schedule.query.filter(
-            Schedule.version == version, Schedule.shift_id != None
+            Schedule.version == version, Schedule.shift_id is not None
         ).count()
         without_shifts = Schedule.query.filter(
-            Schedule.version == version, Schedule.shift_id == None
+            Schedule.version == version, Schedule.shift_id is None
         ).count()
 
         print(f"\nVersion {version}:")
@@ -61,7 +61,7 @@ with app.app_context():
     orphaned = Schedule.query.filter(
         (Schedule.employee_id.notin_(db.session.query(Employee.id)))
         | (
-            (Schedule.shift_id != None)
+            (Schedule.shift_id is not None)
             & (Schedule.shift_id.notin_(db.session.query(ShiftTemplate.id)))
         )
     ).count()
@@ -83,7 +83,7 @@ with app.app_context():
             orphaned_schedules = Schedule.query.filter(
                 (Schedule.employee_id.notin_(db.session.query(Employee.id)))
                 | (
-                    (Schedule.shift_id != None)
+                    (Schedule.shift_id is not None)
                     & (Schedule.shift_id.notin_(db.session.query(ShiftTemplate.id)))
                 )
             ).all()

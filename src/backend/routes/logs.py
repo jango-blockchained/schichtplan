@@ -300,7 +300,7 @@ def clear_logs():
             filepath = logger.logs_dir / filename
             if filepath.exists():
                 # Open the file in write mode to clear its contents
-                with open(filepath, "w") as f:
+                with open(filepath, "w"):
                     pass  # Just open and close to clear the file
                 cleared_files.append(filename)
                 logger.app_logger.info(f"Cleared log file: {filename}")

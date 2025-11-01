@@ -28,12 +28,12 @@ def check_schedules():
     date_placeholders = ", ".join(["?"] * len(date_range))
     cursor.execute(
         f"""
-        SELECT 
-            s.date, 
-            e.first_name, 
-            e.last_name, 
-            e.employee_group, 
-            sh.start_time, 
+        SELECT
+            s.date,
+            e.first_name,
+            e.last_name,
+            e.employee_group,
+            sh.start_time,
             sh.end_time,
             sh.duration_hours
         FROM schedules s

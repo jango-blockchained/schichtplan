@@ -53,7 +53,7 @@ def main():
     # Connect to the database
     try:
         conn = sqlite3.connect(str(db_path))
-        cursor = conn.cursor()
+        conn.cursor()
 
         # Start of migration code
         # -------------------------------------------------------------------------

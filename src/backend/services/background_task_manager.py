@@ -450,7 +450,7 @@ async def handle_schedule_optimization(task: BackgroundTask) -> dict[str, Any]:
         params = task.parameters
         start_date = params.get("start_date")
         end_date = params.get("end_date")
-        context = params.get("context", {})
+        params.get("context", {})
 
         background_task_manager.update_progress(
             task.id, 1, 5, "Analyzing current schedule..."

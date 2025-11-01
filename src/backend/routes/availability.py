@@ -186,7 +186,7 @@ def check_availability():
         hour = request_data.hour
 
         # Get employee
-        employee = Employee.query.get_or_404(employee_id)
+        Employee.query.get_or_404(employee_id)
 
         # Get all relevant availability records
         availabilities = EmployeeAvailability.query.filter(
@@ -235,7 +235,7 @@ def update_employee_availabilities(employee_id):
     """Update employee availabilities"""
     try:
         # Check if employee exists first
-        employee = Employee.query.get_or_404(employee_id)
+        Employee.query.get_or_404(employee_id)
         data = request.get_json()
         current_app.logger.debug(
             f"Received availability data for employee {employee_id}: {data}"

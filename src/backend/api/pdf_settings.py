@@ -119,7 +119,7 @@ def preview_layout():
 def generate_preview_svg(config):
     """Generate SVG representation of the MEP layout"""
     header = config.get("header", {})
-    styling = config.get("styling", {}).get("fonts", {})
+    config.get("styling", {}).get("fonts", {})
     colors = config.get("styling", {}).get("colors", {})
 
     # Extract configuration values with proper defaults
@@ -149,22 +149,22 @@ def generate_preview_svg(config):
 <svg width="600" height="400" xmlns="http://www.w3.org/2000/svg">
     <!-- Background -->
     <rect width="600" height="400" fill="{table_bg}" stroke="{table_border}" stroke-width="1"/>
-    
+
     <!-- Header Section -->
     <rect x="20" y="20" width="560" height="60" fill="{header_bg}" stroke="{table_border}" stroke-width="1"/>
-    
+
     <!-- Title -->
     <text x="300" y="40" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="{header_text}">{title}</text>
-    
+
     <!-- Store Info -->
     <text x="30" y="65" font-family="Arial, sans-serif" font-size="10" fill="{header_text}">{store_label} {store_value}</text>
-    
+
     <!-- Period Info -->
     <text x="450" y="65" font-family="Arial, sans-serif" font-size="10" fill="{header_text}">{month_year_label} {month_year_value}</text>
-    
+
     <!-- Table Headers -->
     <rect x="20" y="100" width="560" height="25" fill="#F0F0F0" stroke="{table_border}" stroke-width="1"/>
-    
+
     <!-- Column Headers -->
     <text x="40" y="118" font-family="Arial, sans-serif" font-size="9" font-weight="bold">Name</text>
     <text x="120" y="118" font-family="Arial, sans-serif" font-size="9" font-weight="bold">Funktion</text>
@@ -176,7 +176,7 @@ def generate_preview_svg(config):
     <text x="400" y="118" font-family="Arial, sans-serif" font-size="9" font-weight="bold">Sa</text>
     <text x="440" y="118" font-family="Arial, sans-serif" font-size="9" font-weight="bold">So</text>
     <text x="520" y="118" font-family="Arial, sans-serif" font-size="9" font-weight="bold">Woche</text>
-    
+
     <!-- Sample Employee Row -->
     <rect x="20" y="125" width="560" height="20" fill="{table_bg}" stroke="{table_border}" stroke-width="0.5"/>
     <text x="25" y="138" font-family="Arial, sans-serif" font-size="8">Muster, Max</text>
@@ -189,7 +189,7 @@ def generate_preview_svg(config):
     <text x="400" y="138" font-family="Arial, sans-serif" font-size="8">Frei</text>
     <text x="440" y="138" font-family="Arial, sans-serif" font-size="8">Frei</text>
     <text x="520" y="138" font-family="Arial, sans-serif" font-size="8">32h</text>
-    
+
     <!-- Vertical Lines -->
     <line x1="110" y1="100" x2="110" y2="145" stroke="{table_border}" stroke-width="0.5"/>
     <line x1="190" y1="100" x2="190" y2="145" stroke="{table_border}" stroke-width="0.5"/>
@@ -201,7 +201,7 @@ def generate_preview_svg(config):
     <line x1="430" y1="100" x2="430" y2="145" stroke="{table_border}" stroke-width="0.5"/>
     <line x1="470" y1="100" x2="470" y2="145" stroke="{table_border}" stroke-width="0.5"/>
     <line x1="510" y1="100" x2="510" y2="145" stroke="{table_border}" stroke-width="0.5"/>
-    
+
     <!-- Preview Label -->
     <text x="300" y="380" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#666">Live Preview: {title}</text>
 </svg>'''

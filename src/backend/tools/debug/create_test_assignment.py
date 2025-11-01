@@ -101,7 +101,7 @@ def main():
                 cursor.execute(
                     """
                     INSERT INTO schedules (
-                        id, employee_id, shift_id, date, 
+                        id, employee_id, shift_id, date,
                         status, created_at, updated_at, version
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,

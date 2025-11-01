@@ -413,7 +413,7 @@ class DemoDataGenerator:
         # Step 1: Ensure keyholders have availability for each time slot
         keyholders = [e for e in employees if e.is_keyholder]
         for day in working_days:
-            for slot_idx, (start_hour, end_hour) in enumerate([(9, 14), (14, 20)]):
+            for _slot_idx, (start_hour, end_hour) in enumerate([(9, 14), (14, 20)]):
                 slot_keyholders = random.sample(keyholders, min(2, len(keyholders)))
                 for keyholder in slot_keyholders:
                     for hour in range(start_hour, end_hour):
@@ -428,7 +428,7 @@ class DemoDataGenerator:
                         availabilities.append(availability)
 
         # Process each employee type
-        for employee_type, group_employees in employee_groups.items():
+        for _employee_type, group_employees in employee_groups.items():
             for employee in group_employees:
                 employee_availabilities = []
                 target_hours = employee.contracted_hours * (

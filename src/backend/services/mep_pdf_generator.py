@@ -299,7 +299,7 @@ class MEPPDFGenerator:
         # For each employee, create 6 rows (Datum, Wer/tätig, Beginn, Pause, Ende, Summe/Tag)
         row_labels = ["Datum", "Wer/tätig", "Beginn", "Pause", "Ende", "Summe/Tag"]
 
-        for emp_id, emp_data in employee_schedules.items():
+        for _emp_id, emp_data in employee_schedules.items():
             employee_info = emp_data["employee_info"]
             daily_schedules = emp_data["daily_schedules"]
 
@@ -360,7 +360,7 @@ class MEPPDFGenerator:
         current_employees = len(employee_schedules)
 
         # Add empty employee blocks if needed
-        for emp_idx in range(current_employees, max_employees_on_page):
+        for _emp_idx in range(current_employees, max_employees_on_page):
             for row_idx in range(6):  # 6 rows per employee
                 empty_row = [""] * len(table_data[0]) if table_data else []
                 table_data.append(empty_row)

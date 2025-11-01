@@ -379,7 +379,6 @@ def diagnose_constraints(resources, generator, date_to_check):
     """Diagnose constraint issues for a specific date"""
     print_section(f"CONSTRAINT DIAGNOSIS FOR {date_to_check}")
 
-    constraint_checker = generator.constraint_checker
     config = generator.config
 
     # Print key constraint settings

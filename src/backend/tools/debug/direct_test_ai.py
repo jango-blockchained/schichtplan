@@ -55,10 +55,10 @@ def test_gemini_api_directly():
     Give me a very brief schedule for 3 employees working in a store for a week.
     Please output in this CSV format:
     EmployeeID,Date,ShiftTemplateID,ShiftName,StartTime,EndTime
-    
+
     Example:
     1,2023-08-01,1,Morning,08:00,16:00
-    
+
     Only output the CSV data with no additional text.
     """
 

@@ -206,21 +206,17 @@ class ScheduleSerializer:
             # Get employee ID and other data
             if isinstance(assignment, dict):
                 employee_id = assignment.get("employee_id")
-                shift_id = assignment.get("shift_id")
+                assignment.get("shift_id")
                 assignment_date = assignment.get("date")
-                shift_template = assignment.get("shift_template")
-                availability_type = assignment.get(
+                assignment.get("shift_template")
+                assignment.get(
                     "availability_type", AvailabilityType.AVAILABLE.value
                 )
-                assignment_status = assignment.get("status", status)
+                assignment.get("status", status)
                 assignment_version = assignment.get("version", version or 1)
             else:
                 employee_id = assignment.id
-                shift_id = None  # Will be determined based on best match
                 assignment_date = None  # Will be determined from context
-                shift_template = None
-                availability_type = AvailabilityType.AVAILABLE.value
-                assignment_status = status
                 assignment_version = version or 1
 
             try:

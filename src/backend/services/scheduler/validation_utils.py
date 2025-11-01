@@ -246,13 +246,12 @@ def validate_coverage_rule(coverage: Any) -> dict[str, Any]:
             errors.append(f"Invalid time range: {e}")
 
     # Validate day_index
-    if data.get("day_index") is not None:
-        if (
-            not isinstance(data["day_index"], int)
-            or data["day_index"] < 0
-            or data["day_index"] > 6
-        ):
-            errors.append(f"Invalid day_index: {data['day_index']} (must be 0-6)")
+    if data.get("day_index") is not None and (
+        not isinstance(data["day_index"], int)
+        or data["day_index"] < 0
+        or data["day_index"] > 6
+    ):
+        errors.append(f"Invalid day_index: {data['day_index']} (must be 0-6)")
 
     # Validate employee counts
     if data.get("min_employees") is not None:
@@ -408,18 +407,17 @@ def validate_assignment_data(assignment: dict[str, Any]) -> dict[str, Any]:
                 )
 
     # Validate date
-    if data.get("date") is not None:
-        if not isinstance(data["date"], date):
-            if isinstance(data["date"], str):
-                try:
-                    data["date"] = date.fromisoformat(data["date"])
-                    warnings.append("Converted date string to date object")
-                except ValueError:
-                    errors.append(f"Invalid date format: {data['date']}")
-            else:
-                errors.append(
-                    f"date must be a date object or ISO string, got {type(data['date'])}"
-                )
+    if data.get("date") is not None and not isinstance(data["date"], date):
+        if isinstance(data["date"], str):
+            try:
+                data["date"] = date.fromisoformat(data["date"])
+                warnings.append("Converted date string to date object")
+            except ValueError:
+                errors.append(f"Invalid date format: {data['date']}")
+        else:
+            errors.append(
+                f"date must be a date object or ISO string, got {type(data['date'])}"
+            )
 
     # Validate time fields if present
     for time_field in ["start_time", "end_time"]:

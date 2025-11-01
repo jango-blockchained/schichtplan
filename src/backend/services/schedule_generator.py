@@ -2541,7 +2541,7 @@ class ScheduleGenerator:
             date_str = date.strftime("%Y-%m-%d")
 
             # Check if employee has any assignments on this date
-            for key, schedule_entry in resources.schedule_data.items():
+            for key, _schedule_entry in resources.schedule_data.items():
                 if key[0] == employee.id and key[1] == date:
                     self._log_detailed_debug(
                         f"Employee {employee.id} is already assigned to shifts on {date_str}",

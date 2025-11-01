@@ -338,7 +338,6 @@ def generate_improved_availability_data(employees):
 
     for employee in employees:
         contracted_hours = employee.contracted_hours
-        employee_type = employee.employee_group
 
         # Determine working days based on employee type
         if contracted_hours >= 35:  # Full-time employees (VZ, TL)
@@ -786,11 +785,10 @@ def generate_demo_data():
         if isinstance(num_employees_raw, int):
             if num_employees_raw > 0:
                 num_employees = num_employees_raw
-        elif isinstance(num_employees_raw, str):
-            if num_employees_raw.isdigit():
-                parsed_num = int(num_employees_raw)
-                if parsed_num > 0:
-                    num_employees = parsed_num
+        elif isinstance(num_employees_raw, str) and num_employees_raw.isdigit():
+            parsed_num = int(num_employees_raw)
+            if parsed_num > 0:
+                num_employees = parsed_num
 
         logging.info(
             f"Generating demo data for module: {module}, num_employees: {num_employees}"
@@ -1200,7 +1198,7 @@ def generate_improved_employee_data(num_employees_override: int | None = None):
     else:
         # Original logic: Create employees based on the defined distribution in employee_types counts
         for emp_type in employee_types:
-            for i in range(emp_type["count"]):
+            for _i in range(emp_type["count"]):
                 first_name = random.choice(first_names)
                 last_name = random.choice(last_names)
 
@@ -1438,11 +1436,10 @@ def generate_optimized_demo_data():
         if isinstance(num_employees_raw, int):
             if num_employees_raw > 0:
                 num_employees_override = num_employees_raw
-        elif isinstance(num_employees_raw, str):
-            if num_employees_raw.isdigit():
-                parsed_num = int(num_employees_raw)
-                if parsed_num > 0:
-                    num_employees_override = parsed_num
+        elif isinstance(num_employees_raw, str) and num_employees_raw.isdigit():
+            parsed_num = int(num_employees_raw)
+            if parsed_num > 0:
+                num_employees_override = parsed_num
 
         logging.info(
             f"Generating optimized demo data with diverse shift patterns, num_employees_override: {num_employees_override}"

@@ -55,7 +55,7 @@ def upgrade():
     # Update existing settings records to have default event types
     op.execute(
         """
-        UPDATE settings 
+        UPDATE settings
         SET event_types = json('[
             {
                 "id": "SPECIAL_OFFER",

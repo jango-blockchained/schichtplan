@@ -33,10 +33,10 @@ with app.app_context():
     for version in versions:
         count = Schedule.query.filter_by(version=version).count()
         with_shifts = Schedule.query.filter(
-            Schedule.version == version, Schedule.shift_id != None
+            Schedule.version == version, Schedule.shift_id is not None
         ).count()
         without_shifts = Schedule.query.filter(
-            Schedule.version == version, Schedule.shift_id == None
+            Schedule.version == version, Schedule.shift_id is None
         ).count()
 
         print(f"\nVersion {version}:")

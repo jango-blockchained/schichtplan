@@ -27,10 +27,7 @@ def scan_log_file(log_file, days=None):
     results = defaultdict(list)
     count = 0
 
-    if days:
-        cutoff_date = datetime.now() - timedelta(days=days)
-    else:
-        cutoff_date = None
+    cutoff_date = datetime.now() - timedelta(days=days) if days else None
 
     print(f"Scanning {log_file}...")
 
@@ -49,7 +46,7 @@ def scan_log_file(log_file, days=None):
                     pass
 
             # Check for each pattern
-            for module, pattern in PATTERNS.items():
+            for _module, pattern in PATTERNS.items():
                 match = pattern.search(line)
                 if match:
                     count += 1

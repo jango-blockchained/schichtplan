@@ -85,10 +85,10 @@ with app.app_context():
 
         # Get breakdown of saved data
         with_shift = Schedule.query.filter(
-            Schedule.version == version, Schedule.shift_id != None
+            Schedule.version == version, Schedule.shift_id is not None
         ).count()
         without_shift = Schedule.query.filter(
-            Schedule.version == version, Schedule.shift_id == None
+            Schedule.version == version, Schedule.shift_id is None
         ).count()
 
         print(f"Schedules with shift assignments: {with_shift}")

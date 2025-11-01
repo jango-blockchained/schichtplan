@@ -117,7 +117,7 @@ def get_week_from_identifier(week_identifier: str) -> WeekInfo:
         raise ValueError(f"Invalid week number: {week_number}")
 
     # Find the first day of the year
-    jan_1 = date(year, 1, 1)
+    date(year, 1, 1)
 
     # Find the first Monday of the year (start of week 1)
     # ISO 8601: Week 1 is the first week with at least 4 days in the new year

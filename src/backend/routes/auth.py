@@ -240,7 +240,7 @@ def regenerate_api_key(user_id):
 
     try:
         with session_manager() as session:
-            new_api_key = user.regenerate_api_key()
+            user.regenerate_api_key()
             session.add(user)
 
         return jsonify(

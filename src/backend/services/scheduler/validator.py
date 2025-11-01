@@ -37,6 +37,8 @@ except ImportError as e:
 
 # --- Sibling module imports ---
 # Ensure these are imported directly for clarity and linter happiness
+import contextlib
+
 from .resources import ScheduleResources
 from .utility import (
     calculate_rest_hours,
@@ -938,10 +940,8 @@ class ScheduleValidator:
                 shift_id_val = entry_data.get("shift_id")
                 employee_id_val = entry_data.get("employee_id")
                 if isinstance(date_str, str):
-                    try:
+                    with contextlib.suppress(ValueError):
                         date_val = datetime.strptime(date_str, "%Y-%m-%d").date()
-                    except ValueError:
-                        pass
             else:  # Object
                 date_val = getattr(entry_data, "date", None)
                 shift_id_val = getattr(entry_data, "shift_id", None)

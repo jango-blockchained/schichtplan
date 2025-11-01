@@ -153,7 +153,7 @@ class GeneralSettings(BaseModel):  # Modified as per plan
     @classmethod
     def validate_special_days_date_keys(cls, v):
         if v is not None:
-            for date_str in v.keys():
+            for date_str in v:
                 try:
                     datetime.strptime(date_str, "%Y-%m-%d")
                 except ValueError:

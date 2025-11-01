@@ -206,13 +206,13 @@ class ShiftTemplate(db.Model):
             hours, minutes = map(int, time_str.split(":"))
             return hours * 60 + minutes
 
-        shift_start = time_to_minutes(self.start_time)
+        time_to_minutes(self.start_time)
         shift_end = time_to_minutes(self.end_time)
         store_open = time_to_minutes(settings.store_opening)
         store_close = time_to_minutes(settings.store_closing)
 
         # For opening shifts, allow starting before store opening if requires_keyholder
-        earliest_allowed_start = store_open - settings.keyholder_before_minutes
+        store_open - settings.keyholder_before_minutes
         latest_allowed_end = store_close + settings.keyholder_after_minutes
 
         # if shift_start < earliest_allowed_start:

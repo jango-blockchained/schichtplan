@@ -252,7 +252,7 @@ class PDFGenerator:
                 table_data.append(header_row2)
 
                 # Add employee rows
-                for employee_id, employee_data in page_employees:
+                for _employee_id, employee_data in page_employees:
                     employee = employee_data["employee"]
                     employee_schedules = employee_data["schedules"]
 

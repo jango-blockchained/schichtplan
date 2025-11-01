@@ -182,7 +182,6 @@ class AIScheduler:
             absence_constraints[employee.id] = []  # Initialize for each employee
 
         for absence in data["absences"]:
-            employee_id = absence.employee_id
             start_date = absence.start_date
             end_date = absence.end_date
             # Store absence as a tuple of start and end dates
@@ -233,7 +232,7 @@ class AIScheduler:
                 interval_end = current_interval_start + timedelta(
                     minutes=scheduling_interval_minutes
                 )
-                current_interval_end_time = interval_end.time()
+                interval_end.time()
 
                 # Find applicable coverage requirements for this day and interval
                 # Filter data["coverage"] by day of week and time overlap
@@ -864,7 +863,7 @@ class AIScheduler:
         employee_daily_hours = {
             emp.id: {dt: timedelta() for dt in schedule} for emp in employee_data
         }
-        employee_weekly_hours = {emp.id: timedelta() for emp in employee_data}
+        {emp.id: timedelta() for emp in employee_data}
         # Assuming scheduling_start_date is available or can be derived
         schedule_dates = sorted(schedule.keys())
         if not schedule_dates:
@@ -880,13 +879,13 @@ class AIScheduler:
         for emp_id in (
             employee_daily_hours
         ):  # Iterate over employees who have daily hours logged
-            employee_weekly_hours_check = {
+            {
                 emp_id: timedelta() for emp_id in employee_daily_hours
             }  # Re-init for check
             current_week_start = start_of_first_week
 
             while current_week_start <= schedule_dates[-1]:
-                current_week_end = current_week_start + timedelta(days=6)
+                current_week_start + timedelta(days=6)
                 weekly_hours_for_emp = timedelta()
 
                 for day_offset in range(7):
@@ -986,7 +985,6 @@ class AIScheduler:
         # Implement multi-objective scoring if required by TASK003:
         # This might involve a weighted sum of different soft constraint scores or a more complex Pareto optimization approach.
 
-        final_schedule_evaluation = {}  # Dictionary to store evaluation results and scores
 
         # Placeholder: For now, just indicate evaluation is happening.
         # actual_evaluation_results = self._perform_evaluation(generated_schedule, processed_data)
