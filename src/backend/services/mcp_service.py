@@ -70,6 +70,12 @@ class SchichtplanMCPService:
         self.agent_registry = None
         self.workflow_coordinator = None
 
+        # Track registered tools, resources, and prompts
+        # Store metadata for tools since FastMCP doesn't expose internal registries
+        self._registered_tools = {}
+        self._registered_resources = {}
+        self._registered_prompts = {}
+
         # Load user AI assistant prompt
         self.user_ai_prompt = self._load_user_ai_prompt()
 
@@ -115,13 +121,35 @@ You are Schichtplan Assistant, a helpful workforce management companion.
 
     def _register_tools(self):
         """Register all tools with the MCP service."""
-        self.schedule_analysis_tools.register_tools(self.mcp)
-        self.employee_management_tools.register_tools(self.mcp)
-        self.coverage_optimization_tools.register_tools(self.mcp)
-        self.crud_operations_tools.register_tools(self.mcp)
-        self.ai_schedule_generation_tools.register_tools(self.mcp)
-        self.ml_optimization_tools.register_tools(self.mcp)
-        self.schedule_scenario_tools.register_tools(self.mcp)
+        # Register tools from each category and collect their metadata
+        tool_categories = [
+            ("schedule_analysis", self.schedule_analysis_tools),
+            ("employee_management", self.employee_management_tools),
+            ("coverage_optimization", self.coverage_optimization_tools),
+            ("crud_operations", self.crud_operations_tools),
+            ("ai_schedule_generation", self.ai_schedule_generation_tools),
+            ("ml_optimization", self.ml_optimization_tools),
+            ("schedule_scenario", self.schedule_scenario_tools),
+        ]
+
+        for category, tool_instance in tool_categories:
+            tool_instance.register_tools(self.mcp)
+            # Collect tool metadata
+            if hasattr(tool_instance, "get_tool_info"):
+                try:
+                    tool_info = tool_instance.get_tool_info()
+                    if "tools" in tool_info:
+                        for tool in tool_info["tools"]:
+                            tool_name = tool.get("name")
+                            if tool_name:
+                                self._registered_tools[tool_name] = {
+                                    "name": tool_name,
+                                    "description": tool.get("description", ""),
+                                    "parameters": tool.get("parameters", []),
+                                    "category": category,
+                                }
+                except Exception as e:
+                    self.logger.warning(f"Failed to collect tool info from {category}: {e}")
 
         # Register prompts to handle ListPromptsRequest
         self._register_prompts()
@@ -276,6 +304,34 @@ You are Schichtplan Assistant, a helpful workforce management companion.
 - Cost efficiency
 - Compliance with all regulations"""
 
+            # Track registered prompts
+            self._registered_prompts = {
+                "schedule_optimization_prompt": {
+                    "name": "schedule_optimization_prompt",
+                    "description": "🎯 Optimize schedule for better coverage and fairness",
+                },
+                "employee_availability_prompt": {
+                    "name": "employee_availability_prompt",
+                    "description": "👥 Analyze employee availability patterns",
+                },
+                "schedule_compliance_prompt": {
+                    "name": "schedule_compliance_prompt",
+                    "description": "📋 Check schedule compliance",
+                },
+                "conflict_resolution_prompt": {
+                    "name": "conflict_resolution_prompt",
+                    "description": "🔧 Resolve schedule conflicts",
+                },
+                "workforce_planning_prompt": {
+                    "name": "workforce_planning_prompt",
+                    "description": "📊 Strategic workforce planning",
+                },
+                "schedule_generation_prompt": {
+                    "name": "schedule_generation_prompt",
+                    "description": "🗓️ Generate new schedule from scratch",
+                },
+            }
+
             self.logger.info("Successfully registered 6 enhanced MCP prompts")
         except Exception as e:
             self.logger.error(f"Failed to register prompts: {e}")
@@ -413,6 +469,26 @@ You are Schichtplan Assistant, a helpful workforce management companion.
                             }
                         ),
                     }
+
+            # Track registered resources
+            self._registered_resources = {
+                "employee://{employee_id}": {
+                    "uri": "employee://{employee_id}",
+                    "description": "Get detailed employee information",
+                },
+                "schedule://{start_date}/{end_date}": {
+                    "uri": "schedule://{start_date}/{end_date}",
+                    "description": "Get schedule data for a date range",
+                },
+                "shift-templates://all": {
+                    "uri": "shift-templates://all",
+                    "description": "Get all available shift templates",
+                },
+                "coverage://{day_of_week}": {
+                    "uri": "coverage://{day_of_week}",
+                    "description": "Get coverage requirements for a day",
+                },
+            }
 
             self.logger.info("Successfully registered 5 MCP resources")
         except Exception as e:
@@ -1136,3 +1212,19 @@ You are Schichtplan Assistant, a helpful workforce management companion.
                 },
                 "error": str(e),
             }
+
+    def get_registered_tools(self) -> dict[str, dict[str, Any]]:
+        """Get the dictionary of registered tools metadata."""
+        return self._registered_tools
+
+    def get_registered_resources(self) -> dict[str, dict[str, Any]]:
+        """Get the dictionary of registered resources metadata."""
+        return self._registered_resources
+
+    def get_registered_prompts(self) -> dict[str, dict[str, Any]]:
+        """Get the dictionary of registered prompts metadata."""
+        return self._registered_prompts
+
+    def get_mcp_server(self):
+        """Get the FastMCP server instance."""
+        return self.mcp
