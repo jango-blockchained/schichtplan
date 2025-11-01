@@ -612,10 +612,13 @@ def get_bulk_vacation_approvals():
 @bp.route("/vacation-pdf/yearly-overview", methods=["GET"])
 def get_yearly_vacation_overview():
     """
-    Generate yearly vacation overview with all employees and entries.
+    Generate yearly vacation overview with ALL approved absences.
+
+    This includes vacation, time-off, training, and other absence types
+    that have been approved.
 
     Query parameters:
-        year (required): Year for vacation overview (e.g., 2024)
+        year (required): Year for the overview (e.g., 2024)
 
     Returns:
         PDF file for download
@@ -635,10 +638,9 @@ def get_yearly_vacation_overview():
                 {"status": "error", "message": "year must be a valid integer"}
             ), HTTPStatus.BAD_REQUEST
 
-        # Validate year
-        current_year = datetime.now().year
-        max_year = current_year + MAX_YEAR_OFFSET
-        if year < MIN_YEAR or year > max_year:
+        # Validate year range
+        max_year = datetime.now().year + MAX_YEAR_OFFSET
+        if not (MIN_YEAR <= year <= max_year):
             return jsonify(
                 {
                     "status": "error",
@@ -650,16 +652,18 @@ def get_yearly_vacation_overview():
         employees = Employee.query.filter_by(is_active=True).all()
         logger.info(f"Loaded {len(employees)} active employees")
 
-        # Fetch vacation absences for the year
+        # Fetch ALL approved absences (vacation, time-off, training, etc.) for the year
         start_date = datetime(year, 1, 1).date()
         end_date = datetime(year, 12, 31).date()
 
         absences = Absence.query.filter(
-            Absence.absence_type_id == "vacation",
+            Absence.status == "approved",
             Absence.start_date <= end_date,
             Absence.end_date >= start_date,
         ).all()
-        logger.info(f"Loaded {len(absences)} vacation absences for year {year}")
+        logger.info(
+            f"Loaded {len(absences)} approved absences (all types) for year {year}"
+        )
 
         # Get settings
         settings = Settings.query.first()

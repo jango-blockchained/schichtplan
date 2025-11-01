@@ -1398,17 +1398,25 @@ def generate_improved_absences(employees):
 
                 if not overlaps:
                     valid_date_found = True
+
+                    # For vacation absences, vary the status (50% approved, 50% requested)
+                    # For other absence types, keep as requested
+                    status = "requested"
+                    if absence_type == "URL":  # Vacation
+                        status = random.choice(["approved", "requested"])
+
                     absence = Absence(
                         employee_id=employee.id,
                         absence_type_id=absence_type,
                         start_date=start_date_obj,
                         end_date=end_date_obj,
+                        status=status,
                         note=f"Generated {absence_type} absence",
                     )
                     absences.append(absence)
                     logging.info(
                         f"Created {absence_type} absence for {employee.employee_id} "
-                        f"from {start_date_obj} to {end_date_obj}"
+                        f"from {start_date_obj} to {end_date_obj} with status={status}"
                     )
 
                 attempts += 1

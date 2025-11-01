@@ -94,7 +94,7 @@ const formulars: FormularItem[] = [
   {
     id: "vacation-yearly",
     title: "Jahresurlaub Übersicht",
-    description: "Alle Urlaubseinträge für ein Jahr mit vollständigen Details",
+    description: "Alle genehmigten Abwesenheiten (Urlaub, Abwesenheit, Schulung) für ein Jahr",
     icon: <FileText className="h-5 w-5" />,
     requiresEmployee: false,
     category: "Jahresübersichten",

@@ -498,14 +498,15 @@ class VacationPDFGenerator:
         settings: Settings | None = None,
     ) -> io.BytesIO:
         """
-        Generate comprehensive overview form with all employees and details.
+        Generate comprehensive overview form with all employees and absences.
 
-        Shows all vacation requests, dates, status, and remaining days for
-        all employees in a comprehensive table format.
+        Shows all approved absences (vacation, time-off, training, etc.),
+        dates, status, and remaining vacation days for all employees in a
+        comprehensive table format.
 
         Args:
             employees: List of all employees
-            absences: List of vacation absences
+            absences: List of approved absences (all types)
             year: Year to display
             settings: Optional settings object
 
@@ -526,7 +527,10 @@ class VacationPDFGenerator:
 
         # Title
         story.append(
-            Paragraph(f"Urlaubsübersicht {year} - Alle Mitarbeiter", self.title_style)
+            Paragraph(
+                f"Abwesenheitsübersicht {year} - Alle Mitarbeiter",
+                self.title_style,
+            )
         )
         story.append(Spacer(1, 10))
 
@@ -540,14 +544,13 @@ class VacationPDFGenerator:
         story.append(Paragraph(" | ".join(info_parts), self.normal_style))
         story.append(Spacer(1, 15))
 
-        # Group absences by employee
+        # Group ALL approved absences by employee (not just vacation)
         employee_vacations = {}
         for absence in absences:
-            if absence.absence_type_id == "vacation":
-                emp_id = absence.employee_id
-                if emp_id not in employee_vacations:
-                    employee_vacations[emp_id] = []
-                employee_vacations[emp_id].append(absence)
+            emp_id = absence.employee_id
+            if emp_id not in employee_vacations:
+                employee_vacations[emp_id] = []
+            employee_vacations[emp_id].append(absence)
 
         # Table headers
         table_data = [
@@ -555,12 +558,11 @@ class VacationPDFGenerator:
                 Paragraph("<b>Nr.</b>", self.small_style),
                 Paragraph("<b>Mitarbeiter</b>", self.small_style),
                 Paragraph("<b>Pers.-Nr.</b>", self.small_style),
-                Paragraph("<b>Anspruch</b>", self.small_style),
+                Paragraph("<b>Typ</b>", self.small_style),
                 Paragraph("<b>Von</b>", self.small_style),
                 Paragraph("<b>Bis</b>", self.small_style),
                 Paragraph("<b>Tage</b>", self.small_style),
                 Paragraph("<b>Status</b>", self.small_style),
-                Paragraph("<b>Verbleib.</b>", self.small_style),
                 Paragraph("<b>Bemerkung</b>", self.small_style),
             ]
         ]
@@ -570,29 +572,18 @@ class VacationPDFGenerator:
         for employee in sorted(employees, key=lambda e: (e.last_name, e.first_name)):
             emp_absences = employee_vacations.get(employee.id, [])
 
-            # Calculate total days used
-            total_used = sum(
-                (abs.end_date - abs.start_date).days + 1
-                for abs in emp_absences
-                if abs.status == "approved"
-            )
-
-            total_entitlement = employee.vacation_per_year or 30
-            remaining = total_entitlement - total_used
-
             if not emp_absences:
-                # Employee with no vacation entries
+                # Employee with no absence entries
                 table_data.append(
                     [
                         str(row_num),
                         f"{employee.last_name}, {employee.first_name}",
                         employee.employee_id,
-                        str(total_entitlement),
                         "-",
                         "-",
-                        "0",
                         "-",
-                        str(remaining),
+                        "-",
+                        "-",
                         "",
                     ]
                 )
@@ -601,18 +592,18 @@ class VacationPDFGenerator:
                 # First absence row for employee
                 first_absence = emp_absences[0]
                 days = (first_absence.end_date - first_absence.start_date).days + 1
+                absence_type = first_absence.absence_type_id
 
                 table_data.append(
                     [
                         str(row_num),
                         f"{employee.last_name}, {employee.first_name}",
                         employee.employee_id,
-                        str(total_entitlement),
+                        absence_type,
                         first_absence.start_date.strftime("%d.%m.%y"),
                         first_absence.end_date.strftime("%d.%m.%y"),
                         str(days),
                         self._get_status_text(first_absence.status),
-                        str(remaining) if len(emp_absences) == 1 else "",
                         first_absence.note or "",
                     ]
                 )
@@ -621,19 +612,18 @@ class VacationPDFGenerator:
                 # Additional absence rows for same employee
                 for absence in emp_absences[1:]:
                     days = (absence.end_date - absence.start_date).days + 1
-                    is_last = absence == emp_absences[-1]
+                    absence_type = absence.absence_type_id
 
                     table_data.append(
                         [
                             "",
                             "",
                             "",
-                            "",
+                            absence_type,
                             absence.start_date.strftime("%d.%m.%y"),
                             absence.end_date.strftime("%d.%m.%y"),
                             str(days),
                             self._get_status_text(absence.status),
-                            str(remaining) if is_last else "",
                             absence.note or "",
                         ]
                     )
@@ -685,16 +675,16 @@ class VacationPDFGenerator:
         # Summary statistics
         story.append(Spacer(1, 15))
         total_employees = len(employees)
-        total_vacation_days = sum(
+        total_absence_days = sum(
             (abs.end_date - abs.start_date).days + 1
             for abs in absences
-            if abs.absence_type_id == "vacation" and abs.status == "approved"
+            if abs.status == "approved"
         )
 
         story.append(
             Paragraph(
                 f"<b>Zusammenfassung:</b> {total_employees} Mitarbeiter | "
-                f"{total_vacation_days} genehmigte Urlaubstage",
+                f"{total_absence_days} genehmigte Abwesenstage",
                 self.normal_style,
             )
         )
