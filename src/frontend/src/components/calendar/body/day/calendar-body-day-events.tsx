@@ -13,13 +13,13 @@ export default function CalendarBodyDayEvents() {
   )
 
   return dayEvents.length ? (
-    <div className="flex flex-col gap-2">
-      <p className="font-medium p-2 pb-0 font-heading">Events</p>
-      <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1">
+      <p className="font-medium p-1.5 pb-0 text-sm font-heading">Events</p>
+      <div className="flex flex-col gap-1">
         {dayEvents.map((event) => (
           <div
             key={event.id}
-            className="flex items-center gap-2 px-2 cursor-pointer"
+            className="flex items-center gap-2 px-1.5 py-1 cursor-pointer text-xs"
             onClick={() => {
               setSelectedEvent(event)
               setManageEventDialogOpen(true)

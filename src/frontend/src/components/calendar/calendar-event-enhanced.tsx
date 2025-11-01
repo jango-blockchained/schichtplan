@@ -106,9 +106,9 @@ function calculateEventPosition(
         endMinutes = 59
     }
 
-    const topPosition = startHour * 128 + (startMinutes / 60) * 128
+    const topPosition = startHour * 64 + (startMinutes / 60) * 64
     const duration = endHour * 60 + endMinutes - (startHour * 60 + startMinutes)
-    const height = (duration / 60) * 128
+    const height = (duration / 60) * 64
 
     return {
         left,
@@ -309,14 +309,14 @@ export default function CalendarEventEnhanced({
                 <motion.div
                     ref={eventRef}
                     className={cn(
-                        'flex items-center gap-2 transition-all duration-200 rounded-md group relative',
+                        'flex items-center gap-1 transition-all duration-200 rounded-md group relative',
                         'bg-muted/30 border border-border hover:border-foreground/30 hover:shadow-sm',
                         isDragging && 'opacity-60 shadow-lg cursor-grabbing',
                         !isDragging && (month || year) && 'cursor-grab',
-                        !month && !day && !week && !year && 'absolute z-10 p-2',
-                        month && 'p-1.5 overflow-visible w-full text-xs min-h-[28px]',
-                        week && 'p-2 text-sm',
-                        year && 'p-1 text-xs',
+                        !month && !day && !week && !year && 'absolute z-10 p-1',
+                        month && 'p-0.5 overflow-visible w-full text-xs min-h-[18px]',
+                        week && 'p-1.5 text-sm',
+                        year && 'p-0.5 text-xs',
                         month && isFirstDay && 'rounded-l-md',
                         month && isLastDay && 'rounded-r-md',
                         className
@@ -379,23 +379,23 @@ export default function CalendarEventEnhanced({
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -4 }}
                         >
-                            <GripVertical className="w-3 h-3" />
+                            <GripVertical className="w-2 h-2" />
                         </motion.div>
                     )}
 
                     {/* Color indicator bar - rounded, full height */}
                     <div
                         className={cn(
-                            'flex-shrink-0 w-1 rounded-full',
-                            month || year ? 'h-full min-h-5' : 'h-full',
+                            'flex-shrink-0 w-0.5 rounded-full',
+                            month || year ? 'h-full min-h-4' : 'h-full',
                             getColorStyle(event.color)
                         )}
                     />
 
                     {/* Content Container */}
-                    <motion.div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden" layout="position">
+                    <motion.div className="flex-1 min-w-0 flex items-center gap-0.5 overflow-hidden" layout="position">
                         {/* Title - always show and highlight */}
-                        <p className="text-xs font-semibold text-foreground truncate leading-tight">
+                        <p className="text-xs font-semibold text-foreground truncate leading-none">
                             {event.title}
                         </p>
 
@@ -419,12 +419,12 @@ export default function CalendarEventEnhanced({
                     </motion.div>
 
                     {/* Status indicator and duration badge */}
-                    <div className="flex items-center gap-1 flex-shrink-0">
+                    <div className="flex items-center gap-0.5 flex-shrink-0">
                         {/* Duration badge */}
-                        {(month || week) && (
+                        {(month || week) && month && (
                             <Badge
                                 variant="secondary"
-                                className="text-xs px-1.5 py-0 h-4 bg-background/50 text-muted-foreground"
+                                className="text-xs px-1 py-0 h-3 bg-background/50 text-muted-foreground"
                             >
                                 {durationStr}
                             </Badge>
@@ -438,7 +438,7 @@ export default function CalendarEventEnhanced({
                             )}
                             title={statusConfig[status].label}
                         >
-                            <StatusIcon className={cn('w-3 h-3', statusConfig[status].color)} />
+                            <StatusIcon className={cn('w-2 h-2', statusConfig[status].color)} />
                         </div>
                     </div>
 

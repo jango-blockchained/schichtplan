@@ -51,7 +51,7 @@ export default function CalendarBodyMonth() {
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
           <div
             key={day}
-            className="py-2 text-center text-sm font-medium text-muted-foreground border-b border-border"
+            className="py-1 text-center text-xs font-medium text-muted-foreground border-b border-border"
           >
             {day}
           </div>
@@ -79,7 +79,7 @@ export default function CalendarBodyMonth() {
               <div
                 key={day.toISOString()}
                 className={cn(
-                  'relative border-b border-r p-2 cursor-pointer min-h-32',
+                  'relative border-b border-r p-0.5 cursor-pointer min-h-20',
                   !isCurrentMonth && 'bg-muted/50 hidden md:flex'
                 )}
                 onClick={(e) => {
@@ -90,7 +90,7 @@ export default function CalendarBodyMonth() {
               >
                 <div
                   className={cn(
-                    'text-sm font-medium w-fit p-1 flex flex-col items-center justify-center rounded-full aspect-square absolute top-2 left-2',
+                    'text-xs font-medium w-fit p-0.5 flex flex-col items-center justify-center rounded-full aspect-square absolute top-1 left-1',
                     isToday && 'bg-primary text-background'
                   )}
                 >
@@ -133,7 +133,7 @@ export default function CalendarBodyMonth() {
                   const cellWidth = 100 / 7
                   const left = (columnStart * cellWidth)
                   const width = (cellsInSegment * cellWidth)
-                  const topOffset = 56 // Below day number
+                  const topOffset = 24 // Below day number - reduced
 
                   // Determine if this segment is the first or last
                   const isFirstSegment = weekRow === startWeek
@@ -149,8 +149,8 @@ export default function CalendarBodyMonth() {
                         top: `${weekRow * (100 / Math.ceil(calendarDays.length / 7))}%`,
                         height: `${100 / Math.ceil(calendarDays.length / 7)}%`,
                         paddingTop: `${topOffset}px`,
-                        paddingLeft: '4px',
-                        paddingRight: '4px',
+                        paddingLeft: '2px',
+                        paddingRight: '2px',
                         pointerEvents: 'auto',
                         zIndex: 10,
                       }}
@@ -190,15 +190,15 @@ export default function CalendarBodyMonth() {
             return (
               <div
                 key={`single-${day.toISOString()}`}
-                className="absolute flex flex-col gap-1"
+                className="absolute flex flex-col gap-0.5"
                 style={{
                   left: `${(columnStart * cellWidth) + 2}%`,
                   width: `${cellWidth - 4}%`,
-                  top: `${weekRow * (100 / Math.ceil(calendarDays.length / 7)) + 5}%`,
-                  height: `${100 / Math.ceil(calendarDays.length / 7) - 5}%`,
-                  paddingTop: '32px',
-                  paddingLeft: '4px',
-                  paddingRight: '4px',
+                  top: `${weekRow * (100 / Math.ceil(calendarDays.length / 7)) + 3}%`,
+                  height: `${100 / Math.ceil(calendarDays.length / 7) - 3}%`,
+                  paddingTop: '20px',
+                  paddingLeft: '1px',
+                  paddingRight: '1px',
                   overflow: 'hidden',
                   pointerEvents: 'auto',
                   zIndex: 20,

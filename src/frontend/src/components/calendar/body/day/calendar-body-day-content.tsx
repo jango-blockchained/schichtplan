@@ -21,7 +21,7 @@ export default function CalendarBodyDayContent({ date }: { date: Date }) {
 
       <div className="flex-1 relative overflow-hidden">
         {hours.map((hour) => (
-          <div key={hour} className="h-32 border-b border-border/50 group" />
+          <div key={hour} className="h-16 border-b border-border/50 group" />
         ))}
 
         <div className="absolute inset-0 pointer-events-none">

@@ -1,10 +1,8 @@
 from http import HTTPStatus
 
 import pytest
-from flask import Flask
 
-from src.backend.app import create_app  # Assuming create_app is in src.backend.app
-from src.backend.models import Settings, db
+from src.backend.models import Settings
 
 # Sample data for testing
 DEFAULT_SETTINGS_DICT_EXPECTATION = {
@@ -273,9 +271,7 @@ def test_get_default_settings_to_dict(app, test_settings):
                         isinstance(item, dict) and "id" in item
                         for item in expected_value
                     ):
-                        expected_sorted = sorted(
-                            expected_value, key=lambda x: x["id"]
-                        )
+                        expected_sorted = sorted(expected_value, key=lambda x: x["id"])
                         actual_sorted = sorted(
                             settings_dict[category][key], key=lambda x: x["id"]
                         )
@@ -291,66 +287,62 @@ def test_get_default_settings_to_dict(app, test_settings):
                         f"Mismatch in {category}.{key}"
                     )
         else:
-            assert settings_dict[category] == expected_values, (
-                f"Mismatch in {category}"
-            )
+            assert settings_dict[category] == expected_values, f"Mismatch in {category}"
 
 
 def test_update_settings_from_dict(app, test_settings):
     """Test updating settings using update_from_dict method."""
     update_data = {
-            "general": {
-                "store_name": "Updated Store Name",
-                "language": "en",
-                "opening_days": {"monday": False, "tuesday": True},  # Partial update
-                "special_days": {"2025-12-25": {"name": "Xmas", "is_closed": True}},
-            },
-            "scheduling": {
-                "default_shift_duration": 7.5,
-                "generation_requirements": {
-                    "enforce_max_hours": False
-                },  # Partial update
-            },
-            "display": {
-                "theme": "dark",
-                "dark_theme": {"primary_color": "#aabbcc"},  # Partial update
-            },
-            "pdf_layout": {
-                "orientation": "portrait",
-                "margins": {"top": 10.0},  # Partial update
-            },
-            "employee_groups": {
-                "employee_types": [  # Full replacement
-                    {
-                        "id": "NEW_VZ",
-                        "name": "New Vollzeit",
-                        "min_hours": 30,
-                        "max_hours": 38,
-                        "type": "employee_type",
-                    }
-                ],
-                "absence_types": [],  # Clear all
-            },
-            "availability_types": {  # Full replacement
-                "types": [
-                    {
-                        "id": "WORK",
-                        "name": "Working",
-                        "color": "#00FF00",
-                        "priority": 1,
-                        "is_available": True,
-                        "type": "availability_type",
-                    }
-                ]
-            },
-            "actions": {
-                "demo_data": {
-                    "selected_module": "employees",
-                    "last_execution": "2025-01-01T10:00:00",
+        "general": {
+            "store_name": "Updated Store Name",
+            "language": "en",
+            "opening_days": {"monday": False, "tuesday": True},  # Partial update
+            "special_days": {"2025-12-25": {"name": "Xmas", "is_closed": True}},
+        },
+        "scheduling": {
+            "default_shift_duration": 7.5,
+            "generation_requirements": {"enforce_max_hours": False},  # Partial update
+        },
+        "display": {
+            "theme": "dark",
+            "dark_theme": {"primary_color": "#aabbcc"},  # Partial update
+        },
+        "pdf_layout": {
+            "orientation": "portrait",
+            "margins": {"top": 10.0},  # Partial update
+        },
+        "employee_groups": {
+            "employee_types": [  # Full replacement
+                {
+                    "id": "NEW_VZ",
+                    "name": "New Vollzeit",
+                    "min_hours": 30,
+                    "max_hours": 38,
+                    "type": "employee_type",
                 }
-            },
-            "ai_scheduling": {"enabled": True, "api_key": "test_key_123"},
-        }
+            ],
+            "absence_types": [],  # Clear all
+        },
+        "availability_types": {  # Full replacement
+            "types": [
+                {
+                    "id": "WORK",
+                    "name": "Working",
+                    "color": "#00FF00",
+                    "priority": 1,
+                    "is_available": True,
+                    "type": "availability_type",
+                }
+            ]
+        },
+        "actions": {
+            "demo_data": {
+                "selected_module": "employees",
+                "last_execution": "2025-01-01T10:00:00",
+            }
+        },
+        "ai_scheduling": {"enabled": True, "api_key": "test_key_123"},
+    }
     Settings.update_from_dict(update_data)
 
     updated_settings = Settings.query.first()
@@ -382,9 +374,7 @@ def test_update_settings_from_dict(app, test_settings):
 
     # Display assertions
     assert updated_settings_dict["display"]["theme"] == "dark"
-    assert (
-        updated_settings_dict["display"]["dark_theme"]["primary_color"] == "#aabbcc"
-    )
+    assert updated_settings_dict["display"]["dark_theme"]["primary_color"] == "#aabbcc"
 
     # PDF Layout assertions
     assert updated_settings_dict["pdf_layout"]["orientation"] == "portrait"
@@ -393,8 +383,7 @@ def test_update_settings_from_dict(app, test_settings):
     # Employee Groups assertions
     assert len(updated_settings_dict["employee_groups"]["employee_types"]) == 1
     assert (
-        updated_settings_dict["employee_groups"]["employee_types"][0]["id"]
-        == "NEW_VZ"
+        updated_settings_dict["employee_groups"]["employee_types"][0]["id"] == "NEW_VZ"
     )
     assert len(updated_settings_dict["employee_groups"]["absence_types"]) == 0
     # Shift types should remain default as it wasn't in update_data["employee_groups"]
@@ -406,8 +395,7 @@ def test_update_settings_from_dict(app, test_settings):
 
     # Actions assertions
     assert (
-        updated_settings_dict["actions"]["demo_data"]["selected_module"]
-        == "employees"
+        updated_settings_dict["actions"]["demo_data"]["selected_module"] == "employees"
     )
 
     # AI Scheduling assertions
