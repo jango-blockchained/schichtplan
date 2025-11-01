@@ -4,7 +4,7 @@ Schedule Scenario Generation Tools for MCP Service
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastmcp import Context
 
@@ -24,9 +24,9 @@ class ScheduleScenarioTools:
             ctx: Context,
             start_date: str,
             end_date: str,
-            scenario_types: Optional[List[str]] = None,
-            variation_parameters: Optional[Dict[str, Any]] = None,
-        ) -> Dict[str, Any]:
+            scenario_types: list[str] | None = None,
+            variation_parameters: dict[str, Any] | None = None,
+        ) -> dict[str, Any]:
             """Generate multiple schedule scenarios for what-if analysis.
 
             Args:

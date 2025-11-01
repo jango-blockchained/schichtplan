@@ -1,6 +1,6 @@
+from api.demo_data import generate_coverage_data
 from app import create_app
 from models import Coverage, db
-from api.demo_data import generate_coverage_data
 
 
 def update_coverage():

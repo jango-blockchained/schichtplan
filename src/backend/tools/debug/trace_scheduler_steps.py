@@ -5,12 +5,12 @@ This script adds detailed instrumentation to the schedule generation process
 to trace all the steps and identify exactly where the issue is occurring.
 """
 
+import json
+import logging
 import os
 import sys
-import logging
-import json
-from datetime import date, datetime
 from contextlib import contextmanager
+from datetime import date, datetime
 
 # Add the parent directories to path to resolve imports
 current_dir = os.path.dirname(os.path.abspath(__file__))

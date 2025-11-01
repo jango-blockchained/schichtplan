@@ -1,6 +1,6 @@
 """Configuration module for the scheduler."""
 
-from typing import Dict, Any
+from typing import Any
 
 
 class SchedulerConfig:
@@ -71,7 +71,7 @@ class SchedulerConfig:
         if config_dict:
             self.update_from_dict(config_dict)
 
-    def update_from_dict(self, config_dict: Dict[str, Any]):
+    def update_from_dict(self, config_dict: dict[str, Any]):
         """Update configuration from a dictionary"""
         for key, value in config_dict.items():
             if hasattr(self, key):
@@ -85,7 +85,7 @@ class SchedulerConfig:
         # Default to full-time hours if group not found
         return self.max_hours_per_group.get("FULL_TIME", 40)
 
-    def get_employee_type_config(self, employee_group: str) -> Dict[str, Any]:
+    def get_employee_type_config(self, employee_group: str) -> dict[str, Any]:
         """Get configuration for a specific employee type"""
         for employee_type in self.employee_types:
             if employee_type["id"] == employee_group:
@@ -101,7 +101,7 @@ class SchedulerConfig:
         """Get the maximum number of shifts of a specific type per week"""
         return self.SHIFT_TYPE_CAPS.get(shift_type, 5)  # Default to 5 if not specified
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert configuration to dictionary"""
         return {
             "max_consecutive_days": self.max_consecutive_days,

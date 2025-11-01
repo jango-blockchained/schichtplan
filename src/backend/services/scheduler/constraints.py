@@ -14,7 +14,7 @@ import logging
 import os
 import sys
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional, Union  # Added Any
+from typing import Any  # Added Any
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -110,11 +110,11 @@ class ConstraintChecker:
         self.resources = resources
         self.config = config
         self.logger = logger
-        self.schedule: List[Dict] = []  # For older methods
-        self.schedule_by_date: Dict[date, List[Dict]] = {}  # For older methods
+        self.schedule: list[dict] = []  # For older methods
+        self.schedule_by_date: dict[date, list[dict]] = {}  # For older methods
 
     def set_schedule(
-        self, schedule: List[Dict], schedule_by_date: Dict[date, List[Dict]]
+        self, schedule: list[dict], schedule_by_date: dict[date, list[dict]]
     ):
         """
         Sets the current schedule context for constraint checking.
@@ -132,7 +132,7 @@ class ConstraintChecker:
         self.schedule_by_date = schedule_by_date
 
     def _calculate_shift_duration_from_datetimes(
-        self, start_dt: Optional[datetime], end_dt: Optional[datetime]
+        self, start_dt: datetime | None, end_dt: datetime | None
     ) -> float:
         """
         Calculates the duration in hours between two datetime objects.
@@ -151,8 +151,8 @@ class ConstraintChecker:
         return duration_timedelta.total_seconds() / 3600.0
 
     def _get_assignments_for_employee(
-        self, employee_id: int, assignments_list: List[Dict]
-    ) -> List[Dict]:
+        self, employee_id: int, assignments_list: list[dict]
+    ) -> list[dict]:
         """
         Filters a list of assignment dictionaries to get those for a specific employee.
 
@@ -168,8 +168,8 @@ class ConstraintChecker:
         ]
 
     def _parse_assignment_datetime(
-        self, assignment: Dict, field_name: str, on_date: Union[date, str]
-    ) -> Optional[datetime]:
+        self, assignment: dict, field_name: str, on_date: date | str
+    ) -> datetime | None:
         """
         Safely parses a time string from an assignment dictionary into a datetime object.
 
@@ -223,8 +223,8 @@ class ConstraintChecker:
         employee_id: int,
         new_shift_start_dt: datetime,
         new_shift_end_dt: datetime,
-        existing_assignments: List[Dict],
-    ) -> List[Dict]:
+        existing_assignments: list[dict],
+    ) -> list[dict]:
         """
         Checks all defined constraints for a potential new shift assignment.
 
@@ -316,7 +316,7 @@ class ConstraintChecker:
 
         return violations
 
-    def validate_assignment(self, assignment: Dict, employee: Any, shift: Any) -> bool:
+    def validate_assignment(self, assignment: dict, employee: Any, shift: Any) -> bool:
         """
         Validates whether an assignment is allowed based on all constraints.
 
@@ -399,8 +399,8 @@ class ConstraintChecker:
             return False
 
     def _check_max_consecutive_days(
-        self, employee: Employee, new_shift_date: date, existing_assignments: List[Dict]
-    ) -> Optional[Dict]:
+        self, employee: Employee, new_shift_date: date, existing_assignments: list[dict]
+    ) -> dict | None:
         """
         Checks if assigning a shift on `new_shift_date` would exceed the maximum
         configured consecutive working days for the employee.
@@ -482,8 +482,8 @@ class ConstraintChecker:
         employee: Employee,
         new_shift_start_dt: datetime,
         new_shift_end_dt: datetime,
-        existing_assignments: List[Dict],
-    ) -> Optional[Dict]:
+        existing_assignments: list[dict],
+    ) -> dict | None:
         """
         Checks if there is sufficient rest time before the `new_shift_start_dt`
         (after any previous shift) and after the `new_shift_end_dt` (before any
@@ -593,7 +593,7 @@ class ConstraintChecker:
 
     def _check_daily_hours_limit(
         self, employee: Employee, new_shift_duration: float
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """
         Checks if the duration of the new shift exceeds the maximum daily working
         hours configured for the employee's group.
@@ -656,8 +656,8 @@ class ConstraintChecker:
         employee: Employee,
         new_shift_start_dt: datetime,
         new_shift_duration: float,
-        existing_assignments: List[Dict],
-    ) -> Optional[Dict]:
+        existing_assignments: list[dict],
+    ) -> dict | None:
         """
         Checks if adding the new shift would cause the employee to exceed their
         configured maximum weekly working hours or a limit based on their
@@ -787,10 +787,10 @@ class ConstraintChecker:
     def _check_total_weekly_hours_constraint(
         self,
         new_shift_duration: float,
-        existing_assignments: List[Dict],
+        existing_assignments: list[dict],
         week_start_date: date,
         week_end_date: date,
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """
         Checks if adding the new shift would cause the total weekly working hours
         for all employees to exceed the configured constraint.
@@ -1345,8 +1345,8 @@ class ConstraintChecker:
         employee_id: int,
         new_shift_id: int,
         target_date: date,
-        existing_assignments: List[Dict],
-    ) -> List[Dict]:
+        existing_assignments: list[dict],
+    ) -> list[dict]:
         """
         Check keyholder-specific constraints:
         1. Only 1 keyholder per early and late shift per day
@@ -1395,8 +1395,8 @@ class ConstraintChecker:
         employee_id: int,
         shift: Any,
         target_date: date,
-        existing_assignments: List[Dict],
-    ) -> Optional[Dict]:
+        existing_assignments: list[dict],
+    ) -> dict | None:
         """
         Check that there's only 1 keyholder per early and late shift per day.
 
@@ -1453,8 +1453,8 @@ class ConstraintChecker:
         employee_id: int,
         shift: Any,
         target_date: date,
-        existing_assignments: List[Dict],
-    ) -> Optional[Dict]:
+        existing_assignments: list[dict],
+    ) -> dict | None:
         """
         Check that the keyholder who closes (late shift) must open (early shift) the next day.
 
@@ -1541,7 +1541,7 @@ class ConstraintChecker:
 
         return None
 
-    def _get_shift_type_from_assignment(self, assignment: Dict) -> Optional[str]:
+    def _get_shift_type_from_assignment(self, assignment: dict) -> str | None:
         """
         Get the shift type from an assignment by looking up the shift template.
 

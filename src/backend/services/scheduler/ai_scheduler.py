@@ -1,12 +1,13 @@
-from src.backend.models.employee import Employee, EmployeeAvailability
-from src.backend.models.coverage import Coverage
-from src.backend.models.settings import Settings
-from src.backend.models.schedule import Schedule
+from datetime import UTC, date, datetime, time, timedelta  # Import timezone
+from typing import Any  # Import List
+
 from src.backend.models.absence import Absence
-from src.backend.models.fixed_shift import ShiftTemplate, ShiftType  # Import ShiftType
-from datetime import date, time, timedelta, datetime, timezone  # Import timezone
-from typing import Dict, Any  # Import List
+from src.backend.models.coverage import Coverage
+from src.backend.models.employee import Employee, EmployeeAvailability
 from src.backend.models.enums import AvailabilityType  # Import AvailabilityType enum
+from src.backend.models.fixed_shift import ShiftTemplate, ShiftType  # Import ShiftType
+from src.backend.models.schedule import Schedule
+from src.backend.models.settings import Settings
 
 # Assuming Skill model exists and ShiftTemplate has required_skills attribute
 # from src.backend.models.skill import Skill # TODO: Import Skill model if it exists
@@ -16,7 +17,7 @@ class AIScheduler:
     def __init__(self):
         pass
 
-    def collect_data(self) -> Dict[str, Any]:
+    def collect_data(self) -> dict[str, Any]:
         """
         Gathers all necessary data for AI scheduling from the database.
         """
@@ -35,7 +36,7 @@ class AIScheduler:
         print("Data collection complete.")
         return data
 
-    def process_constraints(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def process_constraints(self, data: dict[str, Any]) -> dict[str, Any]:
         """
         Models hard and soft constraints for the scheduling problem.
         """
@@ -104,9 +105,7 @@ class AIScheduler:
                             if (
                                 availability.is_recurring
                                 and availability.day_of_week == day_of_week
-                            ):
-                                is_applicable_date = True
-                            elif (
+                            ) or (
                                 not availability.is_recurring
                                 and availability.start_date
                                 <= current_date
@@ -621,7 +620,7 @@ class AIScheduler:
             # Assuming Employee model has a 'created_at' field or similar for hire date
             # A simple scoring could be based on inverse of time since hire, or tiers
             seniority_score = (
-                datetime.now(timezone.utc) - employee.created_at
+                datetime.now(UTC) - employee.created_at
             ).days  # Example: days since creation
             seniority_constraints[employee.id] = seniority_score
 
@@ -634,8 +633,8 @@ class AIScheduler:
         return constraints
 
     def generate_schedule(
-        self, processed_data: Dict[str, Any], data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, processed_data: dict[str, Any], data: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Generates an initial schedule and iteratively improves it based on constraints.
         """
@@ -834,8 +833,8 @@ class AIScheduler:
 
     def _validate_schedule(
         self,
-        schedule: Dict[str, Any],
-        hard_constraints: Dict[str, Any],
+        schedule: dict[str, Any],
+        hard_constraints: dict[str, Any],
         employee_data: list,
         settings_data: Settings,
     ) -> list:
@@ -863,7 +862,7 @@ class AIScheduler:
 
         # Track working hours for validation
         employee_daily_hours = {
-            emp.id: {dt: timedelta() for dt in schedule.keys()} for emp in employee_data
+            emp.id: {dt: timedelta() for dt in schedule} for emp in employee_data
         }
         employee_weekly_hours = {emp.id: timedelta() for emp in employee_data}
         # Assuming scheduling_start_date is available or can be derived
@@ -879,10 +878,10 @@ class AIScheduler:
         )  # Monday
 
         for emp_id in (
-            employee_daily_hours.keys()
+            employee_daily_hours
         ):  # Iterate over employees who have daily hours logged
             employee_weekly_hours_check = {
-                emp_id: timedelta() for emp_id in employee_daily_hours.keys()
+                emp_id: timedelta() for emp_id in employee_daily_hours
             }  # Re-init for check
             current_week_start = start_of_first_week
 
@@ -927,7 +926,7 @@ class AIScheduler:
 
         for (
             emp_id
-        ) in employee_daily_hours.keys():  # Iterate over employees who have assignments
+        ) in employee_daily_hours:  # Iterate over employees who have assignments
             employee_shifts = []  # List of (datetime_start, datetime_end)
             for current_date, intervals in schedule.items():
                 for interval_start_time, assigned_employee_ids in intervals.items():
@@ -969,7 +968,7 @@ class AIScheduler:
             )
         return violations
 
-    def evaluate_schedule(self, generated_schedule: Dict[str, Any]) -> Dict[str, Any]:
+    def evaluate_schedule(self, generated_schedule: dict[str, Any]) -> dict[str, Any]:
         """
         Evaluates the quality of a generated schedule based on scoring metrics.
         """
@@ -1000,7 +999,7 @@ class AIScheduler:
         print("Schedule evaluation complete.")
         return final_schedule  # TODO: Return evaluation results along with the schedule or separately
 
-    def run_scheduler(self) -> Dict[str, Any]:
+    def run_scheduler(self) -> dict[str, Any]:
         """
         Main method to run the full scheduling process.
         """

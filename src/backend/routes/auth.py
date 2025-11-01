@@ -1,8 +1,9 @@
-from flask import Blueprint, request, jsonify, current_app
 from datetime import datetime
+
+from flask import Blueprint, current_app, jsonify, request
 from models import User, UserRole
-from sqlalchemy.exc import SQLAlchemyError
 from services.auth_service import generate_token, login_required, role_required
+from sqlalchemy.exc import SQLAlchemyError
 from utils.db_utils import session_manager
 
 bp = Blueprint("auth", __name__, url_prefix="/api/v2/auth")

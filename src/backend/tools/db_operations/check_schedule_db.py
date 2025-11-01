@@ -13,7 +13,7 @@ sys.path.append(str(src_dir))
 
 # Now we can import from the src folder
 from backend.app import create_app
-from backend.models import Schedule, Employee, Coverage
+from backend.models import Coverage, Employee, Schedule
 from backend.services.scheduler import ScheduleGenerator
 
 

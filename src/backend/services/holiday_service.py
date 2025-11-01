@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from src.backend.models import Settings, db
 
@@ -13,9 +13,9 @@ class HolidayInfo:
     date: str
     name: str
     type: str
-    description: Optional[str] = None
+    description: str | None = None
     is_closed: bool = True
-    custom_hours: Optional[Dict[str, str]] = None
+    custom_hours: dict[str, str] | None = None
 
 
 class HolidayService:
@@ -43,8 +43,8 @@ class HolidayService:
 
     @staticmethod
     def get_german_holidays(
-        year: int, state: Optional[str] = None
-    ) -> List[HolidayInfo]:
+        year: int, state: str | None = None
+    ) -> list[HolidayInfo]:
         """
         Get comprehensive list of German holidays for a given year
 
@@ -166,7 +166,7 @@ class HolidayService:
         return holidays
 
     @staticmethod
-    def calculate_easter_holidays(year: int) -> Dict[str, HolidayInfo]:
+    def calculate_easter_holidays(year: int) -> dict[str, HolidayInfo]:
         """
         Calculate Easter-related holidays for a given year
 
@@ -229,8 +229,8 @@ class HolidayService:
 
     @staticmethod
     def get_all_german_holidays(
-        year: int, state: Optional[str] = None
-    ) -> List[HolidayInfo]:
+        year: int, state: str | None = None
+    ) -> list[HolidayInfo]:
         """
         Get all German holidays including Easter-related ones
 
@@ -254,7 +254,7 @@ class HolidayService:
         return holidays
 
     @staticmethod
-    def bulk_import_holidays(holidays: List[HolidayInfo]) -> Dict[str, Any]:
+    def bulk_import_holidays(holidays: list[HolidayInfo]) -> dict[str, Any]:
         """
         Bulk import holidays into the system
 
@@ -312,7 +312,7 @@ class HolidayService:
             }
 
     @staticmethod
-    def get_holiday_statistics(year: Optional[int] = None) -> Dict[str, Any]:
+    def get_holiday_statistics(year: int | None = None) -> dict[str, Any]:
         """
         Get statistics about configured holidays
 

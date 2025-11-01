@@ -8,20 +8,20 @@ import threading
 import time
 from datetime import datetime
 from functools import wraps
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class TTLCache:
     """Time-To-Live cache implementation with automatic cleanup."""
 
     def __init__(self, default_ttl: int = 300):  # 5 minutes default
-        self.cache: Dict[str, Dict] = {}
+        self.cache: dict[str, dict] = {}
         self.default_ttl = default_ttl
         self._lock = threading.RLock()
         self._last_cleanup = time.time()
         self._cleanup_interval = 60  # Cleanup every minute
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         """Get value from cache if not expired."""
         with self._lock:
             self._maybe_cleanup()
@@ -38,7 +38,7 @@ class TTLCache:
             entry["access_count"] += 1
             return entry["value"]
 
-    def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
+    def set(self, key: str, value: Any, ttl: int | None = None) -> None:
         """Set value in cache with TTL."""
         with self._lock:
             ttl = ttl or self.default_ttl
@@ -80,7 +80,7 @@ class TTLCache:
         for key in expired_keys:
             del self.cache[key]
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         with self._lock:
             now = time.time()
@@ -125,7 +125,7 @@ class AIRoutesCache:
         key_data = f"{prefix}:{str(args)}:{str(sorted(kwargs.items()))}"
         return hashlib.md5(key_data.encode()).hexdigest()
 
-    def get_tools(self, *args, **kwargs) -> Optional[Any]:
+    def get_tools(self, *args, **kwargs) -> Any | None:
         """Get cached tools data."""
         key = self._generate_key("tools", *args, **kwargs)
         result = self.tools_cache.get(key)
@@ -137,7 +137,7 @@ class AIRoutesCache:
         key = self._generate_key("tools", *args, **kwargs)
         self.tools_cache.set(key, data)
 
-    def get_agents(self, *args, **kwargs) -> Optional[Any]:
+    def get_agents(self, *args, **kwargs) -> Any | None:
         """Get cached agents data."""
         key = self._generate_key("agents", *args, **kwargs)
         result = self.agent_cache.get(key)
@@ -149,7 +149,7 @@ class AIRoutesCache:
         key = self._generate_key("agents", *args, **kwargs)
         self.agent_cache.set(key, data)
 
-    def get_workflows(self, *args, **kwargs) -> Optional[Any]:
+    def get_workflows(self, *args, **kwargs) -> Any | None:
         """Get cached workflow data."""
         key = self._generate_key("workflows", *args, **kwargs)
         result = self.workflow_cache.get(key)
@@ -161,7 +161,7 @@ class AIRoutesCache:
         key = self._generate_key("workflows", *args, **kwargs)
         self.workflow_cache.set(key, data)
 
-    def get_settings(self, *args, **kwargs) -> Optional[Any]:
+    def get_settings(self, *args, **kwargs) -> Any | None:
         """Get cached settings data."""
         key = self._generate_key("settings", *args, **kwargs)
         result = self.settings_cache.get(key)
@@ -173,7 +173,7 @@ class AIRoutesCache:
         key = self._generate_key("settings", *args, **kwargs)
         self.settings_cache.set(key, data)
 
-    def get_conversation(self, conversation_id: str) -> Optional[Any]:
+    def get_conversation(self, conversation_id: str) -> Any | None:
         """Get cached conversation data."""
         key = f"conversation:{conversation_id}"
         result = self.conversation_cache.get(key)
@@ -220,7 +220,7 @@ class AIRoutesCache:
             else:
                 self.miss_count += 1
 
-    def get_cache_stats(self) -> Dict[str, Any]:
+    def get_cache_stats(self) -> dict[str, Any]:
         """Get comprehensive cache statistics."""
         with self._lock:
             total_requests = self.hit_count + self.miss_count
@@ -246,7 +246,7 @@ class AIRoutesCache:
 ai_cache = AIRoutesCache()
 
 
-def cached_response(cache_type: str, ttl: Optional[int] = None):
+def cached_response(cache_type: str, ttl: int | None = None):
     """Decorator to cache route responses."""
 
     def decorator(func):

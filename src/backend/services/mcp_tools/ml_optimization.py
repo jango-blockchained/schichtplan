@@ -4,7 +4,7 @@ Machine Learning-Powered Schedule Optimization Tools for MCP Service
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastmcp import Context
 
@@ -25,9 +25,9 @@ class MLOptimizationTools:
             start_date: str,
             end_date: str,
             learning_data_periods: int = 6,
-            optimization_focus: Optional[List[str]] = None,
+            optimization_focus: list[str] | None = None,
             use_predictive_modeling: bool = True,
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             """Use machine learning to optimize schedule based on historical patterns.
 
             Args:

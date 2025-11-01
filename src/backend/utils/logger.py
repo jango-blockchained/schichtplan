@@ -1,10 +1,10 @@
-import logging
-from logging.handlers import RotatingFileHandler
 import json
-from pathlib import Path
+import logging
 import sys  # Import sys for stderr
 import traceback  # Import traceback
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 # Get the root directory (two levels up from this file)
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
@@ -14,11 +14,11 @@ class CustomFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         # Add default values for custom fields
         if not hasattr(record, "user"):
-            setattr(record, "user", "anonymous")
+            record.user = "anonymous"
         if not hasattr(record, "page"):
-            setattr(record, "page", "unknown")
+            record.page = "unknown"
         if not hasattr(record, "action"):
-            setattr(record, "action", "unknown")
+            record.action = "unknown"
 
         # Escape any special characters in the message
         message = (
@@ -495,7 +495,7 @@ class Logger:
 
                     # Also add a full copy of the extra dict to the record as 'extra_data'
                     # This ensures we capture all the fields even if they're not explicitly handled
-                    setattr(record, "extra_data", extra)
+                    record.extra_data = extra
 
                 self.file_handler.handle(record)
 

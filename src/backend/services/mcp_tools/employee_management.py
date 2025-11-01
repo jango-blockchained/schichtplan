@@ -4,7 +4,7 @@ Employee Management Tools for MCP Service
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastmcp import Context
 
@@ -66,9 +66,9 @@ class EmployeeManagementTools:
             ctx: Context,
             start_date: str,
             end_date: str,
-            employee_id: Optional[int] = None,
+            employee_id: int | None = None,
             include_recommendations: bool = True,
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             """Analyze employee workload distribution and provide recommendations.
 
             Args:
@@ -221,9 +221,9 @@ class EmployeeManagementTools:
             ctx: Context,
             start_date: str,
             end_date: str,
-            criteria: Optional[List[str]] = None,
+            criteria: list[str] | None = None,
             max_suggestions: int = 10,
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             """Suggest optimal employee assignments for open shifts with reasoning.
 
             Args:

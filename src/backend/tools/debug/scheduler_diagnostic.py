@@ -7,11 +7,11 @@ and provides detailed diagnostic information to help identify why no shifts
 are being assigned.
 """
 
+import argparse
+import logging
 import os
 import sys
-import logging
 from datetime import date, datetime, timedelta
-import argparse
 
 # Add parent directories to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -59,43 +59,43 @@ if not app:
 with app.app_context():
     # Import required modules - only do this AFTER setting up app context
     try:
-        from services.scheduler.generator import ScheduleGenerator
-        from services.scheduler.config import SchedulerConfig
-        from services.scheduler.resources import ScheduleResources
         from models import (
-            Employee,
-            ShiftTemplate,
-            Coverage,
-            db,
             Absence,
+            Coverage,
+            Employee,
             EmployeeAvailability,
+            ShiftTemplate,
+            db,
         )
+        from services.scheduler.config import SchedulerConfig
+        from services.scheduler.generator import ScheduleGenerator
+        from services.scheduler.resources import ScheduleResources
     except ImportError:
         try:
-            from backend.services.scheduler.generator import ScheduleGenerator
-            from backend.services.scheduler.config import SchedulerConfig
-            from backend.services.scheduler.resources import ScheduleResources
             from backend.models import (
-                Employee,
-                ShiftTemplate,
-                Coverage,
-                db,
                 Absence,
+                Coverage,
+                Employee,
                 EmployeeAvailability,
+                ShiftTemplate,
+                db,
             )
+            from backend.services.scheduler.config import SchedulerConfig
+            from backend.services.scheduler.generator import ScheduleGenerator
+            from backend.services.scheduler.resources import ScheduleResources
         except ImportError:
             try:
-                from src.backend.services.scheduler.generator import ScheduleGenerator
-                from src.backend.services.scheduler.config import SchedulerConfig
-                from src.backend.services.scheduler.resources import ScheduleResources
                 from src.backend.models import (
-                    Employee,
-                    ShiftTemplate,
-                    Coverage,
-                    db,
                     Absence,
+                    Coverage,
+                    Employee,
                     EmployeeAvailability,
+                    ShiftTemplate,
+                    db,
                 )
+                from src.backend.services.scheduler.config import SchedulerConfig
+                from src.backend.services.scheduler.generator import ScheduleGenerator
+                from src.backend.services.scheduler.resources import ScheduleResources
             except ImportError as e:
                 logger.error(f"Error importing required modules: {e}")
                 logger.error(

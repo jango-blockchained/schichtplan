@@ -3,13 +3,14 @@
 Temporary version of the schedule generator diagnostic script with proper Flask app context handling.
 """
 
-import traceback
-import sys
-from datetime import date, datetime, timedelta
-import uuid
-from pathlib import Path
 import logging
+import sys
+import traceback
+import uuid
+from datetime import date, datetime, timedelta
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
+
 import click
 
 # Add the project root to Python path
@@ -98,7 +99,7 @@ def run_diagnostic(app, start_date=None, end_date=None, days=7):
         logger.info(f"INFO: Diagnostic log file: {log_file}")
 
         # Import models after app creation to ensure proper initialization
-        from src.backend.models import Employee, ShiftTemplate, Coverage
+        from src.backend.models import Coverage, Employee, ShiftTemplate
         from src.backend.services.scheduler import ScheduleGenerator
 
         # Verify database connection

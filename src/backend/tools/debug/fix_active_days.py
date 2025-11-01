@@ -4,8 +4,8 @@ Simple script to directly fix shift_template active_days in the database.
 This is a critical fix for the schedule generation process.
 """
 
-import os
 import json
+import os
 import sqlite3
 
 

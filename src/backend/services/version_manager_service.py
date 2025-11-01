@@ -6,7 +6,6 @@ and week-based versions, consolidating all version operations into a single serv
 """
 
 from datetime import date, datetime
-from typing import Dict, List, Optional, Union
 
 from sqlalchemy import and_, desc, func
 from sqlalchemy.orm import Session
@@ -25,7 +24,7 @@ from ..utils.week_utils import (
 class VersionManagerService:
     """Unified service for managing all types of schedule versions."""
 
-    def __init__(self, session: Optional[Session] = None):
+    def __init__(self, session: Session | None = None):
         self.session = session or db.session
 
     # --- Version Querying ---
@@ -35,8 +34,8 @@ class VersionManagerService:
         start_date: date,
         end_date: date,
         include_legacy: bool = True,
-        week_identifier: Optional[str] = None,
-    ) -> List[ScheduleVersionMeta]:
+        week_identifier: str | None = None,
+    ) -> list[ScheduleVersionMeta]:
         """
         Get all versions that exactly match the given date range.
 
@@ -77,8 +76,8 @@ class VersionManagerService:
         start_date: date,
         end_date: date,
         include_legacy: bool = True,
-        week_identifier: Optional[str] = None,
-    ) -> List[ScheduleVersionMeta]:
+        week_identifier: str | None = None,
+    ) -> list[ScheduleVersionMeta]:
         """
         Get all versions that overlap with the given date range.
 
@@ -115,7 +114,7 @@ class VersionManagerService:
 
         return versions
 
-    def get_version_by_id(self, version_id: int) -> Optional[ScheduleVersionMeta]:
+    def get_version_by_id(self, version_id: int) -> ScheduleVersionMeta | None:
         """Get version metadata by version ID."""
         return (
             self.session.query(ScheduleVersionMeta)
@@ -126,7 +125,7 @@ class VersionManagerService:
     def get_all_versions(
         self,
         include_legacy: bool = True,
-    ) -> List[ScheduleVersionMeta]:
+    ) -> list[ScheduleVersionMeta]:
         """
         Get all versions.
 
@@ -152,7 +151,7 @@ class VersionManagerService:
 
     def get_version_by_week_identifier(
         self, week_identifier: str
-    ) -> Optional[ScheduleVersionMeta]:
+    ) -> ScheduleVersionMeta | None:
         """Get version metadata by week identifier."""
         return (
             self.session.query(ScheduleVersionMeta)
@@ -162,7 +161,7 @@ class VersionManagerService:
 
     def get_latest_version_for_date_range(
         self, start_date: date, end_date: date
-    ) -> Optional[ScheduleVersionMeta]:
+    ) -> ScheduleVersionMeta | None:
         """Get the latest version for a given date range."""
         versions = self.get_versions_for_date_range(start_date, end_date)
         return versions[0] if versions else None
@@ -173,9 +172,9 @@ class VersionManagerService:
         self,
         start_date: date,
         end_date: date,
-        base_version: Optional[int] = None,
-        notes: Optional[str] = None,
-        week_identifier: Optional[str] = None,
+        base_version: int | None = None,
+        notes: str | None = None,
+        week_identifier: str | None = None,
         month_boundary_mode: MonthBoundaryMode = MonthBoundaryMode.KEEP_INTACT,
         create_empty_schedules: bool = True,
     ) -> ScheduleVersionMeta:
@@ -260,9 +259,9 @@ class VersionManagerService:
     def create_week_version(
         self,
         week_identifier: str,
-        base_version: Optional[int] = None,
+        base_version: int | None = None,
         month_boundary_mode: MonthBoundaryMode = MonthBoundaryMode.KEEP_INTACT,
-        notes: Optional[str] = None,
+        notes: str | None = None,
         create_empty_schedules: bool = True,
     ) -> ScheduleVersionMeta:
         """
@@ -328,7 +327,7 @@ class VersionManagerService:
 
         return version_meta
 
-    def delete_version(self, version_id: int) -> Dict[str, Union[int, str]]:
+    def delete_version(self, version_id: int) -> dict[str, int | str]:
         """Delete a version and all its schedules."""
         version_meta = self.get_version_by_id(version_id)
         if not version_meta:
@@ -360,7 +359,7 @@ class VersionManagerService:
         source_version_id: int,
         start_date: date,
         end_date: date,
-        notes: Optional[str] = None,
+        notes: str | None = None,
     ) -> ScheduleVersionMeta:
         """Duplicate an existing version to a new date range."""
         source_version = self.get_version_by_id(source_version_id)
@@ -391,7 +390,7 @@ class VersionManagerService:
 
     def _find_legacy_versions_in_schedules(
         self, start_date: date, end_date: date
-    ) -> List[ScheduleVersionMeta]:
+    ) -> list[ScheduleVersionMeta]:
         """Find legacy versions that exist only in the schedules table."""
         schedule_versions = (
             self.session.query(Schedule.version)
@@ -480,7 +479,7 @@ class VersionManagerService:
             return False
 
     def _generate_default_notes(
-        self, week_identifier: Optional[str], start_date: date, end_date: date
+        self, week_identifier: str | None, start_date: date, end_date: date
     ) -> str:
         """Generate default notes for a version."""
         if week_identifier:
@@ -490,7 +489,7 @@ class VersionManagerService:
 
     # --- Version Statistics ---
 
-    def get_version_statistics(self, version_id: int) -> Dict[str, Union[int, float]]:
+    def get_version_statistics(self, version_id: int) -> dict[str, int | float]:
         """Get statistics for a version."""
         version_meta = self.get_version_by_id(version_id)
         if not version_meta:

@@ -115,20 +115,19 @@ class ShiftTemplate(db.Model):
                     # If shift_type_id wasn't explicitly provided, set it to "MIDDLE"
                     if not self.shift_type_id:
                         self.shift_type_id = "MIDDLE"
+            # Fall back to enum-based ShiftType
+            elif start_hour < 11:
+                self.shift_type = ShiftType.EARLY
+                if not self.shift_type_id:
+                    self.shift_type_id = "EARLY"
+            elif end_hour >= 18:
+                self.shift_type = ShiftType.LATE
+                if not self.shift_type_id:
+                    self.shift_type_id = "LATE"
             else:
-                # Fall back to enum-based ShiftType
-                if start_hour < 11:
-                    self.shift_type = ShiftType.EARLY
-                    if not self.shift_type_id:
-                        self.shift_type_id = "EARLY"
-                elif end_hour >= 18:
-                    self.shift_type = ShiftType.LATE
-                    if not self.shift_type_id:
-                        self.shift_type_id = "LATE"
-                else:
-                    self.shift_type = ShiftType.MIDDLE
-                    if not self.shift_type_id:
-                        self.shift_type_id = "MIDDLE"
+                self.shift_type = ShiftType.MIDDLE
+                if not self.shift_type_id:
+                    self.shift_type_id = "MIDDLE"
         else:
             self.shift_type = shift_type
             # Set the shift_type_id based on the enum if not provided

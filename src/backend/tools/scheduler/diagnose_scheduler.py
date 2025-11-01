@@ -4,11 +4,11 @@ Command-line script to run diagnostic tests on the schedule generator.
 This script ensures the correct environment is set up before running the diagnostic.
 """
 
-import sys
-import os
-from pathlib import Path
 import argparse
-from datetime import timedelta, date
+import os
+import sys
+from datetime import date, timedelta
+from pathlib import Path
 
 # Set Flask environment variables
 os.environ["FLASK_APP"] = "src.backend.app"

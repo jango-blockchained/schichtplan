@@ -1,22 +1,23 @@
+import io
+import math
 from datetime import datetime, timedelta
-from typing import List
+
+from reportlab.lib.colors import black
 from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import mm
 from reportlab.platypus import (
-    SimpleDocTemplate,
-    Table,
-    TableStyle,
-    Paragraph,
-    Spacer,
-    PageTemplate,
     Frame,
     NextPageTemplate,
+    PageTemplate,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
 )
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import mm
-from reportlab.lib.colors import black
-import math
+
 from src.backend.models import Schedule, Settings
-import io
 
 
 class PDFGenerator:
@@ -129,7 +130,7 @@ class PDFGenerator:
 
     def generate_schedule_pdf(
         self,
-        schedules: List[Schedule],
+        schedules: list[Schedule],
         start_date: datetime,
         end_date: datetime,
         layout_config=None,

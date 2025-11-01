@@ -1,8 +1,7 @@
 from datetime import UTC, datetime
 from enum import Enum
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer
-from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import Column, DateTime, Enum as SQLEnum, ForeignKey, Integer
 from sqlalchemy.orm import relationship
 
 from . import db

@@ -6,9 +6,9 @@ in the scheduling system, ensuring data integrity and catching issues early.
 """
 
 import logging
-from datetime import date, time, datetime
-from typing import Any, Dict, List, Optional, Union, Tuple
 import re
+from datetime import date, time
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +22,10 @@ class ValidationError(Exception):
 class DataValidator:
     """Comprehensive data validator for scheduler components"""
 
-    def __init__(self, logger_instance: Optional[logging.Logger] = None):
+    def __init__(self, logger_instance: logging.Logger | None = None):
         self.logger = logger_instance or logger
 
-    def validate_shift_template(self, shift_template: Any) -> Tuple[bool, List[str]]:
+    def validate_shift_template(self, shift_template: Any) -> tuple[bool, list[str]]:
         """
         Validate a shift template object or dictionary.
 
@@ -75,7 +75,7 @@ class DataValidator:
 
         return len(errors) == 0, errors
 
-    def validate_employee(self, employee: Any) -> Tuple[bool, List[str]]:
+    def validate_employee(self, employee: Any) -> tuple[bool, list[str]]:
         """
         Validate an employee object or dictionary.
 
@@ -118,7 +118,7 @@ class DataValidator:
 
         return len(errors) == 0, errors
 
-    def validate_coverage(self, coverage: Any) -> Tuple[bool, List[str]]:
+    def validate_coverage(self, coverage: Any) -> tuple[bool, list[str]]:
         """
         Validate a coverage object or dictionary.
 
@@ -174,7 +174,7 @@ class DataValidator:
 
         return len(errors) == 0, errors
 
-    def validate_assignment(self, assignment: Dict[str, Any]) -> Tuple[bool, List[str]]:
+    def validate_assignment(self, assignment: dict[str, Any]) -> tuple[bool, list[str]]:
         """
         Validate an assignment dictionary.
 
@@ -231,8 +231,8 @@ class DataValidator:
         return len(errors) == 0, errors
 
     def validate_assignments_list(
-        self, assignments: List[Dict[str, Any]]
-    ) -> Tuple[bool, List[str]]:
+        self, assignments: list[dict[str, Any]]
+    ) -> tuple[bool, list[str]]:
         """
         Validate a list of assignments.
 
@@ -322,7 +322,7 @@ class DataValidator:
 
         return False
 
-    def validate_resources(self, resources: Any) -> Tuple[bool, List[str]]:
+    def validate_resources(self, resources: Any) -> tuple[bool, list[str]]:
         """
         Validate a resources object.
 
@@ -387,7 +387,7 @@ class DataValidator:
         return len(errors) == 0, errors
 
     def log_validation_results(
-        self, validation_type: str, is_valid: bool, errors: List[str]
+        self, validation_type: str, is_valid: bool, errors: list[str]
     ):
         """Log validation results"""
         if is_valid:
@@ -398,7 +398,7 @@ class DataValidator:
                 self.logger.error(f"  - {error}")
 
 
-def validate_shift_assignment_data(assignment_data: Dict[str, Any]) -> bool:
+def validate_shift_assignment_data(assignment_data: dict[str, Any]) -> bool:
     """
     Quick validation function for shift assignment data.
 
@@ -418,8 +418,8 @@ def validate_shift_assignment_data(assignment_data: Dict[str, Any]) -> bool:
 
 
 def validate_time_data_completeness(
-    assignments: List[Dict[str, Any]],
-) -> Tuple[bool, List[str]]:
+    assignments: list[dict[str, Any]],
+) -> tuple[bool, list[str]]:
     """
     Validate that all assignments have complete time data.
 

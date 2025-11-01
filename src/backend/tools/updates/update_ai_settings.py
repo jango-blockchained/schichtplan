@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # Script to update AI settings in the database
 
-import sys
 import os
+import sys
 from pathlib import Path
 
 # Add necessary paths

@@ -9,7 +9,7 @@ service industries for employee shift planning.
 import io
 import locale
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from reportlab.lib import colors
 from reportlab.lib.colors import black, white
@@ -115,11 +115,11 @@ class MEPPDFGenerator:
 
     def generate_mep_pdf(
         self,
-        schedules: List[Schedule],
+        schedules: list[Schedule],
         start_date: datetime,
         end_date: datetime,
         filiale: str = "",
-        layout_config: Optional[Dict[str, Any]] = None,
+        layout_config: dict[str, Any] | None = None,
     ) -> io.BytesIO:
         """
         Generate MEP format PDF for the given schedules.
@@ -179,8 +179,8 @@ class MEPPDFGenerator:
         return buffer
 
     def _build_page_content(
-        self, processed_data: Dict[str, Any], filiale: str, page_num: int
-    ) -> List:
+        self, processed_data: dict[str, Any], filiale: str, page_num: int
+    ) -> list:
         """Build content for a single page."""
         content = []
 
@@ -201,7 +201,7 @@ class MEPPDFGenerator:
 
         return content
 
-    def _build_header(self, date_info: Dict[str, str], filiale: str) -> List:
+    def _build_header(self, date_info: dict[str, str], filiale: str) -> list:
         """Build the MEP document header."""
         content = []
 
@@ -263,7 +263,7 @@ class MEPPDFGenerator:
         return content
 
     def _build_main_table(
-        self, employee_schedules: Dict[int, Dict], date_range_days: List[Dict]
+        self, employee_schedules: dict[int, dict], date_range_days: list[dict]
     ) -> Table:
         """Build the main schedule table with vertical structure per employee."""
 
@@ -378,7 +378,7 @@ class MEPPDFGenerator:
 
         return table
 
-    def _calculate_column_widths(self, num_days: int) -> List[float]:
+    def _calculate_column_widths(self, num_days: int) -> list[float]:
         """Calculate column widths for the table with vertical structure."""
         # Fixed columns (adjusted for vertical structure)
         name_width = 35 * mm
@@ -411,8 +411,7 @@ class MEPPDFGenerator:
 
         # Ensure minimum width for readability
         min_day_width = 18 * mm
-        if day_width < min_day_width:
-            day_width = min_day_width
+        day_width = max(day_width, min_day_width)
 
         col_widths = [name_width, function_width, plan_width, row_label_width]
 
@@ -470,7 +469,7 @@ class MEPPDFGenerator:
 
         return TableStyle(style_commands)
 
-    def _build_footer(self) -> List:
+    def _build_footer(self) -> list:
         """Build the MEP document footer."""
         content = []
 
@@ -508,8 +507,8 @@ class MEPPDFGenerator:
         return content
 
     def _get_page_employees(
-        self, employee_schedules: Dict[int, Dict], page_num: int
-    ) -> Dict[int, Dict]:
+        self, employee_schedules: dict[int, dict], page_num: int
+    ) -> dict[int, dict]:
         """Get employees for a specific page."""
         employee_items = list(employee_schedules.items())
         start_idx = page_num * self.EMPLOYEES_PER_PAGE
@@ -517,7 +516,7 @@ class MEPPDFGenerator:
 
         return dict(employee_items[start_idx:end_idx])
 
-    def _is_last_page(self, employee_schedules: Dict[int, Dict], page_num: int) -> bool:
+    def _is_last_page(self, employee_schedules: dict[int, dict], page_num: int) -> bool:
         """Check if this is the last page."""
         total_employees = len(employee_schedules)
         total_pages = max(

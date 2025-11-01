@@ -1,10 +1,13 @@
-import jwt
-from datetime import datetime, timedelta, UTC
-from flask import current_app, request
-from functools import wraps
-from typing import Dict, Optional, Callable, Any, List, Union
-from models import User, UserRole
 import logging
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
+from functools import wraps
+from typing import Any
+
+import jwt
+from flask import current_app, request
+from models import User, UserRole
+
 from src.backend.models import db
 
 logger = logging.getLogger(__name__)
@@ -40,7 +43,7 @@ def generate_token(
     )
 
 
-def decode_token(token: str) -> Dict:
+def decode_token(token: str) -> dict:
     """
     Decode and verify a JWT token
 
@@ -59,7 +62,7 @@ def decode_token(token: str) -> Dict:
     )
 
 
-def extract_token_from_request() -> Optional[str]:
+def extract_token_from_request() -> str | None:
     """
     Extract JWT token from request headers or query parameters
 
@@ -84,7 +87,7 @@ def extract_token_from_request() -> Optional[str]:
     return None
 
 
-def get_current_user() -> Optional[User]:
+def get_current_user() -> User | None:
     """
     Get current user based on JWT token in the request
 
@@ -130,7 +133,7 @@ def login_required(f: Callable) -> Callable:
     return decorated
 
 
-def role_required(allowed_roles: List[Union[str, UserRole]]) -> Callable:
+def role_required(allowed_roles: list[str | UserRole]) -> Callable:
     """
     Decorator to require specific role(s) for route
 

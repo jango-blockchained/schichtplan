@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify
+
 from src.backend.models.settings import Settings
 from src.backend.services.ai_scheduler_service import AISchedulerService
 

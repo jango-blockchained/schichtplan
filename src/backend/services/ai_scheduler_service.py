@@ -986,13 +986,13 @@ class AISchedulerService:
 
                 # Build criteria with column names as strings
                 if version_id is not None:
-                    query = query.filter(getattr(Schedule, "version") == version_id)
+                    query = query.filter(Schedule.version == version_id)
                 if schedule_start_date is not None:
                     query = query.filter(
-                        getattr(Schedule, "date") >= schedule_start_date
+                        Schedule.date >= schedule_start_date
                     )
                 if schedule_end_date is not None:
-                    query = query.filter(getattr(Schedule, "date") <= schedule_end_date)
+                    query = query.filter(Schedule.date <= schedule_end_date)
 
                 # Execute the delete
                 delete_count = query.delete(synchronize_session="fetch")
@@ -1005,15 +1005,14 @@ class AISchedulerService:
                     logger.app_logger.info(
                         f"Cleared {delete_count} existing assignments for version {version_id} within the date range."
                     )
+            elif tracker:
+                tracker.log_info(
+                    "No version_id provided. Not clearing existing assignments."
+                )
             else:
-                if tracker:
-                    tracker.log_info(
-                        "No version_id provided. Not clearing existing assignments."
-                    )
-                else:
-                    logger.app_logger.info(
-                        "version_id is None. Not clearing existing assignments."
-                    )
+                logger.app_logger.info(
+                    "version_id is None. Not clearing existing assignments."
+                )
 
             new_assignments = []
             for assignment_data in parsed_assignments:

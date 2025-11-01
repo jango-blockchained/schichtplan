@@ -4,10 +4,10 @@ Direct database inspection script to diagnose shift and coverage configuration.
 This bypasses the ORM to check the database directly.
 """
 
+import json
 import os
 import sqlite3
 from datetime import date, timedelta
-import json
 
 
 def main():

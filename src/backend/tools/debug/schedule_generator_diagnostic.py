@@ -5,16 +5,16 @@ This tool logs each step of the scheduling process, identifies where the solutio
 and provides recommendations for resolving issues.
 """
 
-import traceback
+import json
+import logging
+import os
 import sys
 import time
-import json
-import os
-from datetime import date, datetime, timedelta
+import traceback
 import uuid
-from pathlib import Path
-import logging
+from datetime import date, datetime, timedelta
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 # Import the db instance at the top level
 from src.backend.models import db
@@ -251,13 +251,13 @@ class ScheduleGeneratorDiagnostic:
 
                     # Now import specific models
                     from src.backend.models import (
-                        Employee,
-                        ShiftTemplate,
-                        Coverage,
-                        Settings,
-                        Schedule,
-                        EmployeeAvailability,
                         Absence,
+                        Coverage,
+                        Employee,
+                        EmployeeAvailability,
+                        Schedule,
+                        Settings,
+                        ShiftTemplate,
                     )
 
                     self._log_info("Successfully imported model classes")

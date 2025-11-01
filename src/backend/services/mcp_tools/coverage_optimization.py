@@ -4,7 +4,7 @@ Coverage Optimization Tools for MCP Service
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastmcp import Context
 
@@ -26,9 +26,9 @@ class CoverageOptimizationTools:
             ctx: Context,
             start_date: str,
             end_date: str,
-            coverage_targets: Optional[Dict[str, int]] = None,
-            optimization_focus: Optional[List[str]] = None,
-        ) -> Dict[str, Any]:
+            coverage_targets: dict[str, int] | None = None,
+            optimization_focus: list[str] | None = None,
+        ) -> dict[str, Any]:
             """Suggest improvements to schedule coverage based on requirements analysis.
 
             Args:
@@ -63,8 +63,8 @@ class CoverageOptimizationTools:
             ctx: Context,
             start_date: str,
             end_date: str,
-            compliance_rules: Optional[Dict[str, Any]] = None,
-        ) -> Dict[str, Any]:
+            compliance_rules: dict[str, Any] | None = None,
+        ) -> dict[str, Any]:
             """Validate schedule compliance with coverage requirements and regulations.
 
             Args:
@@ -98,9 +98,9 @@ class CoverageOptimizationTools:
             ctx: Context,
             start_date: str,
             end_date: str,
-            optimization_goals: Optional[List[str]] = None,
-            constraints: Optional[Dict[str, Any]] = None,
-        ) -> Dict[str, Any]:
+            optimization_goals: list[str] | None = None,
+            constraints: dict[str, Any] | None = None,
+        ) -> dict[str, Any]:
             """Optimize shift distribution across time periods and employees.
 
             Args:

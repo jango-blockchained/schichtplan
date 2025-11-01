@@ -1,6 +1,7 @@
-from flask_socketio import SocketIO, emit
-from flask import request
 from datetime import datetime
+
+from flask import request
+from flask_socketio import SocketIO, emit
 
 socketio = SocketIO(cors_allowed_origins="*")
 

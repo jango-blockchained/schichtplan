@@ -16,7 +16,7 @@ app = create_app()
 
 # Use the app context
 with app.app_context():
-    from src.backend.models import db, Schedule
+    from src.backend.models import Schedule, db
 
     print("\n===== DATABASE CLEANUP =====")
 

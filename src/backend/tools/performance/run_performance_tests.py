@@ -4,10 +4,11 @@ Script to run performance tests for schedule generation.
 This script runs schedule generation with different date ranges and measures performance.
 """
 
-import sys
 import logging
+import sys
 import time
 from datetime import datetime, timedelta
+
 from app import create_app
 from services.scheduler.generator import ScheduleGenerator
 

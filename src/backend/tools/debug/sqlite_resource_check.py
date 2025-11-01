@@ -4,12 +4,12 @@ SQLite resource check and fix tool.
 This script directly works with the SQLite database to check and fix resource data.
 """
 
-import os
-import sys
 import json
-import sqlite3
-from datetime import date, datetime
+import os
 import random
+import sqlite3
+import sys
+from datetime import date, datetime
 
 # Add the parent directories to path to resolve imports
 current_dir = os.path.dirname(os.path.abspath(__file__))

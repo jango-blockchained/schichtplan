@@ -8,7 +8,7 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from src.backend.utils.ai_cache import TTLCache
 from src.backend.utils.logger import logger
@@ -22,21 +22,21 @@ class ToolUsageMetric:
     timestamp: datetime
     execution_time: float
     success: bool
-    error_message: Optional[str] = None
-    parameters_hash: Optional[str] = None
-    result_size: Optional[int] = None
+    error_message: str | None = None
+    parameters_hash: str | None = None
+    result_size: int | None = None
 
 
 class MCPToolAnalytics:
     """Analytics system for MCP tool usage."""
 
     def __init__(self):
-        self.usage_metrics: List[ToolUsageMetric] = []
-        self.tool_popularity: Dict[str, int] = defaultdict(int)
-        self.tool_success_rates: Dict[str, Dict[str, int]] = defaultdict(
+        self.usage_metrics: list[ToolUsageMetric] = []
+        self.tool_popularity: dict[str, int] = defaultdict(int)
+        self.tool_success_rates: dict[str, dict[str, int]] = defaultdict(
             lambda: {"success": 0, "total": 0}
         )
-        self.tool_avg_times: Dict[str, List[float]] = defaultdict(list)
+        self.tool_avg_times: dict[str, list[float]] = defaultdict(list)
 
     def record_usage(self, metric: ToolUsageMetric):
         """Record a tool usage metric."""
@@ -59,7 +59,7 @@ class MCPToolAnalytics:
         if len(self.usage_metrics) > 10000:
             self.usage_metrics = self.usage_metrics[-10000:]
 
-    def get_tool_stats(self, tool_id: str) -> Dict[str, Any]:
+    def get_tool_stats(self, tool_id: str) -> dict[str, Any]:
         """Get statistics for a specific tool."""
         stats = self.tool_success_rates[tool_id]
         success_rate = (stats["success"] / stats["total"]) if stats["total"] > 0 else 0
@@ -86,7 +86,7 @@ class MCPToolAnalytics:
             "recent_24h_usage": recent_usage,
         }
 
-    def get_overall_stats(self) -> Dict[str, Any]:
+    def get_overall_stats(self) -> dict[str, Any]:
         """Get overall analytics statistics."""
         total_calls = sum(self.tool_popularity.values())
         total_tools = len(self.tool_popularity)
@@ -152,7 +152,7 @@ class EnhancedMCPToolCache:
             },
         }
 
-    def _generate_cache_key(self, tool_id: str, parameters: Dict[str, Any]) -> str:
+    def _generate_cache_key(self, tool_id: str, parameters: dict[str, Any]) -> str:
         """Generate a deterministic cache key."""
         # Sort parameters to ensure consistent keys
         sorted_params = json.dumps(parameters, sort_keys=True)
@@ -169,8 +169,8 @@ class EnhancedMCPToolCache:
             return "data"
 
     def get_cached_result(
-        self, tool_id: str, parameters: Dict[str, Any]
-    ) -> Optional[Any]:
+        self, tool_id: str, parameters: dict[str, Any]
+    ) -> Any | None:
         """Get cached result for a tool call."""
         cache_key = self._generate_cache_key(tool_id, parameters)
         cache_type = self._get_cache_type(tool_id)
@@ -192,9 +192,9 @@ class EnhancedMCPToolCache:
     def cache_result(
         self,
         tool_id: str,
-        parameters: Dict[str, Any],
+        parameters: dict[str, Any],
         result: Any,
-        custom_ttl: Optional[int] = None,
+        custom_ttl: int | None = None,
     ):
         """Cache a tool result."""
         cache_key = self._generate_cache_key(tool_id, parameters)
@@ -211,7 +211,7 @@ class EnhancedMCPToolCache:
         cache = getattr(self, f"{cache_type}_cache")
         cache.clear()  # For now, clear the entire cache type
 
-    def get_cache_statistics(self) -> Dict[str, Any]:
+    def get_cache_statistics(self) -> dict[str, Any]:
         """Get cache performance statistics."""
         total_requests = self.cache_stats["hits"] + self.cache_stats["misses"]
         hit_rate = (
@@ -242,8 +242,8 @@ class MCPToolExecutor:
         self.analytics = MCPToolAnalytics()
 
     async def execute_tool(
-        self, tool_id: str, parameters: Dict[str, Any], tool_function: callable
-    ) -> Dict[str, Any]:
+        self, tool_id: str, parameters: dict[str, Any], tool_function: callable
+    ) -> dict[str, Any]:
         """Execute a tool with caching and analytics."""
         start_time = time.time()
 
@@ -315,14 +315,14 @@ class MCPToolExecutor:
                 "execution_time": execution_time,
             }
 
-    def get_tool_analytics(self, tool_id: Optional[str] = None) -> Dict[str, Any]:
+    def get_tool_analytics(self, tool_id: str | None = None) -> dict[str, Any]:
         """Get analytics for a specific tool or all tools."""
         if tool_id:
             return self.analytics.get_tool_stats(tool_id)
         else:
             return self.analytics.get_overall_stats()
 
-    def get_cache_performance(self) -> Dict[str, Any]:
+    def get_cache_performance(self) -> dict[str, Any]:
         """Get cache performance statistics."""
         return self.cache.get_cache_statistics()
 

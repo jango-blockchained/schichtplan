@@ -1,7 +1,8 @@
 import os
 from pathlib import Path
+
 from src.backend.app import create_app
-from src.backend.models import db, Settings
+from src.backend.models import Settings, db
 
 
 def rebuild_database():

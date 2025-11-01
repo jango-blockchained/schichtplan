@@ -16,9 +16,9 @@ Author: [Your Name]
 Date: [Creation Date]
 """
 
-import sys
-import sqlite3
 import argparse
+import sqlite3
+import sys
 from pathlib import Path
 
 # Parse arguments

@@ -6,11 +6,11 @@ This script analyzes the shift types and scheduling configurations to identify
 why only EARLY shifts are being assigned.
 """
 
+import argparse
+import logging
 import os
 import sys
-import logging
 from datetime import date
-import argparse
 
 # Add parent directories to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -187,10 +187,10 @@ def analyze_shifts():
         print_section("DISTRIBUTION MANAGER ANALYSIS")
 
         # Import scheduler components
-        from services.scheduler.generator import ScheduleGenerator
         from services.scheduler.config import SchedulerConfig
-        from services.scheduler.resources import ScheduleResources
         from services.scheduler.distribution import DistributionManager
+        from services.scheduler.generator import ScheduleGenerator
+        from services.scheduler.resources import ScheduleResources
 
         resources = ScheduleResources()
         resources.load()

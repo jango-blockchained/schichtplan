@@ -237,7 +237,7 @@ def create_app(config_class=Config):
             # Exclude paths that should not be rewritten (like csv-import which has its own prefix)
             excluded_paths = ["/api/csv-import/"]
             should_exclude = any(path.startswith(excluded) for excluded in excluded_paths)
-            
+
             # If path starts with /api/ but not already /api/v2/ and not excluded
             if path.startswith("/api/") and not path.startswith("/api/v2/") and not should_exclude:
                 # Replace '/api/' prefix with '/api/v2/' once

@@ -1,7 +1,8 @@
-from src.backend.app import create_app
-from src.backend.models import db
 import os
 from pathlib import Path
+
+from src.backend.app import create_app
+from src.backend.models import db
 
 
 def reset_database():

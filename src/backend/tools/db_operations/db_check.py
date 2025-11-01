@@ -11,7 +11,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 sys.path.append(os.path.join(os.path.dirname(__file__), "src", "backend"))
 
 from src.backend.app import create_app
-from src.backend.models import db, Schedule, Employee, ShiftTemplate
+from src.backend.models import Employee, Schedule, ShiftTemplate, db
 
 # Create the app and push context
 app = create_app()

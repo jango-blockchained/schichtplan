@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 # direct_test_ai.py - Test AI generation directly without Flask context
 
-import sys
 import json
-import requests
+import sys
 from pathlib import Path
+
+import requests
 
 # Add the parent directory to the path so imports work
 current_dir = Path(__file__).parent

@@ -1,7 +1,8 @@
-from flask import Blueprint, request, jsonify, current_app
-from datetime import datetime, timedelta
 import json
-from typing import List, Dict, Any, Optional, cast
+from datetime import datetime, timedelta
+from typing import Any, cast
+
+from flask import Blueprint, current_app, jsonify, request
 
 bp = Blueprint("logs", __name__)
 
@@ -15,7 +16,7 @@ def save_logs():
                 {"status": "error", "message": "Content-Type must be application/json"}
             ), 400
 
-        request_data = cast(Dict[str, Any], request.json)
+        request_data = cast(dict[str, Any], request.json)
         logs = request_data.get("logs", [])
         logger = current_app.config["logger"]
 
@@ -38,13 +39,13 @@ def get_logs():
     try:
         log_type: str = request.args.get("type", "all")  # all, user, error, schedule
         days: int = int(request.args.get("days", "7"))
-        level: Optional[str] = request.args.get("level")  # info, warning, error, debug
+        level: str | None = request.args.get("level")  # info, warning, error, debug
 
-        logs: List[Dict[str, Any]] = []
+        logs: list[dict[str, Any]] = []
         start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
         logger = current_app.config["logger"]
 
-        def read_log_file(filename: str) -> List[Dict[str, Any]]:
+        def read_log_file(filename: str) -> list[dict[str, Any]]:
             filepath = logger.logs_dir / filename
             current_app.logger.debug(f"Attempting to read log file: {filepath}")
 
@@ -52,9 +53,9 @@ def get_logs():
                 current_app.logger.warning(f"Log file not found: {filepath}")
                 return []
 
-            logs: List[Dict[str, Any]] = []
+            logs: list[dict[str, Any]] = []
             try:
-                with open(filepath, "r", encoding="utf-8") as f:
+                with open(filepath, encoding="utf-8") as f:
                     for line in f:
                         try:
                             log_entry = json.loads(line.strip())
@@ -76,7 +77,7 @@ def get_logs():
             return logs
 
         # Read logs from each file based on type
-        all_logs: List[Dict[str, Any]] = []
+        all_logs: list[dict[str, Any]] = []
         try:
             if log_type in ["all", "user"]:
                 user_logs = read_log_file("user_actions.log")
@@ -219,7 +220,7 @@ def get_log_stats():
                 continue
 
             try:
-                with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+                with open(filepath, encoding="utf-8", errors="replace") as f:
                     for line in f:
                         try:
                             log = json.loads(line.strip())

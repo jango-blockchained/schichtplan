@@ -6,7 +6,7 @@ Handles conversational AI interactions for schedule generation with state manage
 import uuid
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlalchemy import and_, or_
 
@@ -54,8 +54,8 @@ class AIConversationService:
         self.conversations = {}  # In-memory storage for now
 
     def process_conversation_request(
-        self, request_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, request_data: dict[str, Any]
+    ) -> dict[str, Any]:
         """Process a conversation request and return appropriate response"""
         action = request_data.get("action")
         conversation_id = request_data.get("conversation_id")
@@ -98,7 +98,7 @@ class AIConversationService:
 
         return {"status": "error", "message": "Action handler not implemented"}
 
-    def _start_conversation(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _start_conversation(self, request_data: dict[str, Any]) -> dict[str, Any]:
         """Initialize a new conversation for schedule generation"""
         context = request_data.get("context", {})
 
@@ -149,8 +149,8 @@ class AIConversationService:
         }
 
     def _analyze_current_state(
-        self, conversation_id: str, request_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, conversation_id: str, request_data: dict[str, Any]
+    ) -> dict[str, Any]:
         """Analyze the current scheduling state - simplified implementation"""
         conversation = self._get_conversation(conversation_id)
         if not conversation:
@@ -193,8 +193,8 @@ class AIConversationService:
         }
 
     def _get_recommendations(
-        self, conversation_id: str, request_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, conversation_id: str, request_data: dict[str, Any]
+    ) -> dict[str, Any]:
         """Generate recommendations based on analysis"""
         conversation = self._get_conversation(conversation_id)
         if not conversation:
@@ -228,8 +228,8 @@ class AIConversationService:
         }
 
     def _generate_schedule(
-        self, conversation_id: str, request_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, conversation_id: str, request_data: dict[str, Any]
+    ) -> dict[str, Any]:
         """Generate schedule based on recommendations"""
         conversation = self._get_conversation(conversation_id)
         if not conversation:
@@ -289,8 +289,8 @@ class AIConversationService:
             return {"status": "error", "message": f"Generation failed: {str(e)}"}
 
     def _adjust_schedule(
-        self, conversation_id: str, request_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, conversation_id: str, request_data: dict[str, Any]
+    ) -> dict[str, Any]:
         """Adjust the generated schedule based on feedback"""
         conversation = self._get_conversation(conversation_id)
         if not conversation:
@@ -315,8 +315,8 @@ class AIConversationService:
         }
 
     def _finalize_schedule(
-        self, conversation_id: str, request_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, conversation_id: str, request_data: dict[str, Any]
+    ) -> dict[str, Any]:
         """Finalize and save the schedule"""
         conversation = self._get_conversation(conversation_id)
         if not conversation:
@@ -332,7 +332,7 @@ class AIConversationService:
             "message": "Schedule finalized successfully",
         }
 
-    def _cancel_conversation(self, conversation_id: str) -> Dict[str, Any]:
+    def _cancel_conversation(self, conversation_id: str) -> dict[str, Any]:
         """Cancel an ongoing conversation"""
         if conversation_id in self.conversations:
             self.conversations[conversation_id]["state"] = ConversationState.FAILED
@@ -341,11 +341,11 @@ class AIConversationService:
 
     # Helper methods
 
-    def _get_conversation(self, conversation_id: str) -> Optional[Dict[str, Any]]:
+    def _get_conversation(self, conversation_id: str) -> dict[str, Any] | None:
         """Get conversation by ID"""
         return self.conversations.get(conversation_id)
 
-    def _analyze_conflicts(self, start_date, end_date) -> List[Dict[str, Any]]:
+    def _analyze_conflicts(self, start_date, end_date) -> list[dict[str, Any]]:
         """Analyze scheduling conflicts"""
         conflicts = []
 
@@ -376,7 +376,7 @@ class AIConversationService:
 
         return conflicts
 
-    def _analyze_coverage_gaps(self, start_date, end_date) -> List[Dict[str, Any]]:
+    def _analyze_coverage_gaps(self, start_date, end_date) -> list[dict[str, Any]]:
         """Analyze coverage gaps"""
         gaps = []
 
@@ -417,7 +417,7 @@ class AIConversationService:
 
         return gaps
 
-    def _analyze_workload(self, start_date, end_date) -> Dict[str, Any]:
+    def _analyze_workload(self, start_date, end_date) -> dict[str, Any]:
         """Analyze workload distribution"""
         employees = Employee.query.filter_by(is_active=True).all()
 
@@ -455,7 +455,7 @@ class AIConversationService:
 
         return workload_data
 
-    def _determine_strategy(self, analysis: Dict[str, Any]) -> str:
+    def _determine_strategy(self, analysis: dict[str, Any]) -> str:
         """Determine generation strategy based on analysis"""
         severity = analysis.get("summary", {}).get("severity", "low")
 
@@ -467,8 +467,8 @@ class AIConversationService:
             return "minor_adjustments"
 
     def _recommend_constraints(
-        self, analysis: Dict[str, Any], goals: List[str]
-    ) -> Dict[str, Any]:
+        self, analysis: dict[str, Any], goals: list[str]
+    ) -> dict[str, Any]:
         """Recommend constraints based on analysis"""
         constraints = {
             "min_daily_coverage": 2,
@@ -488,7 +488,7 @@ class AIConversationService:
 
         return constraints
 
-    def _identify_focus_areas(self, analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _identify_focus_areas(self, analysis: dict[str, Any]) -> list[dict[str, Any]]:
         """Identify areas that need focus"""
         focus_areas = []
 
@@ -525,7 +525,7 @@ class AIConversationService:
 
         return focus_areas
 
-    def _recommend_assignments(self, analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _recommend_assignments(self, analysis: dict[str, Any]) -> list[dict[str, Any]]:
         """Recommend specific assignments based on analysis"""
         recommendations = []
 
@@ -542,7 +542,7 @@ class AIConversationService:
 
         return recommendations
 
-    def _calculate_priorities(self, goals: List[str]) -> Dict[str, int]:
+    def _calculate_priorities(self, goals: list[str]) -> dict[str, int]:
         """Calculate priority settings based on goals"""
         base_priority = 50
         priorities = {
@@ -565,7 +565,7 @@ class AIConversationService:
 
         return priorities
 
-    def _suggest_overrides(self, analysis: Dict[str, Any]) -> Dict[str, bool]:
+    def _suggest_overrides(self, analysis: dict[str, Any]) -> dict[str, bool]:
         """Suggest constraint overrides based on analysis"""
         overrides = {
             "ignoreNonCriticalAvailability": False,
@@ -583,8 +583,8 @@ class AIConversationService:
         return overrides
 
     def _collect_optimized_data(
-        self, start_date, end_date, constraints: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, start_date, end_date, constraints: dict[str, Any]
+    ) -> dict[str, Any]:
         """Collect highly optimized data for AI generation"""
         data = {
             "meta": {
@@ -668,7 +668,7 @@ class AIConversationService:
 
         return data
 
-    def _get_relevant_shifts(self, start_date, end_date) -> List[Dict[str, Any]]:
+    def _get_relevant_shifts(self, start_date, end_date) -> list[dict[str, Any]]:
         """Get only shifts relevant to the period"""
         weekdays = set()
         current = start_date
@@ -698,7 +698,7 @@ class AIConversationService:
 
         return relevant
 
-    def _aggregate_coverage_rules(self, start_date, end_date) -> List[Dict[str, Any]]:
+    def _aggregate_coverage_rules(self, start_date, end_date) -> list[dict[str, Any]]:
         """Aggregate coverage rules by pattern"""
         weekdays = set()
         current = start_date
@@ -728,8 +728,8 @@ class AIConversationService:
         return list(aggregated.values())
 
     def _get_simplified_availability(
-        self, employee_ids: List[int], start_date, end_date
-    ) -> Dict[str, Any]:
+        self, employee_ids: list[int], start_date, end_date
+    ) -> dict[str, Any]:
         """Get simplified availability patterns"""
         if not employee_ids:
             return {}
@@ -762,8 +762,8 @@ class AIConversationService:
         return patterns
 
     def _get_relevant_absences(
-        self, employee_ids: List[int], start_date, end_date
-    ) -> List[Dict[str, Any]]:
+        self, employee_ids: list[int], start_date, end_date
+    ) -> list[dict[str, Any]]:
         """Get only absences that affect the period"""
         if not employee_ids:
             return []
@@ -790,10 +790,10 @@ class AIConversationService:
 
     def _apply_modification(
         self,
-        generated_schedule: Dict[str, Any],
-        modification: Dict[str, Any],
+        generated_schedule: dict[str, Any],
+        modification: dict[str, Any],
         regenerate: bool,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Apply a modification to the schedule"""
         # Implement modification logic
         return {
@@ -803,7 +803,7 @@ class AIConversationService:
             "regenerated": regenerate,
         }
 
-    def _calculate_duration(self, conversation: Dict[str, Any]) -> str:
+    def _calculate_duration(self, conversation: dict[str, Any]) -> str:
         """Calculate conversation duration"""
         start = datetime.fromisoformat(conversation["created_at"])
         end = datetime.fromisoformat(

@@ -1,18 +1,20 @@
-from flask import Blueprint, request, jsonify
+import json
+from datetime import datetime
+
+from flask import Blueprint, jsonify, request
 from flask_cors import CORS  # Import CORS
+from pydantic import ValidationError  # Import ValidationError
+
+from src.backend.schemas.ai_schedule import (
+    AIScheduleFeedbackRequest,
+    AIScheduleGenerateRequest,
+)  # Import both schemas
 from src.backend.services.ai_scheduler_service import (
     AISchedulerService,
 )  # Now this should exist
 from src.backend.utils.logger import (
     logger,
 )  # Corrected: import the global logger instance
-from pydantic import ValidationError  # Import ValidationError
-from src.backend.schemas.ai_schedule import (
-    AIScheduleGenerateRequest,
-    AIScheduleFeedbackRequest,
-)  # Import both schemas
-from datetime import datetime
-import json
 
 # Fix: Removed redundant url_prefix that was conflicting with blueprint registration in routes/__init__.py
 ai_schedule_bp = Blueprint("ai_schedule_bp", __name__)

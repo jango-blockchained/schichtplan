@@ -1,12 +1,12 @@
 """Process tracking utilities for the scheduler."""
 
-import logging
-import uuid
 import json
-import traceback
+import logging
 import sys
+import traceback
+import uuid
 from datetime import datetime
-from typing import Optional, Dict, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from logging import Logger as LoggerType  # Avoid circular import issues
@@ -66,7 +66,7 @@ class ProcessTracker:
         self.schedule_logger.info(step_msg)
         self.diagnostic_logger.info(f"--> START STEP {self.step_count}: {step_name}")
 
-    def end_step(self, results: Optional[Dict[str, Any]] = None) -> None:
+    def end_step(self, results: dict[str, Any] | None = None) -> None:
         """Log the completion of a processing step with optional results."""
         if self.current_step and self.step_start_time:
             duration = datetime.now() - self.step_start_time
@@ -102,7 +102,7 @@ class ProcessTracker:
                 "end_step called without an active step or start time."
             )
 
-    def end_process(self, stats: Optional[Dict[str, Any]] = None) -> None:
+    def end_process(self, stats: dict[str, Any] | None = None) -> None:
         """Log the completion of the entire process."""
         if self.process_start_time:
             duration = datetime.now() - self.process_start_time

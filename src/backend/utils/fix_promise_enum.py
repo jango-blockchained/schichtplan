@@ -3,9 +3,9 @@ Script to migrate PROMISE enum values to PREFERRED in the database.
 This is a one-time fix to handle the renaming of the enum value.
 """
 
+import logging
 import os
 import sys
-import logging
 
 # Set up logging
 logging.basicConfig(
@@ -20,7 +20,7 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 try:
-    from models import db, EmployeeAvailability
+    from models import EmployeeAvailability, db
     from models.employee import AvailabilityType
 except ImportError:
     logger.error(

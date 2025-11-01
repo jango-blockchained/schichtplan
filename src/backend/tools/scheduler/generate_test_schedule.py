@@ -3,15 +3,17 @@
 Script to generate a test schedule using the ScheduleGenerator class.
 """
 
+import json
+import logging
 import os
 import sys
-import json
 from datetime import date, datetime, timedelta
-from services.scheduler.generator import ScheduleGenerator
-from models.schedule import ScheduleStatus
-from src.backend.models import db
+
 from flask import Flask
-import logging
+from models.schedule import ScheduleStatus
+from services.scheduler.generator import ScheduleGenerator
+
+from src.backend.models import db
 
 # Set up logging
 logging.basicConfig(

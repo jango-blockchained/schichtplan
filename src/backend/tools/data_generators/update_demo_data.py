@@ -8,33 +8,32 @@ This script clears existing data (optional) and populates core entities.
 import argparse
 import logging
 
-from src.backend.app import create_app
-from src.backend.models import (
-    db,
-    Settings,
-    Employee,
-    EmployeeAvailability,
-    EmployeeGroup,
-    Coverage,
-    ShiftTemplate,
-    Schedule,
-    Absence,
-    User,
-    UserRole,
-)
-
 # Import generation functions from demo_data API (or replicate/adapt them here)
 # For simplicity in this step, we'll assume these functions from demo_data.py are accessible
 # and can be called. In a real scenario, they might be refactored into a shared library.
 from src.backend.api.demo_data import (
-    generate_employee_types as get_default_employee_types,
     generate_absence_types as get_default_absence_types,
+    generate_employee_types as get_default_employee_types,
+    generate_granular_coverage_data,
+    generate_improved_absences,
+    generate_improved_availability_data,
     # We will define our own shift type generation for settings for more control
     generate_improved_employee_data,
-    generate_granular_coverage_data,
     generate_optimized_shift_templates,
-    generate_improved_availability_data,
-    generate_improved_absences,
+)
+from src.backend.app import create_app
+from src.backend.models import (
+    Absence,
+    Coverage,
+    Employee,
+    EmployeeAvailability,
+    EmployeeGroup,
+    Schedule,
+    Settings,
+    ShiftTemplate,
+    User,
+    UserRole,
+    db,
 )
 
 logging.basicConfig(

@@ -3,10 +3,9 @@ import logging
 from datetime import date, datetime, timedelta
 from http import HTTPStatus
 from io import BytesIO
-from typing import Dict, List
 
-import reportlab.lib.pagesizes as pagesizes
 from flask import Blueprint, current_app, jsonify, request, send_file
+from reportlab.lib import pagesizes
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 from sqlalchemy import and_
@@ -374,10 +373,10 @@ def generate_schedule():
 
 def _generate_day_schedule(
     current_date: date,
-    employees: List[Employee],
-    shifts: List[ShiftTemplate],
+    employees: list[Employee],
+    shifts: list[ShiftTemplate],
     store_config: Settings,
-) -> List[Schedule]:
+) -> list[Schedule]:
     """Generate schedule for a single day"""
     day_schedules = []
 
@@ -475,7 +474,7 @@ def _can_work_shift(
     employee: Employee,
     shift: ShiftTemplate,
     current_date: date,
-    employee_hours: Dict[int, float],
+    employee_hours: dict[int, float],
 ) -> bool:
     """Check if an employee can work a shift"""
     # Get coverage requirements for this time slot
@@ -531,10 +530,9 @@ def _can_work_shift(
         # Part-time employees limited to contracted hours
         if week_hours + shift.duration_hours > employee.contracted_hours:
             return False
-    else:
-        # Full-time employees limited to 40 hours per week
-        if week_hours + shift.duration_hours > 40:
-            return False
+    # Full-time employees limited to 40 hours per week
+    elif week_hours + shift.duration_hours > 40:
+        return False
 
     return True
 
@@ -774,9 +772,7 @@ def test_schedule_generation(client, app):
             )
 
             # Check opening/closing shift assignments
-            if shift.start_time <= "09:00":  # Opening shift
-                assert employee.is_keyholder == True
-            elif shift.end_time >= "18:00":  # Closing shift
+            if shift.start_time <= "09:00" or shift.end_time >= "18:00":  # Opening shift
                 assert employee.is_keyholder == True
 
             # Check break assignments for long shifts

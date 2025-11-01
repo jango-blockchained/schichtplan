@@ -3,7 +3,7 @@ import logging
 from collections import defaultdict
 from dataclasses import dataclass, field  # Import dataclass
 from datetime import date, datetime, time, timedelta
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 # Define mock Schedule if import fails
 try:
@@ -144,7 +144,7 @@ class ValidationError:
     error_type: str
     message: str
     severity: str  # 'critical', 'warning', 'info'
-    details: Optional[Dict[str, Any]] = None
+    details: dict[str, Any] | None = None
 
 
 @dataclass
@@ -160,7 +160,7 @@ class ScheduleConfig:
     enforce_max_hours: bool = True
     min_rest_hours: int = 11
     # Use field for mutable defaults and Optional
-    max_hours_per_group: Optional[Dict[EmployeeGroup, int]] = field(
+    max_hours_per_group: dict[EmployeeGroup, int] | None = field(
         default_factory=lambda: {
             # Use actual imported EmployeeGroup members
             EmployeeGroup.TZ: 30,
@@ -171,7 +171,7 @@ class ScheduleConfig:
         if "EmployeeGroup" in globals() and hasattr(EmployeeGroup, "TZ")
         else {}
     )
-    max_shifts_per_group: Optional[Dict[EmployeeGroup, int]] = field(
+    max_shifts_per_group: dict[EmployeeGroup, int] | None = field(
         default_factory=lambda: {
             # Use actual imported EmployeeGroup members
             EmployeeGroup.TZ: 4,
@@ -327,9 +327,9 @@ class ScheduleValidator:
 
     def __init__(self, resources: ScheduleResources, test_mode: bool = False):
         self.resources = resources
-        self.errors: List[ValidationError] = []
-        self.warnings: List[ValidationError] = []
-        self.info: List[ValidationError] = []
+        self.errors: list[ValidationError] = []
+        self.warnings: list[ValidationError] = []
+        self.info: list[ValidationError] = []
         self.total_intervals_checked = 0
         self.intervals_met_min_employees = 0
         self.intervals_needed_keyholder = 0
@@ -339,9 +339,9 @@ class ScheduleValidator:
 
     def validate(
         self,
-        schedule_data: List[Union[Schedule, Dict[str, Any]]],
-        config: Optional[ScheduleConfig] = None,
-    ) -> List[ValidationError]:
+        schedule_data: list[Schedule | dict[str, Any]],
+        config: ScheduleConfig | None = None,
+    ) -> list[ValidationError]:
         """Validate a schedule against various constraints"""
         if config is None:
             config = ScheduleConfig()
@@ -408,14 +408,14 @@ class ScheduleValidator:
         return self.errors + self.warnings + self.info
 
     def _validate_coverage(
-        self, schedule_data: List[Union[Schedule, Dict[str, Any]]]
+        self, schedule_data: list[Schedule | dict[str, Any]]
     ) -> None:
         # Even if schedule_data is empty, we still validate coverage against required
         # staffing to surface understaffing for all intervals when applicable.
 
         valid_schedule_entries = []
         for entry_data in schedule_data:
-            entry_date: Optional[date] = None
+            entry_date: date | None = None
             # Handle dict vs object access
             if isinstance(entry_data, dict):
                 date_val = entry_data.get("date")
@@ -522,11 +522,11 @@ class ScheduleValidator:
                     self.total_intervals_checked += 1
                 except Exception as e:
                     logger.error(
-                        (
+
                             "Error calling get_required_staffing_for_interval "
                             f"for {current_validation_date} "
                             f"{interval_start_dt_time}: {e}"
-                        )
+
                     )
                     # Add an error and skip this interval if the needs function
                     # fails
@@ -586,10 +586,10 @@ class ScheduleValidator:
                     parsed_assignment_date = item["parsed_date"]
 
                     if parsed_assignment_date == current_validation_date:
-                        assignment_start_time_str: Optional[str] = None
-                        assignment_end_time_str: Optional[str] = None
-                        employee_id_val: Optional[Any] = None
-                        assignment_id_val: Optional[Any] = None  # For logging
+                        assignment_start_time_str: str | None = None
+                        assignment_end_time_str: str | None = None
+                        employee_id_val: Any | None = None
+                        assignment_id_val: Any | None = None  # For logging
 
                         if isinstance(assignment, dict):
                             assignment_start_time_str = assignment.get("start_time")
@@ -606,12 +606,12 @@ class ScheduleValidator:
                             employee_id_val = getattr(assignment, "employee_id", None)
                             assignment_id_val = getattr(assignment, "id", None)
 
-                        assignment_start_dt_time: Optional[datetime.time] = (
+                        assignment_start_dt_time: datetime.time | None = (
                             _time_str_to_datetime_time(assignment_start_time_str)
                             if assignment_start_time_str
                             else None
                         )
-                        assignment_end_dt_time: Optional[datetime.time] = (
+                        assignment_end_dt_time: datetime.time | None = (
                             _time_str_to_datetime_time(assignment_end_time_str)
                             if assignment_end_time_str
                             else None
@@ -638,7 +638,7 @@ class ScheduleValidator:
                             ):
                                 actual_assigned_employees += 1
                                 if employee_id_val is not None:
-                                    employee: Optional[ActualEmployee] = (
+                                    employee: ActualEmployee | None = (
                                         None  # For type hinting
                                     )
                                     if TYPE_CHECKING:
@@ -814,7 +814,7 @@ class ScheduleValidator:
                 # No manual time advancement here; the for-loop handles iteration
             current_validation_date += timedelta(days=1)
 
-    def _prepare_interval_needs_for_json(self, interval_needs_dict: Dict) -> Dict:
+    def _prepare_interval_needs_for_json(self, interval_needs_dict: dict) -> dict:
         """Converts sets within interval_needs to lists for JSON serialization."""
         if not interval_needs_dict:
             return {}
@@ -834,12 +834,12 @@ class ScheduleValidator:
         return processed
 
     def _validate_contracted_hours(
-        self, schedule_data: List[Union[Schedule, Dict[str, Any]]]
+        self, schedule_data: list[Schedule | dict[str, Any]]
     ) -> None:
         hours_by_employee = defaultdict(float)
         for entry_data in schedule_data:
-            employee_id_val: Optional[int] = None
-            shift_obj: Optional[Any] = None  # Could be ShiftTemplate object or None
+            employee_id_val: int | None = None
+            shift_obj: Any | None = None  # Could be ShiftTemplate object or None
             duration_val: float = 0.0
 
             if isinstance(entry_data, dict):
@@ -874,7 +874,7 @@ class ScheduleValidator:
         # ... (rest of the method checking hours_by_employee against Employee contracted_hours)
         # Need to ensure Employee attribute access is safe here too
         for emp_id, actual_hours in hours_by_employee.items():
-            employee: Optional[ActualEmployee] = None
+            employee: ActualEmployee | None = None
             if TYPE_CHECKING:
                 employee = self.resources.get_employee(
                     emp_id
@@ -924,13 +924,13 @@ class ScheduleValidator:
                 continue
 
     def _validate_keyholders(
-        self, schedule_data: List[Union[Schedule, Dict[str, Any]]]
+        self, schedule_data: list[Schedule | dict[str, Any]]
     ) -> None:
         shifts_by_date_shift = defaultdict(list)
         for entry_data in schedule_data:
-            date_val: Optional[date] = None
-            shift_id_val: Optional[int] = None
-            employee_id_val: Optional[int] = None
+            date_val: date | None = None
+            shift_id_val: int | None = None
+            employee_id_val: int | None = None
 
             # Extract common fields
             if isinstance(entry_data, dict):
@@ -970,7 +970,7 @@ class ScheduleValidator:
 
             has_keyholder = False
             for emp_id in employee_ids:
-                employee: Optional[ActualEmployee] = None  # Hint for type checker
+                employee: ActualEmployee | None = None  # Hint for type checker
                 if TYPE_CHECKING:
                     employee = self.resources.get_employee(emp_id)
                 else:
@@ -1002,7 +1002,7 @@ class ScheduleValidator:
                 )
 
     def _validate_rest_periods(
-        self, schedule_data: List[Union[Schedule, Dict[str, Any]]]
+        self, schedule_data: list[Schedule | dict[str, Any]]
     ) -> None:
         """Validate rest periods between shifts"""
         # Special case for tests: check if schedule is a list of MagicMock objects
@@ -1066,7 +1066,7 @@ class ScheduleValidator:
 
         entries_by_employee = defaultdict(list)
         for entry_data in schedule_data:
-            employee_id_val: Optional[int] = None
+            employee_id_val: int | None = None
             # Extract necessary info (employee_id, date, start_time, end_time) safely
             if isinstance(entry_data, dict):
                 employee_id_val = entry_data.get("employee_id")
@@ -1175,13 +1175,13 @@ class ScheduleValidator:
                     continue
 
     def _validate_max_shifts(
-        self, schedule_data: List[Union[Schedule, Dict[str, Any]]]
+        self, schedule_data: list[Schedule | dict[str, Any]]
     ) -> None:
         shifts_by_employee_week = defaultdict(list)
         for entry_data in schedule_data:
-            emp_id: Optional[int] = None
-            date_val: Optional[Union[date, str]] = None
-            shift_id: Optional[int] = None
+            emp_id: int | None = None
+            date_val: date | str | None = None
+            shift_id: int | None = None
 
             if isinstance(entry_data, dict):
                 emp_id = entry_data.get("employee_id")
@@ -1201,7 +1201,7 @@ class ScheduleValidator:
             if not emp_id or not date_val or shift_id is None:
                 continue
 
-            entry_date_obj: Optional[date] = None
+            entry_date_obj: date | None = None
             if isinstance(date_val, str):
                 try:
                     entry_date_obj = datetime.fromisoformat(date_val).date()
@@ -1220,7 +1220,7 @@ class ScheduleValidator:
             if emp_id is None:
                 continue
 
-            employee: Optional[ActualEmployee] = None  # Hint for type checker
+            employee: ActualEmployee | None = None  # Hint for type checker
             if TYPE_CHECKING:
                 employee = self.resources.get_employee(emp_id)
             else:
@@ -1256,13 +1256,13 @@ class ScheduleValidator:
                 )
 
     def _validate_max_hours(
-        self, schedule_data: List[Union[Schedule, Dict[str, Any]]]
+        self, schedule_data: list[Schedule | dict[str, Any]]
     ) -> None:
         hours_by_employee_week = defaultdict(float)
         for entry_data in schedule_data:
-            emp_id: Optional[int] = None
-            date_val: Optional[Union[date, str]] = None
-            shift_id: Optional[int] = None  # Need shift_id to get duration
+            emp_id: int | None = None
+            date_val: date | str | None = None
+            shift_id: int | None = None  # Need shift_id to get duration
             duration_val: float = 0.0
 
             if isinstance(entry_data, dict):
@@ -1304,7 +1304,7 @@ class ScheduleValidator:
                     except (ValueError, TypeError):
                         duration_val = 0.0
 
-            entry_date_obj: Optional[date] = None
+            entry_date_obj: date | None = None
             if isinstance(date_val, str):
                 try:
                     entry_date_obj = datetime.fromisoformat(date_val).date()
@@ -1323,7 +1323,7 @@ class ScheduleValidator:
             if emp_id is None:
                 continue
 
-            employee: Optional[ActualEmployee] = None  # Hint for type checker
+            employee: ActualEmployee | None = None  # Hint for type checker
             if TYPE_CHECKING:
                 employee = self.resources.get_employee(emp_id)
             else:
@@ -1359,8 +1359,8 @@ class ScheduleValidator:
 
     def _calculate_rest_hours(
         self,
-        first_entry: Union[Schedule, Dict[str, Any]],
-        second_entry: Union[Schedule, Dict[str, Any]],
+        first_entry: Schedule | dict[str, Any],
+        second_entry: Schedule | dict[str, Any],
     ) -> float:
         """Calculate the rest hours between two schedule entries"""
         # Safely extract end time from first entry
@@ -1399,7 +1399,7 @@ class ScheduleValidator:
         """Get the start of the week (Monday) for a given date"""
         return day - timedelta(days=day.weekday())
 
-    def get_error_report(self) -> Dict[str, Any]:
+    def get_error_report(self) -> dict[str, Any]:
         """Generate a structured error report"""
         # Group errors by type
         errors_by_type = {}
@@ -1421,7 +1421,7 @@ class ScheduleValidator:
             "errors": [self._error_to_dict(error) for error in self.errors],
         }
 
-    def _error_to_dict(self, error: ValidationError) -> Dict[str, Any]:
+    def _error_to_dict(self, error: ValidationError) -> dict[str, Any]:
         """Convert a ValidationError to a dictionary"""
         return {
             "type": error.error_type,
@@ -1431,14 +1431,14 @@ class ScheduleValidator:
         }
 
     def _validate_consecutive_days(
-        self, schedule_data: List[Union[Schedule, Dict[str, Any]]]
+        self, schedule_data: list[Schedule | dict[str, Any]]
     ) -> None:
         """Validate maximum consecutive working days"""
         employees_schedules = defaultdict(list)
         for entry_data in schedule_data:
-            emp_id: Optional[int] = None
-            date_val: Optional[Union[date, str]] = None
-            shift_id: Optional[int] = None  # Check if shift exists
+            emp_id: int | None = None
+            date_val: date | str | None = None
+            shift_id: int | None = None  # Check if shift exists
 
             if isinstance(entry_data, dict):
                 emp_id = entry_data.get("employee_id")
@@ -1454,7 +1454,7 @@ class ScheduleValidator:
                         shift_id = getattr(shift_obj, "id", None)
 
             if shift_id is not None and emp_id is not None and date_val is not None:
-                entry_date_obj: Optional[date] = None
+                entry_date_obj: date | None = None
                 if isinstance(date_val, str):
                     try:
                         entry_date_obj = datetime.fromisoformat(date_val).date()
@@ -1509,14 +1509,14 @@ class ScheduleValidator:
                 )
 
     def _validate_weekend_distribution(
-        self, schedule_data: List[Union[Schedule, Dict[str, Any]]]
+        self, schedule_data: list[Schedule | dict[str, Any]]
     ) -> None:
         """Validate fair distribution of weekend shifts"""
         weekend_shifts = defaultdict(int)
         for entry_data in schedule_data:
-            emp_id: Optional[int] = None
-            date_val: Optional[Union[date, str]] = None
-            shift_id: Optional[int] = None
+            emp_id: int | None = None
+            date_val: date | str | None = None
+            shift_id: int | None = None
 
             if isinstance(entry_data, dict):
                 emp_id = entry_data.get("employee_id")
@@ -1532,7 +1532,7 @@ class ScheduleValidator:
                         shift_id = getattr(shift_obj, "id", None)
 
             if shift_id is not None and emp_id is not None and date_val is not None:
-                entry_date_obj: Optional[date] = None
+                entry_date_obj: date | None = None
                 if isinstance(date_val, str):
                     try:
                         entry_date_obj = datetime.fromisoformat(date_val).date()
@@ -1574,15 +1574,15 @@ class ScheduleValidator:
                     )
 
     def _validate_early_late_rules(
-        self, schedule_data: List[Union[Schedule, Dict[str, Any]]]
+        self, schedule_data: list[Schedule | dict[str, Any]]
     ) -> None:
         employees_schedules = defaultdict(list)
         for entry_data in schedule_data:
-            emp_id: Optional[int] = None
-            date_val: Optional[Union[date, str]] = None
-            shift_id: Optional[int] = None
-            start_time_str: Optional[str] = None
-            end_time_str: Optional[str] = None
+            emp_id: int | None = None
+            date_val: date | str | None = None
+            shift_id: int | None = None
+            start_time_str: str | None = None
+            end_time_str: str | None = None
 
             if isinstance(entry_data, dict):
                 emp_id = entry_data.get("employee_id")
@@ -1606,7 +1606,7 @@ class ScheduleValidator:
                         end_time_str = getattr(shift_obj, "end_time", None)
 
             if shift_id is not None and emp_id is not None and date_val is not None:
-                entry_date_obj: Optional[date] = None
+                entry_date_obj: date | None = None
                 if isinstance(date_val, str):
                     try:
                         entry_date_obj = datetime.fromisoformat(date_val).date()
@@ -1676,16 +1676,16 @@ class ScheduleValidator:
                                 )
 
     def _validate_break_rules(
-        self, schedule_data: List[Union[Schedule, Dict[str, Any]]]
+        self, schedule_data: list[Schedule | dict[str, Any]]
     ) -> None:
         for entry_data in schedule_data:
-            shift_id: Optional[int] = None
-            employee_id: Optional[int] = None
-            date_val: Optional[Union[date, str]] = None
-            break_start_str: Optional[str] = None
-            break_end_str: Optional[str] = None
-            start_time_str: Optional[str] = None
-            end_time_str: Optional[str] = None
+            shift_id: int | None = None
+            employee_id: int | None = None
+            date_val: date | str | None = None
+            break_start_str: str | None = None
+            break_end_str: str | None = None
+            start_time_str: str | None = None
+            end_time_str: str | None = None
 
             if isinstance(entry_data, dict):
                 shift_id = entry_data.get("shift_id")
@@ -1743,7 +1743,7 @@ class ScheduleValidator:
                 has_break = break_start_str is not None and break_end_str is not None
                 if not has_break:
                     # Safely get parsed date object for formatting
-                    entry_date_obj: Optional[date] = None
+                    entry_date_obj: date | None = None
                     if isinstance(date_val, str):
                         try:
                             entry_date_obj = datetime.fromisoformat(date_val).date()
@@ -1785,14 +1785,14 @@ class ScheduleValidator:
                     )
 
     def _validate_qualifications(
-        self, schedule_data: List[Union[Schedule, Dict[str, Any]]]
+        self, schedule_data: list[Schedule | dict[str, Any]]
     ) -> None:
         """Validate employee qualifications for shifts"""
         # This would require a qualifications model, which isn't implemented yet
         # Placeholder for future implementation
         pass
 
-    def get_coverage_summary(self) -> Dict[str, Any]:
+    def get_coverage_summary(self) -> dict[str, Any]:
         """Returns a summary of the interval coverage validation statistics."""
         min_employee_coverage_percent = (
             (self.intervals_met_min_employees / self.total_intervals_checked * 100)

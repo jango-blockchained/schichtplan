@@ -7,11 +7,11 @@ The main issue is that the current algorithm processes all EARLY shifts first, t
 By the time it gets to MIDDLE and LATE shifts, employees have reached their maximum shift limits.
 """
 
-import os
-import sys
-import logging
 import importlib
 import inspect
+import logging
+import os
+import sys
 
 # Add parent directories to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -250,16 +250,15 @@ def modify_distribution_file():
     # Create a backup if it doesn't exist
     if not os.path.exists(backup_file):
         print(f"Creating backup of original file to {backup_file}")
-        with open(distribution_file, "r") as src:
-            with open(backup_file, "w") as dst:
-                dst.write(src.read())
+        with open(distribution_file) as src, open(backup_file, "w") as dst:
+            dst.write(src.read())
 
     try:
         # Get the original and improved algorithm code
         original_code, improved_code = create_improved_distribution_algorithm()
 
         # Read the current file content
-        with open(distribution_file, "r") as file:
+        with open(distribution_file) as file:
             content = file.read()
 
         # Replace the old implementation with the new one
@@ -293,9 +292,8 @@ def restore_distribution_file():
         return False
 
     # Restore the backup
-    with open(backup_file, "r") as src:
-        with open(distribution_file, "w") as dst:
-            dst.write(src.read())
+    with open(backup_file) as src, open(distribution_file, "w") as dst:
+        dst.write(src.read())
 
     print(f"Successfully restored {distribution_file} from backup")
     return True

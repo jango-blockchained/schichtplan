@@ -1,8 +1,10 @@
-from flask import Blueprint, jsonify, request
-from http import HTTPStatus
 import logging
 from datetime import datetime
-from src.backend.models import db, Settings
+from http import HTTPStatus
+
+from flask import Blueprint, jsonify, request
+
+from src.backend.models import Settings, db
 
 holiday_import = Blueprint("holiday_import", __name__)
 

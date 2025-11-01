@@ -17,7 +17,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "src", "backend"))
 
 # Import the Flask app creator function
 from app import create_app
-from models import db, Schedule
+from models import Schedule, db
 from services.scheduler.generator import ScheduleGenerator
 from services.scheduler.resources import ScheduleResources
 

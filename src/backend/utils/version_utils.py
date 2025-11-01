@@ -5,20 +5,17 @@ This module provides functions to convert between week identifiers and date rang
 supporting the week-based versioning system.
 """
 
-from datetime import date, timedelta
-from typing import Dict, List, Tuple, Optional
 import re
+from datetime import date
+
 from .week_utils import (
-    WeekInfo,
-    WeekRange,
-    get_week_from_identifier,
-    get_iso_week_info,
     create_week_identifier,
-    get_week_range,
+    get_iso_week_info,
+    get_week_from_identifier,
 )
 
 
-def parse_version_identifier(version_identifier: str) -> Dict[str, any]:
+def parse_version_identifier(version_identifier: str) -> dict[str, any]:
     """
     Parse a version identifier and extract its components.
 
@@ -84,7 +81,7 @@ def parse_version_identifier(version_identifier: str) -> Dict[str, any]:
     raise ValueError(f"Invalid version identifier format: {version_identifier}")
 
 
-def version_identifier_to_date_range(version_identifier: str) -> Tuple[date, date]:
+def version_identifier_to_date_range(version_identifier: str) -> tuple[date, date]:
     """
     Convert a version identifier to a date range.
 

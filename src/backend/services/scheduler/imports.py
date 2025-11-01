@@ -7,9 +7,8 @@ import patterns scattered throughout the codebase.
 """
 
 import logging
-import sys
 import os
-from typing import Any, Optional, TYPE_CHECKING
+import sys
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -88,16 +87,16 @@ def _import_from_src_backend():
         EmployeeGroup
 
     from src.backend.models import (
-        Employee,
-        ShiftTemplate,
-        Settings,
-        Coverage,
-        db,
         Absence,
+        Coverage,
+        Employee,
         EmployeeAvailability,
+        Settings,
+        ShiftTemplate,
+        db,
     )
-    from src.backend.models.schedule import Schedule, ScheduleAssignment
     from src.backend.models.employee import AvailabilityType, EmployeeGroup
+    from src.backend.models.schedule import Schedule, ScheduleAssignment
 
 
 def _import_from_backend():
@@ -111,16 +110,16 @@ def _import_from_backend():
         EmployeeGroup
 
     from backend.models import (
-        Employee,
-        ShiftTemplate,
-        Settings,
-        Coverage,
-        db,
         Absence,
+        Coverage,
+        Employee,
         EmployeeAvailability,
+        Settings,
+        ShiftTemplate,
+        db,
     )
-    from backend.models.schedule import Schedule, ScheduleAssignment
     from backend.models.employee import AvailabilityType, EmployeeGroup
+    from backend.models.schedule import Schedule, ScheduleAssignment
 
 
 def _import_from_models():
@@ -134,16 +133,16 @@ def _import_from_models():
         EmployeeGroup
 
     from models import (
-        Employee,
-        ShiftTemplate,
-        Settings,
-        Coverage,
-        db,
         Absence,
+        Coverage,
+        Employee,
         EmployeeAvailability,
+        Settings,
+        ShiftTemplate,
+        db,
     )
-    from models.schedule import Schedule, ScheduleAssignment
     from models.employee import AvailabilityType, EmployeeGroup
+    from models.schedule import Schedule, ScheduleAssignment
 
 
 def _create_mock_classes():

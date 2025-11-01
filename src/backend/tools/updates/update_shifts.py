@@ -1,5 +1,6 @@
 from app import create_app
-from src.backend.models import db, ShiftTemplate
+
+from src.backend.models import ShiftTemplate, db
 
 
 def update_shifts():

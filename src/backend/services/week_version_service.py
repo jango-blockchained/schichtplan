@@ -6,7 +6,6 @@ integrating with the existing scheduling system.
 """
 
 from datetime import date, datetime
-from typing import List, Optional
 
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
@@ -26,15 +25,15 @@ from ..utils.week_utils import (
 class WeekVersionService:
     """Service for managing week-based schedule versions."""
 
-    def __init__(self, session: Optional[Session] = None):
+    def __init__(self, session: Session | None = None):
         self.session = session or db.session
 
     def create_week_version(
         self,
         week_identifier: str,
-        base_version: Optional[int] = None,
-        month_boundary_mode: Optional[MonthBoundaryMode] = None,
-        notes: Optional[str] = None,
+        base_version: int | None = None,
+        month_boundary_mode: MonthBoundaryMode | None = None,
+        notes: str | None = None,
         create_empty_schedules: bool = True,
     ) -> ScheduleVersionMeta:
         """
@@ -209,7 +208,7 @@ class WeekVersionService:
 
     def get_version_by_week(
         self, week_identifier: str
-    ) -> Optional[ScheduleVersionMeta]:
+    ) -> ScheduleVersionMeta | None:
         """Get version metadata by week identifier.
 
         For split weeks, returns the first segment's version.
@@ -235,7 +234,7 @@ class WeekVersionService:
 
     def get_all_segments_for_week(
         self, week_identifier: str
-    ) -> List[ScheduleVersionMeta]:
+    ) -> list[ScheduleVersionMeta]:
         """Get all version segments for a split week."""
         # Find all versions that start with the week identifier
         return (
@@ -252,7 +251,7 @@ class WeekVersionService:
 
     def get_versions_for_date_range(
         self, start_date: date, end_date: date
-    ) -> List[ScheduleVersionMeta]:
+    ) -> list[ScheduleVersionMeta]:
         """Get all versions that overlap with the given date range."""
         return (
             self.session.query(ScheduleVersionMeta)
@@ -266,7 +265,7 @@ class WeekVersionService:
             .all()
         )
 
-    def convert_legacy_to_week_version(self, version: int) -> Optional[str]:
+    def convert_legacy_to_week_version(self, version: int) -> str | None:
         """
         Convert a legacy numeric version to week identifier if possible.
 

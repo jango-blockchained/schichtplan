@@ -3,11 +3,12 @@ Migration script to create ScheduleVersionMeta entries for all existing schedule
 This should be run once after deploying the new version.
 """
 
+from datetime import datetime
+
 from flask import Flask
 from models import db
-from models.schedule import Schedule, ScheduleVersionMeta, ScheduleStatus
+from models.schedule import Schedule, ScheduleStatus, ScheduleVersionMeta
 from sqlalchemy import func
-from datetime import datetime
 
 
 def create_app():

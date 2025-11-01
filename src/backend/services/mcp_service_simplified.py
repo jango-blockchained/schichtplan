@@ -6,7 +6,7 @@ without complex AI agent dependencies that cause crashes.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastmcp import FastMCP
 from flask import Flask
@@ -21,8 +21,8 @@ class SimplifiedMCPService:
 
     def __init__(
         self,
-        flask_app: Optional[Flask] = None,
-        logger: Optional[logging.Logger] = None,
+        flask_app: Flask | None = None,
+        logger: logging.Logger | None = None,
     ):
         self.flask_app = flask_app
         self.logger = logger or logging.getLogger(__name__)
@@ -80,7 +80,7 @@ class SimplifiedMCPService:
         except Exception as e:
             self.logger.error(f"Failed to register prompts: {e}")
 
-    def get_ai_agent_status(self) -> Dict[str, Any]:
+    def get_ai_agent_status(self) -> dict[str, Any]:
         """Get status of the simplified service."""
         return {
             "simplified_mode": True,
@@ -89,7 +89,7 @@ class SimplifiedMCPService:
             "status": "running",
         }
 
-    def get_open_api_spec(self) -> Dict[str, Any]:
+    def get_open_api_spec(self) -> dict[str, Any]:
         """Get the OpenAPI specification for the MCP service."""
         return {
             "openapi": "3.0.0",
@@ -133,7 +133,7 @@ class SimplifiedMCPService:
             self.logger.error(f"Error running HTTP server: {e}", exc_info=True)
             raise
 
-    async def get_mcp_health_status(self) -> Dict[str, Any]:
+    async def get_mcp_health_status(self) -> dict[str, Any]:
         """Get simplified MCP service health status for frontend monitoring."""
         try:
             health_status = {
@@ -184,7 +184,7 @@ class SimplifiedMCPService:
                 },
             }
 
-    async def get_mcp_tool_discovery(self) -> Dict[str, Any]:
+    async def get_mcp_tool_discovery(self) -> dict[str, Any]:
         """Get simplified MCP tool discovery information for frontend integration."""
         try:
             tools_info = {
@@ -223,7 +223,7 @@ class SimplifiedMCPService:
                 "error": str(e),
             }
 
-    async def get_mcp_status_dashboard(self) -> Dict[str, Any]:
+    async def get_mcp_status_dashboard(self) -> dict[str, Any]:
         """Get simplified MCP status dashboard data for frontend."""
         try:
             health_status = await self.get_mcp_health_status()

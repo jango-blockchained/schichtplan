@@ -5,9 +5,9 @@ shifts align with coverage blocks in the distribution system.
 This shows how the ScheduleGenerator processes coverage and shifts.
 """
 
-import sys
-import os
 import logging
+import os
+import sys
 from datetime import date, timedelta
 
 # Set up logging
@@ -24,7 +24,7 @@ def check_coverage_shift_distribution():
     """Check how coverage requirements are processed and matched with shifts"""
     # Import necessary modules in function to ensure proper path resolution
     from backend.app import create_app
-    from backend.models import ShiftTemplate, Coverage, Employee
+    from backend.models import Coverage, Employee, ShiftTemplate
 
     # Create app and run within context
     app = create_app()
