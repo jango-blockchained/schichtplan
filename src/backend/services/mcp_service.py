@@ -153,6 +153,10 @@ You are Schichtplan Assistant, a helpful workforce management companion.
                                     "parameters": tool.get("parameters", []),
                                     "category": category,
                                 }
+                            else:
+                                self.logger.warning(
+                                    f"Skipping tool in {category} with missing name: {tool}"
+                                )
                 except Exception as e:
                     self.logger.warning(f"Failed to collect tool info from {category}: {e}")
 
