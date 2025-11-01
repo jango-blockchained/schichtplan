@@ -7,8 +7,8 @@ including shift times, coverage rules, employee data, and assignment data.
 
 import logging
 import re
-from datetime import date, time, datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
+from datetime import date, time
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,7 @@ def validate_time_range(
     return True
 
 
-def validate_shift_template(shift_template: Any) -> Dict[str, Any]:
+def validate_shift_template(shift_template: Any) -> dict[str, Any]:
     """
     Validate a shift template object or dictionary.
 
@@ -200,7 +200,7 @@ def validate_shift_template(shift_template: Any) -> Dict[str, Any]:
     return {"valid": True, "warnings": warnings, "normalized_data": data}
 
 
-def validate_coverage_rule(coverage: Any) -> Dict[str, Any]:
+def validate_coverage_rule(coverage: Any) -> dict[str, Any]:
     """
     Validate a coverage rule object or dictionary.
 
@@ -246,13 +246,12 @@ def validate_coverage_rule(coverage: Any) -> Dict[str, Any]:
             errors.append(f"Invalid time range: {e}")
 
     # Validate day_index
-    if data.get("day_index") is not None:
-        if (
-            not isinstance(data["day_index"], int)
-            or data["day_index"] < 0
-            or data["day_index"] > 6
-        ):
-            errors.append(f"Invalid day_index: {data['day_index']} (must be 0-6)")
+    if data.get("day_index") is not None and (
+        not isinstance(data["day_index"], int)
+        or data["day_index"] < 0
+        or data["day_index"] > 6
+    ):
+        errors.append(f"Invalid day_index: {data['day_index']} (must be 0-6)")
 
     # Validate employee counts
     if data.get("min_employees") is not None:
@@ -300,7 +299,7 @@ def validate_coverage_rule(coverage: Any) -> Dict[str, Any]:
     return {"valid": True, "warnings": warnings, "normalized_data": data}
 
 
-def validate_employee_data(employee: Any) -> Dict[str, Any]:
+def validate_employee_data(employee: Any) -> dict[str, Any]:
     """
     Validate employee data object or dictionary.
 
@@ -374,7 +373,7 @@ def validate_employee_data(employee: Any) -> Dict[str, Any]:
     return {"valid": True, "warnings": warnings, "normalized_data": data}
 
 
-def validate_assignment_data(assignment: Dict[str, Any]) -> Dict[str, Any]:
+def validate_assignment_data(assignment: dict[str, Any]) -> dict[str, Any]:
     """
     Validate assignment data dictionary.
 
@@ -408,18 +407,17 @@ def validate_assignment_data(assignment: Dict[str, Any]) -> Dict[str, Any]:
                 )
 
     # Validate date
-    if data.get("date") is not None:
-        if not isinstance(data["date"], date):
-            if isinstance(data["date"], str):
-                try:
-                    data["date"] = date.fromisoformat(data["date"])
-                    warnings.append("Converted date string to date object")
-                except ValueError:
-                    errors.append(f"Invalid date format: {data['date']}")
-            else:
-                errors.append(
-                    f"date must be a date object or ISO string, got {type(data['date'])}"
-                )
+    if data.get("date") is not None and not isinstance(data["date"], date):
+        if isinstance(data["date"], str):
+            try:
+                data["date"] = date.fromisoformat(data["date"])
+                warnings.append("Converted date string to date object")
+            except ValueError:
+                errors.append(f"Invalid date format: {data['date']}")
+        else:
+            errors.append(
+                f"date must be a date object or ISO string, got {type(data['date'])}"
+            )
 
     # Validate time fields if present
     for time_field in ["start_time", "end_time"]:
@@ -460,8 +458,8 @@ def validate_assignment_data(assignment: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def validate_batch_data(
-    data_list: List[Any], validator_func: callable, continue_on_error: bool = True
-) -> Dict[str, Any]:
+    data_list: list[Any], validator_func: callable, continue_on_error: bool = True
+) -> dict[str, Any]:
     """
     Validate a batch of data items using the specified validator function.
 
@@ -512,7 +510,7 @@ def validate_batch_data(
 
 
 def log_validation_results(
-    results: Dict[str, Any], logger_instance: Optional[logging.Logger] = None
+    results: dict[str, Any], logger_instance: logging.Logger | None = None
 ):
     """
     Log validation results in a structured format.

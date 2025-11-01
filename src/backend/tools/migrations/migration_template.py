@@ -16,9 +16,9 @@ Author: [Your Name]
 Date: [Creation Date]
 """
 
-import sys
-import sqlite3
 import argparse
+import sqlite3
+import sys
 from pathlib import Path
 
 # Parse arguments
@@ -53,7 +53,7 @@ def main():
     # Connect to the database
     try:
         conn = sqlite3.connect(str(db_path))
-        cursor = conn.cursor()
+        conn.cursor()
 
         # Start of migration code
         # -------------------------------------------------------------------------

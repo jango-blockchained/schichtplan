@@ -6,11 +6,11 @@ This script analyzes the shift types and scheduling configurations to identify
 why only EARLY shifts are being assigned.
 """
 
+import argparse
+import logging
 import os
 import sys
-import logging
 from datetime import date
-import argparse
 
 # Add parent directories to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -187,10 +187,10 @@ def analyze_shifts():
         print_section("DISTRIBUTION MANAGER ANALYSIS")
 
         # Import scheduler components
-        from services.scheduler.generator import ScheduleGenerator
         from services.scheduler.config import SchedulerConfig
-        from services.scheduler.resources import ScheduleResources
         from services.scheduler.distribution import DistributionManager
+        from services.scheduler.generator import ScheduleGenerator
+        from services.scheduler.resources import ScheduleResources
 
         resources = ScheduleResources()
         resources.load()
@@ -209,10 +209,10 @@ def analyze_shifts():
         print("Looking at how shifts are distributed in _assign_employees_by_type:")
 
         # Check if we can access and call the assign_employees_by_type method
-        sample_date = date.today()
+        date.today()
 
         # Get max 4 random shifts for testing
-        test_shifts = (
+        (
             resources.shifts[:4] if len(resources.shifts) >= 4 else resources.shifts
         )
 
@@ -270,7 +270,7 @@ def main():
     """Main function to parse arguments and run the analysis"""
     parser = argparse.ArgumentParser(description="Shift Type Analyzer Tool")
 
-    args = parser.parse_args()
+    parser.parse_args()
 
     print_section("SHIFT TYPE ANALYZER TOOL")
     print(

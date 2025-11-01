@@ -1,5 +1,7 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, JSON, DateTime, Boolean
+
+from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String
+
 from . import db
 from .employee import EmployeeGroup
 

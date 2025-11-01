@@ -3,8 +3,8 @@
 Diagnostic script to check shift templates and identify any issues.
 """
 
-import sys
 import os
+import sys
 import traceback
 
 # Add the parent directories to the path

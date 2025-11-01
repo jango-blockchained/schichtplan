@@ -1,6 +1,6 @@
-import sqlite3
-from datetime import date, timedelta, datetime
 import logging
+import sqlite3
+from datetime import date, datetime, timedelta
 
 # Set up logging
 logging.basicConfig(
@@ -177,7 +177,7 @@ def generate_fresh_schedule():
             try:
                 cursor.execute(
                     """
-                    INSERT INTO schedules 
+                    INSERT INTO schedules
                     (employee_id, date, shift_id, version, created_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?)
                 """,

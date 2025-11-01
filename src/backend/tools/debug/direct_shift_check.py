@@ -4,10 +4,10 @@ Direct database inspection script to diagnose shift and coverage configuration.
 This bypasses the ORM to check the database directly.
 """
 
+import json
 import os
 import sqlite3
 from datetime import date, timedelta
-import json
 
 
 def main():
@@ -52,7 +52,7 @@ def main():
             start_time = shift["start_time"]
             end_time = shift["end_time"]
             active_days = (
-                shift["active_days"] if "active_days" in shift.keys() else None
+                shift.get("active_days", None)
             )
 
             print(f"Shift {shift_id} ({shift_type}): {start_time} - {end_time}")
@@ -88,13 +88,13 @@ def main():
 
         for cov in coverage_records:
             cov_id = cov["id"]
-            day_index = cov["day_index"] if "day_index" in cov.keys() else None
-            shift_id = cov["shift_id"] if "shift_id" in cov.keys() else None
+            day_index = cov.get("day_index", None)
+            shift_id = cov.get("shift_id", None)
             min_employees = (
-                cov["min_employees"] if "min_employees" in cov.keys() else None
+                cov.get("min_employees", None)
             )
-            start_time = cov["start_time"] if "start_time" in cov.keys() else None
-            end_time = cov["end_time"] if "end_time" in cov.keys() else None
+            start_time = cov.get("start_time", None)
+            end_time = cov.get("end_time", None)
 
             print(
                 f"Coverage {cov_id}: Day {day_index}, Time {start_time}-{end_time}, Min Employees {min_employees}"
@@ -146,20 +146,16 @@ def main():
             for avail in sample_avail:
                 avail_id = avail["id"]
                 employee_id = (
-                    avail["employee_id"] if "employee_id" in avail.keys() else None
+                    avail.get("employee_id", None)
                 )
                 start_dt = (
-                    avail["start_datetime"]
-                    if "start_datetime" in avail.keys()
-                    else None
+                    avail.get("start_datetime", None)
                 )
                 end_dt = (
-                    avail["end_datetime"] if "end_datetime" in avail.keys() else None
+                    avail.get("end_datetime", None)
                 )
                 avail_type = (
-                    avail["availability_type"]
-                    if "availability_type" in avail.keys()
-                    else None
+                    avail.get("availability_type", None)
                 )
 
                 print(
@@ -195,11 +191,11 @@ def main():
             for entry in sample_entries:
                 entry_id = entry["id"]
                 employee_id = (
-                    entry["employee_id"] if "employee_id" in entry.keys() else None
+                    entry.get("employee_id", None)
                 )
-                shift_id = entry["shift_id"] if "shift_id" in entry.keys() else None
-                entry_date = entry["date"] if "date" in entry.keys() else None
-                status = entry["status"] if "status" in entry.keys() else None
+                shift_id = entry.get("shift_id", None)
+                entry_date = entry.get("date", None)
+                status = entry.get("status", None)
 
                 print(
                     f"  Schedule {entry_id}: Employee {employee_id}, Shift {shift_id}, Date: {entry_date}, Status: {status}"

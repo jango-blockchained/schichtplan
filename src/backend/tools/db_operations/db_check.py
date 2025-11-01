@@ -11,7 +11,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 sys.path.append(os.path.join(os.path.dirname(__file__), "src", "backend"))
 
 from src.backend.app import create_app
-from src.backend.models import db, Schedule, Employee, ShiftTemplate
+from src.backend.models import Employee, Schedule, ShiftTemplate, db
 
 # Create the app and push context
 app = create_app()
@@ -36,10 +36,10 @@ with app.app_context():
     for version in versions:
         version_count = Schedule.query.filter_by(version=version).count()
         with_shifts = Schedule.query.filter(
-            Schedule.version == version, Schedule.shift_id != None
+            Schedule.version == version, Schedule.shift_id is not None
         ).count()
         without_shifts = Schedule.query.filter(
-            Schedule.version == version, Schedule.shift_id == None
+            Schedule.version == version, Schedule.shift_id is None
         ).count()
 
         print(f"\nVersion {version}:")
@@ -61,7 +61,7 @@ with app.app_context():
     orphaned = Schedule.query.filter(
         (Schedule.employee_id.notin_(db.session.query(Employee.id)))
         | (
-            (Schedule.shift_id != None)
+            (Schedule.shift_id is not None)
             & (Schedule.shift_id.notin_(db.session.query(ShiftTemplate.id)))
         )
     ).count()
@@ -83,7 +83,7 @@ with app.app_context():
             orphaned_schedules = Schedule.query.filter(
                 (Schedule.employee_id.notin_(db.session.query(Employee.id)))
                 | (
-                    (Schedule.shift_id != None)
+                    (Schedule.shift_id is not None)
                     & (Schedule.shift_id.notin_(db.session.query(ShiftTemplate.id)))
                 )
             ).all()

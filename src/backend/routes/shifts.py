@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
-from src.backend.models import db, ShiftTemplate
-from src.backend.models.fixed_shift import ShiftValidationError, ShiftType
+
+from src.backend.models import ShiftTemplate, db
+from src.backend.models.fixed_shift import ShiftType, ShiftValidationError
 
 shifts = Blueprint("shifts", __name__)
 

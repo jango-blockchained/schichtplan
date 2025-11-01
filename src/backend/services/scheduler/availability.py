@@ -4,7 +4,7 @@ import logging
 import os
 import sys
 from datetime import date
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -189,8 +189,8 @@ class AvailabilityChecker:
             return False, AvailabilityType.UNAVAILABLE.value
 
     def is_hour_available(
-        self, availability_records: List[Dict], hour: int
-    ) -> Tuple[bool, str]:
+        self, availability_records: list[dict], hour: int
+    ) -> tuple[bool, str]:
         """
         Check if a specific hour is available in the availability records
         Returns a tuple of (available, availability_type)
@@ -223,7 +223,7 @@ class AvailabilityChecker:
         # If no specific record found for this hour, default to available
         return True, AvailabilityType.AVAILABLE.value
 
-    def get_shift_hours(self, start_time: str, end_time: str) -> List[int]:
+    def get_shift_hours(self, start_time: str, end_time: str) -> list[int]:
         """Get a list of hours covered by this shift"""
         try:
             # Parse the times
@@ -285,7 +285,7 @@ class AvailabilityChecker:
 
     def get_employee_availability(
         self, employee_id: int, date_to_check: date
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get availability records for an employee on a specific date"""
         availability_records = []
 
@@ -364,7 +364,7 @@ class AvailabilityChecker:
 
     def get_availability_records(
         self, employee_id: int, date_to_check: date
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Get availability records for an employee on a specific date"""
         # Get employee's availability for this day
         day_of_week = date_to_check.weekday()
@@ -467,8 +467,8 @@ class AvailabilityChecker:
             self.logger.error(message)
 
     def get_available_employees(
-        self, check_date: date, employees: List[Any]
-    ) -> List[Any]:
+        self, check_date: date, employees: list[Any]
+    ) -> list[Any]:
         """
         Get a list of employees who are available on the given date.
 

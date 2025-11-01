@@ -3,9 +3,10 @@
 Script to check if shift templates exist in the database and fix any issues with missing durations.
 """
 
-from src.backend.app import create_app
 from models import ShiftTemplate, db
 from services.scheduler.utility import calculate_duration
+
+from src.backend.app import create_app
 
 
 def check_and_fix_shifts():

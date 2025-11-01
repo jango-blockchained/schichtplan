@@ -1,6 +1,8 @@
-from flask import Blueprint, request, jsonify
-from ..models import db, ShiftTemplate
 from http import HTTPStatus
+
+from flask import Blueprint, jsonify, request
+
+from ..models import ShiftTemplate, db
 from ..models.fixed_shift import ShiftValidationError
 
 bp = Blueprint("shifts", __name__, url_prefix="/api/shifts")

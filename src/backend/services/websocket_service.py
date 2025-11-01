@@ -5,7 +5,7 @@ WebSocket Service for real-time AI features (Socket.IO)
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional, Set, cast
+from typing import Any, cast
 
 from flask import request as flask_request
 from flask_socketio import (  # type: ignore[import-untyped]
@@ -23,9 +23,9 @@ class AIWebSocketService:
 
     def __init__(self, socketio: SocketIO):
         self.socketio = socketio
-        self.active_sessions: Dict[str, Dict] = {}
-        self.typing_indicators: Dict[str, Dict] = {}
-        self.room_subscribers: Dict[str, Set[str]] = {}
+        self.active_sessions: dict[str, dict] = {}
+        self.typing_indicators: dict[str, dict] = {}
+        self.room_subscribers: dict[str, set[str]] = {}
 
         # Register event handlers
         self._register_handlers()
@@ -435,7 +435,7 @@ class AIWebSocketService:
 
 
 # Global WebSocket service instance
-ws_service: Optional[AIWebSocketService] = None
+ws_service: AIWebSocketService | None = None
 
 
 def init_websocket_service(socketio: SocketIO) -> AIWebSocketService:
@@ -445,6 +445,6 @@ def init_websocket_service(socketio: SocketIO) -> AIWebSocketService:
     return ws_service
 
 
-def get_websocket_service() -> Optional[AIWebSocketService]:
+def get_websocket_service() -> AIWebSocketService | None:
     """Get WebSocket service instance"""
     return ws_service

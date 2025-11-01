@@ -3,9 +3,10 @@
 Script to create sample employees in the database.
 """
 
-from src.backend.app import create_app
 from models import Employee, db
 from models.employee import EmployeeGroup
+
+from src.backend.app import create_app
 
 
 def create_sample_employees():

@@ -3,10 +3,12 @@
 Script to create sample shift templates in the database.
 """
 
-from src.backend.app import create_app
-from models import ShiftTemplate, db, Settings
-from models.fixed_shift import ShiftType
 import argparse
+
+from models import Settings, ShiftTemplate, db
+from models.fixed_shift import ShiftType
+
+from src.backend.app import create_app
 
 
 def create_sample_shifts(bypass_validation=False):

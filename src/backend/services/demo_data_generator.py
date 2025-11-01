@@ -2,7 +2,7 @@ import logging
 import random
 import time
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Any
 
 from models import (
     Absence,
@@ -38,7 +38,7 @@ class DemoDataGenerator:
             db.session.commit()
         return settings
 
-    def generate_employee_types(self) -> List[Dict[str, Any]]:
+    def generate_employee_types(self) -> list[dict[str, Any]]:
         """Generate employee type configurations."""
         return [
             {
@@ -71,7 +71,7 @@ class DemoDataGenerator:
             },
         ]
 
-    def generate_absence_types(self) -> List[Dict[str, Any]]:
+    def generate_absence_types(self) -> list[dict[str, Any]]:
         """Generate absence type configurations."""
         return [
             {"id": "URL", "name": "Urlaub", "color": "#FF9800", "type": "absence"},
@@ -99,7 +99,7 @@ class DemoDataGenerator:
             logger.error(f"Error clearing existing data: {e}")
             raise
 
-    def _generate_employee_data(self) -> List[Employee]:
+    def _generate_employee_data(self) -> list[Employee]:
         """Generate employee data with proper distribution."""
         employee_types = self.generate_employee_types()
         employees = []
@@ -263,7 +263,7 @@ class DemoDataGenerator:
             or contracted_hours > 20
         )
 
-    def _generate_coverage_data(self) -> List[Coverage]:
+    def _generate_coverage_data(self) -> list[Coverage]:
         """Generate coverage data with proper distribution."""
         coverage_slots = []
         for day_index in range(0, 6):  # Monday (0) to Saturday (5)
@@ -295,7 +295,7 @@ class DemoDataGenerator:
             )
         return coverage_slots
 
-    def _save_data_in_chunks(self, objects: List[Any], chunk_size: int = 1000):
+    def _save_data_in_chunks(self, objects: list[Any], chunk_size: int = 1000):
         """Save data in chunks to avoid memory issues."""
         for i in range(0, len(objects), chunk_size):
             chunk = objects[i : i + chunk_size]
@@ -303,7 +303,7 @@ class DemoDataGenerator:
                 db.session.bulk_save_objects(chunk)
         logger.info(f"Saved {len(objects)} objects in chunks")
 
-    def _generate_shift_templates(self) -> List[ShiftTemplate]:
+    def _generate_shift_templates(self) -> list[ShiftTemplate]:
         """Generate diverse shift templates that align with coverage requirements."""
         logger.info("Generating shift templates...")
 
@@ -386,8 +386,8 @@ class DemoDataGenerator:
         return shift_templates
 
     def _generate_improved_availability_data(
-        self, employees: List[Employee]
-    ) -> List[EmployeeAvailability]:
+        self, employees: list[Employee]
+    ) -> list[EmployeeAvailability]:
         """Generate optimized availability data ensuring coverage requirements are met."""
         availabilities = []
 
@@ -413,7 +413,7 @@ class DemoDataGenerator:
         # Step 1: Ensure keyholders have availability for each time slot
         keyholders = [e for e in employees if e.is_keyholder]
         for day in working_days:
-            for slot_idx, (start_hour, end_hour) in enumerate([(9, 14), (14, 20)]):
+            for _slot_idx, (start_hour, end_hour) in enumerate([(9, 14), (14, 20)]):
                 slot_keyholders = random.sample(keyholders, min(2, len(keyholders)))
                 for keyholder in slot_keyholders:
                     for hour in range(start_hour, end_hour):
@@ -428,7 +428,7 @@ class DemoDataGenerator:
                         availabilities.append(availability)
 
         # Process each employee type
-        for employee_type, group_employees in employee_groups.items():
+        for _employee_type, group_employees in employee_groups.items():
             for employee in group_employees:
                 employee_availabilities = []
                 target_hours = employee.contracted_hours * (
@@ -542,7 +542,7 @@ class DemoDataGenerator:
 
         return availabilities
 
-    def _generate_improved_absences(self, employees: List[Employee]) -> List[Absence]:
+    def _generate_improved_absences(self, employees: list[Employee]) -> list[Absence]:
         """Generate realistic absences for employees."""
         logger.info("Generating improved absences...")
 
@@ -679,7 +679,7 @@ class DemoDataGenerator:
 
         return absences
 
-    def generate_demo_data(self) -> Dict[str, Any]:
+    def generate_demo_data(self) -> dict[str, Any]:
         """Main method to generate all demo data with proper error handling and transactions."""
         for attempt in range(self.retry_config["max_retries"]):
             try:

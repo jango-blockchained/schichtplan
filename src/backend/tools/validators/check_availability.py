@@ -1,7 +1,8 @@
-from backend.app import create_app
-from datetime import date
-import traceback
 import sys
+import traceback
+from datetime import date
+
+from backend.app import create_app
 
 
 def check_employee_availability():

@@ -77,6 +77,8 @@ except ImportError:
 
 
 # Import the extracted modules
+import contextlib
+
 from .availability import AvailabilityChecker
 from .config import SchedulerConfig  # Generator's own runtime config
 from .constraints import ConstraintChecker
@@ -1407,24 +1409,19 @@ class ScheduleGenerator:
                                         if is_active
                                     ]
                             except (json.JSONDecodeError, ValueError):
-                                try:
+                                with contextlib.suppress(ValueError):
                                     shift_active_days = [
                                         int(d.strip())
                                         for d in shift_template.active_days.split(",")
                                         if d.strip()
                                     ]
-                                except ValueError:
-                                    pass
 
                     # Get shift type - try multiple attributes
                     shift_type = None
                     if hasattr(shift_template, "shift_type_id"):
                         stid = shift_template.shift_type_id
                         # If it's a MagicMock (from test), treat as not set
-                        if isinstance(stid, str):
-                            shift_type = stid
-                        else:
-                            shift_type = None
+                        shift_type = stid if isinstance(stid, str) else None
                     elif hasattr(shift_template, "shift_type"):
                         # Handle both string and enum values
                         if hasattr(shift_template.shift_type, "value"):
@@ -1521,20 +1518,19 @@ class ScheduleGenerator:
                 elif (
                     hasattr(self.resources.settings, "special_hours")
                     and self.resources.settings.special_hours
+                ) and (
+                    date_str in self.resources.settings.special_hours
+                    and self.resources.settings.special_hours[date_str].get(
+                        "is_closed", False
+                    )
                 ):
-                    if (
-                        date_str in self.resources.settings.special_hours
-                        and self.resources.settings.special_hours[date_str].get(
-                            "is_closed", False
-                        )
-                    ):
-                        self.logger.info(
-                            f"Store is closed on {date_str} (special hours setting)"
-                        )
-                        self.process_tracker.log_info(
-                            f"Skipping date {date_str}: Store closed (special hours)"
-                        )
-                        return []
+                    self.logger.info(
+                        f"Store is closed on {date_str} (special hours setting)"
+                    )
+                    self.process_tracker.log_info(
+                        f"Skipping date {date_str}: Store closed (special hours)"
+                    )
+                    return []
 
             # Sub-step: Create Shift Instances
             self.process_tracker.start_step(f"Create Shift Instances for {date_str}")

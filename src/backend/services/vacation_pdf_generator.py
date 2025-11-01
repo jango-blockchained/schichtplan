@@ -190,13 +190,10 @@ class VacationPDFGenerator:
             # Determine status
             if remaining_days < 0:
                 status = "Überbucht"
-                status_color = colors.red
             elif remaining_days == 0:
                 status = "Voll"
-                status_color = colors.orange
             else:
                 status = "OK"
-                status_color = colors.green
 
             table_data.append(
                 [

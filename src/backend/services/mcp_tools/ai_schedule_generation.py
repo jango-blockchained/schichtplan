@@ -4,7 +4,7 @@ AI-Powered Schedule Generation Tools for MCP Service
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastmcp import Context
 
@@ -26,10 +26,10 @@ class AIScheduleGenerationTools:
             ctx: Context,
             start_date: str,
             end_date: str,
-            optimization_criteria: Optional[Dict[str, Any]] = None,
-            constraints: Optional[Dict[str, Any]] = None,
+            optimization_criteria: dict[str, Any] | None = None,
+            constraints: dict[str, Any] | None = None,
             generation_strategy: str = "balanced",
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             """Generate a complete schedule using AI optimization algorithms.
 
             Args:

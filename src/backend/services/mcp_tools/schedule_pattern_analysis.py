@@ -4,7 +4,7 @@ Schedule Pattern Analysis Tools for MCP Service
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastmcp import Context
 
@@ -26,9 +26,9 @@ class SchedulePatternAnalysisTools:
             ctx: Context,
             start_date: str,
             end_date: str,
-            pattern_types: Optional[List[str]] = None,
+            pattern_types: list[str] | None = None,
             historical_periods: int = 3,
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             """Analyze scheduling patterns and trends for optimization insights.
 
             Args:

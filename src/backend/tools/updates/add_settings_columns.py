@@ -1,6 +1,6 @@
+import sqlalchemy as sa
 from app import create_app
 from models import db
-import sqlalchemy as sa
 
 
 def add_columns():

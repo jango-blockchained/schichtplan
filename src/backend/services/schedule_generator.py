@@ -1,22 +1,22 @@
-from datetime import datetime, timedelta, date
-import warnings
 import logging
-import traceback
-from typing import List, Dict, Any, Optional, Tuple
 import os
-
-# Import from new package
-from .scheduler import (
-    ScheduleGenerator,
-    ScheduleGenerationError,
-    is_early_shift,
-    is_late_shift,
-    requires_keyholder,
-    ScheduleResources,
-)
+import traceback
+import warnings
+from datetime import date, datetime, timedelta
+from typing import Any
 
 # Import central logger
 from ..utils.logger import logger
+
+# Import from new package
+from .scheduler import (
+    ScheduleGenerationError,
+    ScheduleGenerator,
+    ScheduleResources,
+    is_early_shift,
+    is_late_shift,
+    requires_keyholder,
+)
 
 # Show deprecation warning
 warnings.warn(
@@ -40,14 +40,14 @@ else:
 
 # Original imports for backward compatibility
 from models import (
+    Absence,
+    Coverage,
     Employee,
-    ShiftTemplate,
+    EmployeeAvailability,
     Schedule,
     Settings,
-    EmployeeAvailability,
-    Coverage,
+    ShiftTemplate,
     db,
-    Absence,
 )
 from models.employee import AvailabilityType, EmployeeGroup
 from utils.logger import logger
@@ -164,23 +164,23 @@ class ScheduleResources:
             logger.error(f"Error loading resources: {str(e)}")
             raise
 
-    def get_active_employees(self) -> List[Employee]:
+    def get_active_employees(self) -> list[Employee]:
         """Get list of active employees"""
         return self.employees
 
-    def get_shifts(self) -> List[ShiftTemplate]:
+    def get_shifts(self) -> list[ShiftTemplate]:
         """Get list of shifts"""
         return self.shifts
 
-    def get_availability_data(self) -> List[EmployeeAvailability]:
+    def get_availability_data(self) -> list[EmployeeAvailability]:
         """Get availability data"""
         return self.availability_data
 
-    def get_coverage_data(self) -> List[Coverage]:
+    def get_coverage_data(self) -> list[Coverage]:
         """Get coverage data"""
         return self.coverage_data
 
-    def get_schedule_data(self) -> Dict[Tuple[int, date], Schedule]:
+    def get_schedule_data(self) -> dict[tuple[int, date], Schedule]:
         """Get schedule data"""
         return self.schedule_data
 
@@ -188,7 +188,7 @@ class ScheduleResources:
         """Add a schedule entry"""
         self.schedule_data[(employee_id, date)] = schedule
 
-    def get_schedule_entry(self, employee_id: int, date: date) -> Optional[Schedule]:
+    def get_schedule_entry(self, employee_id: int, date: date) -> Schedule | None:
         """Get a schedule entry"""
         return self.schedule_data.get((employee_id, date))
 
@@ -208,8 +208,8 @@ class ScheduleGenerator:
     def __init__(self):
         logger.info("Initializing ScheduleGenerator")
         self.resources = ScheduleResources()
-        self.schedule_cache: Dict[str, List[Schedule]] = {}
-        self.generation_errors: List[Dict[str, Any]] = []
+        self.schedule_cache: dict[str, list[Schedule]] = {}
+        self.generation_errors: list[dict[str, Any]] = []
         self.version = 1  # Initialize version attribute
 
         # Ensure schedule_data is initialized
@@ -1144,7 +1144,7 @@ class ScheduleGenerator:
 
     def _get_available_employees(
         self, date: date, start_time: str, end_time: str
-    ) -> List[Employee]:
+    ) -> list[Employee]:
         """Get list of available employees for a given time slot"""
         available_employees = []
 
@@ -1256,7 +1256,7 @@ class ScheduleGenerator:
         return available_employees
 
     def _assign_employees_to_slot(
-        self, date: date, coverage: Coverage, candidates: List[Employee]
+        self, date: date, coverage: Coverage, candidates: list[Employee]
     ):
         """Assign employees to a coverage slot"""
         logger.debug(
@@ -1447,7 +1447,7 @@ class ScheduleGenerator:
         logger.warning(f"Could not assign enough employees to coverage {coverage.id}")
         return False
 
-    def _verify_minimum_coverage(self) -> List[Dict[str, Any]]:
+    def _verify_minimum_coverage(self) -> list[dict[str, Any]]:
         """Verify that minimum coverage requirements are met"""
         issues = []
         for date in self._get_date_range():
@@ -1470,7 +1470,7 @@ class ScheduleGenerator:
                     )
         return issues
 
-    def _verify_exact_hours(self) -> List[Dict[str, Any]]:
+    def _verify_exact_hours(self) -> list[dict[str, Any]]:
         """Verify that VZ and TZ employees have exact required hours"""
         issues = []
         for employee in self.resources.employees:
@@ -1490,7 +1490,7 @@ class ScheduleGenerator:
                     )
         return issues
 
-    def _verify_keyholder_coverage(self) -> List[Dict[str, Any]]:
+    def _verify_keyholder_coverage(self) -> list[dict[str, Any]]:
         """Verify that all early/late shifts have a keyholder"""
         issues = []
         for date in self._get_date_range():
@@ -1513,7 +1513,7 @@ class ScheduleGenerator:
                         )
         return issues
 
-    def _verify_rest_periods(self) -> List[Dict[str, Any]]:
+    def _verify_rest_periods(self) -> list[dict[str, Any]]:
         """Verify minimum rest periods between shifts"""
         issues = []
         for employee in self.resources.employees:
@@ -1540,7 +1540,7 @@ class ScheduleGenerator:
                         )
         return issues
 
-    def _get_date_range(self) -> List[date]:
+    def _get_date_range(self) -> list[date]:
         """Get all dates in the current schedule period"""
         schedules = Schedule.query.order_by(Schedule.date).all()
         if not schedules:
@@ -1556,7 +1556,7 @@ class ScheduleGenerator:
 
     def _get_employees_for_time(
         self, date: date, start_time: str, end_time: str
-    ) -> List[Employee]:
+    ) -> list[Employee]:
         """Get all employees scheduled for a specific time slot"""
         schedules = Schedule.query.filter_by(date=date).all()
         return [
@@ -1816,8 +1816,8 @@ class ScheduleGenerator:
             return True  # Default to open if there's an error
 
     def _create_availability_lookup(
-        self, availabilities: List[EmployeeAvailability]
-    ) -> Dict[str, List[EmployeeAvailability]]:
+        self, availabilities: list[EmployeeAvailability]
+    ) -> dict[str, list[EmployeeAvailability]]:
         """Create a lookup dictionary for employee availabilities"""
         lookup = {}
         for availability in availabilities:
@@ -1830,10 +1830,10 @@ class ScheduleGenerator:
     def _assign_employees_to_shift(
         self,
         shift: ShiftTemplate,
-        employees: List[Employee],
+        employees: list[Employee],
         date: datetime,
-        availability_lookup: Dict[str, List[EmployeeAvailability]],
-    ) -> List[Employee]:
+        availability_lookup: dict[str, list[EmployeeAvailability]],
+    ) -> list[Employee]:
         """Assign employees to a shift based on availability and constraints"""
         logger.debug(
             f"Assigning employees to shift {shift.start_time}-{shift.end_time} on {date}"
@@ -2541,7 +2541,7 @@ class ScheduleGenerator:
             date_str = date.strftime("%Y-%m-%d")
 
             # Check if employee has any assignments on this date
-            for key, schedule_entry in resources.schedule_data.items():
+            for key, _schedule_entry in resources.schedule_data.items():
                 if key[0] == employee.id and key[1] == date:
                     self._log_detailed_debug(
                         f"Employee {employee.id} is already assigned to shifts on {date_str}",

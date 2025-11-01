@@ -1,9 +1,9 @@
 """Serialization utilities for the scheduler."""
 
-from datetime import date, datetime
-from typing import Dict, List, Any, Optional
-import sys
 import os
+import sys
+from datetime import date, datetime
+from typing import Any
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -13,17 +13,17 @@ if src_backend_dir not in sys.path:
 
 # Try to handle imports in different environments
 try:
-    from models import Employee, ShiftTemplate, Schedule
+    from models import Employee, Schedule, ShiftTemplate
     from models.employee import AvailabilityType
     from utils.logger import logger
 except ImportError:
     try:
-        from backend.models import Employee, ShiftTemplate, Schedule
+        from backend.models import Employee, Schedule, ShiftTemplate
         from backend.models.employee import AvailabilityType
         from backend.utils.logger import logger
     except ImportError:
         try:
-            from src.backend.models import Employee, ShiftTemplate, Schedule
+            from src.backend.models import Employee, Schedule, ShiftTemplate
             from src.backend.models.employee import AvailabilityType
             from src.backend.utils.logger import logger
         except ImportError:
@@ -50,7 +50,7 @@ except ImportError:
                 end_time: str
                 shift_type: str
                 duration_hours: float
-                required_skills: List[str] = []
+                required_skills: list[str] = []
 
             class Schedule:
                 """Type hint class for Schedule"""
@@ -68,7 +68,7 @@ except ImportError:
                 id: int
                 start_date: date
                 end_date: date
-                entries: List[Entry] = []
+                entries: list[Entry] = []
                 status: str = "DRAFT"
                 version: int = 1
 
@@ -79,7 +79,7 @@ class ScheduleSerializer:
     def __init__(self, logger):
         self.logger = logger
 
-    def serialize_schedule(self, schedule) -> Dict[str, Any]:
+    def serialize_schedule(self, schedule) -> dict[str, Any]:
         """Convert a schedule object to a dictionary"""
         try:
             if not schedule:
@@ -110,7 +110,7 @@ class ScheduleSerializer:
             self.log_error(f"Error serializing schedule to JSON: {str(e)}")
             raise
 
-    def convert_schedule_to_dict(self, schedule) -> Dict[str, Any]:
+    def convert_schedule_to_dict(self, schedule) -> dict[str, Any]:
         """Convert a schedule object to a dictionary for API responses"""
         if not schedule:
             return {}
@@ -142,7 +142,7 @@ class ScheduleSerializer:
         result["entries"] = entries
         return result
 
-    def convert_entry_to_dict(self, entry) -> Dict[str, Any]:
+    def convert_entry_to_dict(self, entry) -> dict[str, Any]:
         """Convert a schedule entry to a dictionary"""
         if not entry:
             return {}
@@ -173,7 +173,7 @@ class ScheduleSerializer:
             self.log_error(f"Error converting entry to dict: {str(e)}")
             return {}
 
-    def convert_shift_to_dict(self, shift) -> Dict[str, Any]:
+    def convert_shift_to_dict(self, shift) -> dict[str, Any]:
         """Convert a shift template to a dictionary"""
         if not shift:
             return {}
@@ -196,7 +196,7 @@ class ScheduleSerializer:
 
     def create_schedule_entries(
         self, employees_assigned, schedule_id=None, status="DRAFT", version=None
-    ) -> List[Any]:
+    ) -> list[Any]:
         """
         Create schedule entries from assigned employees
         """
@@ -206,21 +206,17 @@ class ScheduleSerializer:
             # Get employee ID and other data
             if isinstance(assignment, dict):
                 employee_id = assignment.get("employee_id")
-                shift_id = assignment.get("shift_id")
+                assignment.get("shift_id")
                 assignment_date = assignment.get("date")
-                shift_template = assignment.get("shift_template")
-                availability_type = assignment.get(
+                assignment.get("shift_template")
+                assignment.get(
                     "availability_type", AvailabilityType.AVAILABLE.value
                 )
-                assignment_status = assignment.get("status", status)
+                assignment.get("status", status)
                 assignment_version = assignment.get("version", version or 1)
             else:
                 employee_id = assignment.id
-                shift_id = None  # Will be determined based on best match
                 assignment_date = None  # Will be determined from context
-                shift_template = None
-                availability_type = AvailabilityType.AVAILABLE.value
-                assignment_status = status
                 assignment_version = version or 1
 
             try:
@@ -253,7 +249,7 @@ class ScheduleSerializer:
 
         return entries
 
-    def format_date(self, date_value) -> Optional[str]:
+    def format_date(self, date_value) -> str | None:
         """Format a date value to ISO format string"""
         if not date_value:
             return None

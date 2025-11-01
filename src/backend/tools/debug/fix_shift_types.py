@@ -5,9 +5,9 @@ Fix Shift Types
 This script fixes inconsistent shift type configurations in the database.
 """
 
+import logging
 import os
 import sys
-import logging
 
 # Add parent directories to path
 current_dir = os.path.dirname(os.path.abspath(__file__))

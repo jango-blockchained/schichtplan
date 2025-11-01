@@ -3,7 +3,6 @@ Utility functions for processing coverage data in the scheduler.
 """
 
 import datetime
-from typing import Dict, Optional
 
 # Assuming ScheduleResources is in a sibling file resources.py
 # and Coverage model is two levels up in models directory
@@ -11,7 +10,7 @@ from typing import Dict, Optional
 from .resources import ScheduleResources
 
 
-def _time_str_to_datetime_time(time_str: str) -> Optional[datetime.time]:
+def _time_str_to_datetime_time(time_str: str) -> datetime.time | None:
     """Converts an 'HH:MM' string to a datetime.time object."""
     if not time_str or len(time_str) != 5 or time_str[2] != ":":
         # Basic validation, can be enhanced
@@ -28,7 +27,7 @@ def get_required_staffing_for_interval(
     resources: ScheduleResources,
     # Default interval duration to 15 minutes, can be made configurable
     interval_duration_minutes: int = 15,
-) -> Dict:
+) -> dict:
     """
     Calculates the specific staffing needs for a given time interval on a target date.
 
@@ -76,7 +75,7 @@ def get_required_staffing_for_interval(
     # Calculate the end time of the interval for checking against Coverage.end_time
     # interval_end_time will be exclusive for comparisons
     interval_start_dt = datetime.datetime.combine(target_date, interval_start_time)
-    interval_end_dt = interval_start_dt + datetime.timedelta(
+    interval_start_dt + datetime.timedelta(
         minutes=interval_duration_minutes
     )
     # interval_end_time_for_comparison = interval_end_dt.time() # This might cross midnight

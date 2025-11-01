@@ -9,7 +9,6 @@ import calendar
 from dataclasses import dataclass
 from datetime import date, timedelta
 from enum import Enum
-from typing import List, Tuple
 
 
 class WeekendStart(Enum):
@@ -35,7 +34,7 @@ class WeekInfo:
     start_date: date
     end_date: date
     spans_months: bool
-    months: List[str]  # Month names that this week spans
+    months: list[str]  # Month names that this week spans
     identifier: str  # Week identifier like "2024-W15"
 
 
@@ -117,9 +116,6 @@ def get_week_from_identifier(week_identifier: str) -> WeekInfo:
     if not (1 <= week_number <= 53):
         raise ValueError(f"Invalid week number: {week_number}")
 
-    # Find the first day of the year
-    jan_1 = date(year, 1, 1)
-
     # Find the first Monday of the year (start of week 1)
     # ISO 8601: Week 1 is the first week with at least 4 days in the new year
     jan_4 = date(year, 1, 4)  # Always in week 1
@@ -184,11 +180,10 @@ def get_week_range(start_week: str, end_week: str) -> WeekRange:
     # Create identifier
     if start_week == end_week:
         identifier = start_week
+    elif start_info.year == end_info.year:
+        identifier = f"{start_info.year}-W{start_info.week_number:02d}-W{end_info.week_number:02d}"
     else:
-        if start_info.year == end_info.year:
-            identifier = f"{start_info.year}-W{start_info.week_number:02d}-W{end_info.week_number:02d}"
-        else:
-            identifier = f"{start_week}-{end_week}"
+        identifier = f"{start_week}-{end_week}"
 
     return WeekRange(
         start_week=start_info,
@@ -200,7 +195,7 @@ def get_week_range(start_week: str, end_week: str) -> WeekRange:
 
 def handle_month_boundary(
     week_info: WeekInfo, mode: MonthBoundaryMode
-) -> List[Tuple[date, date]]:
+) -> list[tuple[date, date]]:
     """
     Handle month boundary splitting based on the specified mode.
 
@@ -260,7 +255,7 @@ class WeekSegmentInfo:
 
 def get_week_segments(
     week_info: WeekInfo, mode: MonthBoundaryMode
-) -> List[WeekSegmentInfo]:
+) -> list[WeekSegmentInfo]:
     """
     Get week segments based on month boundary mode.
 

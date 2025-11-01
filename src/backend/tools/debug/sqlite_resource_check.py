@@ -4,12 +4,12 @@ SQLite resource check and fix tool.
 This script directly works with the SQLite database to check and fix resource data.
 """
 
-import os
-import sys
 import json
-import sqlite3
-from datetime import date, datetime
+import os
 import random
+import sqlite3
+import sys
+from datetime import date, datetime
 
 # Add the parent directories to path to resolve imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -388,7 +388,6 @@ def verify_resources_for_scheduler(cursor, test_date):
     print(f"Applicable shifts for {test_date}: {len(applicable_shifts)}/{len(shifts)}")
 
     # For coverage, ensure we have records for this weekday
-    applicable_coverage = []
     day_index = weekday + 1  # Convert to 1=Monday, 7=Sunday
     if day_index == 7:  # If Sunday became 7, make it 0
         day_index = 0

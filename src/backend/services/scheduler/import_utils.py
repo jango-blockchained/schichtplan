@@ -7,9 +7,9 @@ the scheduler components.
 """
 
 import logging
-import sys
 import os
-from typing import Any, Dict, Optional, Tuple, Type
+import sys
+from typing import Any
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -32,7 +32,7 @@ class ModelImportError(ImportError):
     pass
 
 
-def import_models() -> Tuple[Any, ...]:
+def import_models() -> tuple[Any, ...]:
     """
     Import all required model classes with standardized fallback handling.
 
@@ -72,14 +72,14 @@ def import_models() -> Tuple[Any, ...]:
 def _import_from_backend_models():
     """Import from backend.models package"""
     from backend.models import (
-        Employee,
-        ShiftTemplate,
-        Settings,
-        Coverage,
-        db,
         Absence,
+        Coverage,
+        Employee,
         EmployeeAvailability,
         Schedule,
+        Settings,
+        ShiftTemplate,
+        db,
     )
     from backend.models.employee import AvailabilityType, EmployeeGroup
 
@@ -100,14 +100,14 @@ def _import_from_backend_models():
 def _import_from_models():
     """Import from models package"""
     from models import (
-        Employee,
-        ShiftTemplate,
-        Settings,
-        Coverage,
-        db,
         Absence,
+        Coverage,
+        Employee,
         EmployeeAvailability,
         Schedule,
+        Settings,
+        ShiftTemplate,
+        db,
     )
     from models.employee import AvailabilityType, EmployeeGroup
 
@@ -128,14 +128,14 @@ def _import_from_models():
 def _import_from_src_backend_models():
     """Import from src.backend.models package"""
     from src.backend.models import (
-        Employee,
-        ShiftTemplate,
-        Settings,
-        Coverage,
-        db,
         Absence,
+        Coverage,
+        Employee,
         EmployeeAvailability,
         Schedule,
+        Settings,
+        ShiftTemplate,
+        db,
     )
     from src.backend.models.employee import AvailabilityType, EmployeeGroup
 
@@ -153,7 +153,7 @@ def _import_from_src_backend_models():
     )
 
 
-def import_availability_type() -> Type:
+def import_availability_type() -> type:
     """
     Import AvailabilityType enum with fallback handling.
 
@@ -219,7 +219,7 @@ def _create_fallback_availability_type():
     return AvailabilityType
 
 
-def create_mock_models() -> Dict[str, Type]:
+def create_mock_models() -> dict[str, type]:
     """
     Create mock model classes for testing when real models are unavailable.
 
@@ -399,7 +399,7 @@ def create_mock_models() -> Dict[str, Type]:
     }
 
 
-def safe_import_models(use_mocks_on_failure: bool = True) -> Tuple[Any, ...]:
+def safe_import_models(use_mocks_on_failure: bool = True) -> tuple[Any, ...]:
     """
     Safely import models with optional fallback to mocks.
 
@@ -448,8 +448,8 @@ def get_flask_app_context():
 def validate_imports():
     """Validate that all required imports are working"""
     try:
-        models = import_models()
-        availability_type = import_availability_type()
+        import_models()
+        import_availability_type()
         logger.info("All imports validated successfully")
         return True
     except Exception as e:

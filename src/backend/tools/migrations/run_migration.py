@@ -5,6 +5,7 @@ Script to run Alembic migrations.
 
 import os
 import sys
+
 import click
 from alembic import command
 from alembic.config import Config

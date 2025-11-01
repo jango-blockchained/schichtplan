@@ -1,18 +1,20 @@
-from . import db
-from enum import Enum
+import uuid
 from datetime import datetime
-from werkzeug.security import generate_password_hash, check_password_hash
+from enum import Enum
+
 from sqlalchemy import (
-    Column,
-    Integer,
-    String,
     Boolean,
-    ForeignKey,
+    Column,
     DateTime,
     Enum as SQLEnum,
+    ForeignKey,
+    Integer,
+    String,
 )
 from sqlalchemy.orm import relationship
-import uuid
+from werkzeug.security import check_password_hash, generate_password_hash
+
+from . import db
 
 
 class UserRole(str, Enum):

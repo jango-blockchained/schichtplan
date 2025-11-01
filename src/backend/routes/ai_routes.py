@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import json
 import traceback
 import uuid
@@ -875,10 +876,8 @@ def list_tasks():
 
         task_type_filter = None
         if task_type_str:
-            try:
+            with contextlib.suppress(KeyError):
                 task_type_filter = TaskType[task_type_str.upper()]
-            except KeyError:
-                pass
 
         # Get tasks
         tasks = background_task_manager.list_tasks(

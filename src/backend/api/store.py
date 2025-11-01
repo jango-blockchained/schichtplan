@@ -1,8 +1,10 @@
-from flask import Blueprint, request, jsonify
-from src.backend.models import db, Settings
-from sqlalchemy.exc import IntegrityError
-from http import HTTPStatus
 from datetime import datetime
+from http import HTTPStatus
+
+from flask import Blueprint, jsonify, request
+from sqlalchemy.exc import IntegrityError
+
+from src.backend.models import Settings, db
 
 bp = Blueprint("store", __name__, url_prefix="/api/store")
 

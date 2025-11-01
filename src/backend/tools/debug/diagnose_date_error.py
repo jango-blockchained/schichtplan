@@ -3,10 +3,12 @@
 Diagnostic script to trace date handling issues in the scheduler.
 """
 
-from src.backend.app import create_app
-from services.scheduler import ScheduleGenerator
-from datetime import date, timedelta, datetime
 import traceback
+from datetime import date, datetime, timedelta
+
+from services.scheduler import ScheduleGenerator
+
+from src.backend.app import create_app
 
 
 def diagnose_date_error():

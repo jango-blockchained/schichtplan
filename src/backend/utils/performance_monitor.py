@@ -6,7 +6,6 @@ import functools
 import logging
 import time
 from datetime import datetime
-from typing import Dict, List, Optional
 
 from flask import g, request
 
@@ -17,7 +16,7 @@ class PerformanceMonitor:
     """Monitor and track performance metrics for API endpoints."""
 
     def __init__(self):
-        self.metrics: Dict[str, List[Dict]] = {}
+        self.metrics: dict[str, list[dict]] = {}
         self.alert_thresholds = {
             "response_time": 2.0,  # seconds
             "error_rate": 0.05,  # 5%
@@ -29,7 +28,7 @@ class PerformanceMonitor:
         g.request_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{id(request)}"
 
     def track_request_end(
-        self, endpoint: str, status_code: int, error: Optional[str] = None
+        self, endpoint: str, status_code: int, error: str | None = None
     ):
         """Track the completion of a request."""
         if not hasattr(g, "request_start_time"):
@@ -77,7 +76,7 @@ class PerformanceMonitor:
                     f"High error rate detected: {endpoint} has {error_rate:.1%} error rate"
                 )
 
-    def get_endpoint_stats(self, endpoint: str) -> Dict:
+    def get_endpoint_stats(self, endpoint: str) -> dict:
         """Get performance statistics for a specific endpoint."""
         if endpoint not in self.metrics:
             return {}
@@ -102,7 +101,7 @@ class PerformanceMonitor:
             "recent_errors": [m for m in metrics[-10:] if m["status_code"] >= 400],
         }
 
-    def get_overall_stats(self) -> Dict:
+    def get_overall_stats(self) -> dict:
         """Get overall performance statistics."""
         all_metrics = []
         for endpoint_metrics in self.metrics.values():
@@ -127,7 +126,7 @@ class PerformanceMonitor:
             "last_updated": datetime.now().isoformat(),
         }
 
-    def _get_slowest_endpoints(self) -> List[Dict]:
+    def _get_slowest_endpoints(self) -> list[dict]:
         """Get the slowest endpoints by average response time."""
         endpoint_averages = []
         for endpoint in self.metrics:

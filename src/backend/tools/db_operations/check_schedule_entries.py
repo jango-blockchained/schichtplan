@@ -3,10 +3,11 @@
 Script to check if schedule entries are being saved to the database.
 """
 
-from src.backend.app import create_app
-from src.backend.models import Schedule, Employee, ShiftTemplate, db
-from src.backend.services.scheduler import ScheduleGenerator
 from datetime import date, timedelta
+
+from src.backend.app import create_app
+from src.backend.models import Employee, Schedule, ShiftTemplate, db
+from src.backend.services.scheduler import ScheduleGenerator
 
 
 def check_schedule_entries():

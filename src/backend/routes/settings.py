@@ -473,7 +473,7 @@ def get_logs():
 
             # Read the last few lines for preview
             try:
-                with open(log_path, "r") as f:
+                with open(log_path) as f:
                     # Read last 5 lines for preview
                     lines = f.readlines()[-5:]
                     preview = "".join(lines).strip()
@@ -517,7 +517,7 @@ def get_log_content(filename):
         if not os.path.realpath(final_path).startswith(os.path.realpath(logs_dir)):
             return jsonify({"error": "Invalid log file path"}), HTTPStatus.BAD_REQUEST
 
-        with open(final_path, "r") as f:
+        with open(final_path) as f:
             content = f.read()
 
         return jsonify(

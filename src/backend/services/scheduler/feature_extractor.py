@@ -1,7 +1,7 @@
 """Module for extracting features from scheduling data for ML models."""
 
-from typing import List, Dict, Any
 from datetime import date
+from typing import Any
 
 # Import necessary models or data structures
 # from src.backend.models import Employee, ShiftTemplate, Schedule # Example imports
@@ -23,8 +23,8 @@ class FeatureExtractor:
         # TODO: Initialize or load any required data here
 
     def extract_features_for_prediction(
-        self, potential_assignments: List[Dict[str, Any]], current_date: date
-    ) -> List[Dict[str, Any]]:
+        self, potential_assignments: list[dict[str, Any]], current_date: date
+    ) -> list[dict[str, Any]]:
         """
         Extracts features for a list of potential employee-shift assignments for a specific date.
 
@@ -68,8 +68,8 @@ class FeatureExtractor:
 
     def extract_features_for_training(
         self,
-        historical_schedules: List[Any],
-        other_historical_data: Dict[str, Any],  # e.g., manual edits, feedback
+        historical_schedules: list[Any],
+        other_historical_data: dict[str, Any],  # e.g., manual edits, feedback
     ) -> Any:
         """
         Extracts features and labels from historical data for ML model training.

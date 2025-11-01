@@ -5,10 +5,10 @@ import sys
 backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, backend_dir)
 
-from models import db
-from models.shift import Shift
-from models.settings import Settings
 from flask import Flask
+from models import db
+from models.settings import Settings
+from models.shift import Shift
 
 # Create a Flask application context
 app = Flask(__name__)

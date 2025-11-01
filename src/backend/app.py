@@ -24,6 +24,8 @@ except ImportError:
 # if str(current_dir) not in sys.path:
 #     sys.path.append(str(current_dir))
 
+import contextlib
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_migrate import Migrate
@@ -115,11 +117,10 @@ def setup_logging(app):
 
 
 def create_app(config_class=Config):
-    if isinstance(config_class, str):
-        if config_class.lower() == "testing":
-            from src.backend.testing import TestingConfig
+    if isinstance(config_class, str) and config_class.lower() == "testing":
+        from src.backend.testing import TestingConfig
 
-            config_class = TestingConfig
+        config_class = TestingConfig
     app = Flask(__name__)
     app.config.from_object(config_class)
 
@@ -179,10 +180,8 @@ def create_app(config_class=Config):
     Migrate(app, db, directory=migrations_dir)
 
     # Ensure the instance folder exists
-    try:
+    with contextlib.suppress(OSError):
         os.makedirs(app.instance_path)
-    except OSError:
-        pass
 
     # Initialize DB contents only when not testing
     if not app.config.get("TESTING", False):
@@ -237,7 +236,7 @@ def create_app(config_class=Config):
             # Exclude paths that should not be rewritten (like csv-import which has its own prefix)
             excluded_paths = ["/api/csv-import/"]
             should_exclude = any(path.startswith(excluded) for excluded in excluded_paths)
-            
+
             # If path starts with /api/ but not already /api/v2/ and not excluded
             if path.startswith("/api/") and not path.startswith("/api/v2/") and not should_exclude:
                 # Replace '/api/' prefix with '/api/v2/' once
@@ -368,7 +367,7 @@ def create_app(config_class=Config):
             # Generate schedule
             app.logger.info("Generating schedule")
             generator = ScheduleGenerator()
-            result = generator.generate(
+            generator.generate(
                 start_date=start_date,
                 end_date=end_date,
                 version=1,

@@ -4,7 +4,7 @@ Schedule Analysis Tools for MCP Service
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastmcp import Context
 
@@ -55,7 +55,7 @@ class ScheduleAnalysisTools:
             start_date: str,
             end_date: str,
             completion_threshold: float = 0.8,
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             """Analyze partially built schedule and suggest next steps for completion.
 
             Args:
@@ -151,9 +151,9 @@ class ScheduleAnalysisTools:
             ctx: Context,
             start_date: str,
             end_date: str,
-            focus_areas: Optional[List[str]] = None,
+            focus_areas: list[str] | None = None,
             max_suggestions: int = 10,
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             """Suggest improvements for existing schedule based on analysis.
 
             Args:

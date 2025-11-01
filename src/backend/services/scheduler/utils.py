@@ -1,18 +1,19 @@
 """Utility functions for scheduler setup and testing."""
 
 import logging
-from typing import Dict, Any, Optional
 from datetime import date
+from typing import Any
 
 # Import the Flask app for context management
 from src.backend.app import create_app
+
 from .generator import ScheduleGenerator
 
 
 def setup_scheduler_with_context(
     log_level: int = logging.DEBUG,
-    diagnostic_path: Optional[str] = None,
-    config: Optional[Dict[str, Any]] = None,
+    diagnostic_path: str | None = None,
+    config: dict[str, Any] | None = None,
 ) -> ScheduleGenerator:
     """
     Helper function to properly set up the scheduler with Flask application context.
@@ -53,11 +54,11 @@ def run_scheduler_test(
     start_date: date,
     end_date: date,
     create_empty_schedules: bool = True,
-    version: Optional[int] = None,
-    config: Optional[Dict[str, Any]] = None,
+    version: int | None = None,
+    config: dict[str, Any] | None = None,
     log_level: int = logging.DEBUG,
-    diagnostic_path: Optional[str] = None,
-) -> Dict[str, Any]:
+    diagnostic_path: str | None = None,
+) -> dict[str, Any]:
     """
     Run the scheduler with proper application context for testing or debugging.
 

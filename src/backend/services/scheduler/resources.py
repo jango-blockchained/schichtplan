@@ -5,7 +5,7 @@ import logging
 import os
 import sys
 from datetime import date
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from flask import current_app
 
@@ -53,14 +53,14 @@ class ScheduleResourceError(Exception):
 class ScheduleResources:
     """Centralized container for schedule generation resources"""
 
-    def __init__(self, app_instance: Optional[Any] = None):
-        self.settings: Optional[Settings] = None
-        self.coverage: List[Coverage] = []
-        self.shifts: List[ShiftTemplate] = []
-        self.employees: List[Employee] = []
-        self.absences: List[Absence] = []
-        self.availabilities: List[EmployeeAvailability] = []
-        self.schedule_data: Dict[Tuple[int, date], Schedule] = {}
+    def __init__(self, app_instance: Any | None = None):
+        self.settings: Settings | None = None
+        self.coverage: list[Coverage] = []
+        self.shifts: list[ShiftTemplate] = []
+        self.employees: list[Employee] = []
+        self.absences: list[Absence] = []
+        self.availabilities: list[EmployeeAvailability] = []
+        self.schedule_data: dict[tuple[int, date], Schedule] = {}
         # Caches for frequently accessed data
         self._employee_cache = {}
         self._coverage_cache = {}
@@ -169,7 +169,7 @@ class ScheduleResources:
             self.logger.error(f"Error loading settings: {str(e)}", exc_info=True)
             return None
 
-    def _load_coverage(self) -> List[Coverage]:
+    def _load_coverage(self) -> list[Coverage]:
         """Load coverage with error handling"""
         try:
             self.logger.info("Starting to load coverage data...")
@@ -232,7 +232,6 @@ class ScheduleResources:
                 )
 
             # Log coverage requirements by day
-            by_day = {}
             for day_idx in range(7):
                 day_name = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][day_idx]
                 # Filter coverage for the current day
@@ -257,7 +256,7 @@ class ScheduleResources:
             )  # Added exc_info
             return []
 
-    def _load_shifts(self) -> List[ShiftTemplate]:
+    def _load_shifts(self) -> list[ShiftTemplate]:
         """Load shifts with error handling"""
         try:
             # Create app context
@@ -328,7 +327,7 @@ class ScheduleResources:
             self.logger.error(f"Error loading shifts: {str(e)}", exc_info=True)
             return []
 
-    def _load_employees(self) -> List[Employee]:
+    def _load_employees(self) -> list[Employee]:
         """Load employees from database"""
         try:
             # Create app context
@@ -363,7 +362,7 @@ class ScheduleResources:
             )  # Added exc_info
             return []
 
-    def _load_absences(self) -> List[Absence]:
+    def _load_absences(self) -> list[Absence]:
         """Load absences with error handling"""
         try:
             # Create app context
@@ -391,7 +390,7 @@ class ScheduleResources:
             )  # Added exc_info
             return []
 
-    def _load_availabilities(self) -> List[EmployeeAvailability]:
+    def _load_availabilities(self) -> list[EmployeeAvailability]:
         """Load availabilities with error handling"""
         try:
             # Create app context
@@ -434,13 +433,13 @@ class ScheduleResources:
             self.logger.error(f"Error loading availabilities: {str(e)}", exc_info=True)
             return []
 
-    def get_keyholders(self) -> List[Employee]:
+    def get_keyholders(self) -> list[Employee]:
         """Return a list of keyholder employees"""
         return [
             emp for emp in self.employees if getattr(emp, "is_keyholder", False) is True
         ]
 
-    def get_employees_by_group(self, group: EmployeeGroup) -> List[Employee]:
+    def get_employees_by_group(self, group: EmployeeGroup) -> list[Employee]:
         """Return employees filtered by employee group"""
         return [
             emp
@@ -449,7 +448,7 @@ class ScheduleResources:
         ]
 
     @functools.lru_cache(maxsize=128)
-    def get_daily_coverage(self, day: date) -> List[Coverage]:
+    def get_daily_coverage(self, day: date) -> list[Coverage]:
         """Get coverage requirements for a specific day"""
         # Reset the cache if we haven't done so yet to avoid old data
         if not self._date_caches_cleared:
@@ -463,7 +462,7 @@ class ScheduleResources:
 
     def get_employee_absences(
         self, employee_id: int, start_date: date, end_date: date
-    ) -> List[Absence]:
+    ) -> list[Absence]:
         """Get absences for an employee in a date range"""
         # Check if employee exists to avoid unnecessary processing
         if self.get_employee(employee_id) is None:
@@ -483,7 +482,7 @@ class ScheduleResources:
 
     def get_employee_availability(
         self, employee_id: int, day_of_week: int
-    ) -> List[EmployeeAvailability]:
+    ) -> list[EmployeeAvailability]:
         """Get availability for an employee on a specific day of week"""
         # Skip employee cache check in testing environments
         # where we may not have loaded employees
@@ -576,7 +575,7 @@ class ScheduleResources:
         avails = self.get_employee_availabilities(employee_id, current_date)
         return avails[0] if avails else None
 
-    def get_schedule_data(self) -> Dict[Tuple[int, date], Schedule]:
+    def get_schedule_data(self) -> dict[tuple[int, date], Schedule]:
         """Get schedule data"""
         return self.schedule_data
 
@@ -584,7 +583,7 @@ class ScheduleResources:
         """Add a schedule entry"""
         self.schedule_data[(employee_id, date)] = schedule
 
-    def get_schedule_entry(self, employee_id: int, date: date) -> Optional[Schedule]:
+    def get_schedule_entry(self, employee_id: int, date: date) -> Schedule | None:
         """Get a schedule entry"""
         return self.schedule_data.get((employee_id, date))
 
@@ -597,11 +596,11 @@ class ScheduleResources:
         """Clear all schedule data"""
         self.schedule_data = {}
 
-    def get_active_employees(self) -> List[Employee]:
+    def get_active_employees(self) -> list[Employee]:
         """Get list of active employees (for backward compatibility)"""
         return self.employees
 
-    def get_employee(self, employee_id: int) -> Optional[Employee]:
+    def get_employee(self, employee_id: int) -> Employee | None:
         """Get an employee by ID (cached)"""
         # Always check self.employees if set, to support test mocks
         for emp in getattr(self, "employees", []):
@@ -614,7 +613,7 @@ class ScheduleResources:
 
     def get_employee_availabilities(
         self, employee_id: int, day: date
-    ) -> List[EmployeeAvailability]:
+    ) -> list[EmployeeAvailability]:
         """Get all availabilities for an employee on a specific date"""
         day_of_week = day.weekday()
         return [
@@ -623,7 +622,7 @@ class ScheduleResources:
             if avail.employee_id == employee_id and avail.day_of_week == day_of_week
         ]
 
-    def get_shift(self, shift_id: int) -> Optional[ShiftTemplate]:
+    def get_shift(self, shift_id: int) -> ShiftTemplate | None:
         """Get a shift template by ID"""
         if not shift_id:
             return None

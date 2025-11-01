@@ -17,10 +17,10 @@ Author: Claude
 Date: 2024-07-11
 """
 
-import sys
-import sqlite3
-import json
 import argparse
+import json
+import sqlite3
+import sys
 from pathlib import Path
 
 # Parse arguments

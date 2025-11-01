@@ -525,21 +525,21 @@ class AISchedulerService:
         - absences: Employee unavailability periods (exact dates)
 
         SCHEDULING REQUIREMENTS:
-        1. COMPREHENSIVE COVERAGE: 
+        1. COMPREHENSIVE COVERAGE:
            - For EVERY date in the schedule period, review ALL coverage rules for that weekday
            - Ensure minimum staffing levels are met for EACH coverage time period
            - Use multiple overlapping shifts if needed to cover all time periods
-           
+
         2. SHIFT VARIETY:
            - Use DIFFERENT shift templates throughout the week
            - Avoid assigning the same shift type repeatedly to the same employee
            - Rotate morning, afternoon, and evening shifts among staff
-           
+
         3. EMPLOYEE DISTRIBUTION:
            - Schedule ALL available employees (not just a few)
            - Aim for fair distribution of hours across all employees
            - Each employee should work multiple days per week if possible
-           
+
         4. REALISTIC SCHEDULES:
            - Most full-time employees work 4-5 days per week
            - Part-time employees work 2-3 days per week
@@ -553,19 +553,19 @@ class AISchedulerService:
         101,2024-07-15,3,Morning Shift,08:00,16:00
 
         DETAILED SCHEDULING INSTRUCTIONS:
-        1. COVERAGE FULFILLMENT: 
+        1. COVERAGE FULFILLMENT:
            - Apply coverage rules to matching weekdays in the schedule period
            - Ensure sufficient employees work during each required time period
            - Use overlapping shift templates to fulfill coverage needs
-        2. EMPLOYEE CONSTRAINTS: 
+        2. EMPLOYEE CONSTRAINTS:
            - Respect availability time ranges (fixed > preferred > available)
            - Avoid scheduling during absence periods
            - Stay within max_weekly_hours limits
-        3. FAIR DISTRIBUTION: 
+        3. FAIR DISTRIBUTION:
            - Rotate different shift types across employees
            - Balance workload and weekend/evening assignments
         4. KEYHOLDER REQUIREMENTS: Assign keyholders when coverage requires_keyholder=true
-        5. DATA VALIDATION: 
+        5. DATA VALIDATION:
            - ShiftTemplateID must exist in provided shift templates
            - Date format: YYYY-MM-DD within schedule period
            - Time format: HH:MM matching the selected shift template
@@ -986,13 +986,13 @@ class AISchedulerService:
 
                 # Build criteria with column names as strings
                 if version_id is not None:
-                    query = query.filter(getattr(Schedule, "version") == version_id)
+                    query = query.filter(Schedule.version == version_id)
                 if schedule_start_date is not None:
                     query = query.filter(
-                        getattr(Schedule, "date") >= schedule_start_date
+                        Schedule.date >= schedule_start_date
                     )
                 if schedule_end_date is not None:
-                    query = query.filter(getattr(Schedule, "date") <= schedule_end_date)
+                    query = query.filter(Schedule.date <= schedule_end_date)
 
                 # Execute the delete
                 delete_count = query.delete(synchronize_session="fetch")
@@ -1005,15 +1005,14 @@ class AISchedulerService:
                     logger.app_logger.info(
                         f"Cleared {delete_count} existing assignments for version {version_id} within the date range."
                     )
+            elif tracker:
+                tracker.log_info(
+                    "No version_id provided. Not clearing existing assignments."
+                )
             else:
-                if tracker:
-                    tracker.log_info(
-                        "No version_id provided. Not clearing existing assignments."
-                    )
-                else:
-                    logger.app_logger.info(
-                        "version_id is None. Not clearing existing assignments."
-                    )
+                logger.app_logger.info(
+                    "version_id is None. Not clearing existing assignments."
+                )
 
             new_assignments = []
             for assignment_data in parsed_assignments:

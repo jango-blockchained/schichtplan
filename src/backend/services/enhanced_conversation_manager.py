@@ -9,7 +9,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from src.backend.utils.logger import logger
 
@@ -36,13 +36,13 @@ class MessageType(Enum):
 class ConversationMetadata:
     """Metadata for a conversation."""
 
-    tags: List[str] = field(default_factory=list)
-    category: Optional[str] = None
+    tags: list[str] = field(default_factory=list)
+    category: str | None = None
     priority: int = 1  # 1 = high, 5 = low
-    assigned_agent: Optional[str] = None
-    customer_satisfaction: Optional[float] = None  # 1.0 to 5.0
-    resolution_status: Optional[str] = None
-    custom_fields: Dict[str, Any] = field(default_factory=dict)
+    assigned_agent: str | None = None
+    customer_satisfaction: float | None = None  # 1.0 to 5.0
+    resolution_status: str | None = None
+    custom_fields: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -54,12 +54,12 @@ class Message:
     content: str
     message_type: MessageType
     timestamp: datetime
-    user_id: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    sentiment_score: Optional[float] = None  # -1.0 to 1.0
-    confidence_score: Optional[float] = None  # 0.0 to 1.0
-    processing_time: Optional[float] = None
-    token_count: Optional[int] = None
+    user_id: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    sentiment_score: float | None = None  # -1.0 to 1.0
+    confidence_score: float | None = None  # 0.0 to 1.0
+    processing_time: float | None = None
+    token_count: int | None = None
 
 
 @dataclass
@@ -72,12 +72,12 @@ class Conversation:
     status: ConversationStatus
     created_at: datetime
     updated_at: datetime
-    messages: List[Message] = field(default_factory=list)
+    messages: list[Message] = field(default_factory=list)
     metadata: ConversationMetadata = field(default_factory=ConversationMetadata)
     message_count: int = 0
     total_tokens: int = 0
     average_response_time: float = 0.0
-    last_activity: Optional[datetime] = None
+    last_activity: datetime | None = None
 
 
 class ConversationSearchFilter:
@@ -85,18 +85,18 @@ class ConversationSearchFilter:
 
     def __init__(
         self,
-        user_id: Optional[str] = None,
-        status: Optional[ConversationStatus] = None,
-        date_from: Optional[datetime] = None,
-        date_to: Optional[datetime] = None,
-        tags: Optional[List[str]] = None,
-        category: Optional[str] = None,
-        content_search: Optional[str] = None,
-        message_type: Optional[MessageType] = None,
-        min_messages: Optional[int] = None,
-        max_messages: Optional[int] = None,
-        sentiment_range: Optional[Tuple[float, float]] = None,
-        assigned_agent: Optional[str] = None,
+        user_id: str | None = None,
+        status: ConversationStatus | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        tags: list[str] | None = None,
+        category: str | None = None,
+        content_search: str | None = None,
+        message_type: MessageType | None = None,
+        min_messages: int | None = None,
+        max_messages: int | None = None,
+        sentiment_range: tuple[float, float] | None = None,
+        assigned_agent: str | None = None,
     ):
         self.user_id = user_id
         self.status = status
@@ -116,7 +116,7 @@ class ConversationAnalytics:
     """Analytics for conversation data."""
 
     def __init__(self):
-        self.daily_stats: Dict[str, Dict] = defaultdict(
+        self.daily_stats: dict[str, dict] = defaultdict(
             lambda: {
                 "conversations": 0,
                 "messages": 0,
@@ -126,7 +126,7 @@ class ConversationAnalytics:
             }
         )
 
-    def analyze_conversation(self, conversation: Conversation) -> Dict[str, Any]:
+    def analyze_conversation(self, conversation: Conversation) -> dict[str, Any]:
         """Analyze a single conversation."""
         if not conversation.messages:
             return {"analysis": "No messages to analyze"}
@@ -210,7 +210,7 @@ class ConversationAnalytics:
 
         return sum(factors) / len(factors) if factors else 0.5
 
-    def _extract_key_topics(self, conversation: Conversation) -> List[str]:
+    def _extract_key_topics(self, conversation: Conversation) -> list[str]:
         """Extract key topics from conversation content."""
         # Simple keyword extraction (in production, use NLP)
         all_content = " ".join([m.content for m in conversation.messages])
@@ -245,7 +245,7 @@ class ConversationExporter:
     """Export conversations to various formats."""
 
     @staticmethod
-    def to_json(conversations: List[Conversation]) -> str:
+    def to_json(conversations: list[Conversation]) -> str:
         """Export conversations to JSON format."""
         export_data = []
 
@@ -289,7 +289,7 @@ class ConversationExporter:
         return json.dumps(export_data, indent=2)
 
     @staticmethod
-    def to_csv(conversations: List[Conversation]) -> str:
+    def to_csv(conversations: list[Conversation]) -> str:
         """Export conversation summary to CSV format."""
         output = io.StringIO()
         writer = csv.writer(output)
@@ -382,7 +382,7 @@ class EnhancedConversationManager:
     """Enhanced conversation manager with search, analytics, and export capabilities."""
 
     def __init__(self):
-        self.conversations: Dict[str, Conversation] = {}
+        self.conversations: dict[str, Conversation] = {}
         self.analytics = ConversationAnalytics()
         self.exporter = ConversationExporter()
 
@@ -436,7 +436,7 @@ class EnhancedConversationManager:
 
     def search_conversations(
         self, filters: ConversationSearchFilter, limit: int = 100, offset: int = 0
-    ) -> List[Conversation]:
+    ) -> list[Conversation]:
         """Search conversations with filtering."""
         results = []
 
@@ -487,12 +487,11 @@ class EnhancedConversationManager:
                 return False
 
         # Message type filter
-        if filters.message_type:
-            if not any(
-                msg.message_type == filters.message_type
-                for msg in conversation.messages
-            ):
-                return False
+        if filters.message_type and not any(
+            msg.message_type == filters.message_type
+            for msg in conversation.messages
+        ):
+            return False
 
         # Message count filters
         if filters.min_messages and conversation.message_count < filters.min_messages:
@@ -514,13 +513,7 @@ class EnhancedConversationManager:
                     return False
 
         # Assigned agent filter
-        if (
-            filters.assigned_agent
-            and conversation.metadata.assigned_agent != filters.assigned_agent
-        ):
-            return False
-
-        return True
+        return not (filters.assigned_agent and conversation.metadata.assigned_agent != filters.assigned_agent)
 
     def archive_conversation(self, conversation_id: str) -> bool:
         """Archive a conversation."""
@@ -531,7 +524,7 @@ class EnhancedConversationManager:
             return True
         return False
 
-    def get_conversation_analytics(self, conversation_id: str) -> Dict[str, Any]:
+    def get_conversation_analytics(self, conversation_id: str) -> dict[str, Any]:
         """Get analytics for a specific conversation."""
         if conversation_id not in self.conversations:
             return {"error": "Conversation not found"}
@@ -539,7 +532,7 @@ class EnhancedConversationManager:
         return self.analytics.analyze_conversation(self.conversations[conversation_id])
 
     def export_conversations(
-        self, conversation_ids: List[str], format_type: str = "json"
+        self, conversation_ids: list[str], format_type: str = "json"
     ) -> str:
         """Export conversations in specified format."""
         conversations = [
@@ -557,7 +550,7 @@ class EnhancedConversationManager:
         else:
             raise ValueError(f"Unsupported format: {format_type}")
 
-    def get_system_analytics(self, days: int = 30) -> Dict[str, Any]:
+    def get_system_analytics(self, days: int = 30) -> dict[str, Any]:
         """Get system-wide analytics for the last N days."""
         cutoff = datetime.now() - timedelta(days=days)
         recent_conversations = [

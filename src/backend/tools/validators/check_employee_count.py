@@ -1,5 +1,5 @@
-from models import Employee
 from app import create_app
+from models import Employee
 
 app = create_app()
 

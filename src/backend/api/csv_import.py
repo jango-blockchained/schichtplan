@@ -4,7 +4,7 @@ import csv
 import io
 import traceback
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 from flask import Blueprint, current_app, jsonify, request
 
@@ -191,7 +191,7 @@ def import_csv():
         return jsonify({"error": f"Failed to import CSV: {str(e)}"}), 500
 
 
-def _validate_csv_structure(headers: List[str], data_type: str) -> Dict[str, Any]:
+def _validate_csv_structure(headers: list[str], data_type: str) -> dict[str, Any]:
     """Validate CSV structure based on data type."""
     validation = {"valid": True, "errors": [], "warnings": []}
 
@@ -251,7 +251,7 @@ def _validate_csv_structure(headers: List[str], data_type: str) -> Dict[str, Any
     return validation
 
 
-def _import_employees(csv_reader) -> Dict[str, Any]:
+def _import_employees(csv_reader) -> dict[str, Any]:
     """Import employee data from CSV."""
     imported_count = 0
     errors = []
@@ -356,7 +356,7 @@ def _import_employees(csv_reader) -> Dict[str, Any]:
         }
 
 
-def _import_availability(csv_reader) -> Dict[str, Any]:
+def _import_availability(csv_reader) -> dict[str, Any]:
     """Import availability data from CSV."""
     imported_count = 0
     errors = []
@@ -499,7 +499,7 @@ def _import_availability(csv_reader) -> Dict[str, Any]:
         }
 
 
-def _import_schedules(csv_reader) -> Dict[str, Any]:
+def _import_schedules(csv_reader) -> dict[str, Any]:
     """Import schedule data from CSV."""
     # This is a placeholder implementation
     # In a real application, you would implement the logic to import scheduled shifts

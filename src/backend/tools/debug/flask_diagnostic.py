@@ -34,7 +34,7 @@ def run_diagnostic():
 
         # Import models
         click.echo("\n==== TEST 1: Import Models ====")
-        from src.backend.models import db, Employee, ShiftTemplate, Coverage
+        from src.backend.models import Coverage, Employee, ShiftTemplate, db
 
         click.echo("Models imported successfully")
 

@@ -3,10 +3,9 @@ import logging
 from datetime import date, datetime, timedelta
 from http import HTTPStatus
 from io import BytesIO
-from typing import Dict, List
 
-import reportlab.lib.pagesizes as pagesizes
 from flask import Blueprint, current_app, jsonify, request, send_file
+from reportlab.lib import pagesizes
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 from sqlalchemy import and_
@@ -130,9 +129,9 @@ def get_schedules():
             # Try to get from version metadata too
             version_metas_query = ScheduleVersionMeta.query.filter(  # type: ignore
                 and_(
-                    ScheduleVersionMeta.date_range_start != None,
+                    ScheduleVersionMeta.date_range_start is not None,
                     ScheduleVersionMeta.date_range_start <= end_date_obj,  # type: ignore
-                    ScheduleVersionMeta.date_range_end != None,
+                    ScheduleVersionMeta.date_range_end is not None,
                     ScheduleVersionMeta.date_range_end >= start_date_obj,
                 )
             ).order_by(ScheduleVersionMeta.version.desc())  # type: ignore  # type: ignore
@@ -374,10 +373,10 @@ def generate_schedule():
 
 def _generate_day_schedule(
     current_date: date,
-    employees: List[Employee],
-    shifts: List[ShiftTemplate],
+    employees: list[Employee],
+    shifts: list[ShiftTemplate],
     store_config: Settings,
-) -> List[Schedule]:
+) -> list[Schedule]:
     """Generate schedule for a single day"""
     day_schedules = []
 
@@ -423,7 +422,7 @@ def _generate_day_schedule(
             # Check if keyholder is required
             needs_keyholder = coverage and coverage.requires_keyholder
             has_keyholder = any(
-                e.is_keyholder == True for e in day_schedules if e.shift_id == shift.id
+                e.is_keyholder for e in day_schedules if e.shift_id == shift.id
             )
 
             if needs_keyholder and not has_keyholder:
@@ -475,7 +474,7 @@ def _can_work_shift(
     employee: Employee,
     shift: ShiftTemplate,
     current_date: date,
-    employee_hours: Dict[int, float],
+    employee_hours: dict[int, float],
 ) -> bool:
     """Check if an employee can work a shift"""
     # Get coverage requirements for this time slot
@@ -531,10 +530,9 @@ def _can_work_shift(
         # Part-time employees limited to contracted hours
         if week_hours + shift.duration_hours > employee.contracted_hours:
             return False
-    else:
-        # Full-time employees limited to 40 hours per week
-        if week_hours + shift.duration_hours > 40:
-            return False
+    # Full-time employees limited to 40 hours per week
+    elif week_hours + shift.duration_hours > 40:
+        return False
 
     return True
 
@@ -570,7 +568,6 @@ def export_schedule():
                 buffer = generator.generate_mep_pdf(
                     schedules, start_date, end_date, filiale, layout_config
                 )
-                filename_prefix = "MEP"
             except Exception as e:
                 return jsonify(
                     {"error": "Could not generate MEP PDF", "details": str(e)}
@@ -579,7 +576,6 @@ def export_schedule():
             # Use legacy simple PDF generation for backward compatibility
             buffer = BytesIO()
             p = canvas.Canvas(buffer, pagesize=pagesizes.landscape(pagesizes.A4))
-            filename_prefix = "schedule"
 
             # Add header (only for legacy format)
             p.setFont("Helvetica-Bold", 14)
@@ -595,7 +591,7 @@ def export_schedule():
             x_positions = [1 * inch, 2.5 * inch, 4.5 * inch, 6 * inch, 7.5 * inch]
             y_position = 7 * inch
 
-            for header, x in zip(headers, x_positions):
+            for header, x in zip(headers, x_positions, strict=False):
                 p.drawString(x, y_position, header)
 
             # Add schedule entries (only for legacy format)
@@ -611,7 +607,7 @@ def export_schedule():
 
                     # Add headers to new page
                     p.setFont("Helvetica-Bold", 12)
-                    for header, x in zip(headers, x_positions):
+                    for header, x in zip(headers, x_positions, strict=False):
                         p.drawString(x, y_position, header)
                     p.setFont("Helvetica", 10)
 
@@ -774,10 +770,8 @@ def test_schedule_generation(client, app):
             )
 
             # Check opening/closing shift assignments
-            if shift.start_time <= "09:00":  # Opening shift
-                assert employee.is_keyholder == True
-            elif shift.end_time >= "18:00":  # Closing shift
-                assert employee.is_keyholder == True
+            if shift.start_time <= "09:00" or shift.end_time >= "18:00":  # Opening shift
+                assert employee.is_keyholder
 
             # Check break assignments for long shifts
             if shift.requires_break:
@@ -814,7 +808,6 @@ def get_all_versions():
             version_metas = version_service.get_all_versions(
                 include_legacy=include_legacy
             )
-            date_range_info = None
         else:
             try:
                 start_of_week = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -833,7 +826,7 @@ def get_all_versions():
                 include_legacy=include_legacy,
                 week_identifier=week_identifier,
             )
-            date_range_info = {
+            {
                 "start": start_of_week.isoformat(),
                 "end": end_of_week.isoformat(),
             }

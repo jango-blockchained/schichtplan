@@ -108,7 +108,7 @@ Request: {request}
 
 Available management strategies:
 1. Availability Optimization - Manage employee availability and time preferences
-2. Skill-Based Assignment - Assign tasks based on employee skills and competencies  
+2. Skill-Based Assignment - Assign tasks based on employee skills and competencies
 3. Satisfaction Improvement - Optimize for employee satisfaction and engagement
 4. Work-Life Balance - Ensure fair work distribution and proper rest
 

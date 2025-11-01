@@ -924,11 +924,10 @@ class CRUDOperationsTools:
                     end = dt.strptime(end, "%Y-%m-%d").date()
                 query = query.filter(Absence.end_date <= end)
 
-        if filters:
-            if "absence_type_id" in filters:
-                query = query.filter(
-                    Absence.absence_type_id == filters["absence_type_id"]
-                )
+        if filters and "absence_type_id" in filters:
+            query = query.filter(
+                Absence.absence_type_id == filters["absence_type_id"]
+            )
 
         absences = query.all()
 

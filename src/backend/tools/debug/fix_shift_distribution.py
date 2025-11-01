@@ -7,11 +7,11 @@ The main issue is that the current algorithm processes all EARLY shifts first, t
 By the time it gets to MIDDLE and LATE shifts, employees have reached their maximum shift limits.
 """
 
-import os
-import sys
-import logging
 import importlib
 import inspect
+import logging
+import os
+import sys
 
 # Add parent directories to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -103,65 +103,65 @@ def create_improved_distribution_algorithm():
             # === IMPROVED ASSIGNMENT APPROACH ===
             # Instead of processing all shifts of one type before moving to the next,
             # we'll interleave them to ensure a balanced mix of shift types
-            
+
             # Create a prioritized list of shift types
             # Put MIDDLE shifts first since we need more of these
             prioritized_types = []
-            
+
             # Add MIDDLE first if available
             if "MIDDLE" in shifts_by_type:
                 prioritized_types.append("MIDDLE")
-            
+
             # Add LATE next if available
             if "LATE" in shifts_by_type:
                 prioritized_types.append("LATE")
-                
+
             # Add EARLY last if available (since we tend to over-assign these)
             if "EARLY" in shifts_by_type:
                 prioritized_types.append("EARLY")
-                
+
             # Add any other types
             for shift_type in shifts_by_type:
                 if shift_type not in prioritized_types:
                     prioritized_types.append(shift_type)
-                    
+
             self.logger.info(f"Prioritized shift types: {prioritized_types}")
-            
+
             # Get all available employees
             all_available_employees = self.get_available_employees(current_date, shifts)
             self.logger.info(f"Total available employees: {len(all_available_employees)}")
             if not all_available_employees:
                 self.logger.warning("No available employees!")
                 return assignments
-                
+
             # Initialize counters for each shift type
             assigned_by_type = {shift_type: 0 for shift_type in shifts_by_type}
-            
+
             # Process shifts in a round-robin fashion by type
             max_iterations = sum(len(type_shifts) for type_shifts in shifts_by_type.values())
             iteration = 0
-            
+
             while iteration < max_iterations:
                 # Process one shift of each type before moving to the next
                 for shift_type in prioritized_types:
                     if shift_type not in shifts_by_type or not shifts_by_type[shift_type]:
                         continue
-                        
+
                     # Get the next shift of this type
                     current_shift = shifts_by_type[shift_type].pop(0)
-                    
+
                     # Try to assign this shift
                     self.logger.info(f"Processing shift of type {shift_type}")
-                    
+
                     # Get available employees for this specific shift
                     shift_template = None
                     shift_id = self.get_id(current_shift, ["id", "shift_id"])
-                    
+
                     if isinstance(current_shift, dict):
                         shift_template = self.resources.get_shift(current_shift.get("shift_id", current_shift.get("id")))
                     else:
                         shift_template = self.resources.get_shift(shift_id)
-                        
+
                     # Get employees specifically available for this shift
                     available_employees = []
                     if shift_template and self.availability_checker:
@@ -175,16 +175,16 @@ def create_improved_distribution_algorithm():
                     else:
                         # Fallback to all available employees
                         available_employees = all_available_employees
-                    
+
                     self.logger.info(
                         f"Available employees for this {shift_type} shift: {len(available_employees)}"
                     )
-                    
+
                     # Assign this shift
                     shift_assignments = self.assign_employees_by_type(
                         current_date, [current_shift], available_employees, shift_type
                     )
-                    
+
                     # Track assignments
                     if shift_assignments:
                         self.logger.info(f"Assigned shift of type {shift_type}")
@@ -192,34 +192,34 @@ def create_improved_distribution_algorithm():
                         assigned_by_type[shift_type] += 1
                     else:
                         self.logger.warning(f"No assignment made for this {shift_type} shift")
-                        
+
                 # Move to the next iteration
                 iteration += 1
-                
+
                 # Check if we've assigned all shifts
                 if all(len(shifts) == 0 for shifts in shifts_by_type.values()):
                     break
-            
+
             self.logger.info(f"Total assignments made: {len(assignments)}")
             self.logger.info(f"Assignments by type: {assigned_by_type}")
-            
+
             # Generate diagnostic information
             diagnostics = self.generate_diagnostic_report(current_date, shifts, assignments)
-            
-            # Log diagnostic information 
+
+            # Log diagnostic information
             self.logger.info(f"Assignment success rate: {diagnostics['success_rate']}%")
-            
+
             if diagnostics['warnings']:
                 for warning in diagnostics['warnings']:
                     self.logger.warning(f"Diagnostic warning: {warning}")
-                
+
             # Log detailed info if we have problems
             if diagnostics['success_rate'] < 100:
                 self.logger.warning("Incomplete assignment - detailed diagnostic information follows:")
                 self.logger.warning(f"Unassigned shifts: {len(diagnostics['unassigned_shifts'])}")
                 for shift in diagnostics['unassigned_shifts']:
                     self.logger.warning(f"  Shift {shift['shift_id']} ({shift['shift_type']}): {', '.join(shift['reasons'])}")
-            
+
             return assignments
 
         except Exception as e:
@@ -250,16 +250,15 @@ def modify_distribution_file():
     # Create a backup if it doesn't exist
     if not os.path.exists(backup_file):
         print(f"Creating backup of original file to {backup_file}")
-        with open(distribution_file, "r") as src:
-            with open(backup_file, "w") as dst:
-                dst.write(src.read())
+        with open(distribution_file) as src, open(backup_file, "w") as dst:
+            dst.write(src.read())
 
     try:
         # Get the original and improved algorithm code
         original_code, improved_code = create_improved_distribution_algorithm()
 
         # Read the current file content
-        with open(distribution_file, "r") as file:
+        with open(distribution_file) as file:
             content = file.read()
 
         # Replace the old implementation with the new one
@@ -293,9 +292,8 @@ def restore_distribution_file():
         return False
 
     # Restore the backup
-    with open(backup_file, "r") as src:
-        with open(distribution_file, "w") as dst:
-            dst.write(src.read())
+    with open(backup_file) as src, open(distribution_file, "w") as dst:
+        dst.write(src.read())
 
     print(f"Successfully restored {distribution_file} from backup")
     return True

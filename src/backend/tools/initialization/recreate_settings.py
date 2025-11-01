@@ -1,5 +1,5 @@
-from models import db, Settings
 from app import create_app
+from models import Settings, db
 
 app = create_app()
 

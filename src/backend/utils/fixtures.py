@@ -1,20 +1,22 @@
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
+
+from models.employee import AvailabilityType, EmployeeGroup
+
 from src.backend.models import (
-    db,
-    Settings,
     Employee,
-    ShiftTemplate,
     EmployeeAvailability,
+    Settings,
+    ShiftTemplate,
+    db,
 )
-from models.employee import EmployeeGroup, AvailabilityType
 
 
-def load_json_fixture(filename: str) -> Dict[str, Any]:
+def load_json_fixture(filename: str) -> dict[str, Any]:
     """Load a JSON fixture file"""
     fixture_path = Path(__file__).parent.parent / "fixtures" / filename
-    with open(fixture_path, "r") as f:
+    with open(fixture_path) as f:
         return json.load(f)
 
 

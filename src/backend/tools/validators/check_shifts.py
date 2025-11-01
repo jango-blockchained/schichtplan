@@ -43,8 +43,8 @@ with app.app_context():
     print("Now checking how shifts are categorized by the scheduler:")
 
     # Import the scheduler components
-    from src.backend.services.scheduler.generator import ScheduleGenerator
     from src.backend.services.scheduler.config import SchedulerConfig
+    from src.backend.services.scheduler.generator import ScheduleGenerator
     from src.backend.services.scheduler.resources import ScheduleResources
 
     resources = ScheduleResources()

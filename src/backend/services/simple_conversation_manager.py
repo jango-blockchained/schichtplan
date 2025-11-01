@@ -9,7 +9,7 @@ until the full AI orchestrator is ready.
 import logging
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from src.backend.models import (
     AIConversation,
@@ -23,7 +23,7 @@ from src.backend.models import (
 class SimpleConversationManager:
     """Simple conversation manager with database persistence."""
 
-    def __init__(self, logger: Optional[logging.Logger] = None):
+    def __init__(self, logger: logging.Logger | None = None):
         self.logger = logger or logging.getLogger(__name__)
 
     def create_conversation(
@@ -53,7 +53,7 @@ class SimpleConversationManager:
             db.session.rollback()
             raise
 
-    def get_conversation(self, conversation_id: str) -> Optional[AIConversation]:
+    def get_conversation(self, conversation_id: str) -> AIConversation | None:
         """Get a conversation by ID."""
         try:
             return AIConversation.query.filter_by(id=conversation_id).first()
@@ -63,7 +63,7 @@ class SimpleConversationManager:
 
     def get_conversations(
         self, user_id: str = None, session_id: str = None, limit: int = 50
-    ) -> List[AIConversation]:
+    ) -> list[AIConversation]:
         """Get conversations, optionally filtered by user or session."""
         try:
             query = AIConversation.query
@@ -86,8 +86,8 @@ class SimpleConversationManager:
         conversation_id: str,
         content: str,
         message_type: str,
-        metadata: Dict[str, Any] = None,
-    ) -> Optional[AIMessage]:
+        metadata: dict[str, Any] = None,
+    ) -> AIMessage | None:
         """Add a message to a conversation."""
         try:
             # Validate message type
@@ -134,7 +134,7 @@ class SimpleConversationManager:
 
     def get_conversation_history(
         self, conversation_id: str, limit: int = 50
-    ) -> List[AIMessage]:
+    ) -> list[AIMessage]:
         """Get conversation message history."""
         try:
             return (
@@ -190,7 +190,7 @@ class SimpleConversationManager:
             db.session.rollback()
             return False
 
-    def get_conversation_stats(self) -> Dict[str, Any]:
+    def get_conversation_stats(self) -> dict[str, Any]:
         """Get conversation statistics."""
         try:
             total_conversations = AIConversation.query.count()

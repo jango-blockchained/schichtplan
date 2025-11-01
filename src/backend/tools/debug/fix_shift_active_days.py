@@ -27,7 +27,7 @@ def main():
 
     with app.app_context():
         # Import models within app context
-        from backend.models import db, ShiftTemplate, Coverage
+        from backend.models import Coverage, ShiftTemplate, db
 
         # 1. Check if shifts exist
         shifts = ShiftTemplate.query.all()

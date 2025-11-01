@@ -5,12 +5,13 @@ This script uses Flask's application factory pattern to create the app
 and test the database connection and scheduler.
 """
 
-import sys
 import os
-from pathlib import Path
-from datetime import datetime, timedelta
-from sqlalchemy import text
+import sys
 from collections import defaultdict
+from datetime import datetime, timedelta
+from pathlib import Path
+
+from sqlalchemy import text
 
 # Set up paths
 project_root = Path(__file__).resolve().parent.parent.parent.parent
@@ -155,11 +156,11 @@ def run_diagnostic():
             print("  Importing models...")
             # Import db first to ensure it's initialized with the app
             from src.backend.models import db
+            from src.backend.models.coverage import Coverage
 
             # Then import the models
             from src.backend.models.employee import Employee
             from src.backend.models.fixed_shift import ShiftTemplate
-            from src.backend.models.coverage import Coverage
 
             print("  ✅ Models imported successfully")
         except ImportError as e:

@@ -6,10 +6,10 @@ and attempts to fix it by creating or updating the database entries.
 """
 
 import os
-import sys
-from datetime import date, datetime
 import random
 import sqlite3
+import sys
+from datetime import date, datetime
 
 # Add the parent directories to path to resolve imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -30,7 +30,7 @@ def main():
     # Import necessary modules
     try:
         from src.backend.app import create_app
-        from src.backend.models import db, Employee, ShiftTemplate, Coverage
+        from src.backend.models import Coverage, Employee, ShiftTemplate, db
 
         print("✅ Successfully imported required modules")
     except ImportError as e:
@@ -122,8 +122,8 @@ def main():
             print("\n3. TESTING SCHEDULER RESOURCE LOADING")
             print("-" * 40)
 
-            from src.backend.services.scheduler.resources import ScheduleResources
             from src.backend.services.scheduler.generator import ScheduleGenerator
+            from src.backend.services.scheduler.resources import ScheduleResources
 
             # Test resource loader directly
             resources = ScheduleResources()

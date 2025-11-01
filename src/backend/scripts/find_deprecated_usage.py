@@ -4,12 +4,12 @@ Script to search for and report usage of deprecated modules in the application l
 This helps track which parts of the code are still using modules that are scheduled for removal.
 """
 
+import argparse
+import json
 import os
 import re
-import argparse
 from collections import defaultdict
 from datetime import datetime, timedelta
-import json
 
 # Regular expressions for finding deprecation warnings
 PATTERNS = {
@@ -27,14 +27,11 @@ def scan_log_file(log_file, days=None):
     results = defaultdict(list)
     count = 0
 
-    if days:
-        cutoff_date = datetime.now() - timedelta(days=days)
-    else:
-        cutoff_date = None
+    cutoff_date = datetime.now() - timedelta(days=days) if days else None
 
     print(f"Scanning {log_file}...")
 
-    with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
+    with open(log_file, encoding="utf-8", errors="ignore") as f:
         for line_num, line in enumerate(f, 1):
             # Skip lines that are too old
             if cutoff_date and " - " in line:
@@ -49,7 +46,7 @@ def scan_log_file(log_file, days=None):
                     pass
 
             # Check for each pattern
-            for module, pattern in PATTERNS.items():
+            for _module, pattern in PATTERNS.items():
                 match = pattern.search(line)
                 if match:
                     count += 1

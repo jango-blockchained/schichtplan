@@ -3,12 +3,13 @@ Database utility functions to standardize SQLAlchemy session handling.
 Helps with common transaction patterns and error handling.
 """
 
-from functools import wraps
 from contextlib import contextmanager
+from functools import wraps
+
 from sqlalchemy.exc import SQLAlchemyError
+from utils.logger import logger
 
 from src.backend.models import db
-from utils.logger import logger
 
 
 @contextmanager

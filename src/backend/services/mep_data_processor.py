@@ -5,12 +5,12 @@ This module processes schedule data from the database into the format
 required for MEP (Mitarbeiter-Einsatz-Planung) PDF generation.
 """
 
-from datetime import datetime, timedelta, date, time
-from typing import List, Dict, Optional, Any
 import locale
-import calendar
 from collections import defaultdict
-from ..models import Schedule, Employee, ShiftTemplate
+from datetime import datetime, time, timedelta
+from typing import Any
+
+from ..models import Employee, Schedule
 
 
 class MEPDataProcessor:
@@ -43,8 +43,8 @@ class MEPDataProcessor:
                 pass  # Fall back to default locale
 
     def process_schedules_for_mep(
-        self, schedules: List[Schedule], start_date: datetime, end_date: datetime
-    ) -> Dict[str, Any]:
+        self, schedules: list[Schedule], start_date: datetime, end_date: datetime
+    ) -> dict[str, Any]:
         """
         Process schedules for MEP PDF generation.
 
@@ -100,7 +100,7 @@ class MEPDataProcessor:
 
     def _generate_date_info(
         self, start_date: datetime, end_date: datetime
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """Generate formatted date information for the header."""
         try:
             # German month/year format
@@ -139,7 +139,7 @@ class MEPDataProcessor:
 
     def _generate_date_range_days(
         self, start_date: datetime, end_date: datetime
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Generate list of days in the date range with German formatting."""
         days = []
         current_date = start_date.date()
@@ -173,8 +173,8 @@ class MEPDataProcessor:
         return days
 
     def _group_schedules_by_employee(
-        self, schedules: List[Schedule]
-    ) -> Dict[int, List[Schedule]]:
+        self, schedules: list[Schedule]
+    ) -> dict[int, list[Schedule]]:
         """Group schedules by employee ID."""
         employee_schedules = defaultdict(list)
 
@@ -188,7 +188,7 @@ class MEPDataProcessor:
 
         return dict(employee_schedules)
 
-    def _extract_employee_info(self, employee: Employee) -> Dict[str, str]:
+    def _extract_employee_info(self, employee: Employee) -> dict[str, str]:
         """Extract and format employee information."""
         # Get position from employee group
         group_value = getattr(
@@ -206,8 +206,8 @@ class MEPDataProcessor:
         }
 
     def _process_daily_schedules(
-        self, emp_schedules: List[Schedule], date_range_days: List[Dict]
-    ) -> Dict[str, Dict]:
+        self, emp_schedules: list[Schedule], date_range_days: list[dict]
+    ) -> dict[str, dict]:
         """Process daily schedule data for an employee."""
         daily_schedules = {}
 
@@ -231,7 +231,7 @@ class MEPDataProcessor:
 
         return daily_schedules
 
-    def _process_single_schedule(self, schedule: Schedule) -> Dict[str, Any]:
+    def _process_single_schedule(self, schedule: Schedule) -> dict[str, Any]:
         """Process a single schedule entry."""
         # Extract time data
         start_time = self._format_time_for_display(schedule.shift_start)
@@ -258,7 +258,7 @@ class MEPDataProcessor:
             "has_data": True,
         }
 
-    def _create_empty_daily_data(self) -> Dict[str, Any]:
+    def _create_empty_daily_data(self) -> dict[str, Any]:
         """Create empty daily data structure."""
         return {
             "start_time": "",
@@ -270,7 +270,7 @@ class MEPDataProcessor:
             "has_data": False,
         }
 
-    def _format_time_for_display(self, time_value: Optional[Any]) -> str:
+    def _format_time_for_display(self, time_value: Any | None) -> str:
         """Format time value for display in MEP."""
         if not time_value:
             return ""
@@ -295,10 +295,10 @@ class MEPDataProcessor:
 
     def _calculate_daily_working_hours(
         self,
-        start_time: Optional[Any],
-        end_time: Optional[Any],
-        break_start: Optional[Any],
-        break_end: Optional[Any],
+        start_time: Any | None,
+        end_time: Any | None,
+        break_start: Any | None,
+        break_end: Any | None,
         break_duration_minutes: int = 30,
     ) -> float:
         """Calculate daily working hours with break deduction."""
@@ -330,19 +330,18 @@ class MEPDataProcessor:
                         break_end_min += 24 * 60
                     break_minutes = break_end_min - break_start_min
                     total_minutes -= break_minutes
-            else:
-                # Use default break duration for shifts > 6 hours
-                if total_minutes > 6 * 60:  # More than 6 hours
-                    total_minutes -= break_duration_minutes
+            # Use default break duration for shifts > 6 hours
+            elif total_minutes > 6 * 60:  # More than 6 hours
+                total_minutes -= break_duration_minutes
 
             # Convert to hours
             return max(0.0, total_minutes / 60.0)
 
-        except Exception as e:
+        except Exception:
             # If calculation fails, return 0
             return 0.0
 
-    def _parse_time_to_minutes(self, time_value: Optional[Any]) -> Optional[int]:
+    def _parse_time_to_minutes(self, time_value: Any | None) -> int | None:
         """Parse a time value to total minutes since midnight."""
         if not time_value:
             return None
@@ -357,10 +356,7 @@ class MEPDataProcessor:
                     return hours * 60 + minutes
                 return None
 
-            elif isinstance(time_value, time):
-                return time_value.hour * 60 + time_value.minute
-
-            elif hasattr(time_value, "hour") and hasattr(time_value, "minute"):
+            elif isinstance(time_value, time) or hasattr(time_value, "hour") and hasattr(time_value, "minute"):
                 return time_value.hour * 60 + time_value.minute
 
         except (ValueError, AttributeError):
@@ -368,7 +364,7 @@ class MEPDataProcessor:
 
         return None
 
-    def _calculate_weekly_hours(self, daily_schedules: Dict[str, Dict]) -> float:
+    def _calculate_weekly_hours(self, daily_schedules: dict[str, dict]) -> float:
         """Calculate total weekly working hours."""
         total_hours = 0.0
 
@@ -378,7 +374,7 @@ class MEPDataProcessor:
         return total_hours
 
     def _calculate_monthly_hours(
-        self, daily_schedules: Dict[str, Dict], start_date: datetime
+        self, daily_schedules: dict[str, dict], start_date: datetime
     ) -> float:
         """Calculate monthly working hours (simplified - same as weekly for now)."""
         # For a proper monthly calculation, you'd need to get all schedules

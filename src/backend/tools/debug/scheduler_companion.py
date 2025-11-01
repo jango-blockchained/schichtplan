@@ -15,15 +15,15 @@ Features:
 - Diagnostic reporting
 """
 
-import os
-import sys
-import json
-import sqlite3
 import argparse
-import traceback
-from datetime import date, datetime, timedelta, time
-from typing import List, Any, Optional, Tuple
+import json
 import logging  # Import logging module
+import os
+import sqlite3
+import sys
+import traceback
+from datetime import date, datetime, time, timedelta
+from typing import Any
 
 # Add the parent directories to path to resolve imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -70,7 +70,7 @@ class MockCoverage:
 
 
 # Database helper functions
-def get_connection(db_path: str) -> Tuple[sqlite3.Connection, sqlite3.Cursor]:
+def get_connection(db_path: str) -> tuple[sqlite3.Connection, sqlite3.Cursor]:
     """Connect to the database and return connection and cursor"""
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row  # This enables column access by name
@@ -121,8 +121,8 @@ def check_active_days(db_path: str) -> bool:
 
         # Get shift templates with missing or empty active_days
         cursor.execute("""
-            SELECT id, active_days 
-            FROM shifts 
+            SELECT id, active_days
+            FROM shifts
             WHERE active_days IS NULL OR active_days = '' OR active_days = '[]'
         """)
         problematic_shifts = cursor.fetchall()
@@ -150,8 +150,8 @@ def fix_active_days(db_path: str) -> bool:
 
         # Get shift templates with missing or empty active_days
         cursor.execute("""
-            SELECT id, active_days 
-            FROM shifts 
+            SELECT id, active_days
+            FROM shifts
             WHERE active_days IS NULL OR active_days = '' OR active_days = '[]'
         """)
         problematic_shifts = cursor.fetchall()
@@ -231,7 +231,7 @@ def create_test_assignments(db_path: str, test_date: date) -> bool:
         next_id = max_id + 1
 
         # For each shift, assign 2-3 employees
-        for i, shift_id in enumerate(shifts):
+        for _i, shift_id in enumerate(shifts):
             # Calculate how many employees to assign to this shift (2-3)
             employees_to_assign = min(3, len(employees))
 
@@ -281,7 +281,7 @@ def create_test_assignments(db_path: str, test_date: date) -> bool:
             cursor.execute(
                 """
                 SELECT shifts.shift_type, COUNT(*) as count
-                FROM schedules 
+                FROM schedules
                 JOIN shifts ON schedules.shift_id = shifts.id
                 WHERE schedules.date = ?
                 GROUP BY shifts.shift_type
@@ -312,14 +312,14 @@ def create_test_assignments(db_path: str, test_date: date) -> bool:
         conn.close()
 
 
-def load_availability_from_db(db_path: str) -> List[dict]:
+def load_availability_from_db(db_path: str) -> list[dict]:
     """Load availability data from the database"""
     try:
         conn, cursor = get_connection(db_path)
 
         # Load availability data
         cursor.execute("""
-            SELECT employee_id, day_of_week, start_time, end_time, 
+            SELECT employee_id, day_of_week, start_time, end_time,
                    availability_type, notes
             FROM employee_availability
         """)
@@ -346,14 +346,14 @@ def load_availability_from_db(db_path: str) -> List[dict]:
 
 def load_resources_from_db(
     db_path: str,
-) -> Tuple[List[Any], List[Any], List[Any], List[dict]]:
+) -> tuple[list[Any], list[Any], list[Any], list[dict]]:
     """Load resources from the database"""
     try:
         conn, cursor = get_connection(db_path)
 
         # Load employees
         cursor.execute("""
-            SELECT id, employee_id, first_name, last_name, contracted_hours, 
+            SELECT id, employee_id, first_name, last_name, contracted_hours,
                    employee_group, is_keyholder, is_active
             FROM employees
             WHERE is_active = 1
@@ -385,7 +385,7 @@ def load_resources_from_db(
 
         # Load shifts
         cursor.execute("""
-            SELECT id, start_time, end_time, duration_hours, 
+            SELECT id, start_time, end_time, duration_hours,
                    shift_type, active_days, shift_type_id
             FROM shifts
         """)
@@ -412,7 +412,7 @@ def load_resources_from_db(
 
         # Load coverage
         cursor.execute("""
-            SELECT id, day_index, start_time, end_time, 
+            SELECT id, day_index, start_time, end_time,
                    min_employees, max_employees
             FROM coverage
         """)
@@ -454,9 +454,10 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
 
         # Import scheduler components first to get types
         print("\nInitializing scheduler components...")
+        from typing import Any
+
         from src.backend.services.scheduler.generator import ScheduleGenerator
         from src.backend.services.scheduler.resources import ScheduleResources
-        from typing import Any
 
         # Configure logging for scheduler components
         logging.getLogger("schedule").setLevel(logging.DEBUG)
@@ -594,7 +595,7 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
 
             def get_employee_availability(
                 self, employee_id: int, day_of_week: int
-            ) -> List[Any]:
+            ) -> list[Any]:
                 """Mock implementation: Get availability for a specific day of the week.
                 Returns records matching employee_id and day_of_week.
                 """
@@ -639,283 +640,6 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
         # Data format should align with what DistributionManager expects, likely including time intervals or matching shift times.
         # Adding availability for employees 1, 2, 3 across the coverage intervals for weekdays (0-4).
         # Refining mock data to align more closely with potential shift/coverage mapping
-        mock_availabilities = [
-            # Employee 1: Available for EARLY and MIDDLE shifts/intervals Monday-Friday
-            {
-                "employee_id": 1,
-                "day_of_week": 0,
-                "start_time": "09:00",
-                "end_time": "14:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers EARLY shift",
-            },
-            {
-                "employee_id": 1,
-                "day_of_week": 0,
-                "start_time": "11:00",
-                "end_time": "16:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers MIDDLE shift",
-            },
-            {
-                "employee_id": 1,
-                "day_of_week": 1,
-                "start_time": "09:00",
-                "end_time": "14:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers EARLY shift",
-            },
-            {
-                "employee_id": 1,
-                "day_of_week": 1,
-                "start_time": "11:00",
-                "end_time": "16:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers MIDDLE shift",
-            },
-            {
-                "employee_id": 1,
-                "day_of_week": 2,
-                "start_time": "09:00",
-                "end_time": "14:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers EARLY shift",
-            },
-            {
-                "employee_id": 1,
-                "day_of_week": 2,
-                "start_time": "11:00",
-                "end_time": "16:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers MIDDLE shift",
-            },
-            {
-                "employee_id": 1,
-                "day_of_week": 3,
-                "start_time": "09:00",
-                "end_time": "14:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers EARLY shift",
-            },
-            {
-                "employee_id": 1,
-                "day_of_week": 3,
-                "start_time": "11:00",
-                "end_time": "16:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers MIDDLE shift",
-            },
-            {
-                "employee_id": 1,
-                "day_of_week": 4,
-                "start_time": "09:00",
-                "end_time": "14:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers EARLY shift",
-            },
-            {
-                "employee_id": 1,
-                "day_of_week": 4,
-                "start_time": "11:00",
-                "end_time": "16:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers MIDDLE shift",
-            },
-            # Employee 2: Available for MIDDLE and LATE shifts/intervals Monday-Friday
-            {
-                "employee_id": 2,
-                "day_of_week": 0,
-                "start_time": "11:00",
-                "end_time": "16:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers MIDDLE shift",
-            },
-            {
-                "employee_id": 2,
-                "day_of_week": 0,
-                "start_time": "15:00",
-                "end_time": "20:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers LATE shift",
-            },
-            {
-                "employee_id": 2,
-                "day_of_week": 1,
-                "start_time": "11:00",
-                "end_time": "16:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers MIDDLE shift",
-            },
-            {
-                "employee_id": 2,
-                "day_of_week": 1,
-                "start_time": "15:00",
-                "end_time": "20:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers LATE shift",
-            },
-            {
-                "employee_id": 2,
-                "day_of_week": 2,
-                "start_time": "11:00",
-                "end_time": "16:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers MIDDLE shift",
-            },
-            {
-                "employee_id": 2,
-                "day_of_week": 2,
-                "start_time": "15:00",
-                "end_time": "20:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers LATE shift",
-            },
-            {
-                "employee_id": 2,
-                "day_of_week": 3,
-                "start_time": "11:00",
-                "end_time": "16:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers MIDDLE shift",
-            },
-            {
-                "employee_id": 2,
-                "day_of_week": 3,
-                "start_time": "15:00",
-                "end_time": "20:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers LATE shift",
-            },
-            {
-                "employee_id": 2,
-                "day_of_week": 4,
-                "start_time": "11:00",
-                "end_time": "16:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers MIDDLE shift",
-            },
-            {
-                "employee_id": 2,
-                "day_of_week": 4,
-                "start_time": "15:00",
-                "end_time": "20:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers LATE shift",
-            },
-            # Employee 3: Available for LATE shifts/intervals Monday-Friday
-            {
-                "employee_id": 3,
-                "day_of_week": 0,
-                "start_time": "15:00",
-                "end_time": "20:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers LATE shift",
-            },
-            {
-                "employee_id": 3,
-                "day_of_week": 1,
-                "start_time": "15:00",
-                "end_time": "20:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers LATE shift",
-            },
-            {
-                "employee_id": 3,
-                "day_of_week": 2,
-                "start_time": "15:00",
-                "end_time": "20:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers LATE shift",
-            },
-            {
-                "employee_id": 3,
-                "day_of_week": 3,
-                "start_time": "15:00",
-                "end_time": "20:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers LATE shift",
-            },
-            {
-                "employee_id": 3,
-                "day_of_week": 4,
-                "start_time": "15:00",
-                "end_time": "20:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Covers LATE shift",
-            },
-            # Add some fixed availability for employee 4 (covers all intervals Monday-Tuesday)
-            {
-                "employee_id": 4,
-                "day_of_week": 0,
-                "start_time": "00:00",
-                "end_time": "23:59",
-                "availability_type": "FIXED",
-            },
-            {
-                "employee_id": 4,
-                "day_of_week": 1,
-                "start_time": "00:00",
-                "end_time": "23:59",
-                "availability_type": "FIXED",
-            },
-            # Add some preferred availability for employee 5 (covers middle on Wednesday)
-            {
-                "employee_id": 5,
-                "day_of_week": 2,
-                "start_time": "11:00",
-                "end_time": "16:00",
-                "availability_type": "PREFERRED",
-            },
-            # Add some preferred availability for employee 6 (covers late on Thursday)
-            {
-                "employee_id": 6,
-                "day_of_week": 3,
-                "start_time": "15:00",
-                "end_time": "20:00",
-                "availability_type": "PREFERRED",
-            },
-            # Add Saturday (day 5) availability for testing
-            {
-                "employee_id": 1,
-                "day_of_week": 5,
-                "start_time": "09:00",
-                "end_time": "14:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Saturday EARLY shift",
-            },
-            {
-                "employee_id": 1,
-                "day_of_week": 5,
-                "start_time": "11:00",
-                "end_time": "16:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Saturday MIDDLE shift",
-            },
-            {
-                "employee_id": 2,
-                "day_of_week": 5,
-                "start_time": "11:00",
-                "end_time": "16:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Saturday MIDDLE shift",
-            },
-            {
-                "employee_id": 2,
-                "day_of_week": 5,
-                "start_time": "15:00",
-                "end_time": "20:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Saturday LATE shift",
-            },
-            {
-                "employee_id": 3,
-                "day_of_week": 5,
-                "start_time": "15:00",
-                "end_time": "20:00",
-                "availability_type": "AVAILABLE",
-                "notes": "Saturday LATE shift",
-            },
-        ]
 
         # Use real availability data instead of mock data
         resources = CustomScheduleResources(
@@ -1112,7 +836,7 @@ def run_diagnostic(db_path: str, test_date: date) -> None:
             cursor.execute(
                 """
                 SELECT shifts.shift_type, COUNT(*) as count
-                FROM schedules 
+                FROM schedules
                 JOIN shifts ON schedules.shift_id = shifts.id
                 WHERE schedules.date = ?
                 GROUP BY shifts.shift_type
@@ -1157,7 +881,7 @@ def run_diagnostic(db_path: str, test_date: date) -> None:
 
 
 def test_assignment_persistence(
-    db_path: str, test_date: date, accumulated_ids_list: List[int]
+    db_path: str, test_date: date, accumulated_ids_list: list[int]
 ) -> bool:
     """
     Tests if assignments are correctly saved to the DB for a single date
@@ -1165,7 +889,7 @@ def test_assignment_persistence(
     Returns True if successful for this date, False otherwise.
     """
     print(f"\n--- Testing Assignment Persistence for {test_date} ---")
-    created_assignment_ids_for_this_date: List[int] = []
+    created_assignment_ids_for_this_date: list[int] = []
     conn = None
     success_for_this_date = False
     try:
@@ -1312,7 +1036,7 @@ def test_assignment_persistence(
     return success_for_this_date
 
 
-def ask_and_reverse_assignments(db_path: str, assignment_ids: List[int]):
+def ask_and_reverse_assignments(db_path: str, assignment_ids: list[int]):
     """
     Asks the user if they want to delete the specified assignments and does so if confirmed.
     """
@@ -1409,10 +1133,10 @@ def main():
     db_path = os.path.join(root_dir, "src/instance/app.db")
 
     # Determine the test date(s)
-    dates_to_process: List[date] = []
+    dates_to_process: list[date] = []
 
-    start_date_obj: Optional[date] = None
-    end_date_obj: Optional[date] = None
+    start_date_obj: date | None = None
+    end_date_obj: date | None = None
 
     if args.start_date:
         try:
@@ -1458,7 +1182,7 @@ def main():
     # Consider if this is desired or if they should only run for the start_date.
     # For now, they will run for each date in dates_to_process if their flag is set.
 
-    all_accumulated_assignment_ids: List[int] = []
+    all_accumulated_assignment_ids: list[int] = []
 
     for current_test_date in dates_to_process:
         print(f"\n=== Processing actions for date: {current_test_date} ===")

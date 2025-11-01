@@ -46,7 +46,7 @@ try:
 
     # Import models
     print("\n==== TEST 5: Import Models ====")
-    from src.backend.models import db, Employee, ShiftTemplate, Coverage
+    from src.backend.models import Coverage, Employee, ShiftTemplate, db
 
     print("Models imported successfully")
 

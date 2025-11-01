@@ -53,7 +53,7 @@ def run_diagnostic():
 
         # Import models
         print("\n==== TEST 2: Import Models ====")
-        from models import db, Employee, ShiftTemplate, Coverage
+        from models import Coverage, Employee, ShiftTemplate, db
 
         print("Models imported successfully")
 

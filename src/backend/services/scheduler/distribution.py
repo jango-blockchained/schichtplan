@@ -729,7 +729,7 @@ class DistributionManager:
             start_time = getattr(shift, "start_time", None) or (
                 shift.get("start_time") if isinstance(shift, dict) else None
             )
-            end_time = getattr(shift, "end_time", None) or (
+            getattr(shift, "end_time", None) or (
                 shift.get("end_time") if isinstance(shift, dict) else None
             )
 
@@ -1115,7 +1115,7 @@ class DistributionManager:
 
         # Get the category of the current shift (EARLY, MIDDLE, LATE, etc.)
         shift_category = self._categorize_shift(shift_template)
-        shift_category_key = self._get_shift_category_key(
+        self._get_shift_category_key(
             shift_category, shift_template
         )
 
@@ -1154,7 +1154,7 @@ class DistributionManager:
         # Additional factor: Consider the ratio of this shift type for the employee vs overall
         # This helps balance the mix of shifts an employee gets
         employee_ratio = employee_category_count / total_assigned
-        average_total_shifts = (
+        (
             sum(hist.get("total", 0) for hist in self.employee_history.values())
             / len(self.employee_history)
             if self.employee_history
@@ -1568,7 +1568,7 @@ class DistributionManager:
         type_count = 0
 
         # Count shifts by type in current assignments
-        for employee_id, assignments in self.assignments_by_employee.items():
+        for _employee_id, assignments in self.assignments_by_employee.items():
             for assignment in assignments:
                 total_shifts += 1
                 # Ensure assignment is a dict and has 'shift_id'
