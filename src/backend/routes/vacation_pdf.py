@@ -288,7 +288,10 @@ def get_overview_form():
 @bp.route("/vacation-pdf/yearly-calendar", methods=["GET"])
 def get_yearly_calendar():
     """
-    Generate yearly calendar with 6 months per page.
+    Generate yearly calendar with 6 months per page showing approved absences.
+
+    Format: DIN A4 Landscape, 2 pages (6 months per page in 2x3 grid)
+    Shows approved vacation requests with visual indicators.
 
     Query parameters:
         year (required): Year for calendar (e.g., 2024)
@@ -322,9 +325,34 @@ def get_yearly_calendar():
                 }
             ), HTTPStatus.BAD_REQUEST
 
+        # Fetch employees
+        employees = Employee.query.filter_by(is_active=True).all()
+        logger.info(f"Loaded {len(employees)} active employees for calendar")
+
+        # Fetch ALL approved absences for the year (all types, not just vacation)
+        start_date = datetime(year, 1, 1).date()
+        end_date = datetime(year, 12, 31).date()
+
+        absences = Absence.query.filter(
+            Absence.status == "approved",
+            Absence.start_date <= end_date,
+            Absence.end_date >= start_date,
+        ).all()
+        logger.info(
+            f"Loaded {len(absences)} approved absences (all types) for year {year}"
+        )
+
+        # Get settings
+        settings = Settings.query.first()
+
         # Generate PDF
         generator = VacationPDFGenerator()
-        pdf_buffer = generator.generate_yearly_calendar(year=year)
+        pdf_buffer = generator.generate_yearly_calendar(
+            year=year,
+            employees=employees,
+            absences=absences,
+            settings=settings,
+        )
 
         logger.info(f"Successfully generated yearly calendar for year {year}")
 
@@ -332,7 +360,7 @@ def get_yearly_calendar():
             pdf_buffer,
             mimetype="application/pdf",
             as_attachment=True,
-            download_name=f"urlaubskalender_{year}.pdf",
+            download_name=f"jahresurlaubskalender_{year}.pdf",
         )
 
     except Exception as e:

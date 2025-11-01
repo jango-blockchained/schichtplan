@@ -694,13 +694,24 @@ class VacationPDFGenerator:
         buffer.seek(0)
         return buffer
 
-    def generate_yearly_calendar(self, year: int) -> io.BytesIO:
+    def generate_yearly_calendar(
+        self,
+        year: int,
+        employees: list[Employee] = None,
+        absences: list[Absence] = None,
+        settings: Settings | None = None,
+    ) -> io.BytesIO:
         """
         Generate yearly vacation planning grid in DIN A4 landscape format.
-        Creates a calendar view with months and weekdays.
+        Creates a calendar view with months and weekdays, showing approved absences.
+
+        Format: 2 pages with 6 months per page in a 2x3 grid layout.
 
         Args:
             year: Year to display
+            employees: Optional list of employees (for reference)
+            absences: Optional list of absences to display on calendar
+            settings: Optional settings object
 
         Returns:
             BytesIO buffer containing the generated PDF
@@ -715,97 +726,162 @@ class VacationPDFGenerator:
             bottomMargin=self.MARGIN,
         )
 
+        # Filter for approved absences only
+        approved_absences = []
+        if absences:
+            approved_absences = [
+                abs for abs in absences
+                if abs.status == "approved"
+                and abs.start_date.year <= year
+                and abs.end_date.year >= year
+            ]
+
+        # Create a mapping of dates to absence count for visualization
+        absence_dates = {}
+        for absence in approved_absences:
+            # Get the date range within the year
+            start = max(absence.start_date, date(year, 1, 1))
+            end = min(absence.end_date, date(year, 12, 31))
+            
+            current = start
+            while current <= end:
+                date_key = (current.month, current.day)
+                absence_dates[date_key] = absence_dates.get(date_key, 0) + 1
+                current = date(current.year, current.month, current.day) + \
+                    __import__('datetime').timedelta(days=1)
+
         story = []
         weekdays = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 
         for page_num in range(2):
             # Title for the page
-            story.append(Paragraph(f"Jahresurlaubsplanung {year}", self.title_style))
+            title_text = f"Jahresurlaubskalender {year}"
+            if settings and settings.store_name:
+                title_text += f" - {settings.store_name}"
+            story.append(Paragraph(title_text, self.title_style))
             story.append(Spacer(1, 10))
 
-            # Main table to hold the 6 month calendars
-            main_table_data = []
-            month_row = []
-
+            # Create 2 rows of 3 months each (2x3 grid)
             start_month = 1 + (page_num * 6)
-            for i in range(6):
-                month_index = start_month + i
-                if month_index > 12:
-                    continue
+            
+            # Build the grid - 2 rows with 3 months per row
+            for row_num in range(2):
+                row_data = []
+                
+                for col_num in range(3):
+                    month_index = start_month + (row_num * 3) + col_num
+                    if month_index > 12:
+                        row_data.append("")
+                        continue
 
-                # --- Create calendar for one month ---
-                month_name = datetime(year, month_index, 1).strftime("%B")
-                month_calendar_data = [
-                    [Paragraph(f"<b>{month_name}</b>", self.normal_style)]
-                ]
+                    # --- Create calendar for one month ---
+                    month_name = datetime(year, month_index, 1).strftime("%B")
+                    month_calendar_data = [
+                        [Paragraph(f"<b>{month_name}</b>", self.normal_style)]
+                    ]
 
-                # Weekday headers
-                weekday_header = [
-                    Paragraph(f"<b>{day}</b>", self.small_style) for day in weekdays
-                ]
-                month_calendar_data.append(weekday_header)
+                    # Weekday headers
+                    weekday_header = [
+                        Paragraph(f"<b>{day}</b>", self.small_style) for day in weekdays
+                    ]
+                    month_calendar_data.append(weekday_header)
 
-                # Get calendar data for the month
-                first_day_of_month, num_days = self._get_month_details(
-                    year, month_index
-                )
-
-                # Create day cells
-                day_cells = [""] * first_day_of_month
-                for day_num in range(1, num_days + 1):
-                    day_cells.append(str(day_num))
-
-                # Pad the end to make it a full grid
-                while len(day_cells) % 7 != 0:
-                    day_cells.append("")
-
-                # Reshape into weeks
-                weeks = [day_cells[j : j + 7] for j in range(0, len(day_cells), 7)]
-                for week in weeks:
-                    month_calendar_data.append(week)
-
-                # --- Create month table ---
-                col_width = (self.PAGE_WIDTH_LANDSCAPE - 2 * self.MARGIN) / 7
-                month_table = Table(
-                    month_calendar_data,
-                    colWidths=[col_width - 8 * mm] * 7,
-                    rowHeights=8 * mm,
-                )
-
-                month_table.setStyle(
-                    TableStyle(
-                        [
-                            # Month header
-                            ("SPAN", (0, 0), (-1, 0)),
-                            ("ALIGN", (0, 0), (-1, 0), "CENTER"),
-                            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                            # Weekday headers
-                            ("ALIGN", (0, 1), (-1, 1), "CENTER"),
-                            ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
-                            ("BACKGROUND", (0, 1), (-1, 1), lightgrey),
-                            # Day cells
-                            ("ALIGN", (0, 2), (-1, -1), "CENTER"),
-                            ("FONTSIZE", (0, 1), (-1, -1), self.SMALL_FONT_SIZE),
-                            ("GRID", (0, 1), (-1, -1), 0.5, black),
-                            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ]
+                    # Get calendar data for the month
+                    first_day_of_month, num_days = self._get_month_details(
+                        year, month_index
                     )
+
+                    # Create day cells with absence indicators
+                    day_cells_data = [[""] * 7 for _ in range(6)]  # Max 6 weeks
+                    
+                    for day_num in range(1, num_days + 1):
+                        # Calculate week and weekday
+                        day_of_week = (first_day_of_month + day_num - 1) % 7
+                        week_num = (first_day_of_month + day_num - 1) // 7
+                        
+                        # Check if this date has absences
+                        date_key = (month_index, day_num)
+                        absence_count = absence_dates.get(date_key, 0)
+                        
+                        # Create cell content with indicator
+                        if absence_count > 0:
+                            # Use bullet point to indicate approved absence
+                            cell_text = f"<b>{day_num}</b><br/><font size='5'>•</font>"
+                            day_cells_data[week_num][day_of_week] = Paragraph(
+                                cell_text, self.small_style
+                            )
+                        else:
+                            day_cells_data[week_num][day_of_week] = str(day_num)
+
+                    # Remove empty rows at the end
+                    while day_cells_data and all(cell == "" for cell in day_cells_data[-1]):
+                        day_cells_data.pop()
+
+                    # Add day cells to month calendar data
+                    for week in day_cells_data:
+                        month_calendar_data.append(week)
+
+                    # --- Create month table ---
+                    # Calculate column width to fit 3 months per row
+                    available_width = self.PAGE_WIDTH_LANDSCAPE - 2 * self.MARGIN - 20 * mm
+                    month_width = available_width / 3
+                    col_width = month_width / 7
+                    
+                    month_table = Table(
+                        month_calendar_data,
+                        colWidths=[col_width] * 7,
+                        rowHeights=None,  # Auto-adjust height
+                    )
+
+                    month_table.setStyle(
+                        TableStyle(
+                            [
+                                # Month header
+                                ("SPAN", (0, 0), (-1, 0)),
+                                ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                                ("FONTSIZE", (0, 0), (-1, 0), self.NORMAL_FONT_SIZE),
+                                ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+                                # Weekday headers
+                                ("ALIGN", (0, 1), (-1, 1), "CENTER"),
+                                ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
+                                ("BACKGROUND", (0, 1), (-1, 1), lightgrey),
+                                ("FONTSIZE", (0, 1), (-1, 1), self.SMALL_FONT_SIZE),
+                                # Day cells
+                                ("ALIGN", (0, 2), (-1, -1), "CENTER"),
+                                ("VALIGN", (0, 2), (-1, -1), "MIDDLE"),
+                                ("FONTSIZE", (0, 2), (-1, -1), self.SMALL_FONT_SIZE),
+                                ("GRID", (0, 1), (-1, -1), 0.5, black),
+                                ("TOPPADDING", (0, 2), (-1, -1), 4),
+                                ("BOTTOMPADDING", (0, 2), (-1, -1), 4),
+                            ]
+                        )
+                    )
+                    row_data.append(month_table)
+
+                # Create row table with the 3 month tables
+                row_table = Table(
+                    [row_data],
+                    colWidths=[month_width] * 3,
                 )
-                month_row.append(month_table)
+                row_table.setStyle(
+                    TableStyle([
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                    ])
+                )
+                
+                story.append(row_table)
+                story.append(Spacer(1, 15))
 
-                # Add a spacer between month tables
-                if i < 5:
-                    month_row.append(Spacer(15, 0))
-
-            main_table_data.append(month_row)
-
-            # Create the main table for the page
-            main_table = Table(
-                main_table_data, colWidths=[(col_width - 8 * mm) * 7 + 15] * 6
+            # Add legend
+            story.append(Spacer(1, 10))
+            legend_text = (
+                "<b>Legende:</b> • = Genehmigter Urlaubsantrag | "
+                f"Gesamt: {len(approved_absences)} genehmigte Anträge"
             )
-            main_table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
-
-            story.append(main_table)
+            story.append(Paragraph(legend_text, self.small_style))
 
             if page_num == 0:
                 story.append(PageBreak())
