@@ -1,3 +1,4 @@
+
 /* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any */
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeAll } from "bun:test";
@@ -6,7 +7,7 @@ import { afterEach, beforeAll } from "bun:test";
 import '@happy-dom/global-registrator';
 import "@testing-library/jest-dom";
 // Test helpers/globals
-import "../test-utils/test-globals";
+//import "../test-utils/test-globals";
 
 // Ensure a document.body exists as early as possible so testing-library's
 // screen helpers (which bind to document.body) can initialize without
@@ -350,6 +351,7 @@ if (typeof (globalThis as any).HTMLDivElement === 'undefined') {
 // Mock Speech Recognition API
 class MockSpeechRecognition {
   public calls: Array<any[]> = [];
+  public continuous: boolean = false;
   public listeners: Record<string, Function[]> = {};
   start = () => {};
   stop = () => {};
@@ -359,6 +361,7 @@ class MockSpeechRecognition {
     if (!this.listeners[type]) this.listeners[type] = [];
     this.listeners[type].push(listener);
   };
+  
   removeEventListener = (type: string, listener: Function) => {
     this.calls.push(["remove", type, listener]);
     if (this.listeners[type]) {

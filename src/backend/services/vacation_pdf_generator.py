@@ -24,6 +24,7 @@ from reportlab.platypus import (
     Table,
     TableStyle,
 )
+from reportlab.graphics.shapes import Drawing, String as RLString
 
 from ..models import Absence, Employee, Settings
 
@@ -90,6 +91,38 @@ class VacationPDFGenerator:
             fontName="Helvetica",
             alignment=0,  # Left
         )
+
+    def _create_rotated_text(self, text: str, font_size: int = 7):
+        """
+        Create a rotated text element (90° clockwise).
+
+        Args:
+            text: Text to rotate
+            font_size: Font size for the text
+
+        Returns:
+            Drawing object containing rotated text
+        """
+        # Calculate drawing size based on text length
+        char_width = font_size * 0.55  # Approximate character width
+        text_width = len(text) * char_width
+
+        # Create drawing with appropriate dimensions
+        drawing = Drawing(font_size + 2, text_width + 2)
+
+        # Create rotated string (angle=90 rotates clockwise)
+        rotated_string = RLString(
+            1,
+            font_size + 1,
+            text,
+            fontName="Helvetica",
+            fontSize=font_size,
+            fillColor=black,
+            angle=90,  # 90° clockwise rotation
+        )
+
+        drawing.add(rotated_string)
+        return drawing
 
     def generate_admin_yearly_form(
         self,
@@ -703,9 +736,17 @@ class VacationPDFGenerator:
     ) -> io.BytesIO:
         """
         Generate yearly vacation planning grid in DIN A4 landscape format.
-        Creates a calendar view with months and weekdays, showing approved absences.
+        Creates a professional calendar view with 6 months per page (Jan-Jun, Jul-Dec).
+        Uses day-as-row layout for intuitive horizontal scanning.
 
-        Format: 2 pages with 6 months per page in a 2x3 grid layout.
+        Format: 2 pages with 6 months displayed horizontally, days as rows.
+
+        New Design Features:
+        - Days displayed as horizontal rows (Monday-Sunday, days 1-31)
+        - 6 months in single row per page for easy comparison
+        - Clear absence indicators with bullet points
+        - Professional typography and spacing
+        - Comprehensive statistics and legend
 
         Args:
             year: Year to display
@@ -720,17 +761,18 @@ class VacationPDFGenerator:
         doc = SimpleDocTemplate(
             buffer,
             pagesize=landscape(A4),
-            leftMargin=self.MARGIN,
-            rightMargin=self.MARGIN,
-            topMargin=self.MARGIN,
-            bottomMargin=self.MARGIN,
+            leftMargin=10 * mm,
+            rightMargin=10 * mm,
+            topMargin=10 * mm,
+            bottomMargin=10 * mm,
         )
 
         # Filter for approved absences only
         approved_absences = []
         if absences:
             approved_absences = [
-                absence for absence in absences
+                absence
+                for absence in absences
                 if absence.status == "approved"
                 and absence.start_date.year <= year
                 and absence.end_date.year >= year
@@ -749,140 +791,65 @@ class VacationPDFGenerator:
                 absence_dates[date_key] = absence_dates.get(date_key, 0) + 1
                 current = current + timedelta(days=1)
 
+        # Calculate statistics per half-year
+        h1_count = sum(1 for key in absence_dates if key[0] <= 6)
+        h2_count = sum(1 for key in absence_dates if key[0] > 6)
+
         story = []
-        weekdays = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+        weekday_abbrev = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 
         for page_num in range(2):
-            # Title for the page
+            # Determine page period
+            if page_num == 0:
+                months = list(range(1, 7))  # January - June
+                period_text = "Januar - Juni"
+                period_count = h1_count
+            else:
+                months = list(range(7, 13))  # July - December
+                period_text = "Juli - Dezember"
+                period_count = h2_count
+
+            # Page title
             title_text = f"Jahresurlaubskalender {year}"
             if settings and settings.store_name:
                 title_text += f" - {settings.store_name}"
             story.append(Paragraph(title_text, self.title_style))
-            story.append(Spacer(1, 10))
 
-            # Create 2 rows of 3 months each (2x3 grid)
-            start_month = 1 + (page_num * 6)
+            # Period subtitle
+            subtitle_text = f"<i>{period_text} ({len(months)} Monate)</i>"
+            story.append(Paragraph(subtitle_text, self.normal_style))
+            story.append(Spacer(1, 12))
 
-            # Build the grid - 2 rows with 3 months per row
-            for row_num in range(2):
-                row_data = []
-
-                for col_num in range(3):
-                    month_index = start_month + (row_num * 3) + col_num
-                    if month_index > 12:
-                        row_data.append("")
-                        continue
-
-                    # --- Create calendar for one month ---
-                    month_name = datetime(year, month_index, 1).strftime("%B")
-                    month_calendar_data = [
-                        [Paragraph(f"<b>{month_name}</b>", self.normal_style)]
-                    ]
-
-                    # Weekday headers
-                    weekday_header = [
-                        Paragraph(f"<b>{day}</b>", self.small_style) for day in weekdays
-                    ]
-                    month_calendar_data.append(weekday_header)
-
-                    # Get calendar data for the month
-                    first_day_of_month, num_days = self._get_month_details(
-                        year, month_index
-                    )
-
-                    # Create day cells with absence indicators
-                    day_cells_data = [[""] * 7 for _ in range(6)]  # Max 6 weeks
-
-                    for day_num in range(1, num_days + 1):
-                        # Calculate week and weekday
-                        day_of_week = (first_day_of_month + day_num - 1) % 7
-                        week_num = (first_day_of_month + day_num - 1) // 7
-
-                        # Check if this date has absences
-                        date_key = (month_index, day_num)
-                        absence_count = absence_dates.get(date_key, 0)
-
-                        # Create cell content with indicator
-                        if absence_count > 0:
-                            # Use bullet point to indicate approved absence
-                            cell_text = f"<b>{day_num}</b><br/><font size='5'>•</font>"
-                            day_cells_data[week_num][day_of_week] = Paragraph(
-                                cell_text, self.small_style
-                            )
-                        else:
-                            day_cells_data[week_num][day_of_week] = str(day_num)
-
-                    # Remove empty rows at the end
-                    while day_cells_data and all(cell == "" for cell in day_cells_data[-1]):
-                        day_cells_data.pop()
-
-                    # Add day cells to month calendar data
-                    for week in day_cells_data:
-                        month_calendar_data.append(week)
-
-                    # --- Create month table ---
-                    # Calculate column width to fit 3 months per row
-                    available_width = self.PAGE_WIDTH_LANDSCAPE - 2 * self.MARGIN - 20 * mm
-                    month_width = available_width / 3
-                    col_width = month_width / 7
-
-                    month_table = Table(
-                        month_calendar_data,
-                        colWidths=[col_width] * 7,
-                        rowHeights=None,  # Auto-adjust height
-                    )
-
-                    month_table.setStyle(
-                        TableStyle(
-                            [
-                                # Month header
-                                ("SPAN", (0, 0), (-1, 0)),
-                                ("ALIGN", (0, 0), (-1, 0), "CENTER"),
-                                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                                ("FONTSIZE", (0, 0), (-1, 0), self.NORMAL_FONT_SIZE),
-                                ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
-                                # Weekday headers
-                                ("ALIGN", (0, 1), (-1, 1), "CENTER"),
-                                ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
-                                ("BACKGROUND", (0, 1), (-1, 1), lightgrey),
-                                ("FONTSIZE", (0, 1), (-1, 1), self.SMALL_FONT_SIZE),
-                                # Day cells
-                                ("ALIGN", (0, 2), (-1, -1), "CENTER"),
-                                ("VALIGN", (0, 2), (-1, -1), "MIDDLE"),
-                                ("FONTSIZE", (0, 2), (-1, -1), self.SMALL_FONT_SIZE),
-                                ("GRID", (0, 1), (-1, -1), 0.5, black),
-                                ("TOPPADDING", (0, 2), (-1, -1), 4),
-                                ("BOTTOMPADDING", (0, 2), (-1, -1), 4),
-                            ]
-                        )
-                    )
-                    row_data.append(month_table)
-
-                # Create row table with the 3 month tables
-                row_table = Table(
-                    [row_data],
-                    colWidths=[month_width] * 3,
-                )
-                row_table.setStyle(
-                    TableStyle([
-                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                    ])
-                )
-
-                story.append(row_table)
-                story.append(Spacer(1, 15))
-
-            # Add legend
-            # Note: German text is intentional - this is a German vacation management form
-            story.append(Spacer(1, 10))
-            legend_text = (
-                "<b>Legende:</b> • = Genehmigter Urlaubsantrag | "
-                f"Gesamt: {len(approved_absences)} genehmigte Anträge"
+            # Build 6-month calendar table (1 row × 6 columns layout)
+            calendar_data = self._build_6month_calendar_rows(
+                year, months, absence_dates, weekday_abbrev
             )
-            story.append(Paragraph(legend_text, self.small_style))
 
+            # Create table with 6 columns (one per month)
+            column_width = (self.PAGE_WIDTH_LANDSCAPE - 20 * mm) / 6
+
+            calendar_table = Table(
+                calendar_data,
+                colWidths=[column_width] * 6,
+                repeatRows=1,  # Repeat header rows on page breaks
+            )
+
+            # Apply table styling
+            calendar_table.setStyle(
+                self._get_calendar_table_style(len(calendar_data), len(months))
+            )
+
+            story.append(calendar_table)
+            story.append(Spacer(1, 12))
+
+            # Add footer with legend and statistics
+            legend_section = self._build_legend_section(
+                period_count, period_text, page_num, absences, year
+            )
+            for element in legend_section:
+                story.append(element)
+
+            # Page break except after last page
             if page_num == 0:
                 story.append(PageBreak())
 
@@ -890,6 +857,228 @@ class VacationPDFGenerator:
         doc.build(story)
         buffer.seek(0)
         return buffer
+
+    def _build_6month_calendar_rows(
+        self,
+        year: int,
+        months: list[int],
+        absence_dates: dict,
+        weekday_abbrev: list[str],
+    ) -> list[list]:
+        """
+        Build calendar data as day-rows for 6 months (days 1-31 as rows).
+
+        Returns:
+            2D list where each row represents a day (1-31), each column a month
+        """
+        calendar_data = []
+
+        # Month headers
+        month_names = {
+            1: "JANUAR",
+            2: "FEBRUAR",
+            3: "MÄRZ",
+            4: "APRIL",
+            5: "MAI",
+            6: "JUNI",
+            7: "JULI",
+            8: "AUGUST",
+            9: "SEPTEMBER",
+            10: "OKTOBER",
+            11: "NOVEMBER",
+            12: "DEZEMBER",
+        }
+
+        headers = []
+        for month in months:
+            month_name = month_names[month]
+            num_days = self._days_in_month(year, month)
+            header_text = f"<b>{month_name}</b><br/>({num_days})"
+            headers.append(Paragraph(header_text, self.normal_style))
+
+        calendar_data.append(headers)
+
+        # Day rows (1-31)
+        max_days = 31
+        for day_num in range(1, max_days + 1):
+            row = []
+
+            for month in months:
+                num_days = self._days_in_month(year, month)
+
+                if day_num <= num_days:
+                    # Get weekday for this date
+                    date_obj = date(year, month, day_num)
+                    weekday_idx = date_obj.weekday()  # 0=Monday, 6=Sunday
+                    weekday_str = weekday_abbrev[weekday_idx]
+
+                    # Check for absence
+                    date_key = (month, day_num)
+                    has_absence = date_key in absence_dates
+
+                    # Format cell with rotated text for absences
+                    if has_absence:
+                        # Use rotated text for absence indicator
+                        cell_text = (
+                            f"{weekday_str} {day_num:2d}"
+                        )
+                        cell_element = Table(
+                            [[Paragraph(cell_text, self.small_style)],
+                             [self._create_rotated_text("URLAUB", 6)]],
+                            colWidths=[None],
+                            rowHeights=[None, 12 * mm],
+                        )
+                        cell_element.setStyle(TableStyle([
+                            ("ALIGN", (0, 0), (0, -1), "CENTER"),
+                            ("VALIGN", (0, 0), (0, -1), "MIDDLE"),
+                            ("BACKGROUND", (0, 1), (0, 1),
+                             colors.HexColor("#FFE6E6")),
+                            ("GRID", (0, 0), (-1, -1), 0.5,
+                             colors.HexColor("#FF9999")),
+                        ]))
+                        row.append(cell_element)
+                    else:
+                        cell_text = f"{weekday_str} {day_num:2d}"
+                        row.append(Paragraph(cell_text, self.small_style))
+
+                else:
+                    # Day doesn't exist in this month
+                    row.append(Paragraph("—", self.small_style))
+
+            calendar_data.append(row)
+
+        return calendar_data
+
+    def _get_calendar_table_style(self, num_rows: int, num_months: int) -> TableStyle:
+        """
+        Generate styling for the 6-month calendar table.
+
+        Args:
+            num_rows: Total number of rows in table
+            num_months: Number of month columns
+
+        Returns:
+            TableStyle with professional formatting
+        """
+        header_row = 0
+        first_data_row = 1
+        last_row = num_rows - 1
+
+        return TableStyle(
+            [
+                # Header row styling
+                ("FONT", (0, header_row), (-1, header_row), "Helvetica-Bold", 10),
+                ("ALIGN", (0, header_row), (-1, header_row), "CENTER"),
+                ("VALIGN", (0, header_row), (-1, header_row), "MIDDLE"),
+                (
+                    "BACKGROUND",
+                    (0, header_row),
+                    (-1, header_row),
+                    colors.HexColor("#EEEEEE"),
+                ),
+                ("TOPPADDING", (0, header_row), (-1, header_row), 4),
+                ("BOTTOMPADDING", (0, header_row), (-1, header_row), 4),
+                ("HEIGHT", (0, header_row), (-1, header_row), 18 * mm),
+                # Data cells styling
+                ("FONT", (0, first_data_row), (-1, last_row), "Helvetica", 8),
+                ("ALIGN", (0, first_data_row), (-1, last_row), "LEFT"),
+                ("VALIGN", (0, first_data_row), (-1, last_row), "MIDDLE"),
+                ("TOPPADDING", (0, first_data_row), (-1, last_row), 2),
+                ("BOTTOMPADDING", (0, first_data_row), (-1, last_row), 2),
+                ("LEFTPADDING", (0, first_data_row), (-1, last_row), 3),
+                ("RIGHTPADDING", (0, first_data_row), (-1, last_row), 3),
+                ("HEIGHT", (0, first_data_row), (-1, last_row), 4.5 * mm),
+                # Grid lines
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
+                ("LINEBELOW", (0, header_row), (-1, header_row), 1, black),
+                # Alternating row background for readability
+                *[
+                    (
+                        "BACKGROUND",
+                        (0, row),
+                        (-1, row),
+                        colors.HexColor("#F9F9F9"),
+                    )
+                    for row in range(first_data_row + 1, last_row + 1, 2)
+                ],
+            ]
+        )
+
+    def _build_legend_section(
+        self,
+        period_count: int,
+        period_text: str,
+        page_num: int,
+        absences: list[Absence],
+        year: int,
+    ) -> list:
+        """
+        Build legend, statistics, and footer section.
+
+        Args:
+            period_count: Count of absences in this period
+            period_text: Human-readable period text ("Januar - Juni" or "Juli - Dezember")
+            page_num: Page number (0 or 1)
+            absences: All absences
+            year: Year
+
+        Returns:
+            List of Paragraph and Spacer elements
+        """
+        legend_elements = []
+
+        # Legend box
+        legend_text = (
+            "<b>Legende:</b><br/>"
+            "• = Genehmigter Urlaubsantrag (Approved Absence)<br/>"
+            "— = Nicht vorgesehen (Day does not exist in month)"
+        )
+        legend_elements.append(Paragraph(legend_text, self.small_style))
+        legend_elements.append(Spacer(1, 8))
+
+        # Statistics
+        if page_num == 0:
+            stat_text = (
+                f"<b>Statistik 1. Halbjahr ({period_text}):</b><br/>"
+                f"• Insgesamt: {period_count} genehmigte Abwesenheiten"
+            )
+        else:
+            # Calculate both periods
+            h1_approved = sum(
+                1
+                for absence in absences
+                if absence.status == "approved"
+                and absence.start_date.month <= 6
+                and absence.end_date.year >= year
+            )
+            h2_approved = sum(
+                1
+                for absence in absences
+                if absence.status == "approved"
+                and absence.start_date.month > 6
+                and absence.end_date.year >= year
+            )
+            total_approved = len(
+                [
+                    a
+                    for a in absences
+                    if a.status == "approved"
+                    and a.start_date.year <= year
+                    and a.end_date.year >= year
+                ]
+            )
+
+            stat_text = (
+                f"<b>Statistik 2. Halbjahr ({period_text}):</b><br/>"
+                f"• Insgesamt: {period_count} genehmigte Abwesenheiten<br/>"
+                f"<b>Jahresgesamt {year}:</b><br/>"
+                f"• 1. Halbjahr: {h1_approved} | 2. Halbjahr: {h2_approved} | "
+                f"Gesamt: {total_approved} genehmigte Abwesenheiten"
+            )
+
+        legend_elements.append(Paragraph(stat_text, self.small_style))
+
+        return legend_elements
 
     def _days_in_month(self, year, month):
         if month == 2:
