@@ -12,22 +12,24 @@ The yearly vacation calendar PDF now displays vacation absences with **verticall
 
 ### Change Overview
 
-| Aspect | Before | After |
-|--------|--------|-------|
-| Absence Display | `[•]` bullet point | "URLAUB" rotated 90° |
-| Visual Impact | Subtle | Prominent |
-| Cell Height | 4.5mm | 12mm (for rotated text) |
-| Appearance | Basic | Professional |
-| Colors | None | Red highlight |
+| Aspect          | Before             | After                   |
+| --------------- | ------------------ | ----------------------- |
+| Absence Display | `[•]` bullet point | "URLAUB" rotated 90°    |
+| Visual Impact   | Subtle             | Prominent               |
+| Cell Height     | 4.5mm              | 12mm (for rotated text) |
+| Appearance      | Basic              | Professional            |
+| Colors          | None               | Red highlight           |
 
 ---
 
 ## Implementation Details
 
 ### File Modified
+
 `src/backend/services/vacation_pdf_generator.py`
 
 ### New Helper Method
+
 ```python
 _create_rotated_text(text: str, font_size: int = 7) -> Drawing
 ```
@@ -35,16 +37,19 @@ _create_rotated_text(text: str, font_size: int = 7) -> Drawing
 Creates a ReportLab Drawing object with text rotated 90° clockwise.
 
 ### Updated Method
+
 ```python
 _build_6month_calendar_rows(...)
 ```
 
 Now creates nested tables for absence cells with:
+
 - Top row: Date/weekday info
 - Bottom row: Rotated "URLAUB" text
 - Red background and border highlighting
 
 ### Imports Added
+
 ```python
 from reportlab.graphics.shapes import Drawing, String as RLString
 ```
@@ -97,17 +102,20 @@ from reportlab.graphics.shapes import Drawing, String as RLString
 ## Specifications
 
 ### Colors
+
 - Background: `#FFE6E6` (Light Red)
 - Border: `#FF9999` (Red)
 - Text: Black
 - Font: Helvetica 6pt
 
 ### Dimensions
+
 - Cell Width: Based on column width (6 columns)
 - Cell Height: 12mm (rotated row)
 - Margin: 10mm page margins
 
 ### Rotation
+
 - Angle: 90° clockwise
 - Text: "URLAUB" (German for Vacation)
 
@@ -116,11 +124,13 @@ from reportlab.graphics.shapes import Drawing, String as RLString
 ## Documentation Created
 
 1. **JAHRESURLAUBSKALENDER_ROTATED_TEXT_ENHANCEMENT.md**
+
    - Technical implementation details
    - Code examples and structure
    - Testing procedures
 
 2. **JAHRESURLAUBSKALENDER_ROTATED_TEXT_VISUAL_GUIDE.md**
+
    - Visual before/after comparison
    - Print preview examples
    - Full page examples
@@ -135,6 +145,7 @@ from reportlab.graphics.shapes import Drawing, String as RLString
 ## Next Steps
 
 ### Manual Verification (Recommended)
+
 1. Generate a test PDF with sample absences
 2. Open in PDF viewer
 3. Verify rotated text displays correctly
@@ -142,6 +153,7 @@ from reportlab.graphics.shapes import Drawing, String as RLString
 5. Confirm both pages render properly
 
 ### Deployment
+
 - Merge to main branch
 - Deploy to production
 - Monitor error logs
@@ -172,6 +184,7 @@ from reportlab.graphics.shapes import Drawing, String as RLString
 ## Support
 
 For questions about:
+
 - **Implementation**: See JAHRESURLAUBSKALENDER_ROTATED_TEXT_ENHANCEMENT.md
 - **Visual Design**: See JAHRESURLAUBSKALENDER_ROTATED_TEXT_VISUAL_GUIDE.md
 - **Code**: Check src/backend/services/vacation_pdf_generator.py

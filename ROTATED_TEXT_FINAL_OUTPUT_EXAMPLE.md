@@ -121,12 +121,14 @@ Alternate rows: #F9F9F9 (very light gray background)
 ### Text Rotation Angle: 90° Clockwise
 
 **Original Text (0°)**:
+
 ```
 URLAUB
 ──────
 ```
 
 **Rotated 90° Clockwise**:
+
 ```
        ↑
        │
@@ -167,16 +169,19 @@ Page 2: Jul-Dec
 ## Print Preview (A4 Landscape, 300 DPI)
 
 ### On Screen (100% Zoom)
+
 - Text is readable at standard size
 - Red highlighting is visible
 - Rotated text orientation is clear
 
 ### Printed (8.5" x 11" Landscape)
+
 - Professional appearance
 - Easy to mount on wall
 - All elements clearly visible
 
 ### Print at 150% Zoom
+
 - Rotated text becomes more prominent
 - Perfect for wall displays
 - Maximum readability
@@ -265,17 +270,17 @@ Document
 
 ## Browser Compatibility
 
-✅ Chrome/Chromium   - Full support
-✅ Firefox           - Full support
-✅ Safari            - Full support
-✅ Edge              - Full support
+✅ Chrome/Chromium - Full support
+✅ Firefox - Full support
+✅ Safari - Full support
+✅ Edge - Full support
 
 ## Print Compatibility
 
-✅ 300 DPI           - Excellent
-✅ 150 DPI           - Good
-✅ Screen view       - Perfect
-✅ PDF compression   - Optimal
+✅ 300 DPI - Excellent
+✅ 150 DPI - Good
+✅ Screen view - Perfect
+✅ PDF compression - Optimal
 
 ---
 

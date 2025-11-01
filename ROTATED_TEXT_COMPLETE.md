@@ -13,14 +13,16 @@ The Jahresurlaubskalender (yearly vacation calendar) PDF has been successfully e
 **File**: `src/backend/services/vacation_pdf_generator.py`
 
 1. **New Helper Method** (lines 104-128)
+
    - `_create_rotated_text(text: str, font_size: int = 7) -> Drawing`
    - Creates ReportLab Drawing objects with 90° rotated text
    - Returns professional-looking rotated text elements
 
 2. **Updated Method** (lines 899-985)
+
    - `_build_6month_calendar_rows(...)`
    - Now creates nested tables for absence cells
-   - Top row: Date/weekday (e.g., "Mo  2")
+   - Top row: Date/weekday (e.g., "Mo 2")
    - Bottom row: Rotated "URLAUB" text (90° clockwise)
    - Red background (#FFE6E6) and border (#FF9999)
 
@@ -47,11 +49,13 @@ test_status_text_conversion                PASSED ✓
 ## 📊 Visual Changes
 
 ### Before
+
 ```
 Di  2  [•]    ← Simple dot, easy to miss
 ```
 
 ### After
+
 ```
 ┌────────────┐
 │ Di  2      │
@@ -66,47 +70,52 @@ Di  2  [•]    ← Simple dot, easy to miss
 ## 🎨 Design Specifications
 
 ### Colors
-| Element | Color | Hex |
-|---------|-------|-----|
+
+| Element    | Color     | Hex       |
+| ---------- | --------- | --------- |
 | Background | Light Red | `#FFE6E6` |
-| Border | Red | `#FF9999` |
-| Text | Black | `#000000` |
+| Border     | Red       | `#FF9999` |
+| Text       | Black     | `#000000` |
 
 ### Typography
-| Element | Font | Size |
-|---------|------|------|
-| Rotated Text | Helvetica | 6pt |
-| Date/Weekday | Helvetica | 7pt |
+
+| Element      | Font      | Size |
+| ------------ | --------- | ---- |
+| Rotated Text | Helvetica | 6pt  |
+| Date/Weekday | Helvetica | 7pt  |
 
 ### Dimensions
-| Property | Value |
-|----------|-------|
-| Cell Height (Absence) | 12mm |
-| Cell Height (Normal) | 4.5mm |
-| Rotation Angle | 90° |
+
+| Property              | Value |
+| --------------------- | ----- |
+| Cell Height (Absence) | 12mm  |
+| Cell Height (Normal)  | 4.5mm |
+| Rotation Angle        | 90°   |
 
 ---
 
 ## 📈 Performance Impact
 
-| Metric | Impact |
-|--------|--------|
-| File Size | +1-2% (negligible) |
-| Generation Time | +10-15ms |
-| Memory Usage | Minimal |
-| Print Quality | Excellent |
+| Metric          | Impact             |
+| --------------- | ------------------ |
+| File Size       | +1-2% (negligible) |
+| Generation Time | +10-15ms           |
+| Memory Usage    | Minimal            |
+| Print Quality   | Excellent          |
 
 ---
 
 ## 📚 Documentation Created
 
 1. **JAHRESURLAUBSKALENDER_ROTATED_TEXT_ENHANCEMENT.md**
+
    - Comprehensive technical documentation
    - Implementation details and code examples
    - Testing and validation procedures
    - ~600 lines
 
 2. **JAHRESURLAUBSKALENDER_ROTATED_TEXT_VISUAL_GUIDE.md**
+
    - Visual before/after comparisons
    - Print preview examples
    - Full page examples
@@ -124,21 +133,25 @@ Di  2  [•]    ← Simple dot, easy to miss
 ## ✨ Key Features
 
 ### Visual Clarity
+
 - Vacation days immediately visible
 - Red highlighting distinguishes vacation periods
 - Rotated text creates natural visual hierarchy
 
 ### Professional Appearance
+
 - Distinctive design suitable for printing
 - Reads naturally on wall-mounted displays
 - Print quality at 300 DPI is excellent
 
 ### Accessibility
+
 - Text label "URLAUB" is explicit
 - Better support for color-blind users
 - Large enough for easy reading
 
 ### Usability
+
 - Quick scanning of vacation periods
 - Easy identification of peak vacation times
 - Suitable for office planning meetings
@@ -159,6 +172,7 @@ Di  2  [•]    ← Simple dot, easy to miss
 ## 📝 Code Quality
 
 ### Standards Met
+
 - ✅ Type hints: Complete
 - ✅ Docstrings: Comprehensive
 - ✅ Comments: Clear and helpful
@@ -166,6 +180,7 @@ Di  2  [•]    ← Simple dot, easy to miss
 - ✅ Code Style: PEP 8 compliant
 
 ### Test Coverage
+
 - ✅ Unit tests: All passing
 - ✅ Integration tests: Verified
 - ✅ Edge cases: Handled
@@ -176,18 +191,21 @@ Di  2  [•]    ← Simple dot, easy to miss
 ## 🔄 Next Steps
 
 ### Immediate (Verification)
+
 1. Generate test PDF with sample absences
 2. Open in PDF viewer at 100% zoom
 3. Verify rotated text displays correctly
 4. Check print preview at 300 DPI
 
 ### Short-term (Deployment)
+
 1. Merge code to main branch
 2. Deploy to production
 3. Monitor error logs
 4. Collect user feedback
 
 ### Future (Enhancements)
+
 1. Configurable absence labels (URLAUB, KRANK, etc.)
 2. Color-coding by absence type
 3. Alternative rotation angles (45°, 0°)
@@ -198,11 +216,13 @@ Di  2  [•]    ← Simple dot, easy to miss
 ## 📞 Support Information
 
 ### For Questions About:
+
 - **Technical Implementation**: See JAHRESURLAUBSKALENDER_ROTATED_TEXT_ENHANCEMENT.md
 - **Visual Design**: See JAHRESURLAUBSKALENDER_ROTATED_TEXT_VISUAL_GUIDE.md
 - **Code Changes**: Review src/backend/services/vacation_pdf_generator.py lines 104-128 and 899-985
 
 ### Key Methods
+
 - `_create_rotated_text()`: Creates rotated text elements
 - `_build_6month_calendar_rows()`: Builds calendar with rotated text
 
@@ -224,14 +244,14 @@ Di  2  [•]    ← Simple dot, easy to miss
 
 ## 📊 Impact Summary
 
-| Category | Status |
-|----------|--------|
-| **Functionality** | ✅ Working |
-| **Tests** | ✅ 6/6 Passing |
-| **Documentation** | ✅ Complete |
-| **Performance** | ✅ Acceptable |
+| Category          | Status                 |
+| ----------------- | ---------------------- |
+| **Functionality** | ✅ Working             |
+| **Tests**         | ✅ 6/6 Passing         |
+| **Documentation** | ✅ Complete            |
+| **Performance**   | ✅ Acceptable          |
 | **Compatibility** | ✅ Backward Compatible |
-| **Quality** | ✅ High |
+| **Quality**       | ✅ High                |
 
 ---
 

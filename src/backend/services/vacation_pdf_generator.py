@@ -11,6 +11,7 @@ This module generates various PDF forms for vacation planning:
 import io
 from datetime import date, datetime, timedelta
 
+from reportlab.graphics.shapes import Drawing, String as RLString
 from reportlab.lib import colors
 from reportlab.lib.colors import black, lightgrey, white
 from reportlab.lib.pagesizes import A4, landscape
@@ -24,7 +25,6 @@ from reportlab.platypus import (
     Table,
     TableStyle,
 )
-from reportlab.graphics.shapes import Drawing, String as RLString
 
 from ..models import Absence, Employee, Settings
 
@@ -919,23 +919,36 @@ class VacationPDFGenerator:
                     # Format cell with rotated text for absences
                     if has_absence:
                         # Use rotated text for absence indicator
-                        cell_text = (
-                            f"{weekday_str} {day_num:2d}"
-                        )
+                        cell_text = f"{weekday_str} {day_num:2d}"
                         cell_element = Table(
-                            [[Paragraph(cell_text, self.small_style)],
-                             [self._create_rotated_text("URLAUB", 6)]],
+                            [
+                                [Paragraph(cell_text, self.small_style)],
+                                [self._create_rotated_text("URLAUB", 6)],
+                            ],
                             colWidths=[None],
                             rowHeights=[None, 12 * mm],
                         )
-                        cell_element.setStyle(TableStyle([
-                            ("ALIGN", (0, 0), (0, -1), "CENTER"),
-                            ("VALIGN", (0, 0), (0, -1), "MIDDLE"),
-                            ("BACKGROUND", (0, 1), (0, 1),
-                             colors.HexColor("#FFE6E6")),
-                            ("GRID", (0, 0), (-1, -1), 0.5,
-                             colors.HexColor("#FF9999")),
-                        ]))
+                        cell_element.setStyle(
+                            TableStyle(
+                                [
+                                    ("ALIGN", (0, 0), (0, -1), "CENTER"),
+                                    ("VALIGN", (0, 0), (0, -1), "MIDDLE"),
+                                    (
+                                        "BACKGROUND",
+                                        (0, 1),
+                                        (0, 1),
+                                        colors.HexColor("#FFE6E6"),
+                                    ),
+                                    (
+                                        "GRID",
+                                        (0, 0),
+                                        (-1, -1),
+                                        0.5,
+                                        colors.HexColor("#FF9999"),
+                                    ),
+                                ]
+                            )
+                        )
                         row.append(cell_element)
                     else:
                         cell_text = f"{weekday_str} {day_num:2d}"

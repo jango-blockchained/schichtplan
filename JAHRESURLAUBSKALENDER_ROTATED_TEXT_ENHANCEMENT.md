@@ -13,6 +13,7 @@ The yearly vacation calendar (Jahresurlaubskalender) PDF has been enhanced to di
 ### What Changed
 
 **Before**: Days with absences displayed as `[•]` (bullet point indicator)
+
 ```
 Mo  1  [ ]
 Di  2  [•]    <- Simple dot indicator
@@ -20,6 +21,7 @@ Mi  3  [ ]
 ```
 
 **After**: Days with absences display as vertical rows with rotated "URLAUB" text (90° clockwise)
+
 ```
 Mo  1  [ ]
 Di  2  ┌─────┐
@@ -42,21 +44,21 @@ A new helper method creates rotated text elements using ReportLab's Graphics cap
 def _create_rotated_text(self, text: str, font_size: int = 7):
     """
     Create a rotated text element (90° clockwise).
-    
+
     Args:
         text: Text to rotate
         font_size: Font size for the text
-    
+
     Returns:
         Drawing object containing rotated text
     """
     # Calculate drawing size based on text length
     char_width = font_size * 0.55  # Approximate character width
     text_width = len(text) * char_width
-    
+
     # Create drawing with appropriate dimensions
     drawing = Drawing(font_size + 2, text_width + 2)
-    
+
     # Create rotated string (angle=90 rotates clockwise)
     rotated_string = RLString(
         1,
@@ -67,7 +69,7 @@ def _create_rotated_text(self, text: str, font_size: int = 7):
         fillColor=black,
         angle=90,  # 90° clockwise rotation
     )
-    
+
     drawing.add(rotated_string)
     return drawing
 ```
@@ -81,7 +83,7 @@ The calendar building method now uses rotated text for absence cells.
 **Key Changes**:
 
 - **Absence Cell Structure**: Creates a nested table with two rows:
-  - Row 1: Weekday + date (e.g., "Mo  2")
+  - Row 1: Weekday + date (e.g., "Mo 2")
   - Row 2: Rotated "URLAUB" text with 90° rotation
 
 ```python
@@ -111,6 +113,7 @@ else:
 ### 3. Visual Styling
 
 Absence cells include:
+
 - **Text**: "URLAUB" (German for "Vacation")
 - **Rotation**: 90° clockwise
 - **Background Color**: Light red (#FFE6E6)
@@ -168,10 +171,11 @@ test_status_text_conversion PASSED
 ### Manual Verification Steps
 
 1. **Generate Calendar PDF**
+
    ```python
    from src.backend.services.vacation_pdf_generator import VacationPDFGenerator
    from src.backend.models import Employee, Absence, Settings
-   
+
    generator = VacationPDFGenerator()
    pdf_buffer = generator.generate_yearly_calendar(
        year=2025,
@@ -179,13 +183,14 @@ test_status_text_conversion PASSED
        absences=[...],  # Include some test absences
        settings=settings
    )
-   
+
    # Save and view in PDF reader
    with open("calendar_2025.pdf", "wb") as f:
        f.write(pdf_buffer.getvalue())
    ```
 
 2. **Visual Checks**
+
    - ✓ Days without absences show date only
    - ✓ Days with absences show "URLAUB" text rotated 90° clockwise
    - ✓ Rotated text is readable and properly positioned
@@ -203,13 +208,13 @@ test_status_text_conversion PASSED
 
 ### Visual Impact
 
-| Aspect | Before | After |
-|--------|--------|-------|
-| Absence Indicator | Simple [•] dot | Vertical "URLAUB" text |
-| Cell Height | Minimal (4.5mm) | Expanded (12mm for text) |
+| Aspect            | Before              | After                      |
+| ----------------- | ------------------- | -------------------------- |
+| Absence Indicator | Simple [•] dot      | Vertical "URLAUB" text     |
+| Cell Height       | Minimal (4.5mm)     | Expanded (12mm for text)   |
 | Visual Prominence | Low - easily missed | High - immediately visible |
-| Professional Look | Basic | Enhanced and distinctive |
-| Readability | Clear but minimal | Very clear with rotation |
+| Professional Look | Basic               | Enhanced and distinctive   |
+| Readability       | Clear but minimal   | Very clear with rotation   |
 
 ### Performance Impact
 
@@ -248,7 +253,7 @@ VACATION                      │ V A C A T I O N
 
 - **Font**: Helvetica
 - **Text Size**: 6pt (for rotated "URLAUB")
-- **Date Size**: 7pt (for "Mo  2")
+- **Date Size**: 7pt (for "Mo 2")
 - **Cell Height**: 12mm (rotated row)
 
 ---
@@ -256,15 +261,18 @@ VACATION                      │ V A C A T I O N
 ## 🔄 Future Enhancements
 
 1. **Configurable Absence Text**
+
    - Allow different labels per absence type (URLAUB, KRANK, TRAINING)
    - Color-code by type
 
 2. **Rotation Options**
+
    - Option for 45° angle
    - Vertical text (0° but positioned vertically)
    - Horizontal with background bar
 
 3. **Advanced Visual Indicators**
+
    - Patterns/hatching for different absence types
    - Icons instead of text
    - Mini status flags
@@ -311,15 +319,19 @@ VACATION                      │ V A C A T I O N
 ## 📞 Support & Questions
 
 ### For Visual Questions
+
 See: Design specifications section above
 
 ### For Implementation Questions
+
 See: Technical implementation section
 
 ### For Testing
+
 See: Testing & validation section
 
 ### For PDF Generation
+
 Check: `src/backend/services/vacation_pdf_generator.py`
 
 ---
