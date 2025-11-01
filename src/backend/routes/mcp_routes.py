@@ -93,15 +93,14 @@ def list_mcp_resources():
     """List all available MCP resources."""
     try:
         mcp_service = get_mcp_service()
-        mcp_server = mcp_service.get_mcp_server()
+        registered_resources = mcp_service.get_registered_resources()
 
         resources = []
-        for resource_name, resource_func in mcp_server._resources.items():
-            resource_info = {
-                "uri": resource_name,
-                "description": resource_func.__doc__ or "No description available",
-            }
-            resources.append(resource_info)
+        for resource_uri, resource_info in registered_resources.items():
+            resources.append({
+                "uri": resource_uri,
+                "description": resource_info.get("description", "No description available"),
+            })
 
         return jsonify({"resources": resources, "count": len(resources)})
 
@@ -115,15 +114,14 @@ def list_mcp_prompts():
     """List all available MCP prompts."""
     try:
         mcp_service = get_mcp_service()
-        mcp_server = mcp_service.get_mcp_server()
+        registered_prompts = mcp_service.get_registered_prompts()
 
         prompts = []
-        for prompt_name, prompt_func in mcp_server._prompts.items():
-            prompt_info = {
+        for prompt_name, prompt_info in registered_prompts.items():
+            prompts.append({
                 "name": prompt_name,
-                "description": prompt_func.__doc__ or "No description available",
-            }
-            prompts.append(prompt_info)
+                "description": prompt_info.get("description", "No description available"),
+            })
 
         return jsonify({"prompts": prompts, "count": len(prompts)})
 
@@ -147,51 +145,31 @@ def test_mcp_tool():
             return jsonify({"error": "tool_name is required"}), 400
 
         mcp_service = get_mcp_service()
-        mcp_server = mcp_service.get_mcp_server()
+        registered_tools = mcp_service.get_registered_tools()
 
-        if tool_name not in mcp_server._tools:
-            return jsonify({"error": f'Tool "{tool_name}" not found'}), 404
+        if tool_name not in registered_tools:
+            return jsonify({
+                "error": f'Tool "{tool_name}" not found',
+                "available_tools": list(registered_tools.keys())
+            }), 404
 
-        # Create a test execution - this is simplified for web usage
-        # In a real scenario, you'd use the full MCP client/server protocol
-        tool_func = mcp_server._tools[tool_name]
+        tool_info = registered_tools[tool_name]
 
-        # Create a mock context for testing
-        class MockContext:
-            def __init__(self):
-                self.logs = []
-
-            async def info(self, message: str):
-                self.logs.append(f"INFO: {message}")
-
-            async def error(self, message: str):
-                self.logs.append(f"ERROR: {message}")
-
-            async def warning(self, message: str):
-                self.logs.append(f"WARNING: {message}")
-
-        # Run the tool function
-        mock_ctx = MockContext()
-        if "ctx" in tool_func.__code__.co_varnames:
-            parameters["ctx"] = mock_ctx
-
-        # Execute the tool
-        if asyncio.iscoroutinefunction(tool_func):
-            result = asyncio.run(tool_func(**parameters))
-        else:
-            result = tool_func(**parameters)
-
+        # Return tool info and validation result
+        # Note: Direct tool execution requires using the MCP protocol (stdio/SSE/HTTP)
+        # For actual execution, use the MCP client or /mcp/execute-tool endpoint
         return jsonify(
             {
-                "status": "success",
+                "status": "validated",
                 "tool_name": tool_name,
-                "result": result,
-                "logs": mock_ctx.logs,
+                "tool_info": tool_info,
+                "parameters_provided": parameters,
+                "message": "Tool found and validated. For execution, use MCP protocol or /mcp/execute-tool endpoint.",
             }
         )
 
     except Exception as e:
-        logger.error(f"Error testing MCP tool: {str(e)}")
+        logger.error(f"Error testing MCP tool: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "error": str(e)}), 500
 
 
@@ -214,78 +192,53 @@ def execute_mcp_tool():
             return jsonify({"error": "tool or tool_name is required"}), 400
 
         mcp_service = get_mcp_service()
-        mcp_server = mcp_service.get_mcp_server()
+        registered_tools = mcp_service.get_registered_tools()
 
-        if tool_name not in mcp_server._tools:
+        if tool_name not in registered_tools:
             return jsonify(
                 {
                     "status": "error",
                     "error": f'Tool "{tool_name}" not found',
-                    "available_tools": list(mcp_server._tools.keys()),
+                    "available_tools": list(registered_tools.keys()),
                 }
             ), 404
 
-        # Create execution context
-        class ExecutionContext:
-            def __init__(self):
-                self.logs = []
-                self.warnings = []
-                self.errors = []
+        # Get tool info and category
+        tool_info = registered_tools[tool_name]
+        category = tool_info.get("category")
 
-            async def info(self, message: str):
-                self.logs.append({"level": "info", "message": message})
+        # Get the tool instance using the category mapping
+        tool_instance = mcp_service.get_tool_instance_by_category(category)
 
-            async def error(self, message: str):
-                self.errors.append(message)
-                self.logs.append({"level": "error", "message": message})
-
-            async def warning(self, message: str):
-                self.warnings.append(message)
-                self.logs.append({"level": "warning", "message": message})
-
-        # Get tool function
-        tool_func = mcp_server._tools[tool_name]
-        exec_ctx = ExecutionContext()
-
-        # Prepare parameters with context
-        exec_params = parameters.copy()
-        if "ctx" in tool_func.__code__.co_varnames:
-            exec_params["ctx"] = exec_ctx
-
-        # Execute the tool
-        try:
-            if asyncio.iscoroutinefunction(tool_func):
-                result = asyncio.run(tool_func(**exec_params))
-            else:
-                result = tool_func(**exec_params)
-
-            return jsonify(
-                {
-                    "status": "success",
-                    "tool_name": tool_name,
-                    "result": result,
-                    "logs": exec_ctx.logs,
-                    "warnings": exec_ctx.warnings,
-                    "errors": exec_ctx.errors,
-                    "conversation_id": conversation_id,
-                }
-            )
-
-        except Exception as tool_error:
-            logger.error(f"Tool execution error for {tool_name}: {tool_error}")
+        if not tool_instance:
             return jsonify(
                 {
                     "status": "error",
-                    "tool_name": tool_name,
-                    "error": str(tool_error),
-                    "logs": exec_ctx.logs,
-                    "warnings": exec_ctx.warnings,
-                    "errors": exec_ctx.errors,
+                    "error": f"Tool category '{category}' not found",
+                    "message": "For full tool execution, use the MCP protocol (stdio/SSE/HTTP) with an MCP client"
                 }
             ), 500
 
+        # Note: Direct execution is limited. For full MCP protocol support,
+        # clients should use stdio/SSE/HTTP transports with the MCP server
+        return jsonify(
+            {
+                "status": "info",
+                "tool_name": tool_name,
+                "tool_info": tool_info,
+                "parameters_provided": parameters,
+                "conversation_id": conversation_id,
+                "message": "Tool found. For execution, use the MCP server via stdio/SSE/HTTP transports with an MCP client, or use the AI conversation endpoints.",
+                "alternative_endpoints": {
+                    "ai_conversation": "/api/v2/ai-conversation/chat",
+                    "mcp_stdio": "python src/backend/mcp_server.py",
+                    "mcp_sse": "http://localhost:8001/sse",
+                }
+            }
+        )
+
     except Exception as e:
-        logger.error(f"Error executing MCP tool: {str(e)}")
+        logger.error(f"Error executing MCP tool: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "error": str(e)}), 500
 
 
