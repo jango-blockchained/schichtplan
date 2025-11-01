@@ -203,27 +203,12 @@ def execute_mcp_tool():
                 }
             ), 404
 
-        # For direct tool execution, we need to access the tool instances
-        # Map tool names to their corresponding service methods
+        # Get tool info and category
         tool_info = registered_tools[tool_name]
         category = tool_info.get("category")
 
-        # Get the appropriate tool instance
-        tool_instance = None
-        if category == "schedule_analysis":
-            tool_instance = mcp_service.schedule_analysis_tools
-        elif category == "employee_management":
-            tool_instance = mcp_service.employee_management_tools
-        elif category == "coverage_optimization":
-            tool_instance = mcp_service.coverage_optimization_tools
-        elif category == "crud_operations":
-            tool_instance = mcp_service.crud_operations_tools
-        elif category == "ai_schedule_generation":
-            tool_instance = mcp_service.ai_schedule_generation_tools
-        elif category == "ml_optimization":
-            tool_instance = mcp_service.ml_optimization_tools
-        elif category == "schedule_scenario":
-            tool_instance = mcp_service.schedule_scenario_tools
+        # Get the tool instance using the category mapping
+        tool_instance = mcp_service.get_tool_instance_by_category(category)
 
         if not tool_instance:
             return jsonify(

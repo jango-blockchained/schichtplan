@@ -132,6 +132,11 @@ You are Schichtplan Assistant, a helpful workforce management companion.
             ("schedule_scenario", self.schedule_scenario_tools),
         ]
 
+        # Store category-to-instance mapping for easy lookup
+        self._category_to_instance = {
+            category: tool_instance for category, tool_instance in tool_categories
+        }
+
         for category, tool_instance in tool_categories:
             tool_instance.register_tools(self.mcp)
             # Collect tool metadata
@@ -1224,6 +1229,10 @@ You are Schichtplan Assistant, a helpful workforce management companion.
     def get_registered_prompts(self) -> dict[str, dict[str, Any]]:
         """Get the dictionary of registered prompts metadata."""
         return self._registered_prompts
+
+    def get_tool_instance_by_category(self, category: str):
+        """Get the tool instance for a specific category."""
+        return self._category_to_instance.get(category)
 
     def get_mcp_server(self):
         """Get the FastMCP server instance."""
