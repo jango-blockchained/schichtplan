@@ -742,7 +742,7 @@ class VacationPDFGenerator:
             # Get the date range within the year
             start = max(absence.start_date, date(year, 1, 1))
             end = min(absence.end_date, date(year, 12, 31))
-            
+
             current = start
             while current <= end:
                 date_key = (current.month, current.day)
@@ -763,11 +763,11 @@ class VacationPDFGenerator:
 
             # Create 2 rows of 3 months each (2x3 grid)
             start_month = 1 + (page_num * 6)
-            
+
             # Build the grid - 2 rows with 3 months per row
             for row_num in range(2):
                 row_data = []
-                
+
                 for col_num in range(3):
                     month_index = start_month + (row_num * 3) + col_num
                     if month_index > 12:
@@ -793,16 +793,16 @@ class VacationPDFGenerator:
 
                     # Create day cells with absence indicators
                     day_cells_data = [[""] * 7 for _ in range(6)]  # Max 6 weeks
-                    
+
                     for day_num in range(1, num_days + 1):
                         # Calculate week and weekday
                         day_of_week = (first_day_of_month + day_num - 1) % 7
                         week_num = (first_day_of_month + day_num - 1) // 7
-                        
+
                         # Check if this date has absences
                         date_key = (month_index, day_num)
                         absence_count = absence_dates.get(date_key, 0)
-                        
+
                         # Create cell content with indicator
                         if absence_count > 0:
                             # Use bullet point to indicate approved absence
@@ -826,7 +826,7 @@ class VacationPDFGenerator:
                     available_width = self.PAGE_WIDTH_LANDSCAPE - 2 * self.MARGIN - 20 * mm
                     month_width = available_width / 3
                     col_width = month_width / 7
-                    
+
                     month_table = Table(
                         month_calendar_data,
                         colWidths=[col_width] * 7,
@@ -871,7 +871,7 @@ class VacationPDFGenerator:
                         ("RIGHTPADDING", (0, 0), (-1, -1), 5),
                     ])
                 )
-                
+
                 story.append(row_table)
                 story.append(Spacer(1, 15))
 
