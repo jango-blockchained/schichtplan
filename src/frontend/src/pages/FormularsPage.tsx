@@ -151,8 +151,10 @@ export default function FormularsPage() {
   const [showEmployeeDialog, setShowEmployeeDialog] = useState(false);
   const [showAbsenceDialog, setShowAbsenceDialog] = useState(false);
   const [showFilterDialog, setShowFilterDialog] = useState(false);
+  const [showYearDialog, setShowYearDialog] = useState(false);
   const [tempEmployeeId, setTempEmployeeId] = useState<string>("");
   const [tempAbsenceId, setTempAbsenceId] = useState<string>("");
+  const [tempYear, setTempYear] = useState<string>(new Date().getFullYear().toString());
 
   // Fetch employees
   const { data: employees = [] } = useQuery({
@@ -179,6 +181,10 @@ export default function FormularsPage() {
     if (formularItem.type === "filtered") {
       // For filtered forms, open filter dialog
       setShowFilterDialog(true);
+    } else if (formularItem.type === "yearly") {
+      // For yearly forms, open year selection dialog
+      setTempYear(new Date().getFullYear().toString());
+      setShowYearDialog(true);
     } else if (formularItem.id === "vacation-approval-single") {
       // For approval form, first select employee, then select absence
       setTempEmployeeId("");
@@ -197,7 +203,8 @@ export default function FormularsPage() {
   const generatePDF = (
     formularItem: FormularItem | null,
     employeeId: string = "",
-    absenceId: string = ""
+    absenceId: string = "",
+    year: string = new Date().getFullYear().toString()
   ) => {
     if (!formularItem) return;
 
@@ -218,7 +225,7 @@ export default function FormularsPage() {
         break;
 
       case "vacation-request-bulk":
-        url = `${apiBaseUrl}/api/v2/vacation-pdf/bulk-requests?year=${new Date().getFullYear()}`;
+        url = `${apiBaseUrl}/api/v2/vacation-pdf/bulk-requests?year=${year}`;
         break;
 
       case "vacation-approval-single":
@@ -234,19 +241,19 @@ export default function FormularsPage() {
         break;
 
       case "vacation-approval-bulk":
-        url = `${apiBaseUrl}/api/v2/vacation-pdf/approvals-bulk?year=${new Date().getFullYear()}`;
+        url = `${apiBaseUrl}/api/v2/vacation-pdf/approvals-bulk?year=${year}`;
         break;
 
       case "vacation-yearly":
-        url = `${apiBaseUrl}/api/v2/vacation-pdf/yearly-overview?year=${new Date().getFullYear()}`;
+        url = `${apiBaseUrl}/api/v2/vacation-pdf/yearly-overview?year=${year}`;
         break;
 
       case "vacation-yearly-calendar":
-        url = `${apiBaseUrl}/api/v2/vacation-pdf/yearly-calendar?year=${new Date().getFullYear()}`;
+        url = `${apiBaseUrl}/api/v2/vacation-pdf/yearly-calendar?year=${year}`;
         break;
 
       case "employee-vacation-entitlement":
-        url = `${apiBaseUrl}/api/v2/vacation-pdf/employee-vacation-entitlement`;
+        url = `${apiBaseUrl}/api/v2/vacation-pdf/employee-vacation-entitlement?year=${year}`;
         break;
 
       case "time-off-request":
@@ -282,6 +289,7 @@ export default function FormularsPage() {
       });
       setShowEmployeeDialog(false);
       setShowFilterDialog(false);
+      setShowYearDialog(false);
       setSelectedFormular(null);
     }
   };
@@ -587,6 +595,65 @@ export default function FormularsPage() {
             >
               <FileDown className="h-4 w-4" />
               Mit Filtern exportieren
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Year Selection Dialog for Yearly Forms */}
+      <Dialog open={showYearDialog} onOpenChange={setShowYearDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-primary" />
+              Jahr auswählen
+            </DialogTitle>
+            <DialogDescription>
+              {selectedFormular && (
+                <div className="space-y-2 mt-3">
+                  <p className="font-medium text-foreground">
+                    {selectedFormular.title}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedFormular.description}
+                  </p>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <Select value={tempYear} onValueChange={setTempYear}>
+              <SelectTrigger>
+                <SelectValue placeholder="Jahr auswählen..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={(new Date().getFullYear() - 1).toString()}>
+                  {new Date().getFullYear() - 1} (Vorjahr)
+                </SelectItem>
+                <SelectItem value={new Date().getFullYear().toString()}>
+                  {new Date().getFullYear()} (Aktuelles Jahr)
+                </SelectItem>
+                <SelectItem value={(new Date().getFullYear() + 1).toString()}>
+                  {new Date().getFullYear() + 1} (Nächstes Jahr - Planung)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowYearDialog(false)}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              onClick={() => generatePDF(selectedFormular, "", "", tempYear)}
+              className="gap-2"
+            >
+              <FileDown className="h-4 w-4" />
+              Exportieren
             </Button>
           </DialogFooter>
         </DialogContent>

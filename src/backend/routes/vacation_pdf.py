@@ -322,29 +322,9 @@ def get_yearly_calendar():
                 }
             ), HTTPStatus.BAD_REQUEST
 
-        # Fetch employees
-        employees = Employee.query.filter_by(is_active=True).all()
-        logger.info(f"Loaded {len(employees)} active employees")
-
-        # Fetch vacation absences for the year
-        start_date = datetime(year, 1, 1).date()
-        end_date = datetime(year, 12, 31).date()
-
-        absences = Absence.query.filter(
-            Absence.absence_type_id == "vacation",
-            Absence.start_date <= end_date,
-            Absence.end_date >= start_date,
-        ).all()
-        logger.info(f"Loaded {len(absences)} vacation absences for year {year}")
-
-        # Get settings
-        settings = Settings.query.first()
-
         # Generate PDF
         generator = VacationPDFGenerator()
-        pdf_buffer = generator.generate_yearly_calendar(
-            year=year, employees=employees, absences=absences, settings=settings
-        )
+        pdf_buffer = generator.generate_yearly_calendar(year=year)
 
         logger.info(f"Successfully generated yearly calendar for year {year}")
 

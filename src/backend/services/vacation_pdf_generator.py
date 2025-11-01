@@ -630,16 +630,15 @@ class VacationPDFGenerator:
 
         # Create table
         col_widths = [
-            12 * mm,
-            40 * mm,
-            20 * mm,
-            18 * mm,
-            18 * mm,
-            18 * mm,
-            12 * mm,
-            18 * mm,
-            18 * mm,
-            50 * mm,
+            12 * mm,  # Nr.
+            38 * mm,  # Mitarbeiter
+            18 * mm,  # Pers.-Nr.
+            16 * mm,  # Typ
+            18 * mm,  # Von
+            18 * mm,  # Bis
+            12 * mm,  # Tage
+            25 * mm,  # Status (expanded)
+            85 * mm,  # Bemerkung (expanded)
         ]
         table = Table(table_data, colWidths=col_widths, repeatRows=1)
 
@@ -655,11 +654,12 @@ class VacationPDFGenerator:
                 ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
                 # Body
                 ("ALIGN", (0, 1), (0, -1), "CENTER"),
-                ("ALIGN", (3, 1), (8, -1), "CENTER"),
+                ("ALIGN", (3, 1), (6, -1), "CENTER"),
+                ("ALIGN", (7, 1), (-1, -1), "LEFT"),  # Status and remarks left-aligned
+                ("VALIGN", (0, 1), (-1, -1), "TOP"),  # Top aligned for wrapping text
                 ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
                 ("FONTSIZE", (0, 1), (-1, -1), self.SMALL_FONT_SIZE),
                 ("GRID", (0, 0), (-1, -1), 0.5, black),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 (
                     "ROWBACKGROUNDS",
                     (0, 1),
