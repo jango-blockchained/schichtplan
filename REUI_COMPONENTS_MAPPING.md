@@ -11,6 +11,7 @@
 ### ✅ Core Form Components (High Priority - Phase 2.1)
 
 #### Input Component
+
 - **ReUI Status:** ✅ Available (6 variants)
 - **Current Usage:** Basic text inputs across forms
 - **Upgrade Features:**
@@ -24,6 +25,7 @@
 - **Estimated Complexity:** Low
 
 #### Select Component
+
 - **ReUI Status:** ✅ Available (12 variants)
 - **Current Usage:** Shift type selection, employee filtering
 - **Upgrade Features:**
@@ -37,6 +39,7 @@
 - **Estimated Complexity:** Medium
 
 #### Combobox Component
+
 - **ReUI Status:** ✅ Available (16 variants - most options!)
 - **Current Usage:** New integration opportunity
 - **Features:**
@@ -50,6 +53,7 @@
 - **Estimated Complexity:** Medium
 
 #### Checkbox Component
+
 - **ReUI Status:** ✅ Available (6 variants)
 - **Current Usage:** Availability selection, day selection
 - **Upgrade Features:**
@@ -61,6 +65,7 @@
 - **Estimated Complexity:** Low
 
 #### Radio Group Component
+
 - **ReUI Status:** ✅ Available (4 variants)
 - **Current Usage:** Filter selection, shift type selection
 - **Upgrade Features:**
@@ -72,6 +77,7 @@
 - **Estimated Complexity:** Low
 
 #### Slider Component
+
 - **ReUI Status:** ✅ Available
 - **Current Usage:** Not currently used
 - **Potential Uses:**
@@ -88,6 +94,7 @@
 - **Estimated Complexity:** Low
 
 #### Switch Component
+
 - **ReUI Status:** ✅ Available
 - **Current Usage:** Feature toggles, shift availability
 - **Upgrade Features:**
@@ -99,6 +106,7 @@
 - **Estimated Complexity:** Low
 
 #### Textarea Component
+
 - **ReUI Status:** ✅ Available
 - **Current Usage:** Notes fields, descriptions
 - **Upgrade Features:**
@@ -114,6 +122,7 @@
 ### ✅ Data Display Components (High Priority - Phase 2.2)
 
 #### Data Grid Component
+
 - **ReUI Status:** ✅ Available (21 variants - most powerful!)
 - **Current Usage:** Schedule view, employee list
 - **Features:**
@@ -134,6 +143,7 @@
 - **Estimated Complexity:** High (due to current complexity of schedule table)
 
 #### Table Component
+
 - **ReUI Status:** ✅ Available
 - **Current Usage:** Current ScheduleTable component
 - **Upgrade Features:**
@@ -146,6 +156,7 @@
 - **Estimated Complexity:** Medium
 
 #### Pagination Component
+
 - **ReUI Status:** ✅ Available (3 variants)
 - **Current Usage:** New addition for large lists
 - **Features:**
@@ -157,6 +168,7 @@
 - **Estimated Complexity:** Low
 
 #### Breadcrumb Component
+
 - **ReUI Status:** ✅ Available (5 variants)
 - **Current Usage:** Navigation in headers
 - **Upgrade Features:**
@@ -172,6 +184,7 @@
 ### ✅ Feedback Components (High Priority - Phase 2.3)
 
 #### Alert Component
+
 - **ReUI Status:** ✅ Available (10 variants)
 - **Current Usage:** Error/success/info messages
 - **Upgrade Features:**
@@ -184,6 +197,7 @@
 - **Estimated Complexity:** Low
 
 #### Alert Dialog Component
+
 - **ReUI Status:** ✅ Available (2 variants)
 - **Current Usage:** Deletion confirmations, important actions
 - **Features:**
@@ -195,6 +209,7 @@
 - **Estimated Complexity:** Low
 
 #### Toast/Sonner Component
+
 - **ReUI Status:** ✅ Available (Sonner integration)
 - **Current Usage:** Success/error notifications
 - **Features:**
@@ -207,6 +222,7 @@
 - **Estimated Complexity:** Low
 
 #### Skeleton Component
+
 - **ReUI Status:** ✅ Available
 - **Current Usage:** Loading states (partially implemented)
 - **Upgrade Features:**
@@ -219,6 +235,7 @@
 - **Estimated Complexity:** Low
 
 #### Tooltip Component
+
 - **ReUI Status:** ✅ Available
 - **Current Usage:** Help text, keyboard hints
 - **Upgrade Features:**
@@ -235,6 +252,7 @@
 ### ✅ Layout Components (High Priority - Phase 3.1)
 
 #### Dialog Component
+
 - **ReUI Status:** ✅ Available (4 variants)
 - **Current Usage:** Modals for employee/shift editing
 - **Upgrade Features:**
@@ -247,6 +265,7 @@
 - **Estimated Complexity:** Medium
 
 #### Sheet Component
+
 - **ReUI Status:** ✅ Available (3 variants - slide-in panels)
 - **Current Usage:** New opportunity for side panels
 - **Features:**
@@ -263,6 +282,7 @@
 - **Estimated Complexity:** Medium
 
 #### Popover Component
+
 - **ReUI Status:** ✅ Available
 - **Current Usage:** Dropdown menus, quick actions
 - **Upgrade Features:**
@@ -274,6 +294,7 @@
 - **Estimated Complexity:** Low
 
 #### Dropdown Menu Component
+
 - **ReUI Status:** ✅ Available (3 variants)
 - **Current Usage:** Header menus, context menus
 - **Upgrade Features:**
@@ -286,6 +307,7 @@
 - **Estimated Complexity:** Low
 
 #### Scroll Area Component
+
 - **ReUI Status:** ✅ Available
 - **Current Usage:** Custom scrollbar styling
 - **Features:**
@@ -301,6 +323,7 @@
 ### ✅ Navigation Components (High Priority - Phase 3.2)
 
 #### Tabs Component
+
 - **ReUI Status:** ✅ Available
 - **Current Usage:** Settings pages, content sections
 - **Upgrade Features:**
@@ -313,6 +336,7 @@
 - **Estimated Complexity:** Medium
 
 #### Accordion Component
+
 - **ReUI Status:** ✅ Available (5 variants)
 - **Current Usage:** Settings sections, details
 - **Upgrade Features:**
@@ -325,6 +349,7 @@
 - **Estimated Complexity:** Medium
 
 #### Accordion Menu Component
+
 - **ReUI Status:** ✅ Available (6 variants - advanced!)
 - **Current Usage:** New opportunity for hierarchical navigation
 - **Features:**
@@ -345,6 +370,7 @@
 ### ✅ High-Value Input Components (Phase 3.3)
 
 #### Date Picker Component
+
 - **ReUI Status:** ✅ Available (3 variants)
 - **Current Usage:** Schedule date selection, vacation planning
 - **Features:**
@@ -358,6 +384,7 @@
 - **Estimated Complexity:** Medium
 
 #### Calendar Component
+
 - **ReUI Status:** ✅ Available (2 variants)
 - **Current Usage:** Jahresurlaubskalender (vacation calendar)
 - **Upgrade Features:**
@@ -371,6 +398,7 @@
 - **Estimated Complexity:** High
 
 #### Kbd Component
+
 - **ReUI Status:** ✅ Available (3 variants)
 - **Current Usage:** Keyboard shortcut display
 - **Features:**
@@ -386,6 +414,7 @@
 ### ✅ Visual Components (Phase 4)
 
 #### Badge Component
+
 - **ReUI Status:** ✅ Available (13 variants)
 - **Current Usage:** Status indicators, labels
 - **Upgrade Features:**
@@ -398,6 +427,7 @@
 - **Estimated Complexity:** Low
 
 #### Avatar Component
+
 - **ReUI Status:** ✅ Available (8 variants)
 - **Current Usage:** User profiles, employee lists
 - **Upgrade Features:**
@@ -410,6 +440,7 @@
 - **Estimated Complexity:** Low
 
 #### Separator Component
+
 - **ReUI Status:** ✅ Available
 - **Current Usage:** Visual dividers
 - **Features:**
@@ -421,6 +452,7 @@
 - **Estimated Complexity:** Low
 
 #### Card Component
+
 - **ReUI Status:** ✅ Available (2 variants)
 - **Current Usage:** Content containers
 - **Upgrade Features:**
@@ -432,6 +464,7 @@
 - **Estimated Complexity:** Low
 
 #### Button Component
+
 - **ReUI Status:** ✅ Available (17 variants - comprehensive!)
 - **Current Usage:** Primary component throughout
 - **Upgrade Features:**
@@ -449,12 +482,14 @@
 ## Implementation Priority Matrix
 
 ### Phase 1: Critical Path (Weeks 1-2)
+
 1. **Button** (17 variants) - Used everywhere
 2. **Input** (6 variants) - Core form element
 3. **Card** (2 variants) - Layout foundation
 4. **Alert** (10 variants) - Feedback system
 
 ### Phase 2: Form System (Weeks 3-4)
+
 5. **Select** (12 variants) - Dropdowns
 6. **Combobox** (16 variants) - Advanced selection
 7. **Checkbox** (6 variants) - Toggling
@@ -462,6 +497,7 @@
 9. **Data Grid** (21 variants) - Data tables
 
 ### Phase 3: Interaction (Weeks 5-6)
+
 10. **Dialog** (4 variants) - Modals
 11. **Tabs** (generic) - Tab navigation
 12. **Date Picker** (3 variants) - Date selection
@@ -469,6 +505,7 @@
 14. **Skeleton** - Loading states
 
 ### Phase 4: Polish (Weeks 7-10)
+
 15. **Toast/Sonner** - Notifications
 16. **Dropdown Menu** (3 variants) - Context menus
 17. **Badge** (13 variants) - Status labels
@@ -476,6 +513,7 @@
 19. **Calendar** (2 variants) - Calendar views
 
 ### Phase 5: Advanced (Weeks 11-12)
+
 20. **Sheet** (3 variants) - Side panels
 21. **Accordion Menu** (6 variants) - Navigation trees
 22. **Slider** - Range inputs
@@ -488,17 +526,17 @@
 
 ### Coverage vs Current Implementation
 
-| Feature | Current | ReUI | Benefit |
-|---------|---------|------|---------|
-| **Form Inputs** | Basic | Enhanced (multi) | Password toggle, prefix/suffix |
-| **Select** | Single | Multi-select | Better filtering |
-| **Search** | Manual | Integrated Combobox | Autocomplete, async |
-| **Data Display** | Manual table | Data Grid (21!) | Sorting, filtering, pagination |
-| **Modals** | Custom | Dialog variants | Better animations |
-| **Toast** | Custom | Sonner | Native feel, animations |
-| **Dates** | Basic | DatePicker (3!) | Range selection, presets |
-| **Animations** | Limited | Motion integrated | Smooth transitions |
-| **Accessibility** | Partial | Full WCAG 2.1 AA | Keyboard nav, screen readers |
+| Feature           | Current      | ReUI                | Benefit                        |
+| ----------------- | ------------ | ------------------- | ------------------------------ |
+| **Form Inputs**   | Basic        | Enhanced (multi)    | Password toggle, prefix/suffix |
+| **Select**        | Single       | Multi-select        | Better filtering               |
+| **Search**        | Manual       | Integrated Combobox | Autocomplete, async            |
+| **Data Display**  | Manual table | Data Grid (21!)     | Sorting, filtering, pagination |
+| **Modals**        | Custom       | Dialog variants     | Better animations              |
+| **Toast**         | Custom       | Sonner              | Native feel, animations        |
+| **Dates**         | Basic        | DatePicker (3!)     | Range selection, presets       |
+| **Animations**    | Limited      | Motion integrated   | Smooth transitions             |
+| **Accessibility** | Partial      | Full WCAG 2.1 AA    | Keyboard nav, screen readers   |
 
 ---
 
@@ -507,44 +545,47 @@
 ### Button Migration Example
 
 **Before (Shadcn):**
+
 ```tsx
 import { Button } from "@/components/ui/button";
 
-<Button variant="default" size="md">Click Me</Button>
+<Button variant="default" size="md">
+  Click Me
+</Button>;
 ```
 
 **After (ReUI):**
+
 ```tsx
 import { Button } from "@/components/reui/Button";
 
-<Button 
-  variant="default" 
+<Button
+  variant="default"
   size="base"
   icon={<ChevronRight />}
   onClick={handleClick}
 >
   Click Me
-</Button>
+</Button>;
 ```
 
 ### Form Input Migration Example
 
 **Before:**
+
 ```tsx
-<Input 
-  type="text" 
-  placeholder="Enter name" 
-/>
+<Input type="text" placeholder="Enter name" />
 ```
 
 **After (ReUI):**
+
 ```tsx
-<Input 
-  type="text" 
+<Input
+  type="text"
   placeholder="Enter name"
   prefix={<User size={16} />}
   clearable
-  onClear={() => setName('')}
+  onClear={() => setName("")}
   hint="Max 50 characters"
 />
 ```
@@ -552,9 +593,10 @@ import { Button } from "@/components/reui/Button";
 ### Data Grid Migration Example
 
 **Before (Manual Table):**
+
 ```tsx
 <table>
-  {data.map(row => (
+  {data.map((row) => (
     <tr key={row.id}>
       <td>{row.name}</td>
       <td>{row.shift}</td>
@@ -564,11 +606,12 @@ import { Button } from "@/components/reui/Button";
 ```
 
 **After (ReUI Data Grid):**
+
 ```tsx
 <DataGrid
   columns={[
-    { id: 'name', header: 'Name', sortable: true },
-    { id: 'shift', header: 'Shift', filterable: true }
+    { id: "name", header: "Name", sortable: true },
+    { id: "shift", header: "Shift", filterable: true },
   ]}
   data={data}
   sortable
@@ -616,24 +659,28 @@ bun add date-fns                # Already have, verify version
 ## Testing Strategy per Component
 
 ### Unit Tests
+
 - Component renders correctly
 - Props are applied
 - Events fire appropriately
 - Accessibility attributes present
 
 ### Integration Tests
+
 - Form submission with new inputs
 - Data grid sorting/filtering
 - Modal open/close workflow
 - Dialog focus management
 
 ### Accessibility Tests
+
 - Keyboard navigation
 - Screen reader output
 - Focus management
 - Color contrast
 
 ### Visual Tests
+
 - Pixel perfection on different DPI
 - Animation smoothness
 - Mobile responsiveness
@@ -668,6 +715,7 @@ For each component:
 ---
 
 **Next Steps:**
+
 1. Review ReUI documentation at reui.io
 2. Create detailed component wrappers
 3. Begin Phase 1 implementation
