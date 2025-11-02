@@ -183,10 +183,9 @@ export function VersionManager({
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [versionToDuplicate, setVersionToDuplicate] = useState<number | null>(
     null,
-  );
   const [isCollapsed, setIsCollapsed] = useState(initiallyCollapsed);
   // Removed extra checkbox UI for filtering by date; always filter to current range
-  const [filterByDate] = useState(true);
+  const filterByDate = true;
 
   // Get selected version metadata
   const selectedVersionMeta = effectiveSelectedVersion
@@ -306,7 +305,7 @@ export function VersionManager({
     }
 
     return effectiveVersions;
-  }, [externalVersions, effectiveVersions, filterByDate, dateRange]);
+  }, [externalVersions, effectiveVersions, dateRange]);
 
   // Render the layout content (extracted from the switch statement)
   const renderLayoutContent = () => {
