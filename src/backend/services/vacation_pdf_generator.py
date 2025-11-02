@@ -778,7 +778,8 @@ class VacationPDFGenerator:
                 and absence.end_date.year >= year
             ]
 
-        # Create a mapping of dates to absence count for visualization
+        # Create a mapping of dates to absence list for visualization
+        # Maps (month, day) -> list of absences on that day
         absence_dates = {}
         for absence in approved_absences:
             # Get the date range within the year
@@ -788,12 +789,24 @@ class VacationPDFGenerator:
             current = start
             while current <= end:
                 date_key = (current.month, current.day)
-                absence_dates[date_key] = absence_dates.get(date_key, 0) + 1
+                if date_key not in absence_dates:
+                    absence_dates[date_key] = []
+                absence_dates[date_key].append(absence)
                 current = current + timedelta(days=1)
 
         # Calculate statistics per half-year
-        h1_count = sum(1 for key in absence_dates if key[0] <= 6)
-        h2_count = sum(1 for key in absence_dates if key[0] > 6)
+        # Count unique absences in each half
+        h1_absences = set()
+        h2_absences = set()
+        for date_key, absences_list in absence_dates.items():
+            if date_key[0] <= 6:  # First half
+                for absence in absences_list:
+                    h1_absences.add(absence.id)
+            else:  # Second half
+                for absence in absences_list:
+                    h2_absences.add(absence.id)
+        h1_count = len(h1_absences)
+        h2_count = len(h2_absences)
 
         story = []
         weekday_abbrev = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
@@ -916,17 +929,29 @@ class VacationPDFGenerator:
                     date_key = (month, day_num)
                     has_absence = date_key in absence_dates
 
-                    # Format cell with rotated text for absences
+                    # Format cell with employee vacation info
                     if has_absence:
-                        # Use rotated text for absence indicator
+                        # Get first absence on this date (for display)
+                        absence = absence_dates[date_key][0]
+
+                        # Format employee name and date range
+                        employee_name = (
+                            f"{absence.employee.last_name} "
+                            f"{absence.employee.first_name}"
+                        )
+                        start_str = absence.start_date.strftime("%d.%m")
+                        end_str = absence.end_date.strftime("%d.%m.%y")
+                        absence_text = f"{employee_name} {start_str} - {end_str}"
+
+                        # Create cell with day info and rotated employee text
                         cell_text = f"{weekday_str} {day_num:2d}"
                         cell_element = Table(
                             [
                                 [Paragraph(cell_text, self.small_style)],
-                                [self._create_rotated_text("URLAUB", 6)],
+                                [self._create_rotated_text(absence_text, 5)],
                             ],
                             colWidths=[None],
-                            rowHeights=[None, 12 * mm],
+                            rowHeights=[None, 15 * mm],
                         )
                         cell_element.setStyle(
                             TableStyle(

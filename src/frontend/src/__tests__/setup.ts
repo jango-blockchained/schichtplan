@@ -7,7 +7,7 @@ import { afterEach, beforeAll } from "bun:test";
 import '@happy-dom/global-registrator';
 import "@testing-library/jest-dom";
 // Test helpers/globals
-//import "../test-utils/test-globals";
+import "../test-utils/test-globals";
 
 // Ensure a document.body exists as early as possible so testing-library's
 // screen helpers (which bind to document.body) can initialize without
