@@ -283,12 +283,16 @@ export function VersionManager({
   };
 
   // Filter versions by selected week date range if enabled
+  // When versions are provided externally (already filtered), don't filter again
   const filteredVersions =
-    filterByDate && dateRange?.from && dateRange?.to
+    filterByDate && !externalVersions && dateRange?.from && dateRange?.to
       ? effectiveVersions.filter((v) => {
-          const vStart = new Date(v.date_range.start);
-          const vEnd = new Date(v.date_range.end);
-          return vStart >= dateRange.from && vEnd <= dateRange.to;
+          // Use exact date matching to match backend behavior
+          const versionStart = v.date_range.start;
+          const versionEnd = v.date_range.end;
+          const currentFrom = format(dateRange.from, "yyyy-MM-dd");
+          const currentTo = format(dateRange.to, "yyyy-MM-dd");
+          return versionStart === currentFrom && versionEnd === currentTo;
         })
       : effectiveVersions;
 
