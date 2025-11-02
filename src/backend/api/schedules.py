@@ -817,10 +817,10 @@ def get_all_versions():
                     {"error": "Invalid date format, expected YYYY-MM-DD"}
                 ), HTTPStatus.BAD_REQUEST
 
-            # Use the unified version manager service with exact date range matching
-            # This ensures we only return versions that exactly match the requested week
+            # Use the unified version manager service with overlapping date range matching
+            # This returns all versions that overlap with or are contained in the requested date range
             version_service = VersionManagerService()
-            version_metas = version_service.get_versions_for_exact_date_range(
+            version_metas = version_service.get_versions_for_date_range(
                 start_of_week,
                 end_of_week,
                 include_legacy=include_legacy,
