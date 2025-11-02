@@ -286,21 +286,22 @@ export function VersionManager({
   // When versions are provided externally (already filtered), don't filter again
   const filteredVersions = useMemo(() => {
     // Skip filtering if versions are provided externally (already filtered by parent)
-    if (externalVersions && externalVersions.length > 0) {
+    // Even an empty external array means filtering is managed externally
+    if (externalVersions) {
       return effectiveVersions;
     }
 
     // Apply filtering only if enabled and date range is available
     if (filterByDate && dateRange?.from && dateRange?.to) {
       // Pre-format dates outside the filter for performance
-      const currentFrom = format(dateRange.from, "yyyy-MM-dd");
-      const currentTo = format(dateRange.to, "yyyy-MM-dd");
+      const fromDateFormatted = format(dateRange.from, "yyyy-MM-dd");
+      const toDateFormatted = format(dateRange.to, "yyyy-MM-dd");
       
-      // Use exact date matching to match backend behavior
+      // Use exact date matching to match backend behavior (get_versions_for_exact_date_range)
       return effectiveVersions.filter((v) => {
         const versionStart = v.date_range.start;
         const versionEnd = v.date_range.end;
-        return versionStart === currentFrom && versionEnd === currentTo;
+        return versionStart === fromDateFormatted && versionEnd === toDateFormatted;
       });
     }
 
