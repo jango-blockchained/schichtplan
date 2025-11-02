@@ -1,4 +1,14 @@
-/* Import custom effects */
+/* ============================================================================
+   DESIGN SYSTEM IMPORTS - ReUI Design Upgrade Phase 1
+   ============================================================================ */
+
+/* Core Design System */
+@import "./styles/design-system.css";
+@import "./styles/retina.css";
+@import "./styles/animations.css";
+@import "./styles/accessibility.css";
+
+/* Custom Effects */
 @import "./components/effects/effects.css";
 
 @tailwind base;

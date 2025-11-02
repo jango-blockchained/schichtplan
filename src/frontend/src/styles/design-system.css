@@ -1,0 +1,346 @@
+/* ============================================================================
+   SCHICHTPLAN DESIGN SYSTEM - CSS VARIABLES
+   ============================================================================
+   Enterprise-grade design tokens for workforce management application
+   Version 1.0 | 2025-11-02
+   ============================================================================ */
+
+:root {
+  /* ────────────────────────────────────────────────────────────────────
+     COLOR PALETTE - Professional Blue with Semantic Colors
+     ──────────────────────────────────────────────────────────────────── */
+
+  /* Primary Brand Colors - Professional Blues */
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
+  --color-primary-950: #172554;
+
+  /* Semantic Colors */
+  --color-success-50: #f0fdf4;
+  --color-success-100: #dcfce7;
+  --color-success-200: #bbf7d0;
+  --color-success-300: #86efac;
+  --color-success-400: #4ade80;
+  --color-success-500: #22c55e;
+  --color-success-600: #16a34a;
+  --color-success-700: #15803d;
+  --color-success-800: #166534;
+  --color-success-900: #145231;
+
+  --color-warning-50: #fffbeb;
+  --color-warning-100: #fef3c7;
+  --color-warning-200: #fde68a;
+  --color-warning-300: #fcd34d;
+  --color-warning-400: #fbbf24;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
+  --color-warning-700: #b45309;
+  --color-warning-800: #92400e;
+  --color-warning-900: #78350f;
+
+  --color-destructive-50: #fef2f2;
+  --color-destructive-100: #fee2e2;
+  --color-destructive-200: #fecaca;
+  --color-destructive-300: #fca5a5;
+  --color-destructive-400: #f87171;
+  --color-destructive-500: #ef4444;
+  --color-destructive-600: #dc2626;
+  --color-destructive-700: #b91c1c;
+  --color-destructive-800: #991b1b;
+  --color-destructive-900: #7f1d1d;
+
+  --color-info-50: #f0f9ff;
+  --color-info-100: #e0f2fe;
+  --color-info-200: #bae6fd;
+  --color-info-300: #7dd3fc;
+  --color-info-400: #38bdf8;
+  --color-info-500: #0ea5e9;
+  --color-info-600: #0284c7;
+  --color-info-700: #0369a1;
+  --color-info-800: #075985;
+  --color-info-900: #0c4a6e;
+
+  /* Neutral Colors - Professional Grays */
+  --color-neutral-50: #fafafa;
+  --color-neutral-100: #f5f5f5;
+  --color-neutral-200: #e5e5e5;
+  --color-neutral-300: #d4d4d4;
+  --color-neutral-400: #a3a3a3;
+  --color-neutral-500: #737373;
+  --color-neutral-600: #525252;
+  --color-neutral-700: #404040;
+  --color-neutral-800: #262626;
+  --color-neutral-900: #171717;
+  --color-neutral-950: #0a0a0a;
+
+  /* ────────────────────────────────────────────────────────────────────
+     SEMANTIC ALIASES - For consistent usage
+     ──────────────────────────────────────────────────────────────────── */
+
+  --color-background: #ffffff;
+  --color-surface: #f9fafb;
+  --color-surface-secondary: #f3f4f6;
+  --color-border: #e5e7eb;
+  --color-border-subtle: #f3f4f6;
+  --color-text-primary: #111827;
+  --color-text-secondary: #4b5563;
+  --color-text-tertiary: #9ca3af;
+  --color-text-disabled: #d1d5db;
+  --color-text-inverse: #ffffff;
+  --color-text-success: #047857;
+  --color-text-warning: #b45309;
+  --color-text-destructive: #b91c1c;
+  --color-text-info: #0369a1;
+
+  --color-muted: #6b7280;
+  --color-muted-foreground: #f3f4f6;
+
+  /* ────────────────────────────────────────────────────────────────────
+     SPACING SCALE - 4px Grid System
+     ──────────────────────────────────────────────────────────────────── */
+
+  --spacing-0: 0px;
+  --spacing-1: 2px;
+  --spacing-2: 4px;
+  --spacing-3: 6px;
+  --spacing-4: 8px;
+  --spacing-5: 10px;
+  --spacing-6: 12px;
+  --spacing-7: 14px;
+  --spacing-8: 16px;
+  --spacing-10: 20px;
+  --spacing-12: 24px;
+  --spacing-14: 28px;
+  --spacing-16: 32px;
+  --spacing-20: 40px;
+  --spacing-24: 48px;
+  --spacing-28: 56px;
+  --spacing-32: 64px;
+  --spacing-36: 72px;
+  --spacing-40: 80px;
+  --spacing-44: 88px;
+  --spacing-48: 96px;
+
+  /* Shorthand naming for Tailwind */
+  --space-xs: var(--spacing-4);
+  --space-sm: var(--spacing-8);
+  --space-base: var(--spacing-12);
+  --space-md: var(--spacing-16);
+  --space-lg: var(--spacing-24);
+  --space-xl: var(--spacing-32);
+  --space-2xl: var(--spacing-48);
+
+  /* ────────────────────────────────────────────────────────────────────
+     TYPOGRAPHY - Professional Scale
+     ──────────────────────────────────────────────────────────────────── */
+
+  /* Font Families */
+  --font-family-primary: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'Monaco', 'Courier New', monospace;
+
+  /* Font Sizes - 8px scale base */
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 20px;
+  --font-size-3xl: 24px;
+  --font-size-4xl: 28px;
+  --font-size-5xl: 32px;
+  --font-size-6xl: 36px;
+
+  /* Font Weights */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Line Heights */
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  /* Letter Spacing */
+  --letter-spacing-tight: -0.01em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.025em;
+
+  /* ────────────────────────────────────────────────────────────────────
+     SHADOWS - 5-Level System
+     ──────────────────────────────────────────────────────────────────── */
+
+  --shadow-none: none;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-base: 0 1px 3px 0 rgba(0, 0, 0, 0.1),
+    0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+
+  /* Inset Shadows */
+  --shadow-inset: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+  --shadow-inset-sm: inset 0 1px 2px 0 rgba(0, 0, 0, 0.1);
+
+  /* Focus Shadow */
+  --shadow-focus: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  --shadow-focus-ring: 0 0 0 2px rgba(255, 255, 255, 1),
+    0 0 0 4px rgba(37, 99, 235, 1);
+
+  /* ────────────────────────────────────────────────────────────────────
+     ANIMATIONS & TRANSITIONS
+     ──────────────────────────────────────────────────────────────────── */
+
+  /* Duration - Milliseconds */
+  --duration-instant: 0ms;
+  --duration-fastest: 50ms;
+  --duration-fast: 100ms;
+  --duration-normal: 150ms;
+  --duration-slow: 200ms;
+  --duration-slower: 300ms;
+
+  /* Easing Functions */
+  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 1, 0.4, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-linear: linear;
+
+  /* ────────────────────────────────────────────────────────────────────
+     BORDERS & RADIUS
+     ──────────────────────────────────────────────────────────────────── */
+
+  /* Border Widths */
+  --border-width-none: 0px;
+  --border-width-thin: 1px;
+  --border-width-base: 1px;
+  --border-width-thick: 2px;
+
+  /* Border Radius */
+  --radius-none: 0px;
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-base: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-full: 9999px;
+
+  /* ────────────────────────────────────────────────────────────────────
+     Z-INDEX SCALE - Stacking Context
+     ──────────────────────────────────────────────────────────────────── */
+
+  --z-auto: auto;
+  --z-hide: -1;
+  --z-base: 0;
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
+
+  /* ────────────────────────────────────────────────────────────────────
+     BREAKPOINTS - Responsive Design
+     ──────────────────────────────────────────────────────────────────── */
+
+  --breakpoint-xs: 0px;
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+
+  /* ────────────────────────────────────────────────────────────────────
+     TRANSITIONS - Shorthand Utilities
+     ──────────────────────────────────────────────────────────────────── */
+
+  --transition-base: color var(--duration-normal) var(--ease-out),
+    background-color var(--duration-normal) var(--ease-out),
+    border-color var(--duration-normal) var(--ease-out);
+  --transition-colors: color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+  --transition-all: all var(--duration-normal) var(--ease-out);
+  --transition-opacity: opacity var(--duration-normal) var(--ease-out);
+  --transition-transform: transform var(--duration-normal) var(--ease-out);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   DARK MODE SUPPORT
+   ════════════════════════════════════════════════════════════════════════ */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Dark mode backgrounds */
+    --color-background: #0f172a;
+    --color-surface: #1e293b;
+    --color-surface-secondary: #334155;
+    --color-border: #475569;
+    --color-border-subtle: #1e293b;
+
+    /* Dark mode text */
+    --color-text-primary: #f1f5f9;
+    --color-text-secondary: #cbd5e1;
+    --color-text-tertiary: #94a3b8;
+    --color-text-disabled: #475569;
+    --color-text-inverse: #0f172a;
+
+    /* Dark mode semantic */
+    --color-muted-foreground: #1e293b;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   APPLIED DEFAULT STYLES
+   ════════════════════════════════════════════════════════════════════════ */
+
+* {
+  border-color: var(--color-border);
+}
+
+html {
+  font-family: var(--font-family-primary);
+  font-size: 16px;
+  line-height: var(--line-height-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+  margin: 0;
+  padding: 0;
+}
+
+/* Ensure consistent input styling */
+input,
+textarea,
+select,
+button {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* Code blocks */
+code,
+pre {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+}

@@ -1,0 +1,447 @@
+/* ============================================================================
+   ANIMATION SYSTEM - Keyframes & Animation Utilities
+   ============================================================================
+   Smooth, purposeful animations with Framer Motion integration support
+   Version 1.0 | 2025-11-02
+   ============================================================================ */
+
+/* ════════════════════════════════════════════════════════════════════════
+   FADE ANIMATIONS
+   ════════════════════════════════════════════════════════════════════════ */
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in var(--duration-normal) var(--ease-out) forwards;
+}
+
+.animate-fade-out {
+  animation: fade-out var(--duration-normal) var(--ease-out) forwards;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   SLIDE ANIMATIONS
+   ════════════════════════════════════════════════════════════════════════ */
+
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-top {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-bottom {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-out-left {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+@keyframes slide-out-right {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes slide-out-top {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+
+@keyframes slide-out-bottom {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left var(--duration-normal) var(--ease-out) forwards;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right var(--duration-normal) var(--ease-out) forwards;
+}
+
+.animate-slide-in-top {
+  animation: slide-in-top var(--duration-normal) var(--ease-out) forwards;
+}
+
+.animate-slide-in-bottom {
+  animation: slide-in-bottom var(--duration-normal) var(--ease-out) forwards;
+}
+
+.animate-slide-out-left {
+  animation: slide-out-left var(--duration-normal) var(--ease-out) forwards;
+}
+
+.animate-slide-out-right {
+  animation: slide-out-right var(--duration-normal) var(--ease-out) forwards;
+}
+
+.animate-slide-out-top {
+  animation: slide-out-top var(--duration-normal) var(--ease-out) forwards;
+}
+
+.animate-slide-out-bottom {
+  animation: slide-out-bottom var(--duration-normal) var(--ease-out) forwards;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   SCALE ANIMATIONS
+   ════════════════════════════════════════════════════════════════════════ */
+
+@keyframes scale-in {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes scale-out {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+}
+
+@keyframes scale-in-large {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes scale-out-large {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in var(--duration-normal) var(--ease-out) forwards;
+}
+
+.animate-scale-out {
+  animation: scale-out var(--duration-normal) var(--ease-out) forwards;
+}
+
+.animate-scale-in-large {
+  animation: scale-in-large var(--duration-slow) var(--ease-out) forwards;
+}
+
+.animate-scale-out-large {
+  animation: scale-out-large var(--duration-slow) var(--ease-out) forwards;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   BOUNCE ANIMATIONS
+   ════════════════════════════════════════════════════════════════════════ */
+
+@keyframes bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes ping {
+  75%,
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.animate-bounce {
+  animation: bounce var(--duration-slow) infinite;
+}
+
+.animate-pulse {
+  animation: pulse var(--duration-slower) cubic-bezier(0.4, 0, 0.6, 1)
+    infinite;
+}
+
+.animate-ping {
+  animation: ping var(--duration-slow) cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   SKELETON LOADER ANIMATION
+   ════════════════════════════════════════════════════════════════════════ */
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: calc(200% + 1px) 0;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer var(--duration-slower) linear infinite;
+  background: linear-gradient(
+    90deg,
+    var(--color-surface) 0%,
+    var(--color-surface-secondary) 50%,
+    var(--color-surface) 100%
+  );
+  background-size: 200% 100%;
+  background-position: -200% 0;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   SPIN ANIMATION (Loading indicators)
+   ════════════════════════════════════════════════════════════════════════ */
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin var(--duration-slower) linear infinite;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   HEARTBEAT ANIMATION
+   ════════════════════════════════════════════════════════════════════════ */
+
+@keyframes heartbeat {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.1);
+  }
+  50% {
+    transform: scale(1);
+  }
+}
+
+.animate-heartbeat {
+  animation: heartbeat var(--duration-slow) ease-in-out infinite;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   GRADIENT ANIMATION
+   ════════════════════════════════════════════════════════════════════════ */
+
+@keyframes gradient-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift var(--duration-slower) ease infinite;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   FLIP ANIMATION
+   ════════════════════════════════════════════════════════════════════════ */
+
+@keyframes flip-in-x {
+  from {
+    transform: perspective(400px) rotateX(90deg);
+    opacity: 0;
+  }
+  to {
+    transform: perspective(400px) rotateX(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes flip-out-x {
+  from {
+    transform: perspective(400px) rotateX(0deg);
+    opacity: 1;
+  }
+  to {
+    transform: perspective(400px) rotateX(90deg);
+    opacity: 0;
+  }
+}
+
+.animate-flip-in-x {
+  animation: flip-in-x var(--duration-normal) var(--ease-out) forwards;
+}
+
+.animate-flip-out-x {
+  animation: flip-out-x var(--duration-normal) var(--ease-out) forwards;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   DURATION VARIANTS - Fast animations
+   ════════════════════════════════════════════════════════════════════════ */
+
+.animate-fast {
+  animation-duration: var(--duration-fast);
+}
+
+.animate-fastest {
+  animation-duration: var(--duration-fastest);
+}
+
+.animate-slow {
+  animation-duration: var(--duration-slow);
+}
+
+.animate-slower {
+  animation-duration: var(--duration-slower);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   DISABLED ANIMATIONS - For accessibility
+   ════════════════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   TRANSITION UTILITIES
+   ════════════════════════════════════════════════════════════════════════ */
+
+.transition-all {
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.transition-colors {
+  transition: color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.transition-transform {
+  transition: transform var(--duration-normal) var(--ease-out);
+}
+
+.transition-opacity {
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
+.transition-shadow {
+  transition: box-shadow var(--duration-normal) var(--ease-out);
+}

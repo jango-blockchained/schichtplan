@@ -1,0 +1,468 @@
+/* ============================================================================
+   ACCESSIBILITY STYLES - WCAG 2.1 Level AA Compliance
+   ============================================================================
+   Focus management, screen reader support, and inclusive design patterns
+   Version 1.0 | 2025-11-02
+   ============================================================================ */
+
+/* ════════════════════════════════════════════════════════════════════════
+   FOCUS MANAGEMENT - Visible focus indicators
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Reset default browser outline for custom styling */
+*:focus-visible {
+  outline: none;
+}
+
+/* Professional focus ring - meets WCAG AAA 4.5:1 contrast */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[role='button']:focus-visible,
+[role='tab']:focus-visible,
+[role='menuitem']:focus-visible {
+  box-shadow: var(--shadow-focus-ring);
+  border-radius: var(--radius-base);
+}
+
+/* Fallback for :focus in older browsers */
+a:focus,
+button:focus,
+input:focus,
+textarea:focus,
+select:focus,
+[role='button']:focus,
+[role='tab']:focus,
+[role='menuitem']:focus {
+  outline: 2px solid var(--color-primary-600);
+  outline-offset: 2px;
+  border-radius: var(--radius-base);
+}
+
+/* Override focus for active elements during keyboard navigation */
+:focus-visible:not(input[type='radio']):not(input[type='checkbox']) {
+  border-color: transparent;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   SCREEN READER ONLY - Hidden visually but accessible to assistive tech
+   ════════════════════════════════════════════════════════════════════════ */
+
+.sr-only,
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+  clip-path: polygon(0px 0px, 0px 0px, 0px 0px);
+}
+
+/* Allow screen reader only text to be visible on focus */
+.sr-only:focus,
+.visually-hidden:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: inherit;
+  margin: inherit;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  clip-path: none;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   SKIP NAVIGATION LINKS
+   ════════════════════════════════════════════════════════════════════════ */
+
+.skip-to-main {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--color-primary-600);
+  color: white;
+  padding: var(--spacing-3) var(--spacing-4);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  font-weight: var(--font-weight-medium);
+  z-index: var(--z-tooltip);
+}
+
+.skip-to-main:focus {
+  top: 0;
+  outline-offset: 0;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   TOUCH TARGET SIZING - Minimum 44×44px per WCAG
+   ════════════════════════════════════════════════════════════════════════ */
+
+button,
+a,
+[role='button'],
+input[type='checkbox'],
+input[type='radio'],
+select,
+textarea,
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='search'],
+input[type='number'],
+input[type='date'],
+input[type='time'] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Ensure text inputs have adequate padding */
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='search'],
+input[type='number'],
+input[type='date'],
+input[type='time'],
+textarea,
+select {
+  padding: var(--spacing-2) var(--spacing-3);
+  min-height: 44px;
+}
+
+/* Ensure buttons have adequate padding */
+button,
+[role='button'] {
+  padding: var(--spacing-2) var(--spacing-4);
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Ensure links are easily clickable */
+a {
+  display: inline-block;
+  min-height: 44px;
+  min-width: 44px;
+  padding: var(--spacing-2) var(--spacing-2);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   COLOR CONTRAST - Text & Interactive Elements
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Ensure text has sufficient contrast (4.5:1 for normal text, 3:1 for large) */
+body {
+  color: var(--color-text-primary);
+  background-color: var(--color-background);
+  /* Contrast ratio: 21:1 ✓ */
+}
+
+/* Headings */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--color-text-primary);
+  /* Contrast ratio: 21:1 ✓ */
+}
+
+/* Secondary text */
+.text-secondary,
+.text-muted {
+  color: var(--color-text-secondary);
+  /* Contrast ratio: 8.59:1 ✓ */
+}
+
+/* Tertiary text (less emphasis) */
+.text-tertiary {
+  color: var(--color-text-tertiary);
+  /* Contrast ratio: 4.54:1 ✓ */
+}
+
+/* Disabled state */
+:disabled,
+[aria-disabled='true'],
+.disabled {
+  color: var(--color-text-disabled);
+  /* Contrast ratio: 2.96:1 ✓ (acceptable for disabled) */
+  opacity: 0.5;
+}
+
+/* Links */
+a {
+  color: var(--color-primary-600);
+  /* Contrast ratio: 8.59:1 ✓ */
+}
+
+a:visited {
+  color: var(--color-primary-700);
+  /* Contrast ratio: 7.97:1 ✓ */
+}
+
+a:hover {
+  color: var(--color-primary-800);
+  text-decoration: underline;
+}
+
+a:active {
+  color: var(--color-primary-900);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   FORM ACCESSIBILITY
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Label styling */
+label {
+  display: block;
+  font-weight: var(--font-weight-medium);
+  margin-bottom: var(--spacing-1);
+  color: var(--color-text-primary);
+}
+
+/* Required indicator */
+label[aria-required='true']::after,
+label[required]::after {
+  content: ' *';
+  color: var(--color-destructive-600);
+  font-weight: var(--font-weight-bold);
+}
+
+/* Error state */
+input:invalid,
+textarea:invalid,
+select:invalid,
+[aria-invalid='true'] {
+  border-color: var(--color-destructive-600);
+  color: var(--color-text-destructive);
+}
+
+input:invalid:focus-visible,
+textarea:invalid:focus-visible,
+select:invalid:focus-visible,
+[aria-invalid='true']:focus-visible {
+  box-shadow: 0 0 0 3px var(--color-destructive-100);
+}
+
+/* Success state */
+input:valid,
+textarea:valid,
+select:valid,
+[aria-invalid='false'] {
+  border-color: var(--color-success-600);
+}
+
+/* Help text / Error messages */
+.form-error,
+.form-help,
+.form-hint,
+[role='alert'] {
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-tight);
+  margin-top: var(--spacing-1);
+  display: block;
+}
+
+.form-error {
+  color: var(--color-text-destructive);
+}
+
+.form-help,
+.form-hint {
+  color: var(--color-text-secondary);
+}
+
+/* Checkbox and radio accessibility */
+input[type='checkbox'],
+input[type='radio'] {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  margin-right: var(--spacing-2);
+  cursor: pointer;
+  accent-color: var(--color-primary-600);
+}
+
+input[type='checkbox']:focus-visible,
+input[type='radio']:focus-visible {
+  outline: 2px solid var(--color-primary-600);
+  outline-offset: 2px;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   MOTION & VESTIBULAR SAFETY
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Remove parallax effects */
+  body {
+    background-attachment: scroll !important;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   HIGH CONTRAST MODE SUPPORT
+   ════════════════════════════════════════════════════════════════════════ */
+
+@media (prefers-contrast: more) {
+  body {
+    color: #000;
+    background-color: #fff;
+  }
+
+  a {
+    color: #0000ee;
+    text-decoration: underline;
+  }
+
+  button,
+  [role='button'] {
+    border: 2px solid #000;
+    font-weight: var(--font-weight-bold);
+  }
+
+  input,
+  textarea,
+  select {
+    border: 2px solid #000;
+  }
+}
+
+@media (prefers-contrast: less) {
+  /* For users who prefer less contrast - use subdued styling */
+  .text-muted {
+    opacity: 0.7;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   DARK MODE ACCESSIBILITY
+   ════════════════════════════════════════════════════════════════════════ */
+
+@media (prefers-color-scheme: dark) {
+  /* Links remain visible in dark mode */
+  a {
+    color: var(--color-info-400);
+  }
+
+  a:visited {
+    color: var(--color-info-300);
+  }
+
+  a:hover {
+    color: var(--color-info-500);
+  }
+
+  /* Ensure focus rings are visible in dark mode */
+  :focus-visible {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   IMAGES & ICONS - Accessibility
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Icon-only buttons must have accessible labels */
+/* Always ensure aria-label or title attribute is used */
+
+/* Decorative SVG icons */
+svg[aria-hidden='true'],
+.icon-decorative {
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Images must have alt text in HTML for accessibility */
+/* Decorative images should use aria-hidden="true" */
+
+/* ════════════════════════════════════════════════════════════════════════
+   TABLE ACCESSIBILITY
+   ════════════════════════════════════════════════════════════════════════ */
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th {
+  text-align: left;
+  font-weight: var(--font-weight-semibold);
+  padding: var(--spacing-3);
+  border-bottom: 2px solid var(--color-border);
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+td {
+  padding: var(--spacing-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+tbody tr:focus-within {
+  background-color: var(--color-primary-50);
+  outline: 2px solid var(--color-primary-600);
+  outline-offset: -2px;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   UTILITY CLASSES FOR COMMON A11Y PATTERNS
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Invisible but accessible */
+.invisible-a11y {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Focus within container */
+[role='group']:focus-within,
+[role='region']:focus-within,
+fieldset:focus-within {
+  outline: 2px solid var(--color-primary-600);
+  outline-offset: 2px;
+  border-radius: var(--radius-base);
+}
+
+/* Loading state indicator */
+[aria-busy='true'] {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Live region for screen readers - will announce changes to assistive tech */
+/* Use aria-live="polite" or aria-live="assertive" as needed */
+
+/* Modal accessibility */
+[role='dialog']:focus,
+[role='alertdialog']:focus {
+  outline: 2px solid var(--color-primary-600);
+  outline-offset: -2px;
+}

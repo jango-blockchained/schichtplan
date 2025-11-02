@@ -1,0 +1,293 @@
+/* ============================================================================
+   RETINA DISPLAY OPTIMIZATION - DPI-Specific Styles
+   ============================================================================
+   Optimized rendering for 1x, 2x, and 3x pixel density displays
+   Version 1.0 | 2025-11-02
+   ============================================================================ */
+
+/* ════════════════════════════════════════════════════════════════════════
+   GLOBAL FONT RENDERING
+   ════════════════════════════════════════════════════════════════════════ */
+
+html {
+  /* Enable hardware acceleration for smooth animations */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+
+  /* Improve font rendering consistency */
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  /* Consistent text baseline across devices */
+  text-rendering: geometricPrecision;
+  backface-visibility: hidden;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   BORDER & LINE OPTIMIZATION
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Standard display (1x) - Crisp 1px borders */
+@media (max-device-pixel-ratio: 1.5) {
+  body {
+    border-width: 1px;
+  }
+
+  input,
+  textarea,
+  button,
+  select {
+    border-width: 1px;
+  }
+}
+
+/* High DPI Display (2x) - Optimized for Retina */
+@media (min-device-pixel-ratio: 1.5) and (max-device-pixel-ratio: 2.5) {
+  /* Slightly increase font weights on 2x displays for consistency */
+  body {
+    -webkit-font-smoothing: subpixel-antialiased;
+  }
+
+  /* Fine-tune text rendering */
+  p,
+  a,
+  span,
+  button,
+  input,
+  textarea,
+  label,
+  li {
+    -webkit-font-smoothing: subpixel-antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Optimize borders */
+  body,
+  input,
+  textarea,
+  button,
+  select {
+    border-width: 0.5px;
+  }
+
+  /* Shadow optimization for 2x displays */
+  /* CSS variables handle shadow color natively */
+}
+
+/* Ultra High DPI Display (3x+) - Maximum sharpness */
+@media (min-device-pixel-ratio: 2.5) {
+  /* Ultra-smooth rendering */
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Maximum text quality */
+  p,
+  a,
+  span,
+  button,
+  input,
+  textarea,
+  label,
+  li,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: geometricPrecision;
+  }
+
+  /* Crisp borders */
+  body,
+  input,
+  textarea,
+  button,
+  select {
+    border-width: 0.33px;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   IMAGE OPTIMIZATION
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Use image-set for responsive images on high DPI */
+@media (min-device-pixel-ratio: 2),
+  (min-resolution: 192dpi) {
+  /* Optimize image rendering */
+  img {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+
+  /* Prevent blurry SVGs */
+  svg {
+    image-rendering: -webkit-optimize-contrast;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   ANIMATION OPTIMIZATION
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Enable hardware acceleration for animations */
+@media (min-device-pixel-ratio: 1.5) {
+  * {
+    /* Create new stacking context for smooth animations */
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+
+    /* Enable GPU acceleration */
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+
+    /* Improve perspective rendering */
+    -webkit-perspective: 1000;
+    perspective: 1000;
+  }
+
+  /* Smooth animations */
+  [class*='animate-'],
+  [class*='transition-'] {
+    will-change: auto;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   FORM INPUT OPTIMIZATION
+   ════════════════════════════════════════════════════════════════════════ */
+
+@media (min-device-pixel-ratio: 2) {
+  /* High DPI input fields */
+  input,
+  textarea,
+  select,
+  button {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+
+    /* Enable subpixel rendering for form elements */
+    -webkit-font-smoothing: subpixel-antialiased;
+
+    /* Consistent rendering */
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Focus states */
+  input:focus,
+  textarea:focus,
+  button:focus,
+  select:focus {
+    outline: none;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   TEXT SELECTION OPTIMIZATION
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Consistent text selection across DPI levels */
+::selection {
+  background-color: var(--color-primary-400);
+  color: white;
+  -webkit-text-fill-color: white;
+}
+
+::-moz-selection {
+  background-color: var(--color-primary-400);
+  color: white;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   CURSOR OPTIMIZATION
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Crisp cursor on high DPI displays */
+@media (min-device-pixel-ratio: 2) {
+  /* Optimize for touch devices */
+  button,
+  a,
+  [role='button'],
+  label {
+    cursor: pointer;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   SCROLLBAR OPTIMIZATION
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Webkit scrollbar (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+@media (min-device-pixel-ratio: 2) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+}
+
+::-webkit-scrollbar-track {
+  background-color: var(--color-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border-radius: var(--radius-xs);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-text-tertiary);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-color: var(--color-border) var(--color-surface);
+  scrollbar-width: thin;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   MOTION & ACCESSIBILITY
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Disable expensive animations for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   PRINT OPTIMIZATION
+   ════════════════════════════════════════════════════════════════════════ */
+
+@media print {
+  /* Optimize for printing */
+  * {
+    background: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Preserve text quality when printing */
+  body {
+    text-rendering: optimizeLegibility;
+  }
+}
