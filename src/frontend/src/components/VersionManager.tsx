@@ -184,7 +184,8 @@ export function VersionManager({
   const [versionToDuplicate, setVersionToDuplicate] = useState<number | null>(
     null,
   const [isCollapsed, setIsCollapsed] = useState(initiallyCollapsed);
-  // Removed extra checkbox UI for filtering by date; always filter to current range
+  // filterByDate is a constant (always true) - removed checkbox UI for filtering by date
+  // Always filter versions to current date range for consistency
   const filterByDate = true;
 
   // Get selected version metadata
@@ -306,6 +307,8 @@ export function VersionManager({
 
     return effectiveVersions;
   }, [externalVersions, effectiveVersions, dateRange]);
+  // Note: filterByDate is intentionally NOT in dependencies as it's a constant (always true)
+  // This prevents unnecessary re-renders while maintaining correct filtering behavior
 
   // Render the layout content (extracted from the switch statement)
   const renderLayoutContent = () => {
