@@ -26,6 +26,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { validateVacationDates, type VacationValidationResult } from "@/services/api";
 import { Absence, AbsenceType, Employee } from "@/types";
 import { differenceInDays, format, parseISO } from "date-fns";
 import { AlertTriangle, ArrowLeft, ArrowRight, Calendar as CalendarIcon, CheckCircle, Plus, Trash2, User, Users } from "lucide-react";
@@ -38,6 +39,8 @@ interface VacationPeriod {
     type: string;
     status: string;
     note?: string;
+    validation?: VacationValidationResult;
+    isValidating?: boolean;
 }
 
 interface EmployeeVacationData {
@@ -188,9 +191,55 @@ export function MultistepVacationPlanningModal({
                 data.employee.id === selectedEmployeeId
                     ? {
                         ...data,
-                        plannedVacations: data.plannedVacations.map(period =>
-                            period.id === periodId ? { ...period, [field]: value } : period
-                        )
+                        plannedVacations: data.plannedVacations.map(period => {
+                            if (period.id === periodId) {
+                                const updatedPeriod = { ...period, [field]: value };
+                                // Validate dates if both are set
+                                if (field === "startDate" || field === "endDate") {
+                                    const startDate = field === "startDate" ? value : period.startDate;
+                                    const endDate = field === "endDate" ? value : period.endDate;
+                                    if (startDate && endDate) {
+                                        // Trigger validation asynchronously
+                                        updatedPeriod.isValidating = true;
+                                        validateVacationDates(startDate, endDate)
+                                            .then(validation => {
+                                                setEmployeeVacationData(current =>
+                                                    current.map(d =>
+                                                        d.employee.id === selectedEmployeeId
+                                                            ? {
+                                                                ...d,
+                                                                plannedVacations: d.plannedVacations.map(p =>
+                                                                    p.id === periodId
+                                                                        ? { ...p, validation, isValidating: false }
+                                                                        : p
+                                                                )
+                                                            }
+                                                            : d
+                                                    )
+                                                );
+                                            })
+                                            .catch(() => {
+                                                setEmployeeVacationData(current =>
+                                                    current.map(d =>
+                                                        d.employee.id === selectedEmployeeId
+                                                            ? {
+                                                                ...d,
+                                                                plannedVacations: d.plannedVacations.map(p =>
+                                                                    p.id === periodId
+                                                                        ? { ...p, isValidating: false }
+                                                                        : p
+                                                                )
+                                                            }
+                                                            : d
+                                                    )
+                                                );
+                                            });
+                                    }
+                                }
+                                return updatedPeriod;
+                            }
+                            return period;
+                        })
                     }
                     : data
             )
@@ -293,8 +342,8 @@ export function MultistepVacationPlanningModal({
                                                 <Card
                                                     key={data.employee.id}
                                                     className={`cursor-pointer transition-colors ${selectedEmployeeId === data.employee.id
-                                                            ? "ring-2 ring-primary"
-                                                            : "hover:bg-muted/50"
+                                                        ? "ring-2 ring-primary"
+                                                        : "hover:bg-muted/50"
                                                         }`}
                                                     onClick={() => setSelectedEmployeeId(data.employee.id)}
                                                 >
@@ -323,7 +372,7 @@ export function MultistepVacationPlanningModal({
                                                                 <div className="w-24 bg-muted rounded-full h-2 mt-1">
                                                                     <div
                                                                         className={`h-2 rounded-full ${vacationPercentage > 80 ? "bg-red-500" :
-                                                                                vacationPercentage > 60 ? "bg-yellow-500" : "bg-green-500"
+                                                                            vacationPercentage > 60 ? "bg-yellow-500" : "bg-green-500"
                                                                             }`}
                                                                         style={{ width: `${Math.min(vacationPercentage, 100)}%` }}
                                                                     />
@@ -383,115 +432,171 @@ export function MultistepVacationPlanningModal({
                                                 </Button>
                                             </div>
 
+                                            {selectedEmployeeData.existingVacations.length > 0 && (
+                                                <div className="space-y-2">
+                                                    <h5 className="text-xs font-medium text-muted-foreground">Bereits geplante Urlaubszeiten:</h5>
+                                                    <div className="space-y-2">
+                                                        {selectedEmployeeData.existingVacations.map((absence, index) => {
+                                                            const absenceStart = parseISO(absence.start_date);
+                                                            const absenceEnd = parseISO(absence.end_date);
+                                                            const absenceDays = differenceInDays(absenceEnd, absenceStart) + 1;
+                                                            const absenceTypeName = absenceTypes.find(t => t.id === absence.absence_type_id)?.name || absence.absence_type_id;
+
+                                                            return (
+                                                                <div key={absence.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                                                                    <div className="flex-1">
+                                                                        <div className="flex items-center gap-2 mb-1">
+                                                                            <span className="text-sm font-medium">Urlaub {index + 1}</span>
+                                                                            <Badge variant="outline" className="text-xs">{absenceTypeName}</Badge>
+                                                                            <Badge variant={absence.status === 'approved' ? 'default' : 'secondary'} className="text-xs">
+                                                                                {absence.status === 'approved' ? 'Genehmigt' :
+                                                                                    absence.status === 'requested' ? 'Beantragt' : 'Abgelehnt'}
+                                                                            </Badge>
+                                                                        </div>
+                                                                        <div className="text-xs text-muted-foreground">
+                                                                            {absence.start_date} - {absence.end_date} ({absenceDays} Tage)
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             <ScrollArea className="h-[300px]">
                                                 <div className="space-y-3">
                                                     {selectedEmployeeData.plannedVacations.length === 0 ? (
                                                         <div className="text-center py-8 text-muted-foreground">
                                                             <CalendarIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                                                            <p>Keine Urlaubszeiten geplant</p>
+                                                            <p>Keine neuen Urlaubszeiten hinzugefügt</p>
                                                             <p className="text-sm">Klicken Sie auf "Urlaubszeit hinzufügen"</p>
                                                         </div>
                                                     ) : (
-                                                        selectedEmployeeData.plannedVacations.map((period, index) => {
-                                                            const days = calculatePeriodDays(period.startDate, period.endDate);
-                                                            const exceedsRemaining = days > selectedEmployeeData.remainingDays;
+                                                        <>
+                                                            <h5 className="text-xs font-medium text-muted-foreground">Neue Urlaubszeiten:</h5>
+                                                            {selectedEmployeeData.plannedVacations.map((period, index) => {
+                                                                const days = calculatePeriodDays(period.startDate, period.endDate);
+                                                                const exceedsRemaining = days > selectedEmployeeData.remainingDays;
 
-                                                            return (
-                                                                <Card key={period.id} className="relative">
-                                                                    <CardContent className="p-4">
-                                                                        <div className="flex items-start justify-between mb-3">
-                                                                            <h5 className="text-sm font-medium">
-                                                                                Urlaubszeit {index + 1}
-                                                                            </h5>
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                onClick={() => removeVacationPeriod(period.id)}
-                                                                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                                                            >
-                                                                                <Trash2 className="h-4 w-4" />
-                                                                            </Button>
-                                                                        </div>
+                                                                return (
+                                                                    <Card key={period.id} className="relative">
+                                                                        <CardContent className="p-4">
+                                                                            <div className="flex items-start justify-between mb-3">
+                                                                                <h5 className="text-sm font-medium">
+                                                                                    Urlaubszeit {index + 1}
+                                                                                </h5>
+                                                                                <Button
+                                                                                    variant="ghost"
+                                                                                    size="sm"
+                                                                                    onClick={() => removeVacationPeriod(period.id)}
+                                                                                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                                                                >
+                                                                                    <Trash2 className="h-4 w-4" />
+                                                                                </Button>
+                                                                            </div>
 
-                                                                        <div className="grid gap-3 md:grid-cols-2">
-                                                                            <div>
-                                                                                <Label className="text-xs">Von</Label>
-                                                                                <DateInput
-                                                                                    value={period.startDate}
-                                                                                    onChange={(value) => updateVacationPeriod(period.id, "startDate", value)}
-                                                                                    placeholder="YYYY-MM-DD"
+                                                                            <div className="grid gap-3 md:grid-cols-2">
+                                                                                <div>
+                                                                                    <Label className="text-xs">Von</Label>
+                                                                                    <DateInput
+                                                                                        value={period.startDate}
+                                                                                        onChange={(value) => updateVacationPeriod(period.id, "startDate", value)}
+                                                                                        placeholder="YYYY-MM-DD"
+                                                                                    />
+                                                                                </div>
+                                                                                <div>
+                                                                                    <Label className="text-xs">Bis</Label>
+                                                                                    <DateInput
+                                                                                        value={period.endDate}
+                                                                                        onChange={(value) => updateVacationPeriod(period.id, "endDate", value)}
+                                                                                        placeholder="YYYY-MM-DD"
+                                                                                    />
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {period.validation && period.validation.warnings.length > 0 && (
+                                                                                <Alert className="mt-3 bg-yellow-50 border-yellow-200">
+                                                                                    <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                                                                                    <AlertDescription className="text-sm text-yellow-800">
+                                                                                        <div className="font-medium mb-2">
+                                                                                            {period.validation.working_days} Arbeitstag(e) von {period.validation.total_days} Tagen
+                                                                                        </div>
+                                                                                        {period.validation.closed_days > 0 && (
+                                                                                            <div className="text-xs mb-2">
+                                                                                                <div className="font-medium mb-1">Geschlossene Tage ({period.validation.closed_days}):</div>
+                                                                                                {Object.entries(period.validation.closed_day_list).map(([date, info]) => (
+                                                                                                    <div key={date} className="ml-2">
+                                                                                                        {date} - {info.description}
+                                                                                                    </div>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </AlertDescription>
+                                                                                </Alert>
+                                                                            )}
+
+                                                                            <div className="grid gap-3 md:grid-cols-2 mt-3">
+                                                                                <div>
+                                                                                    <Label className="text-xs">Typ</Label>
+                                                                                    <Select
+                                                                                        value={period.type}
+                                                                                        onValueChange={(value) => updateVacationPeriod(period.id, "type", value)}
+                                                                                    >
+                                                                                        <SelectTrigger className="h-9">
+                                                                                            <SelectValue placeholder="Typ auswählen" />
+                                                                                        </SelectTrigger>
+                                                                                        <SelectContent>
+                                                                                            {absenceTypes.map((type) => (
+                                                                                                <SelectItem key={type.id} value={type.id}>
+                                                                                                    {type.name}
+                                                                                                </SelectItem>
+                                                                                            ))}
+                                                                                        </SelectContent>
+                                                                                    </Select>
+                                                                                </div>
+                                                                                <div>
+                                                                                    <Label className="text-xs">Status</Label>
+                                                                                    <Select
+                                                                                        value={period.status}
+                                                                                        onValueChange={(value) => updateVacationPeriod(period.id, "status", value)}
+                                                                                    >
+                                                                                        <SelectTrigger className="h-9">
+                                                                                            <SelectValue placeholder="Status" />
+                                                                                        </SelectTrigger>
+                                                                                        <SelectContent>
+                                                                                            <SelectItem value="requested">Beantragt</SelectItem>
+                                                                                            <SelectItem value="approved">Genehmigt</SelectItem>
+                                                                                            <SelectItem value="declined">Abgelehnt</SelectItem>
+                                                                                        </SelectContent>
+                                                                                    </Select>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div className="mt-3">
+                                                                                <Input
+                                                                                    placeholder="Notiz (optional)"
+                                                                                    value={period.note || ""}
+                                                                                    onChange={(e) => updateVacationPeriod(period.id, "note", e.target.value)}
+                                                                                    className="h-8 text-xs"
                                                                                 />
                                                                             </div>
-                                                                            <div>
-                                                                                <Label className="text-xs">Bis</Label>
-                                                                                <DateInput
-                                                                                    value={period.endDate}
-                                                                                    onChange={(value) => updateVacationPeriod(period.id, "endDate", value)}
-                                                                                    placeholder="YYYY-MM-DD"
-                                                                                />
-                                                                            </div>
-                                                                        </div>
 
-                                                                        <div className="grid gap-3 md:grid-cols-2 mt-3">
-                                                                            <div>
-                                                                                <Label className="text-xs">Typ</Label>
-                                                                                <Select
-                                                                                    value={period.type}
-                                                                                    onValueChange={(value) => updateVacationPeriod(period.id, "type", value)}
-                                                                                >
-                                                                                    <SelectTrigger className="h-9">
-                                                                                        <SelectValue placeholder="Typ auswählen" />
-                                                                                    </SelectTrigger>
-                                                                                    <SelectContent>
-                                                                                        {absenceTypes.map((type) => (
-                                                                                            <SelectItem key={type.id} value={type.id}>
-                                                                                                {type.name}
-                                                                                            </SelectItem>
-                                                                                        ))}
-                                                                                    </SelectContent>
-                                                                                </Select>
-                                                                            </div>
-                                                                            <div>
-                                                                                <Label className="text-xs">Status</Label>
-                                                                                <Select
-                                                                                    value={period.status}
-                                                                                    onValueChange={(value) => updateVacationPeriod(period.id, "status", value)}
-                                                                                >
-                                                                                    <SelectTrigger className="h-9">
-                                                                                        <SelectValue placeholder="Status" />
-                                                                                    </SelectTrigger>
-                                                                                    <SelectContent>
-                                                                                        <SelectItem value="requested">Beantragt</SelectItem>
-                                                                                        <SelectItem value="approved">Genehmigt</SelectItem>
-                                                                                        <SelectItem value="declined">Abgelehnt</SelectItem>
-                                                                                    </SelectContent>
-                                                                                </Select>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div className="mt-3">
-                                                                            <Input
-                                                                                placeholder="Notiz (optional)"
-                                                                                value={period.note || ""}
-                                                                                onChange={(e) => updateVacationPeriod(period.id, "note", e.target.value)}
-                                                                                className="h-8 text-xs"
-                                                                            />
-                                                                        </div>
-
-                                                                        {days > 0 && (
-                                                                            <div className="mt-2 flex items-center gap-2">
-                                                                                <Badge variant={exceedsRemaining ? "destructive" : "secondary"}>
-                                                                                    {days} Tag{days !== 1 ? 'e' : ''}
-                                                                                </Badge>
-                                                                                {exceedsRemaining && (
-                                                                                    <AlertTriangle className="h-4 w-4 text-destructive" />
-                                                                                )}
-                                                                            </div>
-                                                                        )}
-                                                                    </CardContent>
-                                                                </Card>
-                                                            );
-                                                        })
+                                                                            {days > 0 && (
+                                                                                <div className="mt-2 flex items-center gap-2">
+                                                                                    <Badge variant={exceedsRemaining ? "destructive" : "secondary"}>
+                                                                                        {days} Tag{days !== 1 ? 'e' : ''}
+                                                                                    </Badge>
+                                                                                    {exceedsRemaining && (
+                                                                                        <AlertTriangle className="h-4 w-4 text-destructive" />
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
+                                                                        </CardContent>
+                                                                    </Card>
+                                                                );
+                                                            })}
+                                                        </>
                                                     )}
                                                 </div>
                                             </ScrollArea>
@@ -565,6 +670,18 @@ export function MultistepVacationPlanningModal({
                                                                             <div className="text-sm text-muted-foreground">
                                                                                 {period.startDate} - {period.endDate} ({days} Tage)
                                                                             </div>
+                                                                            {period.validation && (
+                                                                                <div className="text-xs mt-2 p-2 bg-yellow-50 rounded border border-yellow-200">
+                                                                                    <span className="text-yellow-900 font-medium">
+                                                                                        {period.validation.working_days} Arbeitstag(e) von {period.validation.total_days} Tagen
+                                                                                    </span>
+                                                                                    {period.validation.closed_days > 0 && (
+                                                                                        <div className="text-yellow-800 mt-1">
+                                                                                            {period.validation.closed_days} geschlossene Tage (z.B. {Object.values(period.validation.closed_day_list)[0]?.description})
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
                                                                             {period.note && (
                                                                                 <div className="text-sm text-muted-foreground mt-1">
                                                                                     Notiz: {period.note}

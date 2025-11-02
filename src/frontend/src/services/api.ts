@@ -1,18 +1,18 @@
 import { API_TIMEOUT } from "@/constants";
 import type {
-  Absence,
-  AiImportResponse,
-  ApplicableShift,
-  CoverageProfile,
-  DailyCoverage,
-  Employee,
-  EmployeeAvailabilityStatus,
-  ScheduleUpdate,
-  Settings,
-  Shift,
-  SpecialDay,
-  Schedule as TSchedule,
-  ScheduleResponse as TScheduleResponse,
+    Absence,
+    AiImportResponse,
+    ApplicableShift,
+    CoverageProfile,
+    DailyCoverage,
+    Employee,
+    EmployeeAvailabilityStatus,
+    ScheduleUpdate,
+    Settings,
+    Shift,
+    SpecialDay,
+    Schedule as TSchedule,
+    ScheduleResponse as TScheduleResponse,
 } from "@/types/index";
 import type { PDFLayoutConfig } from "@/types/pdf";
 import axios, { AxiosError } from "axios";
@@ -892,6 +892,87 @@ export const deleteAbsence = async (id: number): Promise<void> => {
     if (error instanceof Error) {
       throw new Error(
         `Failed to delete absence with ID ${id}: ${error.message}`,
+      );
+    }
+    throw error;
+  }
+};
+
+// Vacation planning validation
+export interface VacationValidationResult {
+  is_valid: boolean;
+  working_days: number;
+  closed_days: number;
+  total_days: number;
+  warnings: string[];
+  closed_day_list: Record<
+    string,
+    {
+      description: string;
+      reason: string;
+      type: string;
+      custom_hours?: [string, string];
+    }
+  >;
+  message: string;
+}
+
+export interface VacationPeriodSummary {
+  period_start: string;
+  period_end: string;
+  total_days: number;
+  working_days_count: number;
+  closed_days_count: number;
+  working_days: string[];
+  closed_days: Record<
+    string,
+    {
+      description: string;
+      reason: string;
+      type: string;
+      custom_hours?: [string, string];
+    }
+  >;
+}
+
+export const validateVacationDates = async (
+  startDate: string,
+  endDate: string,
+): Promise<VacationValidationResult> => {
+  try {
+    const response = await api.post<VacationValidationResult>(
+      "/api/v2/absences/validate",
+      {
+        start_date: startDate,
+        end_date: endDate,
+      },
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to validate vacation dates: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const getVacationPeriodSummary = async (
+  startDate: string,
+  endDate: string,
+): Promise<VacationPeriodSummary> => {
+  try {
+    const response = await api.post<VacationPeriodSummary>(
+      "/api/v2/absences/period-summary",
+      {
+        start_date: startDate,
+        end_date: endDate,
+      },
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to get vacation period summary: ${error.message}`,
       );
     }
     throw error;

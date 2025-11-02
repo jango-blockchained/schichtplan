@@ -17,6 +17,8 @@ export type CalendarContextType = CalendarProps & {
   setManageEventDialogOpen: (open: boolean) => void
   selectedEvent: CalendarEvent | null
   setSelectedEvent: (event: CalendarEvent | null) => void
+  fontSizeMultiplier?: number
+  setFontSizeMultiplier?: (multiplier: number) => void
 }
 export type CalendarEvent = {
   id: string

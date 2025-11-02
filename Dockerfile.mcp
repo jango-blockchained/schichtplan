@@ -1,0 +1,39 @@
+# Dockerfile for Schichtplan MCP Server
+FROM python:3.13-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    postgresql-client \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY src/backend/requirements.txt .
+
+# Install Python dependencies
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install -r requirements.txt
+
+# Copy application code
+COPY src/backend /app/src/backend
+COPY pyproject.toml .
+
+# Create necessary directories
+RUN mkdir -p /app/instance /app/logs
+
+# Expose port
+EXPOSE 8001
+
+# Default command - MCP server with SSE transport
+CMD ["python", "-u", "src/backend/mcp_server.py", "--transport", "sse", "--port", "8001"]

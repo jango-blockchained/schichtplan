@@ -1,5 +1,0 @@
-# Development Manager TUI Dependencies
-textual>=0.47.0,<1.0.0
-textual-dev>=1.2.0,<2.0.0
-psutil>=5.9.0,<6.0.0
-rich>=13.7.0,<14.0.0

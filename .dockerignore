@@ -1,0 +1,75 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv
+src/backend/.venv
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+.npm
+.eslintcache
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.prod
+.env.*.local
+
+# Logs
+logs/
+*.log
+
+# Instance/Runtime
+instance/
+.coverage
+htmlcov/
+
+# OS
+Thumbs.db
+.DS_Store
+*.tmp
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Development
+.github/
+.venv/
+src/backend/.venv/
+
+# Documentation (if kept)
+docs/
+*.md
+
+# Tests
+tests/
+.pytest_cache/
+coverage/

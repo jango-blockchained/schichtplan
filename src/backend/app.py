@@ -50,6 +50,9 @@ from src.backend.routes import (
     logs,
 )
 from src.backend.routes.absences import bp as absences_bp
+from src.backend.routes.absences_validation import (
+    bp as absences_validation_bp,
+)
 from src.backend.routes.additional_pdf import bp as additional_pdf_bp
 from src.backend.routes.ai_conversation_routes import (
     ai_conversation_bp,
@@ -200,6 +203,7 @@ def create_app(config_class=Config):
     app.register_blueprint(employees, url_prefix="/api/v2")
     app.register_blueprint(availability)
     app.register_blueprint(absences_bp, url_prefix="/api/v2")
+    app.register_blueprint(absences_validation_bp, url_prefix="/api/v2")
     app.register_blueprint(ai_conversation_bp, url_prefix="/api/v2/ai-conversation")
     app.register_blueprint(ai_schedule_bp, url_prefix="/api/v2")
     app.register_blueprint(holidays_bp, url_prefix="/api/v2")
@@ -235,10 +239,16 @@ def create_app(config_class=Config):
             path = environ.get("PATH_INFO", "")
             # Exclude paths that should not be rewritten (like csv-import which has its own prefix)
             excluded_paths = ["/api/csv-import/"]
-            should_exclude = any(path.startswith(excluded) for excluded in excluded_paths)
+            should_exclude = any(
+                path.startswith(excluded) for excluded in excluded_paths
+            )
 
             # If path starts with /api/ but not already /api/v2/ and not excluded
-            if path.startswith("/api/") and not path.startswith("/api/v2/") and not should_exclude:
+            if (
+                path.startswith("/api/")
+                and not path.startswith("/api/v2/")
+                and not should_exclude
+            ):
                 # Replace '/api/' prefix with '/api/v2/' once
                 environ["PATH_INFO"] = path.replace("/api/", "/api/v2/", 1)
             return self.wsgi_app(environ, start_response)

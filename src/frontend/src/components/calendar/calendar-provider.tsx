@@ -30,6 +30,7 @@ export default function CalendarProvider({
   const [newEventDialogOpen, setNewEventDialogOpen] = useState(false)
   const [manageEventDialogOpen, setManageEventDialogOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
+  const [fontSizeMultiplier, setFontSizeMultiplier] = useState(1)
 
   return (
     <CalendarContext.Provider
@@ -49,6 +50,8 @@ export default function CalendarProvider({
         setManageEventDialogOpen,
         selectedEvent,
         setSelectedEvent,
+        fontSizeMultiplier,
+        setFontSizeMultiplier,
       }}
     >
       <CalendarNewEventDialog />

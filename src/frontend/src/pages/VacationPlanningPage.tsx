@@ -587,6 +587,9 @@ export default function VacationPlanningPage() {
       case 'yearly-calendar':
         url = `${apiBaseUrl}/api/v2/vacation-pdf/yearly-calendar?year=${currentYear}`;
         break;
+      case 'yearly-calendar-grid':
+        url = `${apiBaseUrl}/api/v2/vacation-pdf/yearly-calendar-grid?year=${currentYear}`;
+        break;
       default:
         return;
     }
@@ -623,6 +626,9 @@ export default function VacationPlanningPage() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleExportPDF('yearly-calendar')}>
                   Jahreskalender
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportPDF('yearly-calendar-grid')}>
+                  Jahreskalender (Grid Layout)
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -699,12 +705,12 @@ export default function VacationPlanningPage() {
         </Card>
       </div>
 
-      {/* Filter Bar */}
+      {/* Merged Filters and Options Card */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-4">
+        <CardContent className="space-y-4 pt-6">
+          <div className="flex items-center gap-4 flex-wrap">
             <Users className="h-5 w-5 text-muted-foreground" />
-            <div className="flex-1">
+            <div className="flex-1 min-w-[200px]">
               <Select
                 value={selectedEmployeeId?.toString() || "all"}
                 onValueChange={(value) =>
@@ -731,12 +737,7 @@ export default function VacationPlanningPage() {
               </Badge>
             )}
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Additional Filters Card */}
-      <Card>
-        <CardContent className="space-y-4 pt-6">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <Label htmlFor="absence-type-filter" className="text-sm text-muted-foreground">
@@ -822,36 +823,6 @@ export default function VacationPlanningPage() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Calendar View */}
-      <Collapsible open={isCalendarExpanded} onOpenChange={setIsCalendarExpanded}>
-        <Card>
-          <CollapsibleTrigger asChild>
-            <div className="flex items-center justify-between p-6 cursor-pointer hover:bg-muted/50 transition-colors">
-              <CardTitle className="text-base">Kalender</CardTitle>
-              <ChevronDown
-                className={`h-5 w-5 transition-transform duration-200 ${isCalendarExpanded ? "rotate-180" : ""
-                  }`}
-              />
-            </div>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent className="pt-0">
-              <Calendar
-                events={calendarEvents}
-                setEvents={handleEventsChange}
-                mode={calendarMode}
-                setMode={setCalendarMode}
-                date={currentDate}
-                setDate={setCurrentDate}
-                calendarIconIsToday={true}
-                onEventUpdate={handleEventUpdate}
-                onEventDelete={handleEventDelete}
-              />
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
 
       {/* List View */}
       <Collapsible open={isListExpanded} onOpenChange={setIsListExpanded}>
@@ -1140,6 +1111,36 @@ export default function VacationPlanningPage() {
                   </Button>
                 </div>
               </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* Calendar View */}
+      <Collapsible open={isCalendarExpanded} onOpenChange={setIsCalendarExpanded}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <div className="flex items-center justify-between p-6 cursor-pointer hover:bg-muted/50 transition-colors">
+              <CardTitle className="text-base">Kalender</CardTitle>
+              <ChevronDown
+                className={`h-5 w-5 transition-transform duration-200 ${isCalendarExpanded ? "rotate-180" : ""
+                  }`}
+              />
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0">
+              <Calendar
+                events={calendarEvents}
+                setEvents={handleEventsChange}
+                mode={calendarMode}
+                setMode={setCalendarMode}
+                date={currentDate}
+                setDate={setCurrentDate}
+                calendarIconIsToday={true}
+                onEventUpdate={handleEventUpdate}
+                onEventDelete={handleEventDelete}
+              />
             </CardContent>
           </CollapsibleContent>
         </Card>
