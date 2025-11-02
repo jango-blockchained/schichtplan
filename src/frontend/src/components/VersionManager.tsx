@@ -183,10 +183,10 @@ export function VersionManager({
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [versionToDuplicate, setVersionToDuplicate] = useState<number | null>(
     null,
-  );
   const [isCollapsed, setIsCollapsed] = useState(initiallyCollapsed);
-  // Removed extra checkbox UI for filtering by date; always filter to current range
-  const [filterByDate] = useState(true);
+  // filterByDate is a constant (always true) - removed checkbox UI for filtering by date
+  // Always filter versions to current date range for consistency
+  const filterByDate = true;
 
   // Get selected version metadata
   const selectedVersionMeta = effectiveSelectedVersion
@@ -283,14 +283,32 @@ export function VersionManager({
   };
 
   // Filter versions by selected week date range if enabled
-  const filteredVersions =
-    filterByDate && dateRange?.from && dateRange?.to
-      ? effectiveVersions.filter((v) => {
-          const vStart = new Date(v.date_range.start);
-          const vEnd = new Date(v.date_range.end);
-          return vStart >= dateRange.from && vEnd <= dateRange.to;
-        })
-      : effectiveVersions;
+  // When versions are provided externally (already filtered), don't filter again
+  const filteredVersions = useMemo(() => {
+    // Skip filtering if versions are provided externally (already filtered by parent)
+    // Even an empty external array means filtering is managed externally
+    if (externalVersions) {
+      return effectiveVersions;
+    }
+
+    // Apply filtering only if enabled and date range is available
+    if (filterByDate && dateRange?.from && dateRange?.to) {
+      // Pre-format dates outside the filter for performance
+      const fromDateFormatted = format(dateRange.from, "yyyy-MM-dd");
+      const toDateFormatted = format(dateRange.to, "yyyy-MM-dd");
+      
+      // Use exact date matching to match backend behavior (get_versions_for_exact_date_range)
+      return effectiveVersions.filter((v) => {
+        const versionStart = v.date_range.start;
+        const versionEnd = v.date_range.end;
+        return versionStart === fromDateFormatted && versionEnd === toDateFormatted;
+      });
+    }
+
+    return effectiveVersions;
+  }, [externalVersions, effectiveVersions, dateRange]);
+  // Note: filterByDate is intentionally NOT in dependencies as it's a constant (always true)
+  // This prevents unnecessary re-renders while maintaining correct filtering behavior
 
   // Render the layout content (extracted from the switch statement)
   const renderLayoutContent = () => {
