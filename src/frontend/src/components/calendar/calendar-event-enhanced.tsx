@@ -131,7 +131,7 @@ export default function CalendarEventEnhanced({
     onDelete,
     status = 'requested',
 }: CalendarEventEnhancedProps) {
-    const { events, setSelectedEvent, setManageEventDialogOpen, date, setEvents } =
+    const { events, setSelectedEvent, setManageEventDialogOpen, date, setEvents, fontSizeMultiplier = 1 } =
         useCalendarContext()
     const [showActions, setShowActions] = useState(false)
     const [isDragging, setIsDragging] = useState(false)
@@ -395,7 +395,12 @@ export default function CalendarEventEnhanced({
                     {/* Content Container */}
                     <motion.div className="flex-1 min-w-0 flex items-center gap-0.5 overflow-hidden" layout="position">
                         {/* Title - always show and highlight */}
-                        <p className="text-xs font-semibold text-foreground truncate leading-none">
+                        <p
+                            className="font-semibold text-foreground truncate leading-none"
+                            style={{
+                                fontSize: month ? `${0.75 * fontSizeMultiplier}rem` : '0.75rem'
+                            }}
+                        >
                             {event.title}
                         </p>
 
@@ -403,7 +408,12 @@ export default function CalendarEventEnhanced({
                             <>
                                 {/* Time info for month/year view - compact */}
                                 {showTimeInfo && !year && (
-                                    <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+                                    <span
+                                        className="text-muted-foreground whitespace-nowrap flex-shrink-0"
+                                        style={{
+                                            fontSize: month ? `${0.7 * fontSizeMultiplier}rem` : '0.75rem'
+                                        }}
+                                    >
                                         {format(event.start, 'HH:mm')}
                                     </span>
                                 )}

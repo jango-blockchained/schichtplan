@@ -3,6 +3,7 @@ import CalendarProvider from './calendar-provider'
 import type { CalendarProps } from './calendar-types'
 import CalendarHeaderActions from './header/actions/calendar-header-actions'
 import CalendarHeaderActionsAdd from './header/actions/calendar-header-actions-add'
+import CalendarHeaderActionsFontSize from './header/actions/calendar-header-actions-fontsize'
 import CalendarHeaderActionsMode from './header/actions/calendar-header-actions-mode'
 import CalendarHeader from './header/calendar-header'
 import CalendarHeaderDate from './header/date/calendar-header-date'
@@ -34,6 +35,7 @@ export default function Calendar({
         <CalendarHeaderDate />
         <CalendarHeaderActions>
           <CalendarHeaderActionsMode />
+          <CalendarHeaderActionsFontSize />
           <CalendarHeaderActionsAdd />
         </CalendarHeaderActions>
       </CalendarHeader>

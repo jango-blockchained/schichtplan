@@ -400,25 +400,25 @@ export const ConversationalAIChat: React.FC = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-200px)]">
-      {/* Conversation Sidebar */}
-      <Card className="lg:col-span-1">
-        <CardHeader className="pb-3">
+    <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 gap-2 md:gap-4 lg:gap-6 h-full md:h-[calc(100vh-200px)] flex-1">
+      {/* Conversation Sidebar - Hidden on mobile, visible on md+ */}
+      <Card className="hidden md:flex md:col-span-1 flex-col h-full">
+        <CardHeader className="pb-3 flex-shrink-0">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm">Conversations</CardTitle>
-            <Button size="sm" variant="outline" onClick={newConversation}>
+            <Button size="sm" variant="outline" onClick={newConversation} className="h-8 w-8 p-0">
               <MessageSquare className="h-4 w-4" />
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
-          <ScrollArea className="h-[400px]">
+        <CardContent className="p-0 flex-1 flex flex-col overflow-hidden">
+          <ScrollArea className="flex-1">
             <div className="space-y-2 p-4">
               {sessions.map((session) => (
                 <div
                   key={session.id}
                   className={cn(
-                    "p-3 rounded-lg cursor-pointer transition-colors",
+                    "p-3 rounded-lg cursor-pointer transition-colors text-sm",
                     currentSession?.id === session.id
                       ? "bg-primary/10 border-primary border"
                       : "bg-muted/50 hover:bg-muted",
@@ -444,21 +444,22 @@ export const ConversationalAIChat: React.FC = () => {
       </Card>
 
       {/* Main Chat Interface */}
-      <Card className="lg:col-span-3 flex flex-col">
-        <CardHeader className="flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              <CardTitle>AI Assistant</CardTitle>
-              <Badge variant="outline" className="text-xs">
+      <Card className="md:col-span-3 lg:col-span-3 col-span-1 flex flex-col h-full">
+        {/* Header */}
+        <CardHeader className="flex-shrink-0 pb-2 md:pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-primary flex-shrink-0" />
+              <CardTitle className="text-base md:text-lg truncate">AI Assistant</CardTitle>
+              <Badge variant="outline" className="text-xs flex-shrink-0">
                 {aiProvider.toUpperCase()}
               </Badge>
             </div>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={clearConversation}>
+            <div className="flex gap-1 md:gap-2 flex-shrink-0">
+              <Button size="sm" variant="outline" onClick={clearConversation} className="h-8 px-2">
                 <RotateCcw className="h-4 w-4" />
               </Button>
-              <Button size="sm" variant="outline">
+              <Button size="sm" variant="outline" className="h-8 px-2">
                 <Download className="h-4 w-4" />
               </Button>
             </div>
@@ -466,19 +467,19 @@ export const ConversationalAIChat: React.FC = () => {
         </CardHeader>
 
         {/* Messages Area */}
-        <CardContent className="flex-1 flex flex-col p-0">
-          <ScrollArea className="flex-1 p-4">
-            <div className="space-y-4">
+        <CardContent className="flex-1 flex flex-col p-0 min-h-0">
+          <ScrollArea className="flex-1 p-2 md:p-4">
+            <div className="space-y-3 md:space-y-4">
               {messages.map((message) => (
                 <div
                   key={message.id}
                   className={cn(
-                    "flex gap-3 max-w-[80%]",
-                    message.type === "user" ? "ml-auto" : "",
+                    "flex gap-2 md:gap-3",
+                    message.type === "user" ? "flex-row-reverse ml-auto max-w-xs sm:max-w-sm md:max-w-md lg:max-w-2xl" : "max-w-xs sm:max-w-sm md:max-w-md lg:max-w-2xl",
                   )}
                 >
                   {message.type !== "user" && (
-                    <Avatar className="h-8 w-8 mt-1">
+                    <Avatar className="h-6 w-6 md:h-8 md:w-8 mt-1 flex-shrink-0">
                       <AvatarFallback className="text-xs">
                         {getAgentIcon(message.metadata?.agent)}
                       </AvatarFallback>
@@ -493,9 +494,9 @@ export const ConversationalAIChat: React.FC = () => {
                   >
                     <div
                       className={cn(
-                        "rounded-lg p-3 text-sm",
+                        "rounded-lg p-2 md:p-3 text-xs md:text-sm break-words",
                         message.type === "user"
-                          ? "bg-primary text-primary-foreground ml-auto"
+                          ? "bg-primary text-primary-foreground"
                           : message.type === "system"
                             ? "bg-muted border border-border"
                             : "bg-muted/50 border border-border",
@@ -507,32 +508,30 @@ export const ConversationalAIChat: React.FC = () => {
 
                       {/* Message Metadata */}
                       {message.metadata && message.type === "ai" && (
-                        <div className="mt-3 pt-2 border-t border-border/50 space-y-1">
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Bot className="h-3 w-3" />
-                            <span>Agent: {message.metadata.agent}</span>
+                        <div className="mt-2 md:mt-3 pt-2 border-t border-border/50 space-y-1">
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
+                            <Bot className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate">Agent: {message.metadata.agent}</span>
                             {message.metadata.confidence && (
                               <Badge variant="outline" className="text-xs">
                                 {Math.round(message.metadata.confidence * 100)}%
-                                confidence
                               </Badge>
                             )}
                           </div>
 
                           {message.metadata.tools_used &&
                             message.metadata.tools_used.length > 0 && (
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <Settings className="h-3 w-3" />
-                                <span>
-                                  Tools:{" "}
-                                  {message.metadata.tools_used.join(", ")}
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
+                                <Settings className="h-3 w-3 flex-shrink-0" />
+                                <span className="truncate">
+                                  Tools: {message.metadata.tools_used.join(", ")}
                                 </span>
                               </div>
                             )}
 
                           {message.metadata.processing_time && (
                             <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Clock className="h-3 w-3" />
+                              <Clock className="h-3 w-3 flex-shrink-0" />
                               <span>{message.metadata.processing_time}s</span>
                             </div>
                           )}
@@ -543,7 +542,7 @@ export const ConversationalAIChat: React.FC = () => {
                     {/* Message Actions */}
                     <div
                       className={cn(
-                        "flex items-center gap-1",
+                        "flex items-center gap-1 justify-start",
                         message.type === "user" ? "justify-end" : "",
                       )}
                     >
@@ -552,7 +551,7 @@ export const ConversationalAIChat: React.FC = () => {
                       </span>
 
                       {message.type === "ai" && (
-                        <>
+                        <div className="flex gap-0.5">
                           <Button
                             size="sm"
                             variant="ghost"
@@ -588,13 +587,13 @@ export const ConversationalAIChat: React.FC = () => {
                           >
                             <ThumbsDown className="h-3 w-3" />
                           </Button>
-                        </>
+                        </div>
                       )}
                     </div>
                   </div>
 
                   {message.type === "user" && (
-                    <Avatar className="h-8 w-8 mt-1">
+                    <Avatar className="h-6 w-6 md:h-8 md:w-8 mt-1 flex-shrink-0">
                       <AvatarFallback className="text-xs">
                         <User className="h-4 w-4" />
                       </AvatarFallback>
@@ -604,15 +603,15 @@ export const ConversationalAIChat: React.FC = () => {
               ))}
 
               {isLoading && (
-                <div className="flex gap-3">
-                  <Avatar className="h-8 w-8 mt-1">
+                <div className="flex gap-2 md:gap-3">
+                  <Avatar className="h-6 w-6 md:h-8 md:w-8 mt-1 flex-shrink-0">
                     <AvatarFallback className="text-xs">🤖</AvatarFallback>
                   </Avatar>
-                  <div className="flex-1">
-                    <div className="bg-muted/50 border border-border rounded-lg p-3">
+                  <div className="flex-1 max-w-xs sm:max-w-sm md:max-w-md lg:max-w-2xl">
+                    <div className="bg-muted/50 border border-border rounded-lg p-2 md:p-3">
                       <div className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span className="text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
+                        <span className="text-xs md:text-sm text-muted-foreground">
                           AI is thinking...
                         </span>
                       </div>
@@ -626,15 +625,15 @@ export const ConversationalAIChat: React.FC = () => {
           </ScrollArea>
 
           {/* Context Preview */}
-          <Collapsible open={showContext} onOpenChange={setShowContext}>
-            <div className="border-t border-border px-4 py-2">
+          <Collapsible open={showContext} onOpenChange={setShowContext} className="border-t border-border">
+            <div className="px-2 md:px-4 py-2">
               <CollapsibleTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full justify-between text-xs"
+                  className="w-full justify-between text-xs h-8"
                 >
-                  <span className="flex items-center gap-2">
+                  <span className="flex items-center gap-1 text-xs">
                     <Eye className="h-3 w-3" />
                     Context (
                     {Object.keys(pageContext.selectedItems).length +
@@ -648,10 +647,10 @@ export const ConversationalAIChat: React.FC = () => {
                   )}
                 </Button>
               </CollapsibleTrigger>
-              <CollapsibleContent className="mt-2">
+              <CollapsibleContent className="mt-2 max-h-32 overflow-y-auto">
                 <Card className="bg-muted/30">
-                  <CardContent className="p-3">
-                    <div className="space-y-2 text-xs">
+                  <CardContent className="p-2 md:p-3">
+                    <div className="space-y-1 text-xs">
                       <div>
                         <span className="font-medium">Page:</span>{" "}
                         {pageContext.pageTitle}
@@ -697,21 +696,22 @@ export const ConversationalAIChat: React.FC = () => {
           </Collapsible>
 
           {/* Input Area */}
-          <div className="border-t border-border p-4">
-            <div className="flex gap-2">
+          <div className="border-t border-border p-2 md:p-4 flex-shrink-0">
+            <div className="flex gap-2 flex-col sm:flex-row">
               <Textarea
                 ref={inputRef}
                 value={currentInput}
                 onChange={(e) => setCurrentInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Ask me anything about scheduling, optimization, or employee management..."
-                className="min-h-[60px] resize-none"
+                placeholder="Ask me anything..."
+                className="min-h-12 md:min-h-14 resize-none text-xs md:text-sm"
                 disabled={isLoading}
               />
               <Button
                 onClick={handleSendMessage}
                 disabled={!currentInput.trim() || isLoading}
-                className="h-[60px] px-4"
+                className="h-12 md:h-14 px-3 md:px-4 flex-shrink-0"
+                size="sm"
               >
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -721,11 +721,11 @@ export const ConversationalAIChat: React.FC = () => {
               </Button>
             </div>
 
-            <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-1 md:mt-2 text-xs text-muted-foreground gap-1">
               <span>Press Enter to send, Shift+Enter for new line</span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <CheckCircle2 className="h-3 w-3 text-green-500" />
-                <span>AI System Online</span>
+                <span>AI Online</span>
               </div>
             </div>
           </div>
