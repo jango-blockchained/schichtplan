@@ -1,3 +1,4 @@
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,9 +17,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { validateVacationDates, type VacationValidationResult } from "@/services/api";
 import { Absence, AbsenceType, Employee } from "@/types";
 import { format } from "date-fns";
-import { Calendar, Check, Clock, FileText, User, X } from "lucide-react";
+import { AlertTriangle, Calendar, Check, Clock, FileText, User, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface VacationAbsenceModalProps {
@@ -48,6 +50,8 @@ export function VacationAbsenceModal({
     status: absence?.status || "requested",
     note: absence?.note || "",
   });
+  const [validation, setValidation] = useState<VacationValidationResult | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
 
   useEffect(() => {
     if (absence) {
@@ -59,8 +63,39 @@ export function VacationAbsenceModal({
         status: absence.status,
         note: absence.note || "",
       });
+      // Validate existing absence dates
+      if (absence.start_date && absence.end_date) {
+        validateDates(absence.start_date, absence.end_date);
+      }
     }
   }, [absence]);
+
+  const validateDates = async (startDate: string, endDate: string) => {
+    if (!startDate || !endDate) return;
+
+    try {
+      setIsValidating(true);
+      const result = await validateVacationDates(startDate, endDate);
+      setValidation(result);
+    } catch (error) {
+      console.error("Validation failed:", error);
+      setValidation(null);
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const handleDateChange = (field: "start_date" | "end_date", value: string) => {
+    const newFormData = { ...formData, [field]: value };
+    setFormData(newFormData);
+
+    // Validate if both dates are set
+    if (newFormData.start_date && newFormData.end_date) {
+      validateDates(newFormData.start_date, newFormData.end_date);
+    } else {
+      setValidation(null);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -165,9 +200,7 @@ export function VacationAbsenceModal({
                   id="start_date"
                   type="date"
                   value={formData.start_date}
-                  onChange={(e) =>
-                    setFormData({ ...formData, start_date: e.target.value })
-                  }
+                  onChange={(e) => handleDateChange("start_date", e.target.value)}
                   required
                 />
               </div>
@@ -181,13 +214,35 @@ export function VacationAbsenceModal({
                   id="end_date"
                   type="date"
                   value={formData.end_date}
-                  onChange={(e) =>
-                    setFormData({ ...formData, end_date: e.target.value })
-                  }
+                  onChange={(e) => handleDateChange("end_date", e.target.value)}
                   required
                 />
               </div>
             </div>
+
+            {validation && validation.warnings.length > 0 && (
+              <Alert className="bg-yellow-50 border-yellow-200">
+                <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                <AlertDescription className="text-sm text-yellow-800">
+                  <div className="font-medium mb-2">
+                    {validation.working_days} Arbeitstag(e) von {validation.total_days} Tagen
+                  </div>
+                  {validation.closed_days > 0 && (
+                    <div className="text-xs">
+                      <div className="font-medium mb-1">Geschlossene Tage ({validation.closed_days}):</div>
+                      {Object.entries(validation.closed_day_list).slice(0, 3).map(([date, info]) => (
+                        <div key={date}>
+                          {date} - {info.description}
+                        </div>
+                      ))}
+                      {Object.keys(validation.closed_day_list).length > 3 && (
+                        <div>... und {Object.keys(validation.closed_day_list).length - 3} weitere</div>
+                      )}
+                    </div>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="status" className="flex items-center gap-2">

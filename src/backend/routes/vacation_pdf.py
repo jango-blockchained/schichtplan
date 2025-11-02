@@ -10,6 +10,9 @@ from http import HTTPStatus
 from flask import Blueprint, jsonify, request, send_file
 
 from src.backend.models import Absence, Employee, Settings, db
+from src.backend.services.vacation_grid_pdf_generator import (
+    VacationGridPDFGenerator,
+)
 from src.backend.services.vacation_pdf_generator import VacationPDFGenerator
 from src.backend.utils.logger import logger
 
@@ -365,6 +368,93 @@ def get_yearly_calendar():
 
     except Exception as e:
         logger.error(f"Error generating yearly calendar: {str(e)}", exc_info=True)
+        return jsonify(
+            {"status": "error", "message": f"Failed to generate PDF: {str(e)}"}
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route("/vacation-pdf/yearly-calendar-grid", methods=["GET"])
+def get_yearly_calendar_grid():
+    """
+    Generate yearly calendar with grid layout (days as columns).
+
+    Format: 2 pages in landscape with 6 months per page.
+    Days 1-31 displayed as columns, months as rows.
+    Vacation entries shown horizontally without overlapping.
+
+    Query parameters:
+        year (required): Year for calendar (e.g., 2024)
+
+    Returns:
+        PDF file for download
+    """
+    try:
+        # Get year parameter
+        year_str = request.args.get("year")
+        if not year_str:
+            return jsonify(
+                {"status": "error", "message": "year parameter is required"}
+            ), HTTPStatus.BAD_REQUEST
+
+        try:
+            year = int(year_str)
+        except ValueError:
+            return jsonify(
+                {"status": "error", "message": "year must be a valid integer"}
+            ), HTTPStatus.BAD_REQUEST
+
+        # Validate year
+        current_year = datetime.now().year
+        max_year = current_year + MAX_YEAR_OFFSET
+        if year < MIN_YEAR or year > max_year:
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": f"year must be between {MIN_YEAR} and {max_year}",
+                }
+            ), HTTPStatus.BAD_REQUEST
+
+        # Fetch employees
+        employees = Employee.query.filter_by(is_active=True).all()
+        logger.info(f"Loaded {len(employees)} active employees for calendar grid")
+
+        # Fetch ALL approved absences for the year
+        start_date = datetime(year, 1, 1).date()
+        end_date = datetime(year, 12, 31).date()
+
+        absences = Absence.query.filter(
+            Absence.status == "approved",
+            Absence.start_date <= end_date,
+            Absence.end_date >= start_date,
+        ).all()
+        logger.info(f"Loaded {len(absences)} approved absences for year {year}")
+
+        # Get settings
+        settings = Settings.query.first()
+
+        # Generate PDF with grid layout
+        generator = VacationGridPDFGenerator()
+        pdf_buffer = generator.generate_yearly_calendar_grid(
+            year=year,
+            employees=employees,
+            absences=absences,
+            settings=settings,
+        )
+
+        logger.info(f"Successfully generated yearly calendar grid for year {year}")
+
+        return send_file(
+            pdf_buffer,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=f"jahresurlaubskalender_grid_{year}.pdf",
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Error generating yearly calendar grid: {str(e)}",
+            exc_info=True,
+        )
         return jsonify(
             {"status": "error", "message": f"Failed to generate PDF: {str(e)}"}
         ), HTTPStatus.INTERNAL_SERVER_ERROR

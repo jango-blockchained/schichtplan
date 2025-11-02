@@ -26,6 +26,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { validateVacationDates, type VacationValidationResult } from "@/services/api";
 import { Absence, AbsenceType, Employee } from "@/types";
 import { differenceInDays, format, parseISO } from "date-fns";
 import { AlertTriangle, ArrowLeft, ArrowRight, Calendar as CalendarIcon, CheckCircle, Plus, Trash2, User, Users } from "lucide-react";
@@ -38,6 +39,8 @@ interface VacationPeriod {
     type: string;
     status: string;
     note?: string;
+    validation?: VacationValidationResult;
+    isValidating?: boolean;
 }
 
 interface EmployeeVacationData {
@@ -188,9 +191,55 @@ export function MultistepVacationPlanningModal({
                 data.employee.id === selectedEmployeeId
                     ? {
                         ...data,
-                        plannedVacations: data.plannedVacations.map(period =>
-                            period.id === periodId ? { ...period, [field]: value } : period
-                        )
+                        plannedVacations: data.plannedVacations.map(period => {
+                            if (period.id === periodId) {
+                                const updatedPeriod = { ...period, [field]: value };
+                                // Validate dates if both are set
+                                if (field === "startDate" || field === "endDate") {
+                                    const startDate = field === "startDate" ? value : period.startDate;
+                                    const endDate = field === "endDate" ? value : period.endDate;
+                                    if (startDate && endDate) {
+                                        // Trigger validation asynchronously
+                                        updatedPeriod.isValidating = true;
+                                        validateVacationDates(startDate, endDate)
+                                            .then(validation => {
+                                                setEmployeeVacationData(current =>
+                                                    current.map(d =>
+                                                        d.employee.id === selectedEmployeeId
+                                                            ? {
+                                                                ...d,
+                                                                plannedVacations: d.plannedVacations.map(p =>
+                                                                    p.id === periodId
+                                                                        ? { ...p, validation, isValidating: false }
+                                                                        : p
+                                                                )
+                                                            }
+                                                            : d
+                                                    )
+                                                );
+                                            })
+                                            .catch(() => {
+                                                setEmployeeVacationData(current =>
+                                                    current.map(d =>
+                                                        d.employee.id === selectedEmployeeId
+                                                            ? {
+                                                                ...d,
+                                                                plannedVacations: d.plannedVacations.map(p =>
+                                                                    p.id === periodId
+                                                                        ? { ...p, isValidating: false }
+                                                                        : p
+                                                                )
+                                                            }
+                                                            : d
+                                                    )
+                                                );
+                                            });
+                                    }
+                                }
+                                return updatedPeriod;
+                            }
+                            return period;
+                        })
                     }
                     : data
             )
@@ -466,6 +515,27 @@ export function MultistepVacationPlanningModal({
                                                                                 </div>
                                                                             </div>
 
+                                                                            {period.validation && period.validation.warnings.length > 0 && (
+                                                                                <Alert className="mt-3 bg-yellow-50 border-yellow-200">
+                                                                                    <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                                                                                    <AlertDescription className="text-sm text-yellow-800">
+                                                                                        <div className="font-medium mb-2">
+                                                                                            {period.validation.working_days} Arbeitstag(e) von {period.validation.total_days} Tagen
+                                                                                        </div>
+                                                                                        {period.validation.closed_days > 0 && (
+                                                                                            <div className="text-xs mb-2">
+                                                                                                <div className="font-medium mb-1">Geschlossene Tage ({period.validation.closed_days}):</div>
+                                                                                                {Object.entries(period.validation.closed_day_list).map(([date, info]) => (
+                                                                                                    <div key={date} className="ml-2">
+                                                                                                        {date} - {info.description}
+                                                                                                    </div>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </AlertDescription>
+                                                                                </Alert>
+                                                                            )}
+
                                                                             <div className="grid gap-3 md:grid-cols-2 mt-3">
                                                                                 <div>
                                                                                     <Label className="text-xs">Typ</Label>
@@ -600,6 +670,18 @@ export function MultistepVacationPlanningModal({
                                                                             <div className="text-sm text-muted-foreground">
                                                                                 {period.startDate} - {period.endDate} ({days} Tage)
                                                                             </div>
+                                                                            {period.validation && (
+                                                                                <div className="text-xs mt-2 p-2 bg-yellow-50 rounded border border-yellow-200">
+                                                                                    <span className="text-yellow-900 font-medium">
+                                                                                        {period.validation.working_days} Arbeitstag(e) von {period.validation.total_days} Tagen
+                                                                                    </span>
+                                                                                    {period.validation.closed_days > 0 && (
+                                                                                        <div className="text-yellow-800 mt-1">
+                                                                                            {period.validation.closed_days} geschlossene Tage (z.B. {Object.values(period.validation.closed_day_list)[0]?.description})
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
                                                                             {period.note && (
                                                                                 <div className="text-sm text-muted-foreground mt-1">
                                                                                     Notiz: {period.note}
