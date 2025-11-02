@@ -22,30 +22,36 @@ The logs label these as "Step 16" and "Step 17", but the actual code shows only 
 4. **Step 4:** Saving Schedule to Database (line 973)
 
 **Within Step 3:**
+
 - Sub-step: "Schedule Serialization and Validation" (line 823)
 - Nested Sub-step: "Schedule Validation" (line 891)
 
 ## Full Generation Pipeline
 
 ### Phase 1: Initialization (Pre-Loop)
+
 - **Resource Loading** (`ScheduleResources`)
   - Load employees, shift templates, coverage requirements
   - Load settings (keyholder timing, etc.)
   - Load existing absences
 
 ### Phase 2: Date Processing Loop (Daily)
+
 For each date from `start_date` to `end_date`:
 
 1. **Create Shift Instances** (line 1536)
+
    - Instantiate concrete shift times for the day based on templates
    - Handle keyholder requirements (X minutes before open, Y minutes after close)
 
 2. **Distribute Employees** (line 1570)
+
    - Call `DistributionManager` to assign employees to shifts
    - Handle coverage requirements (interval-based)
    - Process availability constraints
 
 3. **Add Assignments to Schedule**
+
    - Convert assignment dicts to `ScheduleAssignment` objects
    - Track assigned employee IDs
 
@@ -58,9 +64,11 @@ For each date from `start_date` to `end_date`:
      - Log message: "Created empty schedule entries for X employees"
 
 ### Phase 3: Serialization & Validation
+
 **Step 3: Schedule Serialization and Validation** (line 823)
 
 #### 3a: Convert to Dictionary Format
+
 ```python
 for sa in schedule_assignments_to_process:
     assignment_dict = {
@@ -82,6 +90,7 @@ for sa in schedule_assignments_to_process:
 ```
 
 **Key Issue Identified:**
+
 - For **empty entries**, the dict will have:
   - `start_time=None`
   - `end_time=None`
@@ -90,11 +99,13 @@ for sa in schedule_assignments_to_process:
   - This causes **missing critical fields** warnings
 
 #### 3b: Serialize Schedule
+
 ```python
 serialized_result = self.serializer.serialize_schedule(processed_for_downstream)
 ```
 
 #### 3c: Validate Schedule (Nested Sub-step, line 891)
+
 ```python
 validator_config_arg = ValidatorRuntimeScheduleConfig.from_settings(settings_for_validator)
 validator = ScheduleValidator(self.resources)
@@ -111,11 +122,12 @@ for err in validation_errors:
 **Critical Issue:** Empty entries may trigger validation errors due to missing `start_time`, `end_time`, and `availability_type`.
 
 ### Phase 4: Save to Database (line 973)
+
 ```python
 if self.schedule and self.schedule.get_assignments():
     saved_count = self._save_to_database(self.schedule.get_assignments())
     self.logger.info(f"Saved {saved_count} assignments to database...")
-    
+
     # Update ScheduleVersionMeta with status
     self._update_schedule_version_meta(
         self.schedule.version,
@@ -128,6 +140,7 @@ if self.schedule and self.schedule.get_assignments():
 ## Empty Schedule Entry Implementation
 
 ### Method: `_create_empty_schedule_entries_for_unassigned()` (line 1690)
+
 ```python
 def _create_empty_schedule_entries_for_unassigned(
     self, current_date: date, assigned_employee_ids: set
@@ -141,7 +154,7 @@ def _create_empty_schedule_entries_for_unassigned(
         emp for emp in self.resources.employees
         if getattr(emp, "is_active", True) and emp.id not in assigned_employee_ids
     ]
-    
+
     # Create ScheduleAssignment for each
     for employee in active_employees:
         empty_assignment = ScheduleAssignment(
@@ -163,6 +176,7 @@ def _create_empty_schedule_entries_for_unassigned(
 **Call Site:** Line 763 - After adding real assignments
 
 ### Method: `_create_empty_schedule_entries()` (line 1629)
+
 ```python
 def _create_empty_schedule_entries(self, current_date: date):
     """
@@ -170,10 +184,10 @@ def _create_empty_schedule_entries(self, current_date: date):
     for a given date.
     """
     active_employees = [
-        emp for emp in self.resources.employees 
+        emp for emp in self.resources.employees
         if getattr(emp, "is_active", True)
     ]
-    
+
     for employee in active_employees:
         empty_assignment = ScheduleAssignment(
             employee_id=employee.id,
@@ -196,12 +210,15 @@ def _create_empty_schedule_entries(self, current_date: date):
 ## Critical Issues Identified
 
 ### 1. **Missing Critical Fields in Empty Entries**
+
 Empty schedule entries have `None` values for:
+
 - `start_time`
 - `end_time`
 - `availability_type`
 
 These are flagged as **"critical fields"** during validation (line 867):
+
 ```python
 missing_fields = []
 for critical_field in ["start_time", "end_time", "availability_type"]:
@@ -218,12 +235,15 @@ if missing_fields:
 **Impact:** Validator may reject empty entries or flag them as errors
 
 ### 2. **Step Numbering Confusion**
+
 The logs show "Step 16" and "Step 17", but there are only 4 main steps. This may be:
+
 - Legacy numbering from previous refactoring
 - Accumulated from multiple nested sub-steps
 - Not accurately reflecting the current code structure
 
 **Recommendation:** Standardize step numbering to match actual code structure:
+
 - Step 1: Resource Loading
 - Step 2: Daily Assignment Generation Loop
 - Step 2a: Create Shift Instances (per date)
@@ -235,7 +255,9 @@ The logs show "Step 16" and "Step 17", but there are only 4 main steps. This may
 - Step 4: Save to Database
 
 ### 3. **Empty Entry Validation Handling**
+
 The validator receives empty entries with `status="EMPTY"` but:
+
 - No special handling for `status="EMPTY"` in validation
 - Treats them like regular assignments and checks for critical fields
 - May mark generation as "ERROR" due to missing fields
@@ -243,26 +265,32 @@ The validator receives empty entries with `status="EMPTY"` but:
 **Recommendation:** Add validation logic to skip critical field checks for `status="EMPTY"` entries
 
 ### 4. **Generator State After Empty Entry Creation**
+
 After creating 34 empty entries on 2025-11-02:
+
 - All 34 assignments are added to schedule
 - Upon serialization, all 34 will be converted to dicts with missing critical fields
 - Validator will check each one
 - May accumulate validation errors
 
 ### 5. **Database Save Condition**
+
 ```python
 if self.schedule and self.schedule.get_assignments():
     saved_count = self._save_to_database(self.schedule.get_assignments())
 ```
 
 Empty entries will be saved if `create_empty_schedules=True`, contributing to:
+
 - Higher assignment count
 - Potential validation errors marked in schedule metadata
 
 ## Recommendations
 
 ### 1. **Fix Empty Entry Validation**
+
 Modify validator to handle `status="EMPTY"` entries specially:
+
 ```python
 # In validator.validate()
 if assignment.get("status") == "EMPTY":
@@ -277,20 +305,26 @@ if assignment.get("status") == "EMPTY":
 ```
 
 ### 2. **Clarify Empty Entry Purpose**
+
 Document whether empty entries should:
+
 - Be persisted to database (current behavior)
 - Be marked with special status in frontend UI
 - Be excluded from certain calculations
 - Be retained indefinitely
 
 ### 3. **Standardize Step Tracking**
+
 Update `ProcessTracker` to match actual code structure:
+
 - Remove redundant step numbering
 - Use hierarchical step names: "Step 1: Main", "Step 1.1: Sub", etc.
 - Align with actual code flow
 
 ### 4. **Add Empty Entry Metrics**
+
 Track in end-of-step logging:
+
 ```python
 self.process_tracker.end_step({
     "status": "success",
@@ -302,7 +336,9 @@ self.process_tracker.end_step({
 ```
 
 ### 5. **Review Coverage Requirements**
+
 If a date has no coverage requirements:
+
 - Is `create_empty_schedules=True` the correct behavior?
 - Should these dates be skipped instead?
 - Should there be a default minimum staffing level?
