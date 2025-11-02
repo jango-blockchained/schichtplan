@@ -86,6 +86,13 @@ import {
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
+// Helper function to parse ISO date string and treat it as local date (not UTC)
+// This ensures "2025-01-15" is interpreted as 2025-01-15 00:00 in the user's local timezone
+function parseLocalDate(dateString: string): Date {
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 export default function VacationPlanningPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -267,8 +274,9 @@ export default function VacationPlanningPage() {
         id: absence.id.toString(),
         title: `${employeeName} - ${typeInfo.name}`,
         color: mapColorToCalendarColor(typeInfo.color),
-        start: new Date(absence.start_date),
-        end: new Date(absence.end_date),
+        // Parse dates as local dates (not UTC) to avoid timezone issues
+        start: parseLocalDate(absence.start_date),
+        end: parseLocalDate(absence.end_date),
         // Add metadata for enhanced event component
         metadata: {
           absenceId: absence.id,
@@ -433,7 +441,7 @@ export default function VacationPlanningPage() {
         const multiplier = sortDirection === "asc" ? 1 : -1;
 
         const getDays = (absence: Absence) =>
-          differenceInDays(new Date(absence.end_date), new Date(absence.start_date)) + 1;
+          differenceInDays(parseLocalDate(absence.end_date), parseLocalDate(absence.start_date)) + 1;
 
         let comparison = 0;
 
@@ -460,10 +468,10 @@ export default function VacationPlanningPage() {
             );
             break;
           case "start_date":
-            comparison = new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
+            comparison = parseLocalDate(a.start_date).getTime() - parseLocalDate(b.start_date).getTime();
             break;
           case "end_date":
-            comparison = new Date(a.end_date).getTime() - new Date(b.end_date).getTime();
+            comparison = parseLocalDate(a.end_date).getTime() - parseLocalDate(b.end_date).getTime();
             break;
           case "days":
             comparison = getDays(a) - getDays(b);
@@ -475,7 +483,7 @@ export default function VacationPlanningPage() {
         }
 
         // Secondary sort to stabilize ordering
-        return new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
+        return parseLocalDate(a.start_date).getTime() - parseLocalDate(b.start_date).getTime();
       });
   }, [
     filteredAbsences,
@@ -692,8 +700,8 @@ export default function VacationPlanningPage() {
               {filteredAbsences.reduce((sum, absence) => {
                 // Add 1 to include both start and end dates (inclusive date range)
                 const days = differenceInDays(
-                  new Date(absence.end_date),
-                  new Date(absence.start_date)
+                  parseLocalDate(absence.end_date),
+                  parseLocalDate(absence.start_date)
                 ) + 1;
                 return sum + days;
               }, 0)}
@@ -869,8 +877,8 @@ export default function VacationPlanningPage() {
                         const typeInfo = getAbsenceTypeInfo(absence.absence_type_id);
                         const days =
                           differenceInDays(
-                            new Date(absence.end_date),
-                            new Date(absence.start_date),
+                            parseLocalDate(absence.end_date),
+                            parseLocalDate(absence.start_date),
                           ) + 1;
                         const employeeName = getEmployeeDisplayName(absence.employee_id);
                         const showGroupHeader = groupByEmployee && absence.employee_id !== lastEmployeeId;
@@ -961,8 +969,8 @@ export default function VacationPlanningPage() {
                                     type="date"
                                     value={
                                       editingData.start_date
-                                        ? format(new Date(editingData.start_date), "yyyy-MM-dd")
-                                        : format(new Date(absence.start_date), "yyyy-MM-dd")
+                                        ? format(parseLocalDate(editingData.start_date), "yyyy-MM-dd")
+                                        : format(parseLocalDate(absence.start_date), "yyyy-MM-dd")
                                     }
                                     onChange={(e) =>
                                       setEditingData({
@@ -972,7 +980,7 @@ export default function VacationPlanningPage() {
                                     }
                                   />
                                 ) : (
-                                  format(new Date(absence.start_date), "dd.MM.yyyy")
+                                  format(parseLocalDate(absence.start_date), "dd.MM.yyyy")
                                 )}
                               </TableCell>
                               <TableCell>
@@ -981,8 +989,8 @@ export default function VacationPlanningPage() {
                                     type="date"
                                     value={
                                       editingData.end_date
-                                        ? format(new Date(editingData.end_date), "yyyy-MM-dd")
-                                        : format(new Date(absence.end_date), "yyyy-MM-dd")
+                                        ? format(parseLocalDate(editingData.end_date), "yyyy-MM-dd")
+                                        : format(parseLocalDate(absence.end_date), "yyyy-MM-dd")
                                     }
                                     onChange={(e) =>
                                       setEditingData({
@@ -992,7 +1000,7 @@ export default function VacationPlanningPage() {
                                     }
                                   />
                                 ) : (
-                                  format(new Date(absence.end_date), "dd.MM.yyyy")
+                                  format(parseLocalDate(absence.end_date), "dd.MM.yyyy")
                                 )}
                               </TableCell>
                               <TableCell>{days}</TableCell>
