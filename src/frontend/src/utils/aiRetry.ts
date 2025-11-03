@@ -289,24 +289,32 @@ export class RateLimiter {
   }
 
   /**
-   * Wait until tokens are available
+   * Wait until tokens are available (optimized)
    */
   async waitForTokens(tokens: number = 1, timeout: number = 30000): Promise<boolean> {
     const startTime = Date.now();
 
-    while (Date.now() - startTime < timeout) {
+    while (true) {
+      const elapsed = Date.now() - startTime;
+      
+      if (elapsed >= timeout) {
+        return false;
+      }
+
       if (await this.consume(tokens)) {
         return true;
       }
 
       // Wait before checking again
-      const waitTime = Math.min(1000 / this.refillRate, timeout - (Date.now() - startTime));
+      const remainingTime = timeout - elapsed;
+      const waitTime = Math.min(1000 / this.refillRate, remainingTime);
+      
       if (waitTime > 0) {
         await wait(waitTime);
+      } else {
+        return false;
       }
     }
-
-    return false;
   }
 
   /**

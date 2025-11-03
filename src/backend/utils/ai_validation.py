@@ -305,13 +305,32 @@ class AIResponseValidator:
 
         Returns:
             Sanitized content
+            
+        Note:
+            This is a basic implementation for common patterns.
+            For production with user-generated code, consider:
+            - AST parsing for Python code validation
+            - Sandboxed execution environments
+            - More comprehensive pattern matching
         """
         if not content:
             return content
 
-        # Remove potential code injection
-        content = content.replace("```python\nimport os", "```python\n# import os")
-        content = content.replace("```python\nimport sys", "```python\n# import sys")
+        # Remove potential code injection (basic patterns)
+        # Note: This is not comprehensive - use AST parsing for robust validation
+        dangerous_imports = [
+            r"import\s+os",
+            r"import\s+sys",
+            r"from\s+os\s+import",
+            r"from\s+sys\s+import",
+            r"import\s+subprocess",
+            r"__import__",
+            r"eval\(",
+            r"exec\(",
+        ]
+        
+        for pattern in dangerous_imports:
+            content = re.sub(pattern, lambda m: f"# {m.group(0)}", content, flags=re.IGNORECASE)
 
         # Basic HTML escaping for display
         html_chars = {

@@ -870,12 +870,24 @@ Be specific and actionable in your recommendations."""
                         "timestamp": datetime.now().isoformat(),
                     }
 
-            # Execute in parallel
+            # Execute in parallel with proper exception handling
             parallel_results = await asyncio.gather(
                 *[execute_with_retry(tc) for tc in independent_tools],
-                return_exceptions=False,
+                return_exceptions=True,
             )
-            results.extend(parallel_results)
+            
+            # Filter out exceptions and add successful results
+            for result in parallel_results:
+                if isinstance(result, Exception):
+                    self.logger.error(f"Parallel tool execution failed: {result}")
+                    # Create error result entry
+                    results.append({
+                        "tool_name": "unknown",
+                        "error": str(result),
+                        "timestamp": datetime.now().isoformat(),
+                    })
+                else:
+                    results.append(result)
 
         # Execute dependent tools sequentially with retry logic
         if dependent_tools:

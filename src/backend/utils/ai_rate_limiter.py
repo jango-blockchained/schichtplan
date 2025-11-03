@@ -67,8 +67,10 @@ class TokenBucket:
 
             return False
 
-    async def wait_for_tokens(self, tokens: int = 1, timeout: float = 60.0) -> bool:
-        """Wait until tokens are available.
+    async def wait_for_tokens(
+        self, tokens: int = 1, timeout: float = 60.0
+    ) -> bool:
+        """Wait until tokens are available (optimized).
 
         Args:
             tokens: Number of tokens needed
@@ -79,16 +81,23 @@ class TokenBucket:
         """
         start_time = time.time()
 
-        while time.time() - start_time < timeout:
+        while True:
+            elapsed = time.time() - start_time
+            
+            if elapsed >= timeout:
+                return False
+
             if await self.consume(tokens):
                 return True
 
             # Calculate wait time for next token
-            wait_time = min(1.0 / self.refill_rate, timeout - (time.time() - start_time))
+            remaining_time = timeout - elapsed
+            wait_time = min(1.0 / self.refill_rate, remaining_time)
+            
             if wait_time > 0:
                 await asyncio.sleep(wait_time)
-
-        return False
+            else:
+                return False
 
     async def get_available_tokens(self) -> float:
         """Get number of available tokens.

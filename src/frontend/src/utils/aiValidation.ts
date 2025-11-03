@@ -108,6 +108,9 @@ export function validateContext(
 
 /**
  * Sanitize HTML content to prevent XSS
+ * 
+ * Note: This is a basic implementation for simple text encoding.
+ * For production use with complex HTML, consider using DOMPurify library.
  */
 export function sanitizeHtml(html: string): string {
   const div = document.createElement("div");
