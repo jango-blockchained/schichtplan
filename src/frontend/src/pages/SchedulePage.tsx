@@ -416,15 +416,16 @@ export function SchedulePage() {
       const versionStart = version.date_range.start;
       const versionEnd = version.date_range.end;
 
-      // Strict date range matching - version must exactly match current date range
-      const exactMatch =
-        versionStart === currentFrom && versionEnd === currentTo;
+      // Overlapping date range matching - show all versions that overlap with current date range
+      // A version overlaps if: version_start <= current_end AND version_end >= current_start
+      const overlaps =
+        versionStart <= currentTo && versionEnd >= currentFrom;
 
       console.log(
-        `📅 Version ${version.version}: ${versionStart} - ${versionEnd} ${exactMatch ? "✅ MATCH" : "❌ NO MATCH"}`,
+        `📅 Version ${version.version}: ${versionStart} - ${versionEnd} ${overlaps ? "✅ MATCH (overlaps)" : "❌ NO MATCH"}`,
       );
 
-      return exactMatch;
+      return overlaps;
     });
 
     console.log(
