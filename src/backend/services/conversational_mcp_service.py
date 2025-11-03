@@ -13,6 +13,10 @@ from typing import Any
 
 from fastmcp import Context
 
+from src.backend.utils.ai_rate_limiter import RateLimitConfig, get_rate_limiter
+from src.backend.utils.ai_retry import AI_REQUEST_RETRY_CONFIG, CircuitBreaker, retry_async
+from src.backend.utils.ai_validation import ValidationError, validate_ai_request
+
 from .ai_integration import AIOrchestrator, AIRequest, create_ai_orchestrator
 from .conversation_manager import (
     ContextItem,
@@ -45,6 +49,22 @@ class ConversationalSchichtplanMCPService:
 
         # Get user AI prompt from base service
         self.user_ai_prompt = getattr(base_mcp_service, "user_ai_prompt", "")
+
+        # Initialize rate limiter
+        self.rate_limiter = get_rate_limiter(
+            RateLimitConfig(
+                requests_per_minute=20,
+                requests_per_hour=200,
+                tokens_per_minute=100000,
+                tokens_per_hour=1000000,
+                burst_allowance=10,
+            )
+        )
+
+        # Initialize circuit breaker for AI requests
+        self.ai_circuit_breaker = CircuitBreaker(
+            failure_threshold=5, recovery_timeout=60.0, expected_exception=Exception
+        )
 
         # Register conversational tools
         self._register_conversational_tools()
@@ -163,6 +183,36 @@ class ConversationalSchichtplanMCPService:
                 AI response and updated conversation state
             """
             try:
+                # Validate inputs
+                try:
+                    validated = validate_ai_request(
+                        message=user_input,
+                        conversation_id=conversation_id,
+                        context=additional_context,
+                    )
+                    user_input = validated["message"]
+                    conversation_id = validated["conversation_id"]
+                    additional_context = validated["context"]
+                except ValidationError as e:
+                    self.logger.error(f"Validation error: {e}")
+                    return {"error": f"Invalid input: {str(e)}"}
+
+                # Check rate limits
+                rate_limit_result = await self.rate_limiter.check_rate_limit(
+                    conversation_id=conversation_id,
+                    estimated_tokens=len(user_input) * 2,
+                )
+
+                if not rate_limit_result["allowed"]:
+                    self.logger.warning(
+                        f"Rate limit exceeded: {rate_limit_result['reason']}"
+                    )
+                    return {
+                        "error": "Rate limit exceeded",
+                        "reason": rate_limit_result["reason"],
+                        "retry_after": rate_limit_result["retry_after"],
+                    }
+
                 # Get conversation
                 context = await self.conversation_manager.get_conversation(
                     conversation_id
@@ -188,10 +238,19 @@ class ConversationalSchichtplanMCPService:
                     conversation_id, ConversationState.PROCESSING
                 )
 
-                # Generate AI response
-                ai_response = await self._process_conversational_input(
-                    context, user_input, additional_context
+                # Generate AI response with retry and circuit breaker
+                @retry_async(
+                    retryable_exceptions=(Exception,), config=AI_REQUEST_RETRY_CONFIG
                 )
+                async def process_with_ai():
+                    return await self.ai_circuit_breaker.call(
+                        self._process_conversational_input,
+                        context,
+                        user_input,
+                        additional_context,
+                    )
+
+                ai_response = await process_with_ai()
 
                 # Add AI response to context
                 ai_context_item = ContextItem(
@@ -223,10 +282,19 @@ class ConversationalSchichtplanMCPService:
                     "timestamp": datetime.now().isoformat(),
                 }
 
+            except ValidationError as e:
+                self.logger.error(f"Validation error: {e}")
+                if ctx:
+                    await ctx.error(f"Validation error: {str(e)}")
+                return {"error": f"Validation error: {str(e)}"}
             except Exception as e:
+                self.logger.error(f"Failed to continue conversation: {e}", exc_info=True)
                 if ctx:
                     await ctx.error(f"Failed to continue conversation: {str(e)}")
-                raise
+                return {
+                    "error": f"Internal error: {str(e)}",
+                    "conversation_id": conversation_id,
+                }
 
         @self.mcp.tool()
         async def get_conversation_status(
@@ -726,43 +794,139 @@ Be specific and actionable in your recommendations."""
     async def _execute_tool_calls(
         self, context: ConversationContext, tool_calls: list
     ) -> list[dict[str, Any]]:
-        """Execute AI-requested tool calls."""
+        """Execute AI-requested tool calls with optimized parallel processing.
+
+        Args:
+            context: Conversation context
+            tool_calls: List of tool calls to execute
+
+        Returns:
+            List of tool execution results
+        """
+        if not tool_calls:
+            return []
 
         results = []
 
+        # Group tool calls by independence
+        # Independent tools can run in parallel, dependent ones must run sequentially
+        independent_tools = []
+        dependent_tools = []
+
+        # Simple heuristic: read-only operations are independent
+        read_only_tools = {
+            "analyze_schedule_conflicts",
+            "get_schedule_statistics",
+            "get_coverage_requirements",
+            "get_employee_availability",
+            "get_absences",
+        }
+
         for tool_call in tool_calls:
-            try:
-                # Call the appropriate base service tool
-                result = await self._call_base_tool(tool_call.name, tool_call.arguments)
+            if tool_call.name in read_only_tools:
+                independent_tools.append(tool_call)
+            else:
+                dependent_tools.append(tool_call)
 
-                # Track tool usage
-                if tool_call.name not in context.tools_used:
-                    context.tools_used.append(tool_call.name)
+        # Execute independent tools in parallel with retry logic
+        if independent_tools:
+            self.logger.info(
+                f"Executing {len(independent_tools)} independent tools in parallel"
+            )
 
-                # Store tool result
-                context.tool_results[f"{tool_call.name}_{tool_call.id}"] = result
-
-                results.append(
-                    {
+            async def execute_with_retry(tool_call):
+                @retry_async(
+                    retryable_exceptions=(Exception,),
+                    config=AI_REQUEST_RETRY_CONFIG,
+                )
+                async def execute():
+                    result = await self._call_base_tool(
+                        tool_call.name, tool_call.arguments
+                    )
+                    # Track tool usage
+                    if tool_call.name not in context.tools_used:
+                        context.tools_used.append(tool_call.name)
+                    # Store tool result
+                    context.tool_results[f"{tool_call.name}_{tool_call.id}"] = result
+                    return {
                         "tool_name": tool_call.name,
                         "tool_id": tool_call.id,
                         "arguments": tool_call.arguments,
                         "result": result,
                         "timestamp": datetime.now().isoformat(),
                     }
-                )
 
-            except Exception as e:
-                self.logger.error(f"Tool call {tool_call.name} failed: {e}")
-                results.append(
-                    {
+                try:
+                    return await execute()
+                except Exception as e:
+                    self.logger.error(
+                        f"Tool call {tool_call.name} failed after retries: {e}"
+                    )
+                    return {
                         "tool_name": tool_call.name,
                         "tool_id": tool_call.id,
                         "arguments": tool_call.arguments,
                         "error": str(e),
                         "timestamp": datetime.now().isoformat(),
                     }
-                )
+
+            # Execute in parallel
+            parallel_results = await asyncio.gather(
+                *[execute_with_retry(tc) for tc in independent_tools],
+                return_exceptions=False,
+            )
+            results.extend(parallel_results)
+
+        # Execute dependent tools sequentially with retry logic
+        if dependent_tools:
+            self.logger.info(
+                f"Executing {len(dependent_tools)} dependent tools sequentially"
+            )
+
+            for tool_call in dependent_tools:
+                try:
+
+                    @retry_async(
+                        retryable_exceptions=(Exception,),
+                        config=AI_REQUEST_RETRY_CONFIG,
+                    )
+                    async def execute():
+                        return await self._call_base_tool(
+                            tool_call.name, tool_call.arguments
+                        )
+
+                    result = await execute()
+
+                    # Track tool usage
+                    if tool_call.name not in context.tools_used:
+                        context.tools_used.append(tool_call.name)
+
+                    # Store tool result
+                    context.tool_results[f"{tool_call.name}_{tool_call.id}"] = result
+
+                    results.append(
+                        {
+                            "tool_name": tool_call.name,
+                            "tool_id": tool_call.id,
+                            "arguments": tool_call.arguments,
+                            "result": result,
+                            "timestamp": datetime.now().isoformat(),
+                        }
+                    )
+
+                except Exception as e:
+                    self.logger.error(
+                        f"Tool call {tool_call.name} failed after retries: {e}"
+                    )
+                    results.append(
+                        {
+                            "tool_name": tool_call.name,
+                            "tool_id": tool_call.id,
+                            "arguments": tool_call.arguments,
+                            "error": str(e),
+                            "timestamp": datetime.now().isoformat(),
+                        }
+                    )
 
         return results
 
