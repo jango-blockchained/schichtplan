@@ -2,9 +2,11 @@
 
 import logging
 import os
+import random  # For dummy ML predictions
 import sys
+import time  # For performance tracking
 from collections import defaultdict
-from datetime import date, datetime, time, timedelta  # Import time
+from datetime import date, datetime, time as datetime_time, timedelta
 from typing import TYPE_CHECKING, Any
 
 from .resources import (
@@ -18,25 +20,25 @@ try:
     )
 except ImportError:
     # Fallback implementations if imports fail
-    def _time_str_to_datetime_time(time_str: str) -> time:
+    def _time_str_to_datetime_time(time_str: str) -> datetime_time:
         """Convert a time string (HH:MM) to a datetime.time object"""
         if not time_str or not isinstance(time_str, str):
-            return time(0, 0)  # Default to 00:00 AM
+            return datetime_time(0, 0)  # Default to 00:00 AM
 
         # Parse the time string
         if ":" in time_str:
             hours, minutes = map(int, time_str.split(":"))
-            return time(hours, minutes)
+            return datetime_time(hours, minutes)
         else:
             # Handle cases where only hour is provided, return time object
             try:
-                return time(int(time_str), 0)
+                return datetime_time(int(time_str), 0)
             except ValueError:
-                return time(0, 0)  # Return default time if parsing fails
+                return datetime_time(0, 0)  # Return default time if parsing fails
 
     def get_required_staffing_for_interval(
         target_date: date,
-        interval_start_time: time,
+        interval_start_time: datetime_time,
         resources: ScheduleResources,
         interval_duration_minutes: int = 15,
     ) -> dict[str, Any]:
@@ -50,8 +52,6 @@ except ImportError:
             "has_coverage": True,
         }  # Import the new utility and helper
 
-
-import random  # Import random for dummy predictions
 
 from .feature_extractor import FeatureExtractor  # Import the FeatureExtractor
 
@@ -211,6 +211,8 @@ class DistributionManager:
         feature_extractor: FeatureExtractor
         | None = None,  # Add feature_extractor parameter
         ml_model: Any = None,  # Add placeholder for ML model
+        max_combinations: int = 5000,  # Configurable limit for total combinations
+        max_candidates_per_shift: int = 100,  # Configurable limit for candidates per shift
     ):
         self.resources = resources
         self.constraint_checker = constraint_checker
@@ -219,6 +221,10 @@ class DistributionManager:
         self.logger = logger or logging.getLogger(__name__)
         self.feature_extractor = feature_extractor  # Store feature extractor
         self.ml_model = ml_model  # Store ML model placeholder
+        
+        # Performance tuning parameters (configurable)
+        self.max_combinations = max_combinations
+        self.max_candidates_per_shift = max_candidates_per_shift
 
         # Initialize assignments dictionary for all employees
         self.assignments_by_employee = defaultdict(list)
@@ -338,11 +344,10 @@ class DistributionManager:
             # with large employee/shift counts. We'll use lazy evaluation instead of
             # building a huge list upfront.
             potential_assignments_for_ml = []
-            max_combinations = 5000  # Safety limit to prevent memory/performance issues
             combinations_count = 0
             
             self.logger.info(
-                f"Building potential assignments: {len(available_employees)} employees × {len(shifts)} shifts"
+                f"Building potential assignments: {len(available_employees)} employees × {len(shifts)} shifts (max: {self.max_combinations})"
             )
             
             for employee in available_employees:
@@ -352,9 +357,9 @@ class DistributionManager:
                 # Assuming shifts in the input list are dictionaries or objects with 'id' or 'shift_id'
                 for shift in shifts:
                     # Safety check: prevent excessive combinations
-                    if combinations_count >= max_combinations:
+                    if combinations_count >= self.max_combinations:
                         self.logger.warning(
-                            f"Reached maximum potential assignments limit ({max_combinations}). "
+                            f"Reached maximum potential assignments limit ({self.max_combinations}). "
                             f"Stopping combination generation. Consider optimizing shift/employee filtering."
                         )
                         break
@@ -382,7 +387,7 @@ class DistributionManager:
                     combinations_count += 1
                 
                 # Break outer loop too if limit reached
-                if combinations_count >= max_combinations:
+                if combinations_count >= self.max_combinations:
                     break
             
             self.logger.info(
@@ -523,7 +528,6 @@ class DistributionManager:
             self.logger.info(f"Processing {total_shifts} shifts for assignment...")
             
             # Track time for performance monitoring
-            import time
             loop_start_time = time.time()
 
             for shift_idx, shift in enumerate(shifts):
@@ -560,13 +564,12 @@ class DistributionManager:
 
                 # Build candidate list for this specific shift only
                 shift_candidates = []
-                max_candidates_per_shift = 100  # Limit candidates to prevent excessive processing
                 
                 for employee, _ in sorted_employees:
                     # Safety limit on candidates
-                    if len(shift_candidates) >= max_candidates_per_shift:
+                    if len(shift_candidates) >= self.max_candidates_per_shift:
                         self.logger.debug(
-                            f"Reached max candidates ({max_candidates_per_shift}) for shift {shift_id}"
+                            f"Reached max candidates ({self.max_candidates_per_shift}) for shift {shift_id}"
                         )
                         break
                     
