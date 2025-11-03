@@ -380,7 +380,6 @@ class MockSpeechRecognition {
     });
     return true;
   };
-  continuous = true;
   interimResults = true;
   lang = "en-US";
   maxAlternatives = 1;
@@ -662,19 +661,9 @@ if (!(globalThis as any).__TEST_AI_SERVICE) {
     const g: any = globalThis as any;
 
     if (g.api) {
-      // Replace selected exported functions with test-friendly wrappers
-      if (apiModule && typeof apiModule.getSettings === "function") {
-        apiModule.getSettings = async () => g.api.getSettings();
-      }
-      if (apiModule && typeof apiModule.updateSettings === "function") {
-        apiModule.updateSettings = async (s: any) => g.api.updateSettings(s);
-      }
-      if (apiModule && typeof apiModule.getEmployees === "function") {
-        apiModule.getEmployees = async () => [];
-      }
-      if (apiModule && typeof apiModule.getShifts === "function") {
-        apiModule.getShifts = async () => [];
-      }
+      // Note: Cannot override readonly exports directly
+      // Tests should use mocking at the test level instead
+      // Example: vi.mock('../services/api', () => ({ getSettings: vi.fn() }))
     }
 
     if (aiModule) {
