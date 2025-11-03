@@ -7,6 +7,8 @@ different aspects of scheduling such as resource loading, constraint checking,
 assignment distribution, and serialization of the final schedule.
 """
 
+import contextlib
+import json
 import logging
 import os
 import sys
@@ -77,8 +79,6 @@ except ImportError:
 
 
 # Import the extracted modules
-import contextlib
-
 from .availability import AvailabilityChecker
 from .config import SchedulerConfig  # Generator's own runtime config
 from .constraints import ConstraintChecker
@@ -1280,8 +1280,6 @@ class ScheduleGenerator:
                 ):  # Case 3: active_days is a string (JSON or comma-separated)
                     # Parse JSON or comma-separated string
                     try:
-                        import json
-
                         # Attempt to parse as JSON list: e.g., "[0, 1, 2]"
                         loaded_days = json.loads(shift_template.active_days)
                         if isinstance(
@@ -1403,8 +1401,6 @@ class ScheduleGenerator:
                         ]
                     elif isinstance(shift_template.active_days, str):
                         try:
-                            import json
-
                             loaded_days = json.loads(shift_template.active_days)
                             if isinstance(loaded_days, list):
                                 shift_active_days = loaded_days
