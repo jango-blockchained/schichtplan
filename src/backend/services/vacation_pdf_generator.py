@@ -1979,7 +1979,10 @@ class VacationPDFGenerator:
         """
         Generate bulk vacation request forms for all employees.
 
-        Creates one form per page for each employee.
+        Creates one form per page for each employee with:
+        - Header and footer with store info and dates
+        - Multiple vacation entry rows per employee
+        - Page breaks between employees
 
         Args:
             employees: List of all employees
@@ -1990,41 +1993,63 @@ class VacationPDFGenerator:
             BytesIO buffer containing the generated PDF
         """
         buffer = io.BytesIO()
+
+        # Custom page template with header and footer
+        def add_page_header_footer(canvas, doc):
+            """Add header and footer to each page."""
+            canvas.saveState()
+
+            # Header
+            store_name = settings.store_name if settings else "Filiale"
+            canvas.setFont("Helvetica-Bold", 10)
+            canvas.drawString(
+                self.MARGIN, A4[1] - (self.MARGIN - 5 * mm), "Urlaubsantrag"
+            )
+            canvas.setFont("Helvetica", 8)
+            canvas.drawString(
+                A4[0] / 2 - 20 * mm,
+                A4[1] - (self.MARGIN - 5 * mm),
+                f"{store_name} - {year}",
+            )
+
+            # Footer
+            canvas.setFont("Helvetica", 7)
+            canvas.drawString(
+                self.MARGIN,
+                15 * mm,
+                datetime.now().strftime("Erstellt: %d.%m.%Y %H:%M"),
+            )
+            page_text = f"Seite {doc.page}"
+            canvas.drawRightString(A4[0] - self.MARGIN, 15 * mm, page_text)
+
+            canvas.restoreState()
+
         doc = SimpleDocTemplate(
             buffer,
             pagesize=A4,
             leftMargin=self.MARGIN,
             rightMargin=self.MARGIN,
-            topMargin=self.MARGIN,
-            bottomMargin=self.MARGIN,
+            topMargin=25 * mm,
+            bottomMargin=25 * mm,
+            onFirstPage=add_page_header_footer,
+            onLaterPages=add_page_header_footer,
         )
 
         story = []
 
-        # Title page
-        story.append(
-            Paragraph(f"Urlaubsanträge {year} - Alle Mitarbeiter", self.title_style)
-        )
-        story.append(Spacer(1, 10))
-
-        if settings:
-            story.append(
-                Paragraph(f"<b>Filiale:</b> {settings.store_name}", self.normal_style)
-            )
-
-        story.append(Spacer(1, 30))
-
         # Generate a form for each employee
-        for i, employee in enumerate(sorted(employees, key=lambda e: e.last_name)):
-            if i > 0:
-                story.append(Spacer(1, 20))
+        sorted_employees = sorted(employees, key=lambda e: e.last_name)
+        for emp_index, employee in enumerate(sorted_employees):
+            if emp_index > 0:
+                story.append(PageBreak())
 
             # Employee info section
             emp_data = [
                 [
                     Paragraph("<b>Name:</b>", self.normal_style),
                     Paragraph(
-                        f"{employee.first_name} {employee.last_name}", self.normal_style
+                        f"{employee.first_name} {employee.last_name}",
+                        self.normal_style,
                     ),
                 ],
                 [
@@ -2058,25 +2083,40 @@ class VacationPDFGenerator:
             story.append(emp_table)
             story.append(Spacer(1, 12))
 
-            # Vacation request section
-            story.append(Paragraph("<b>Urlaubsantrag</b>", self.header_style))
+            # Vacation request section with multiple rows
+            story.append(Paragraph("<b>Urlaubsanträge</b>", self.header_style))
             request_data = [
                 [
-                    Paragraph("<b>Von:</b>", self.normal_style),
-                    Paragraph("_______________", self.normal_style),
-                    Paragraph("<b>Bis:</b>", self.normal_style),
-                    Paragraph("_______________", self.normal_style),
-                ],
-                [
-                    Paragraph("<b>Anzahl Tage:</b>", self.normal_style),
-                    Paragraph("____", self.normal_style),
-                    Paragraph("<b>Bemerkungen:</b>", self.normal_style),
-                    Paragraph("_______________", self.normal_style),
+                    Paragraph("<b>Von</b>", self.normal_style),
+                    Paragraph("<b>Bis</b>", self.normal_style),
+                    Paragraph("<b>Tage</b>", self.normal_style),
+                    Paragraph("<b>Bemerkungen</b>", self.normal_style),
                 ],
             ]
 
+            # Add 5 empty rows for multiple vacation entries
+            for _ in range(5):
+                request_data.append(
+                    [
+                        Paragraph(
+                            "_______________",
+                            self.small_style,
+                        ),
+                        Paragraph(
+                            "_______________",
+                            self.small_style,
+                        ),
+                        Paragraph("____", self.small_style),
+                        Paragraph(
+                            "_________________________",
+                            self.small_style,
+                        ),
+                    ]
+                )
+
             request_table = Table(
-                request_data, colWidths=[30 * mm, 40 * mm, 30 * mm, 70 * mm]
+                request_data,
+                colWidths=[35 * mm, 35 * mm, 20 * mm, 80 * mm],
             )
             request_table.setStyle(
                 TableStyle(
@@ -2084,12 +2124,16 @@ class VacationPDFGenerator:
                         ("FONTSIZE", (0, 0), (-1, -1), self.NORMAL_FONT_SIZE),
                         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
                         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                        ("GRID", (0, 0), (-1, -1), 0.3, colors.grey),
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                        ("PADDING", (0, 0), (-1, -1), 4),
+                        ("ROWHEIGHTS", (0, 0), (-1, 0), 6 * mm),
+                        ("ROWHEIGHTS", (0, 1), (-1, -1), 8 * mm),
                     ]
                 )
             )
             story.append(request_table)
-            story.append(Spacer(1, 8))
+            story.append(Spacer(1, 12))
 
             # Signature section
             story.append(Paragraph("<b>Unterschriften</b>", self.header_style))
@@ -2101,7 +2145,10 @@ class VacationPDFGenerator:
                 ],
                 [
                     Paragraph("Ort, Datum", self.small_style),
-                    Paragraph("Unterschrift Mitarbeiter", self.small_style),
+                    Paragraph(
+                        "Unterschrift Mitarbeiter",
+                        self.small_style,
+                    ),
                 ],
             ]
 
@@ -2117,7 +2164,7 @@ class VacationPDFGenerator:
                 )
             )
             story.append(sig_table)
-            story.append(Spacer(1, 8))
+            story.append(Spacer(1, 12))
 
             # Approval section
             approval_data = [
@@ -2148,7 +2195,10 @@ class VacationPDFGenerator:
                 ],
                 [
                     Paragraph("Ort, Datum", self.small_style),
-                    Paragraph("Unterschrift Leiter", self.small_style),
+                    Paragraph(
+                        "Unterschrift Leiter",
+                        self.small_style,
+                    ),
                 ],
             ]
 

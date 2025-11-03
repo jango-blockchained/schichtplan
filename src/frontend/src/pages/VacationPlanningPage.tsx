@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Collapsible,
   CollapsibleContent,
@@ -119,6 +120,7 @@ export default function VacationPlanningPage() {
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [movingAbsence, setMovingAbsence] = useState<Absence | null>(null);
   const [moveData, setMoveData] = useState({ start_date: "", end_date: "" });
+  const [selectedAbsenceIds, setSelectedAbsenceIds] = useState<Set<number>>(new Set());
 
   type SortField = "employee" | "type" | "status" | "start_date" | "end_date" | "days";
   type SortDirection = "asc" | "desc";
@@ -579,6 +581,89 @@ export default function VacationPlanningPage() {
     setMovingAbsence(null);
   };
 
+  // Checkbox handlers for bulk actions
+  const handleToggleAbsence = (absenceId: number) => {
+    const newSelected = new Set(selectedAbsenceIds);
+    if (newSelected.has(absenceId)) {
+      newSelected.delete(absenceId);
+    } else {
+      newSelected.add(absenceId);
+    }
+    setSelectedAbsenceIds(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedAbsenceIds.size === paginatedAbsences.length) {
+      setSelectedAbsenceIds(new Set());
+    } else {
+      const allIds = new Set(paginatedAbsences.map((a) => a.id));
+      setSelectedAbsenceIds(allIds);
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedAbsenceIds.size === 0) return;
+
+    if (
+      confirm(
+        `${selectedAbsenceIds.size} Abwesenheit(en) löschen? Diese Aktion kann nicht rückgängig gemacht werden.`,
+      )
+    ) {
+      const count = selectedAbsenceIds.size;
+      Promise.all(
+        Array.from(selectedAbsenceIds).map((id) =>
+          deleteAbsenceMutation.mutate(id),
+        ),
+      ).finally(() => {
+        setSelectedAbsenceIds(new Set());
+        toast({
+          title: "Gelöscht",
+          description: `${count} Abwesenheit(en) wurden gelöscht.`,
+        });
+      });
+    }
+  };
+
+  const handleBulkApprove = () => {
+    if (selectedAbsenceIds.size === 0) return;
+
+    const count = selectedAbsenceIds.size;
+    Promise.all(
+      Array.from(selectedAbsenceIds).map((id) =>
+        updateAbsenceMutation.mutate({
+          id,
+          updates: { status: "approved" },
+        }),
+      ),
+    ).finally(() => {
+      setSelectedAbsenceIds(new Set());
+      toast({
+        title: "Genehmigt",
+        description: `${count} Abwesenheit(en) wurden genehmigt.`,
+      });
+    });
+  };
+
+  const handleBulkDecline = () => {
+    if (selectedAbsenceIds.size === 0) return;
+
+    const count = selectedAbsenceIds.size;
+    Promise.all(
+      Array.from(selectedAbsenceIds).map((id) =>
+        updateAbsenceMutation.mutate({
+          id,
+          updates: { status: "declined" },
+        }),
+      ),
+    ).finally(() => {
+      setSelectedAbsenceIds(new Set());
+      toast({
+        title: "Abgelehnt",
+        description: `${count} Abwesenheit(en) wurden abgelehnt.`,
+      });
+    });
+  };
+
   // PDF Export Functions
   const handleExportPDF = (type: string) => {
     const currentYear = new Date().getFullYear();
@@ -846,9 +931,67 @@ export default function VacationPlanningPage() {
           </CollapsibleTrigger>
           <CollapsibleContent>
             <CardContent className="pt-6">
+              {/* Bulk Actions Bar */}
+              {selectedAbsenceIds.size > 0 && (
+                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                  <span className="text-sm font-medium text-blue-900">
+                    {selectedAbsenceIds.size} Abwesenheit(en) ausgewählt
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleBulkApprove}
+                      className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                    >
+                      <Check className="h-4 w-4 mr-1" />
+                      Genehmigen
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleBulkDecline}
+                      className="bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200"
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Ablehnen
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleBulkDelete}
+                      className="bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Löschen
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setSelectedAbsenceIds(new Set())}
+                    >
+                      Abbrechen
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={
+                          selectedAbsenceIds.size > 0 &&
+                          selectedAbsenceIds.size === paginatedAbsences.length
+                        }
+                        indeterminate={
+                          selectedAbsenceIds.size > 0 &&
+                          selectedAbsenceIds.size < paginatedAbsences.length
+                        }
+                        onCheckedChange={handleSelectAll}
+                      />
+                    </TableHead>
                     <TableHead>{renderSortableHeader("Mitarbeiter", "employee")}</TableHead>
                     <TableHead>{renderSortableHeader("Typ", "type")}</TableHead>
                     <TableHead>{renderSortableHeader("Status", "status")}</TableHead>
@@ -863,7 +1006,7 @@ export default function VacationPlanningPage() {
                   {paginatedAbsences.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={8}
+                        colSpan={9}
                         className="py-8 text-center text-muted-foreground"
                       >
                         Keine Abwesenheiten im ausgewählten Zeitraum
@@ -888,12 +1031,21 @@ export default function VacationPlanningPage() {
                           <Fragment key={absence.id}>
                             {showGroupHeader && (
                               <TableRow className="bg-muted/30">
+                                <TableCell />
                                 <TableCell colSpan={8} className="font-medium">
                                   {employeeName}
                                 </TableCell>
                               </TableRow>
                             )}
                             <TableRow className={editingId === absence.id ? "bg-muted/50" : ""}>
+                              <TableCell className="w-12">
+                                <Checkbox
+                                  checked={selectedAbsenceIds.has(absence.id)}
+                                  onCheckedChange={() =>
+                                    handleToggleAbsence(absence.id)
+                                  }
+                                />
+                              </TableCell>
                               <TableCell>{employeeName}</TableCell>
                               <TableCell>
                                 {editingId === absence.id ? (
