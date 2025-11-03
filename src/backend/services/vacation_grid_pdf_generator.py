@@ -1,7 +1,7 @@
 """Vacation calendar PDF generator with grid layout."""
 
 import io
-from datetime import date
+from datetime import date, timedelta
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -298,7 +298,7 @@ class VacationGridPDFGenerator:
                         absences_by_day[day] = []
 
                     absences_by_day[day].append({"name": emp_name, "absence": absence})
-                    current_day = current_day.replace(day=current_day.day + 1)
+                    current_day = current_day + timedelta(days=1)
 
         return absences_by_day
 
