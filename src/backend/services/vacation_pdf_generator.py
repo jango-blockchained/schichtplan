@@ -5,10 +5,11 @@ This module generates various PDF forms for vacation planning:
 1. Admin yearly vacation planning form
 2. Employee vacation request form
 3. Comprehensive overview form (all employees)
-4. Yearly calendar view (6 months per page with rotated text)
+4. Yearly calendar view - all 12 months on one page
 """
 
 import io
+from calendar import monthcalendar
 from datetime import date, datetime, timedelta
 
 from reportlab.graphics.shapes import Drawing, String as RLString
@@ -735,18 +736,17 @@ class VacationPDFGenerator:
         settings: Settings | None = None,
     ) -> io.BytesIO:
         """
-        Generate yearly vacation planning grid in DIN A4 landscape format.
-        Creates a professional calendar view with 6 months per page (Jan-Jun, Jul-Dec).
-        Uses day-as-row layout for intuitive horizontal scanning.
+        Generate yearly vacation calendar: 2 pages with 6 months each.
 
-        Format: 2 pages with 6 months displayed horizontally, days as rows.
+        Format: DIN A4 Landscape with small margins
+        Page 1: January - June (6 months, 1 per column)
+        Page 2: July - December (6 months, 1 per column)
 
-        New Design Features:
-        - Days displayed as horizontal rows (Monday-Sunday, days 1-31)
-        - 6 months in single row per page for easy comparison
-        - Clear absence indicators with bullet points
-        - Professional typography and spacing
-        - Comprehensive statistics and legend
+        Features:
+        - Traditional calendar grid layout (weeks x days)
+        - All absence events listed per day without red containers
+        - Multiday events shown on each day they span
+        - Days fit vertically within page height
 
         Args:
             year: Year to display
@@ -761,10 +761,10 @@ class VacationPDFGenerator:
         doc = SimpleDocTemplate(
             buffer,
             pagesize=landscape(A4),
-            leftMargin=10 * mm,
-            rightMargin=10 * mm,
-            topMargin=10 * mm,
-            bottomMargin=10 * mm,
+            leftMargin=5 * mm,
+            rightMargin=5 * mm,
+            topMargin=6 * mm,
+            bottomMargin=6 * mm,
         )
 
         # Filter for approved absences only
@@ -778,91 +778,83 @@ class VacationPDFGenerator:
                 and absence.end_date.year >= year
             ]
 
-        # Create a mapping of dates to absence list for visualization
-        # Maps (month, day) -> list of absences on that day
+        # Create a mapping of dates to absence list
         absence_dates = {}
         for absence in approved_absences:
-            # Get the date range within the year
             start = max(absence.start_date, date(year, 1, 1))
             end = min(absence.end_date, date(year, 12, 31))
 
             current = start
             while current <= end:
-                date_key = (current.month, current.day)
-                if date_key not in absence_dates:
-                    absence_dates[date_key] = []
-                absence_dates[date_key].append(absence)
+                if current not in absence_dates:
+                    absence_dates[current] = []
+                absence_dates[current].append(absence)
                 current = current + timedelta(days=1)
 
-        # Calculate statistics per half-year
-        # Count unique absences in each half
-        h1_absences = set()
-        h2_absences = set()
-        for date_key, absences_list in absence_dates.items():
-            if date_key[0] <= 6:  # First half
-                for absence in absences_list:
-                    h1_absences.add(absence.id)
-            else:  # Second half
-                for absence in absences_list:
-                    h2_absences.add(absence.id)
-        h1_count = len(h1_absences)
-        h2_count = len(h2_absences)
-
         story = []
-        weekday_abbrev = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+        month_names = {
+            1: "JANUAR",
+            2: "FEBRUAR",
+            3: "MÄRZ",
+            4: "APRIL",
+            5: "MAI",
+            6: "JUNI",
+            7: "JULI",
+            8: "AUGUST",
+            9: "SEPTEMBER",
+            10: "OKTOBER",
+            11: "NOVEMBER",
+            12: "DEZEMBER",
+        }
 
+        # Generate 2 pages: Jan-Jun (Page 1), Jul-Dec (Page 2)
         for page_num in range(2):
-            # Determine page period
             if page_num == 0:
-                months = list(range(1, 7))  # January - June
+                months = list(range(1, 7))
                 period_text = "Januar - Juni"
-                period_count = h1_count
             else:
-                months = list(range(7, 13))  # July - December
+                months = list(range(7, 13))
                 period_text = "Juli - Dezember"
-                period_count = h2_count
 
             # Page title
-            title_text = f"Jahresurlaubskalender {year}"
+            title_text = f"Jahresurlaubskalender {year} - {period_text}"
             if settings and settings.store_name:
-                title_text += f" - {settings.store_name}"
+                title_text += f" ({settings.store_name})"
             story.append(Paragraph(title_text, self.title_style))
+            story.append(Spacer(1, 4))
 
-            # Period subtitle
-            subtitle_text = f"<i>{period_text} ({len(months)} Monate)</i>"
-            story.append(Paragraph(subtitle_text, self.normal_style))
-            story.append(Spacer(1, 12))
+            # Build 6-month calendar grid
+            # (1 month per column, days fit vertically)
+            available_width = self.PAGE_WIDTH_LANDSCAPE - (2 * 5 * mm)
+            col_width = available_width / 6
 
-            # Build 6-month calendar table (1 row × 6 columns layout)
-            calendar_data = self._build_6month_calendar_rows(
-                year, months, absence_dates, weekday_abbrev
+            month_calendars = []
+            for month in months:
+                month_calendar = self._build_month_calendar_table(
+                    year, month, month_names[month], absence_dates, col_width
+                )
+                month_calendars.append(month_calendar)
+
+            # Create row with all 6 months side by side
+            row_table = Table(
+                [month_calendars],
+                colWidths=[col_width] * 6,
+            )
+            row_table.setStyle(
+                TableStyle(
+                    [
+                        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 1),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 1),
+                        ("TOPPADDING", (0, 0), (-1, -1), 1),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+                    ]
+                )
             )
 
-            # Create table with 6 columns (one per month)
-            column_width = (self.PAGE_WIDTH_LANDSCAPE - 20 * mm) / 6
+            story.append(row_table)
 
-            calendar_table = Table(
-                calendar_data,
-                colWidths=[column_width] * 6,
-                repeatRows=1,  # Repeat header rows on page breaks
-            )
-
-            # Apply table styling
-            calendar_table.setStyle(
-                self._get_calendar_table_style(len(calendar_data), len(months))
-            )
-
-            story.append(calendar_table)
-            story.append(Spacer(1, 12))
-
-            # Add footer with legend and statistics
-            legend_section = self._build_legend_section(
-                period_count, period_text, page_num, absences, year
-            )
-            for element in legend_section:
-                story.append(element)
-
-            # Page break except after last page
             if page_num == 0:
                 story.append(PageBreak())
 
@@ -870,6 +862,142 @@ class VacationPDFGenerator:
         doc.build(story)
         buffer.seek(0)
         return buffer
+
+    def _build_month_calendar_table(
+        self,
+        year: int,
+        month: int,
+        month_name: str,
+        absence_dates: dict,
+        col_width: float,
+    ) -> Table:
+        """
+        Build a single month calendar as a nested Table.
+
+        Returns:
+            Table with month calendar grid
+        """
+        calendar_data = []
+
+        # Month header
+        num_days = self._days_in_month(year, month)
+        header_text = f"<b>{month_name}</b><br/>({num_days}T)"
+        calendar_data.append([Paragraph(header_text, self.small_style)])
+
+        # Weekday headers (Mo-So)
+        weekdays = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+        calendar_data.append(
+            [Paragraph(f"<b>{wd}</b>", self.small_style) for wd in weekdays]
+        )
+
+        # Get calendar weeks for this month
+        cal = monthcalendar(year, month)
+
+        # Build week rows
+        for week in cal:
+            week_row = []
+            for day_num in week:
+                if day_num == 0:
+                    # Day from another month
+                    week_row.append(Paragraph("", self.small_style))
+                else:
+                    # Build cell for this day
+                    current_date = date(year, month, day_num)
+                    cell_text = f"<b>{day_num}</b><br/>"
+
+                    # Get absences for this day
+                    day_absences = absence_dates.get(current_date, [])
+
+                    if day_absences:
+                        # List unique employee names
+                        emp_names = []
+                        for absence in day_absences:
+                            name = absence.employee.last_name
+                            if name not in emp_names:
+                                emp_names.append(name)
+
+                        # Build absence list
+                        absence_text = "<br/>".join(
+                            [f"<font size=4>{name}</font>" for name in emp_names]
+                        )
+                        cell_text += absence_text
+
+                    week_row.append(Paragraph(cell_text, self.small_style))
+
+            calendar_data.append(week_row)
+
+        # Calculate individual cell width (7 days per week)
+        cell_width = (col_width - 2 * mm) / 7
+
+        month_table = Table(
+            calendar_data,
+            colWidths=[cell_width] * 7,
+        )
+
+        # Apply styling - compact for vertical fit
+        month_table.setStyle(
+            TableStyle(
+                [
+                    # Month header
+                    ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 6),
+                    ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                    (
+                        "BACKGROUND",
+                        (0, 0),
+                        (-1, 0),
+                        colors.HexColor("#E0E0E0"),
+                    ),
+                    ("TOPPADDING", (0, 0), (-1, 0), 1),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 1),
+                    ("HEIGHT", (0, 0), (-1, 0), 6 * mm),
+                    # Weekday header
+                    ("FONT", (0, 1), (-1, 1), "Helvetica-Bold", 5),
+                    ("ALIGN", (0, 1), (-1, 1), "CENTER"),
+                    (
+                        "BACKGROUND",
+                        (0, 1),
+                        (-1, 1),
+                        colors.HexColor("#F0F0F0"),
+                    ),
+                    ("TOPPADDING", (0, 1), (-1, 1), 0),
+                    ("BOTTOMPADDING", (0, 1), (-1, 1), 0),
+                    ("HEIGHT", (0, 1), (-1, 1), 4 * mm),
+                    # Day cells
+                    ("FONT", (0, 2), (-1, -1), "Helvetica", 5),
+                    ("ALIGN", (0, 2), (-1, -1), "LEFT"),
+                    ("VALIGN", (0, 2), (-1, -1), "TOP"),
+                    ("TOPPADDING", (0, 2), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 2), (-1, -1), 0),
+                    ("LEFTPADDING", (0, 2), (-1, -1), 1),
+                    ("RIGHTPADDING", (0, 2), (-1, -1), 0),
+                    ("HEIGHT", (0, 2), (-1, -1), 8 * mm),
+                    # Grid
+                    (
+                        "GRID",
+                        (0, 0),
+                        (-1, -1),
+                        0.3,
+                        colors.HexColor("#CCCCCC"),
+                    ),
+                    (
+                        "LINEBELOW",
+                        (0, 0),
+                        (-1, 0),
+                        0.5,
+                        colors.HexColor("#999999"),
+                    ),
+                    (
+                        "LINEBELOW",
+                        (0, 1),
+                        (-1, 1),
+                        0.3,
+                        colors.HexColor("#999999"),
+                    ),
+                ]
+            )
+        )
+
+        return month_table
 
     def _build_6month_calendar_rows(
         self,

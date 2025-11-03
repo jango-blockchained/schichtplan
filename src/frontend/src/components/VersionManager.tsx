@@ -40,11 +40,11 @@ const getStatusBadge = (status: string | undefined) => {
       className={cn(
         "text-xs",
         status === "PUBLISHED" &&
-          "bg-green-500/20 text-green-300 border-green-500/30",
+        "bg-green-500/20 text-green-300 border-green-500/30",
         status === "DRAFT" &&
-          "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+        "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
         status === "ARCHIVED" &&
-          "bg-gray-500/20 text-gray-300 border-gray-500/30",
+        "bg-gray-500/20 text-gray-300 border-gray-500/30",
       )}
     >
       {status.toLowerCase()}
@@ -114,25 +114,25 @@ export function VersionManager({
     () =>
       externalVersions
         ? {
-            selectVersion: () => {},
-            resetVersionSelection: () => {},
-            createVersion: () => Promise.resolve(),
-            updateVersionStatus: () => Promise.resolve(),
-            updateVersionNotes: () => Promise.resolve(),
-            deleteVersion: () => Promise.resolve(),
-            duplicateVersion: () => Promise.resolve(),
-            refetch: () => {},
-          }
+          selectVersion: () => { },
+          resetVersionSelection: () => { },
+          createVersion: () => Promise.resolve(),
+          updateVersionStatus: () => Promise.resolve(),
+          updateVersionNotes: () => Promise.resolve(),
+          deleteVersion: () => Promise.resolve(),
+          duplicateVersion: () => Promise.resolve(),
+          refetch: () => { },
+        }
         : versionManagerResult?.actions || {
-            selectVersion: () => {},
-            resetVersionSelection: () => {},
-            createVersion: () => Promise.resolve(),
-            updateVersionStatus: () => Promise.resolve(),
-            updateVersionNotes: () => Promise.resolve(),
-            deleteVersion: () => Promise.resolve(),
-            duplicateVersion: () => Promise.resolve(),
-            refetch: () => {},
-          },
+          selectVersion: () => { },
+          resetVersionSelection: () => { },
+          createVersion: () => Promise.resolve(),
+          updateVersionStatus: () => Promise.resolve(),
+          updateVersionNotes: () => Promise.resolve(),
+          deleteVersion: () => Promise.resolve(),
+          duplicateVersion: () => Promise.resolve(),
+          refetch: () => { },
+        },
     [externalVersions, versionManagerResult?.actions],
   );
 
@@ -141,19 +141,19 @@ export function VersionManager({
     () =>
       externalVersions
         ? {
-            versions: effectiveVersions,
-            selectedVersion: effectiveSelectedVersion,
-            isLoading: false,
-            isError: false,
-            error: null,
-          }
+          versions: effectiveVersions,
+          selectedVersion: effectiveSelectedVersion,
+          isLoading: false,
+          isError: false,
+          error: null,
+        }
         : versionManagerResult?.state || {
-            versions: effectiveVersions,
-            selectedVersion: effectiveSelectedVersion,
-            isLoading: false,
-            isError: false,
-            error: null,
-          },
+          versions: effectiveVersions,
+          selectedVersion: effectiveSelectedVersion,
+          isLoading: false,
+          isError: false,
+          error: null,
+        },
     [
       externalVersions,
       effectiveVersions,
@@ -183,6 +183,7 @@ export function VersionManager({
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [versionToDuplicate, setVersionToDuplicate] = useState<number | null>(
     null,
+  );
   const [isCollapsed, setIsCollapsed] = useState(initiallyCollapsed);
   // filterByDate is a constant (always true) - removed checkbox UI for filtering by date
   // Always filter versions to current date range for consistency
@@ -296,7 +297,7 @@ export function VersionManager({
       // Pre-format dates outside the filter for performance
       const fromDateFormatted = format(dateRange.from, "yyyy-MM-dd");
       const toDateFormatted = format(dateRange.to, "yyyy-MM-dd");
-      
+
       // Use exact date matching to match backend behavior (get_versions_for_exact_date_range)
       return effectiveVersions.filter((v) => {
         const versionStart = v.date_range.start;
@@ -306,9 +307,9 @@ export function VersionManager({
     }
 
     return effectiveVersions;
-  }, [externalVersions, effectiveVersions, dateRange]);
-  // Note: filterByDate is intentionally NOT in dependencies as it's a constant (always true)
-  // This prevents unnecessary re-renders while maintaining correct filtering behavior
+  }, [externalVersions, effectiveVersions, dateRange, filterByDate]);
+  // Note: filterByDate is intentionally in dependencies as a constant (always true)
+  // This maintains correct React Hook linting while filtering behavior remains consistent
 
   // Render the layout content (extracted from the switch statement)
   const renderLayoutContent = () => {
