@@ -1,7 +1,7 @@
 """Vacation calendar PDF generator with grid layout."""
 
 import io
-from datetime import date
+from datetime import date, timedelta
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -99,7 +99,7 @@ class VacationGridPDFGenerator:
 
         Format: 2 landscape pages with 6 months per page.
         Days 1-31 displayed as columns, months as rows.
-        Vacation entries shown horizontally without overlapping.
+        Vacation entries listed per day without red containers.
 
         Args:
             year: Year to display
@@ -114,10 +114,10 @@ class VacationGridPDFGenerator:
         doc = SimpleDocTemplate(
             buffer,
             pagesize=landscape(A4),
-            leftMargin=self.MARGIN,
-            rightMargin=self.MARGIN,
-            topMargin=10 * mm,
-            bottomMargin=10 * mm,
+            leftMargin=4 * mm,
+            rightMargin=4 * mm,
+            topMargin=6 * mm,
+            bottomMargin=6 * mm,
         )
 
         story = []
@@ -162,7 +162,7 @@ class VacationGridPDFGenerator:
             if settings and settings.store_name:
                 title_text += f" ({settings.store_name})"
             story.append(Paragraph(title_text, self.title_style))
-            story.append(Spacer(1, 8))
+            story.append(Spacer(1, 4))
 
             # Build calendar grid data
             calendar_data = self._build_grid_calendar(
@@ -171,9 +171,9 @@ class VacationGridPDFGenerator:
 
             # Calculate column widths
             num_days = 31
-            available_width = self.PAGE_WIDTH_LANDSCAPE - (2 * self.MARGIN)
-            month_label_width = 20 * mm
-            day_col_width = (available_width - month_label_width) / (num_days)
+            available_width = self.PAGE_WIDTH_LANDSCAPE - (2 * 4 * mm)
+            month_label_width = 16 * mm
+            day_col_width = (available_width - month_label_width) / num_days
 
             col_widths = [month_label_width] + [day_col_width] * num_days
 
@@ -188,12 +188,12 @@ class VacationGridPDFGenerator:
             calendar_table.setStyle(self._get_table_style(calendar_data))
 
             story.append(calendar_table)
-            story.append(Spacer(1, 15))
+            story.append(Spacer(1, 6))
 
             # Add footer
             footer_text = (
-                "Legende: Gekennzeichnete Zeilen zeigen "
-                "Urlaubseinträge. Keine Überschneidungen."
+                "Legende: Absenzeinträge werden pro Tag aufgelistet. "
+                "Mehrtägige Einträge erscheinen an jedem Tag."
             )
             story.append(Paragraph(footer_text, self.small_style))
 
@@ -215,6 +215,9 @@ class VacationGridPDFGenerator:
         """
         Build grid calendar with months as rows, days (1-31) as columns.
 
+        Events are listed without red containers, and multiday events
+        appear on each day they span.
+
         Returns:
             2D list for Table widget
         """
@@ -231,20 +234,73 @@ class VacationGridPDFGenerator:
             month_name = month_names[month]
             num_days = self._days_in_month(year, month)
 
-            month_absences = self._get_month_absences(year, month, num_days, absences)
+            # Get all absences for this month
+            month_absences_by_day = self._get_month_absences_by_day(
+                year, month, num_days, absences
+            )
 
-            if not month_absences:
-                row = self._build_empty_month_row(month_name, num_days)
-                calendar_data.append(row)
-            else:
-                month_label_row = self._build_month_header(month_name)
-                calendar_data.append(month_label_row)
+            # Create month header row
+            month_row = [Paragraph(f"<b>{month_name}</b>", self.normal_style)]
+            for day in range(1, 32):
+                if day <= num_days:
+                    # Get absences for this day
+                    day_absences = month_absences_by_day.get(day, [])
+                    if day_absences:
+                        # Build event list for this day
+                        events_text = "<br/>".join(
+                            [
+                                f"<font size=5>{abs_info['name']}</font>"
+                                for abs_info in day_absences
+                            ]
+                        )
+                        month_row.append(Paragraph(events_text, self.small_style))
+                    else:
+                        # Empty cell for days without events
+                        month_row.append(Paragraph("", self.small_style))
+                else:
+                    month_row.append(Paragraph("", self.small_style))
 
-                for absence_info in month_absences:
-                    rows = self._build_absence_rows(absence_info, num_days)
-                    calendar_data.extend(rows)
+            calendar_data.append(month_row)
 
         return calendar_data
+
+    def _get_month_absences_by_day(
+        self, year: int, month: int, num_days: int, absences: list[Absence]
+    ) -> dict:
+        """
+        Get absences organized by day for the given month.
+
+        Multiday events appear on each day they span.
+
+        Returns:
+            Dictionary: {day: [{'name': str, 'absence': Absence}, ...]}
+        """
+        absences_by_day = {}
+
+        for absence in absences:
+            # Calculate the overlap between absence and this month
+            month_start = date(year, month, 1)
+            month_end = date(year, month, num_days)
+
+            overlap_start = max(absence.start_date, month_start)
+            overlap_end = min(absence.end_date, month_end)
+
+            if overlap_start <= overlap_end:
+                # Build employee name
+                emp = absence.employee
+                emp_name = f"{emp.last_name}"
+
+                # Add to each day in the range
+                current_day = overlap_start
+                while current_day <= overlap_end:
+                    day = current_day.day
+                    if day not in absences_by_day:
+                        absences_by_day[day] = []
+
+                    absences_by_day[day].append({"name": emp_name, "absence": absence})
+                    current_day = current_day + timedelta(days=1)
+
+        return absences_by_day
 
     def _get_month_absences(
         self, year: int, month: int, num_days: int, absences: list[Absence]
@@ -287,7 +343,7 @@ class VacationGridPDFGenerator:
             month_label_row.append(Paragraph("", self.small_style))
         return month_label_row
 
-    def _build_absence_rows(self, absence_info: dict, num_days: int) -> list:
+    def _build_absence_rows(self, absence_info: dict, num_days: int):
         """Build rows for an absence entry."""
         absence = absence_info["absence"]
         start_day = absence_info["start_day"]
@@ -342,44 +398,44 @@ class VacationGridPDFGenerator:
         """Generate styling for grid layout table."""
         style_commands = [
             # Header row styling
-            ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 9),
+            ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 8),
             ("ALIGN", (0, 0), (-1, 0), "CENTER"),
             ("VALIGN", (0, 0), (-1, 0), "MIDDLE"),
             (
                 "BACKGROUND",
                 (0, 0),
                 (-1, 0),
-                colors.HexColor("#333333"),
+                colors.HexColor("#E8E8E8"),
             ),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#FFFFFF")),
-            ("TOPPADDING", (0, 0), (-1, 0), 3),
-            ("BOTTOMPADDING", (0, 0), (-1, 0), 3),
-            ("HEIGHT", (0, 0), (-1, 0), 12 * mm),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#333333")),
+            ("TOPPADDING", (0, 0), (-1, 0), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 2),
+            ("HEIGHT", (0, 0), (-1, 0), 10 * mm),
             # Month label column
-            ("FONT", (0, 1), (0, -1), "Helvetica-Bold", 8),
+            ("FONT", (0, 1), (0, -1), "Helvetica-Bold", 7),
             ("ALIGN", (0, 1), (0, -1), "LEFT"),
             ("VALIGN", (0, 1), (0, -1), "TOP"),
-            ("BACKGROUND", (0, 1), (0, -1), colors.HexColor("#F0F0F0")),
+            ("BACKGROUND", (0, 1), (0, -1), colors.HexColor("#F5F5F5")),
             ("TOPPADDING", (0, 1), (0, -1), 2),
             ("BOTTOMPADDING", (0, 1), (0, -1), 2),
             ("LEFTPADDING", (0, 1), (0, -1), 2),
-            # Day cells
-            ("FONT", (1, 1), (-1, -1), "Helvetica", 7),
-            ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-            ("VALIGN", (1, 1), (-1, -1), "MIDDLE"),
+            # Day cells - compact
+            ("FONT", (1, 1), (-1, -1), "Helvetica", 6),
+            ("ALIGN", (1, 1), (-1, -1), "LEFT"),
+            ("VALIGN", (1, 1), (-1, -1), "TOP"),
             ("TOPPADDING", (1, 1), (-1, -1), 1),
             ("BOTTOMPADDING", (1, 1), (-1, -1), 1),
             ("LEFTPADDING", (1, 1), (-1, -1), 1),
             ("RIGHTPADDING", (1, 1), (-1, -1), 1),
-            ("HEIGHT", (1, 1), (-1, -1), 8 * mm),
+            ("HEIGHT", (1, 1), (-1, -1), 6 * mm),
             # Grid lines
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
+            ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#DDDDDD")),
             (
                 "LINEBELOW",
                 (0, 0),
                 (-1, 0),
-                1.5,
-                colors.HexColor("#333333"),
+                1,
+                colors.HexColor("#999999"),
             ),
         ]
 

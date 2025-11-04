@@ -7,6 +7,8 @@ different aspects of scheduling such as resource loading, constraint checking,
 assignment distribution, and serialization of the final schedule.
 """
 
+import contextlib
+import json
 import logging
 import os
 import sys
@@ -77,8 +79,6 @@ except ImportError:
 
 
 # Import the extracted modules
-import contextlib
-
 from .availability import AvailabilityChecker
 from .config import SchedulerConfig  # Generator's own runtime config
 from .constraints import ConstraintChecker
@@ -1280,8 +1280,6 @@ class ScheduleGenerator:
                 ):  # Case 3: active_days is a string (JSON or comma-separated)
                     # Parse JSON or comma-separated string
                     try:
-                        import json
-
                         # Attempt to parse as JSON list: e.g., "[0, 1, 2]"
                         loaded_days = json.loads(shift_template.active_days)
                         if isinstance(
@@ -1337,8 +1335,17 @@ class ScheduleGenerator:
 
         # Now match active shifts to coverage intervals
         shifts_created = set()  # Track which shifts we've already created
+        total_intervals = len(coverage_by_interval)
+        
+        self.logger.info(
+            f"Matching {len(active_shift_templates)} shift templates to {total_intervals} coverage intervals"
+        )
 
-        for interval_key, coverage_requirements in coverage_by_interval.items():
+        for interval_idx, (interval_key, coverage_requirements) in enumerate(coverage_by_interval.items()):
+            # Log progress for large interval counts
+            if interval_idx > 0 and interval_idx % 10 == 0:
+                self.logger.debug(f"Processing interval {interval_idx}/{total_intervals}")
+            
             # Parse interval times
             interval_parts = interval_key.split("-")
             if len(interval_parts) != 2:
@@ -1368,104 +1375,104 @@ class ScheduleGenerator:
                 continue
 
             # Create shift instances for each matching shift template
-            for coverage_req in coverage_requirements:
-                min_employees = coverage_req.get("min_employees", 1)
+            # OPTIMIZATION: Process each shift template only once per interval
+            for shift_template in matching_shifts:
+                shift_id = shift_template.id
 
-                # For each matching shift, create instances based on required staffing
-                for shift_template in matching_shifts:
-                    shift_id = shift_template.id
+                # Skip if we've already created this shift
+                if shift_id in shifts_created:
+                    continue
 
-                    # Skip if we've already created this shift
-                    if shift_id in shifts_created:
-                        continue
+                shifts_created.add(shift_id)
 
-                    shifts_created.add(shift_id)
-
-                    # Get the active days for this shift template
-                    shift_active_days = []
-                    if (
-                        hasattr(shift_template, "active_days")
-                        and shift_template.active_days
-                    ):
-                        if isinstance(shift_template.active_days, list):
-                            shift_active_days = shift_template.active_days
-                        elif isinstance(shift_template.active_days, dict):
-                            shift_active_days = [
-                                int(day_str)
-                                for day_str, is_active in shift_template.active_days.items()
-                                if is_active
-                            ]
-                        elif isinstance(shift_template.active_days, str):
-                            try:
-                                import json
-
-                                loaded_days = json.loads(shift_template.active_days)
-                                if isinstance(loaded_days, list):
-                                    shift_active_days = loaded_days
-                                elif isinstance(loaded_days, dict):
-                                    shift_active_days = [
-                                        int(day_str)
-                                        for day_str, is_active in loaded_days.items()
-                                        if is_active
-                                    ]
-                            except (json.JSONDecodeError, ValueError):
-                                with contextlib.suppress(ValueError):
-                                    shift_active_days = [
-                                        int(d.strip())
-                                        for d in shift_template.active_days.split(",")
-                                        if d.strip()
-                                    ]
-
-                    # Get shift type - try multiple attributes
-                    shift_type = None
-                    if hasattr(shift_template, "shift_type_id"):
-                        stid = shift_template.shift_type_id
-                        # If it's a MagicMock (from test), treat as not set
-                        shift_type = stid if isinstance(stid, str) else None
-                    elif hasattr(shift_template, "shift_type"):
-                        # Handle both string and enum values
-                        if hasattr(shift_template.shift_type, "value"):
-                            shift_type = shift_template.shift_type.value
-                        else:
-                            shift_type = shift_template.shift_type
-                    # Default to a shift type based on start time if none specified
-                    if not shift_type:
-                        start_time = getattr(shift_template, "start_time", "09:00")
+                # Get the active days for this shift template
+                shift_active_days = []
+                if (
+                    hasattr(shift_template, "active_days")
+                    and shift_template.active_days
+                ):
+                    if isinstance(shift_template.active_days, list):
+                        shift_active_days = shift_template.active_days
+                    elif isinstance(shift_template.active_days, dict):
+                        shift_active_days = [
+                            int(day_str)
+                            for day_str, is_active in shift_template.active_days.items()
+                            if is_active
+                        ]
+                    elif isinstance(shift_template.active_days, str):
                         try:
-                            start_hour = int(start_time.split(":")[0])
-                            if start_hour < 11:
-                                shift_type = "EARLY"
-                            elif start_hour >= 14:
-                                shift_type = "LATE"
-                            else:
-                                shift_type = "MIDDLE"
-                        except (ValueError, IndexError):
-                            shift_type = "MIDDLE"  # Default
+                            loaded_days = json.loads(shift_template.active_days)
+                            if isinstance(loaded_days, list):
+                                shift_active_days = loaded_days
+                            elif isinstance(loaded_days, dict):
+                                shift_active_days = [
+                                    int(day_str)
+                                    for day_str, is_active in loaded_days.items()
+                                    if is_active
+                                ]
+                        except (json.JSONDecodeError, ValueError):
+                            with contextlib.suppress(ValueError):
+                                shift_active_days = [
+                                    int(d.strip())
+                                    for d in shift_template.active_days.split(",")
+                                    if d.strip()
+                                ]
 
-                    # Create shift instance
-                    shift_instance = {
-                        "id": shift_id,  # Original shift template ID
-                        "shift_id": shift_id,  # Duplicate for compatibility
-                        "date": date_to_create,
-                        "start_time": getattr(shift_template, "start_time", "09:00"),
-                        "end_time": getattr(shift_template, "end_time", "17:00"),
-                        "duration_hours": getattr(
-                            shift_template, "duration_hours", 8.0
-                        ),
-                        "shift_type": shift_type,
-                        "shift_type_id": shift_type,  # Always use the resolved string, not MagicMock
-                        "requires_keyholder": coverage_req.get(
-                            "requires_keyholder", False
-                        ),
-                        "active_days": shift_active_days,
-                        "min_employees": min_employees,  # Add coverage requirement
-                        "coverage_interval": interval_key,  # Track which coverage this is for
-                    }
+                # Get shift type - try multiple attributes
+                shift_type = None
+                if hasattr(shift_template, "shift_type_id"):
+                    stid = shift_template.shift_type_id
+                    # If it's a MagicMock (from test), treat as not set
+                    shift_type = stid if isinstance(stid, str) else None
+                elif hasattr(shift_template, "shift_type"):
+                    # Handle both string and enum values
+                    if hasattr(shift_template.shift_type, "value"):
+                        shift_type = shift_template.shift_type.value
+                    else:
+                        shift_type = shift_template.shift_type
+                # Default to a shift type based on start time if none specified
+                if not shift_type:
+                    start_time = getattr(shift_template, "start_time", "09:00")
+                    try:
+                        start_hour = int(start_time.split(":")[0])
+                        if start_hour < 11:
+                            shift_type = "EARLY"
+                        elif start_hour >= 14:
+                            shift_type = "LATE"
+                        else:
+                            shift_type = "MIDDLE"
+                    except (ValueError, IndexError):
+                        shift_type = "MIDDLE"  # Default
 
-                    self.logger.info(
-                        f"Created shift instance: ID={shift_id}, type={shift_type}, time={shift_instance['start_time']}-{shift_instance['end_time']}, coverage={interval_key}, min_employees={min_employees}"
-                    )
-                    date_shifts.append(shift_instance)
+                # Get coverage requirements for this interval
+                min_employees = 1
+                requires_keyholder = False
+                for coverage_req in coverage_requirements:
+                    min_employees = max(min_employees, coverage_req.get("min_employees", 1))
+                    requires_keyholder = requires_keyholder or coverage_req.get("requires_keyholder", False)
+
+                # Create shift instance
+                shift_instance = {
+                    "id": shift_id,  # Original shift template ID
+                    "shift_id": shift_id,  # Duplicate for compatibility
+                    "date": date_to_create,
+                    "start_time": getattr(shift_template, "start_time", "09:00"),
+                    "end_time": getattr(shift_template, "end_time", "17:00"),
+                    "duration_hours": getattr(
+                        shift_template, "duration_hours", 8.0
+                    ),
+                    "shift_type": shift_type,
+                    "shift_type_id": shift_type,  # Always use the resolved string, not MagicMock
+                    "requires_keyholder": requires_keyholder,
+                    "active_days": shift_active_days,
+                    "min_employees": min_employees,  # Add coverage requirement
+                    "coverage_interval": interval_key,  # Track which coverage this is for
+                }
+
+                self.logger.info(
+                    f"Created shift instance: ID={shift_id}, type={shift_type}, time={shift_instance['start_time']}-{shift_instance['end_time']}, coverage={interval_key}, min_employees={min_employees}"
+                )
+                date_shifts.append(shift_instance)
 
         self.logger.info(
             f"Created {len(date_shifts)} shift instances for {date_to_create}"

@@ -2,7 +2,7 @@ import { useCalendarContext } from '@/components/calendar/calendar-context'
 import { CalendarEvent as CalendarEventType } from '@/components/calendar/calendar-types'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { addDays, differenceInDays, format, isSameDay, isSameMonth } from 'date-fns'
+import { addDays, differenceInDays, format, isSameDay, isSameMonth, isWeekend } from 'date-fns'
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
 import { Check, Clock, Edit2, GripVertical, Trash2, X as XIcon } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -26,6 +26,22 @@ interface CalendarEventEnhancedProps {
     onUpdate?: (eventId: string, updates: { start: Date; end: Date }) => void
     onDelete?: (eventId: string) => void
     status?: 'approved' | 'requested' | 'declined'
+}
+
+// Calculate working days (excluding weekends)
+function calculateWorkingDays(start: Date, end: Date): number {
+    let workingDays = 0
+    const current = new Date(start)
+    current.setHours(0, 0, 0, 0)
+    end.setHours(0, 0, 0, 0)
+
+    while (current <= end) {
+        if (!isWeekend(current)) {
+            workingDays++
+        }
+        current.setDate(current.getDate() + 1)
+    }
+    return workingDays
 }
 
 // Color scheme mapping - for left indicator bar only
@@ -145,22 +161,38 @@ export default function CalendarEventEnhanced({
 
     // Calculate duration
     const durationDays = differenceInDays(event.end, event.start) + 1
-    const durationHours = Math.floor(
-        (event.end.getTime() - event.start.getTime()) / (1000 * 60 * 60)
-    )
-    const durationMinutes = Math.floor(
-        ((event.end.getTime() - event.start.getTime()) / (1000 * 60)) % 60
-    )
+    const workingDays = calculateWorkingDays(event.start, event.end)
 
-    // Format duration string
-    const durationStr =
-        durationDays > 1
-            ? `${durationDays}d`
-            : durationHours > 0
-                ? `${durationHours}h${durationMinutes > 0 ? ` ${durationMinutes}m` : ''}`
-                : `${durationMinutes}m`
+    // Format date range (e.g., "Fr-Mo" or "Jan 15-20")
+    const formatDateRange = () => {
+        if (durationDays === 1) {
+            return format(event.start, 'MMM d')
+        }
+        if (isSameMonth(event.start, event.end)) {
+            return `${format(event.start, 'MMM d')}-${format(event.end, 'd')}`
+        }
+        return `${format(event.start, 'MMM d')}-${format(event.end, 'MMM d')}`
+    }
+
+    // Format short date range with weekday
+    const formatShortDateRange = () => {
+        if (durationDays === 1) {
+            return format(event.start, 'EEE')
+        }
+        return `${format(event.start, 'EEE')}-${format(event.end, 'EEE')}`
+    }
+
+    // Format duration string - shows total days and working days
+    const durationStr = durationDays > 1
+        ? `${durationDays} days${workingDays !== durationDays ? ` (${workingDays}d)` : ''}`
+        : durationDays === 1
+            ? '1 day'
+            : '0 days'
 
     const StatusIcon = statusConfig[status].icon
+
+    // Track drag state with refs to persist data across re-renders
+    const dragStateRef = useRef<{ startX: number; startDates: { start: Date; end: Date } } | null>(null)
 
     // Drag handlers
     const handleMouseDown = useCallback(
@@ -169,32 +201,36 @@ export default function CalendarEventEnhanced({
             if (isResizing) return
 
             e.stopPropagation()
+            e.preventDefault() // Prevent text selection during drag
+
+            dragStateRef.current = {
+                startX: e.clientX,
+                startDates: { start: new Date(event.start), end: new Date(event.end) }
+            }
             setIsDragging(true)
         },
-        [month, year, isResizing]
+        [month, year, isResizing, event]
     )
 
     const handleMouseMove = useCallback(
         (e: MouseEvent) => {
-            if (!isDragging || !eventRef.current) return
+            if (!isDragging || !eventRef.current || !dragStateRef.current) return
 
-            // Calculate how many days to shift based on mouse movement
-            const parentElement = eventRef.current.parentElement
+            // Find the calendar week container to calculate day width
+            const parentElement = eventRef.current.closest('[role="grid"], [data-calendar-week]')
             if (!parentElement) return
 
             const parentRect = parentElement.getBoundingClientRect()
             const dayWidth = parentRect.width / 7 // Assuming 7 days per week
-            const mouseX = e.clientX - parentRect.left
-            const newDayIndex = Math.floor(mouseX / dayWidth)
 
-            // Calculate day offset from original position
-            const originalDayIndex = Math.floor((eventRef.current.getBoundingClientRect().left - parentRect.left) / dayWidth)
-            const daysDiff = newDayIndex - originalDayIndex
+            // Calculate distance moved
+            const deltaX = e.clientX - dragStateRef.current.startX
+            const daysDiff = Math.round(deltaX / dayWidth)
 
             if (daysDiff !== 0) {
-                // Update event dates
-                const newStart = addDays(event.start, daysDiff)
-                const newEnd = addDays(event.end, daysDiff)
+                // Update event dates based on original dates + difference
+                const newStart = addDays(dragStateRef.current.startDates.start, daysDiff)
+                const newEnd = addDays(dragStateRef.current.startDates.end, daysDiff)
 
                 if (onUpdate) {
                     onUpdate(event.id, { start: newStart, end: newEnd })
@@ -225,46 +261,44 @@ export default function CalendarEventEnhanced({
         (e: React.MouseEvent, side: 'left' | 'right') => {
             if (!month && !year) return
             e.stopPropagation()
+            e.preventDefault() // Prevent text selection
+
+            // Store initial state for resize operation
+            dragStateRef.current = {
+                startX: e.clientX,
+                startDates: { start: new Date(event.start), end: new Date(event.end) }
+            }
             setIsResizing(side)
         },
-        [month, year]
+        [month, year, event]
     )
 
     const handleResizeMove = useCallback(
         (e: MouseEvent) => {
-            if (!isResizing || !eventRef.current) return
+            if (!isResizing || !eventRef.current || !dragStateRef.current) return
 
-            const parentElement = eventRef.current.parentElement
+            // Find the calendar week container
+            const parentElement = eventRef.current.closest('[role="grid"], [data-calendar-week]')
             if (!parentElement) return
 
             const parentRect = parentElement.getBoundingClientRect()
             const dayWidth = parentRect.width / 7
-            const mouseX = e.clientX - parentRect.left
-            const dayIndex = Math.floor(mouseX / dayWidth)
 
-            if (isResizing === 'left') {
-                // Resize start date
-                const currentStartIndex = Math.floor(
-                    (event.start.getTime() - parentRect.left) / dayWidth
-                )
-                const daysDiff = dayIndex - currentStartIndex
+            // Calculate distance moved
+            const deltaX = e.clientX - dragStateRef.current.startX
+            const daysDiff = Math.round(deltaX / dayWidth)
 
-                if (daysDiff !== 0) {
-                    const newStart = addDays(event.start, daysDiff)
-                    if (newStart < event.end && onUpdate) {
+            if (daysDiff !== 0) {
+                if (isResizing === 'left') {
+                    // Resize start date - moving left extends backwards, right contracts
+                    const newStart = addDays(dragStateRef.current.startDates.start, daysDiff)
+                    if (newStart < dragStateRef.current.startDates.end && onUpdate) {
                         onUpdate(event.id, { start: newStart, end: event.end })
                     }
-                }
-            } else if (isResizing === 'right') {
-                // Resize end date
-                const currentEndIndex = Math.floor(
-                    (event.end.getTime() - parentRect.left) / dayWidth
-                )
-                const daysDiff = dayIndex - currentEndIndex
-
-                if (daysDiff !== 0) {
-                    const newEnd = addDays(event.end, daysDiff)
-                    if (newEnd > event.start && onUpdate) {
+                } else if (isResizing === 'right') {
+                    // Resize end date - moving right extends forward, left contracts
+                    const newEnd = addDays(dragStateRef.current.startDates.end, daysDiff)
+                    if (newEnd > dragStateRef.current.startDates.start && onUpdate) {
                         onUpdate(event.id, { start: event.start, end: newEnd })
                     }
                 }
@@ -314,7 +348,7 @@ export default function CalendarEventEnhanced({
                         isDragging && 'opacity-60 shadow-lg cursor-grabbing',
                         !isDragging && (month || year) && 'cursor-grab',
                         !month && !day && !week && !year && 'absolute z-10 p-1',
-                        month && 'p-0.5 overflow-visible w-full text-xs min-h-[18px]',
+                        month && 'p-0.5 overflow-visible w-full text-xs min-h-[1.125em]',
                         week && 'p-1.5 text-sm',
                         year && 'p-0.5 text-xs',
                         month && isFirstDay && 'rounded-l-md',
@@ -323,6 +357,7 @@ export default function CalendarEventEnhanced({
                     )}
                     style={{
                         ...positionStyle,
+                        fontSize: month ? `${0.75 * fontSizeMultiplier}rem` : undefined,
                     }}
                     onMouseEnter={() => setShowActions(true)}
                     onMouseLeave={() => setShowActions(false)}
@@ -363,7 +398,8 @@ export default function CalendarEventEnhanced({
                     {/* Resize handle - left */}
                     {(month || year) && isFirstDay && showActions && (
                         <motion.div
-                            className="absolute left-0 top-0 bottom-0 w-1.5 bg-primary/20 hover:bg-primary/40 cursor-ew-resize z-20 rounded-l-md"
+                            className="absolute left-0 top-0 bottom-0 w-2 bg-primary/20 hover:bg-primary/40 cursor-ew-resize z-50 rounded-l-md"
+                            style={{ pointerEvents: isDragging || isResizing ? 'auto' : 'auto' }}
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
@@ -406,35 +442,34 @@ export default function CalendarEventEnhanced({
 
                         {month || year ? (
                             <>
-                                {/* Time info for month/year view - compact */}
+                                {/* Date range for month/year view - compact */}
                                 {showTimeInfo && !year && (
                                     <span
-                                        className="text-muted-foreground whitespace-nowrap flex-shrink-0"
+                                        className="text-muted-foreground whitespace-nowrap flex-shrink-0 text-xs"
                                         style={{
-                                            fontSize: month ? `${0.7 * fontSizeMultiplier}rem` : '0.75rem'
+                                            fontSize: month ? `${0.65 * fontSizeMultiplier}rem` : '0.65rem'
                                         }}
                                     >
-                                        {format(event.start, 'HH:mm')}
+                                        {formatShortDateRange()}
                                     </span>
                                 )}
                             </>
                         ) : (
-                            /* Time display for day/week view */
+                            /* Date range display for day/week view */
                             <p className="text-xs text-muted-foreground flex-shrink-0">
-                                <span>{format(event.start, 'h:mm a')}</span>
-                                <span className="mx-1">-</span>
-                                <span>{format(event.end, 'h:mm a')}</span>
+                                <span>{formatDateRange()}</span>
                             </p>
                         )}
                     </motion.div>
 
                     {/* Status indicator and duration badge */}
                     <div className="flex items-center gap-0.5 flex-shrink-0">
-                        {/* Duration badge */}
+                        {/* Duration badge - showing total and working days */}
                         {(month || week) && month && (
                             <Badge
                                 variant="secondary"
-                                className="text-xs px-1 py-0 h-3 bg-background/50 text-muted-foreground"
+                                className="text-xs px-1.5 py-0 h-4 bg-background/60 text-muted-foreground whitespace-nowrap"
+                                title={`${durationDays} calendar days, ${workingDays} working days`}
                             >
                                 {durationStr}
                             </Badge>
@@ -443,12 +478,12 @@ export default function CalendarEventEnhanced({
                         {/* Status icon */}
                         <div
                             className={cn(
-                                'rounded-full p-0.5 flex items-center justify-center',
+                                'rounded-full p-0.5 flex items-center justify-center flex-shrink-0',
                                 statusConfig[status].bgColor
                             )}
                             title={statusConfig[status].label}
                         >
-                            <StatusIcon className={cn('w-2 h-2', statusConfig[status].color)} />
+                            <StatusIcon className={cn('w-2.5 h-2.5', statusConfig[status].color)} />
                         </div>
                     </div>
 
@@ -489,7 +524,8 @@ export default function CalendarEventEnhanced({
                     {/* Resize handle - right */}
                     {(month || year) && isLastDay && showActions && (
                         <motion.div
-                            className="absolute right-0 top-0 bottom-0 w-1.5 bg-primary/20 hover:bg-primary/40 cursor-ew-resize z-20 rounded-r-md"
+                            className="absolute right-0 top-0 bottom-0 w-2 bg-primary/20 hover:bg-primary/40 cursor-ew-resize z-50 rounded-r-md"
+                            style={{ pointerEvents: isDragging || isResizing ? 'auto' : 'auto' }}
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}

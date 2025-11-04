@@ -112,6 +112,16 @@ const formulars: FormularItem[] = [
     type: "yearly",
   },
   {
+    id: "vacation-yearly-calendar-grid",
+    title: "Jahresurlaub Kalender (Grid Layout)",
+    description: "Grid-Ansicht mit Tagen als Spalten und Monaten als Reihen",
+    icon: <FileSpreadsheet className="h-5 w-5" />,
+    requiresEmployee: false,
+    category: "Jahresübersichten",
+    subcategory: "Berichte",
+    type: "yearly",
+  },
+  {
     id: "employee-vacation-entitlement",
     title: "Mitarbeiter Urlaubsanspruch",
     description: "Liste aller Mitarbeiter mit Abwesenheiten (Urlaub, Abwesenheit, Schulung)",
@@ -250,6 +260,10 @@ export default function FormularsPage() {
 
       case "vacation-yearly-calendar":
         url = `${apiBaseUrl}/api/v2/vacation-pdf/yearly-calendar?year=${year}`;
+        break;
+
+      case "vacation-yearly-calendar-grid":
+        url = `${apiBaseUrl}/api/v2/vacation-pdf/yearly-calendar-grid?year=${year}`;
         break;
 
       case "employee-vacation-entitlement":

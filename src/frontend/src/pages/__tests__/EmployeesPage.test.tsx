@@ -16,6 +16,7 @@ const mockEmployee: Employee = {
   last_name: "Doe",
   employee_group: EmployeeGroup.VZ,
   contracted_hours: 40,
+  vacation_per_year: 28,
   is_keyholder: false,
   is_active: true,
   birthday: null,

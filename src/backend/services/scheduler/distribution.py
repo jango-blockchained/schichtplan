@@ -2,9 +2,11 @@
 
 import logging
 import os
+import random  # For dummy ML predictions
 import sys
+import time  # For performance tracking
 from collections import defaultdict
-from datetime import date, datetime, time, timedelta  # Import time
+from datetime import date, datetime, time as datetime_time, timedelta
 from typing import TYPE_CHECKING, Any
 
 from .resources import (
@@ -18,25 +20,25 @@ try:
     )
 except ImportError:
     # Fallback implementations if imports fail
-    def _time_str_to_datetime_time(time_str: str) -> time:
+    def _time_str_to_datetime_time(time_str: str) -> datetime_time:
         """Convert a time string (HH:MM) to a datetime.time object"""
         if not time_str or not isinstance(time_str, str):
-            return time(0, 0)  # Default to 00:00 AM
+            return datetime_time(0, 0)  # Default to 00:00 AM
 
         # Parse the time string
         if ":" in time_str:
             hours, minutes = map(int, time_str.split(":"))
-            return time(hours, minutes)
+            return datetime_time(hours, minutes)
         else:
             # Handle cases where only hour is provided, return time object
             try:
-                return time(int(time_str), 0)
+                return datetime_time(int(time_str), 0)
             except ValueError:
-                return time(0, 0)  # Return default time if parsing fails
+                return datetime_time(0, 0)  # Return default time if parsing fails
 
     def get_required_staffing_for_interval(
         target_date: date,
-        interval_start_time: time,
+        interval_start_time: datetime_time,
         resources: ScheduleResources,
         interval_duration_minutes: int = 15,
     ) -> dict[str, Any]:
@@ -50,8 +52,6 @@ except ImportError:
             "has_coverage": True,
         }  # Import the new utility and helper
 
-
-import random  # Import random for dummy predictions
 
 from .feature_extractor import FeatureExtractor  # Import the FeatureExtractor
 
@@ -211,6 +211,8 @@ class DistributionManager:
         feature_extractor: FeatureExtractor
         | None = None,  # Add feature_extractor parameter
         ml_model: Any = None,  # Add placeholder for ML model
+        max_combinations: int = 5000,  # Configurable limit for total combinations
+        max_candidates_per_shift: int = 100,  # Configurable limit for candidates per shift
     ):
         self.resources = resources
         self.constraint_checker = constraint_checker
@@ -219,6 +221,10 @@ class DistributionManager:
         self.logger = logger or logging.getLogger(__name__)
         self.feature_extractor = feature_extractor  # Store feature extractor
         self.ml_model = ml_model  # Store ML model placeholder
+        
+        # Performance tuning parameters (configurable)
+        self.max_combinations = max_combinations
+        self.max_candidates_per_shift = max_candidates_per_shift
 
         # Initialize assignments dictionary for all employees
         self.assignments_by_employee = defaultdict(list)
@@ -296,13 +302,8 @@ class DistributionManager:
                 employee_assignments,
             ) in self.assignments_by_employee.items():
                 for assignment in employee_assignments:
-                    if (
-                        isinstance(assignment, dict)
-                        and assignment.get("date") == current_date
-                    ) or (
-                        isinstance(assignment, dict)
-                        and assignment.get("date") == current_date
-                    ):
+                    # Check if assignment is for the current date
+                    if isinstance(assignment, dict) and assignment.get("date") == current_date:
                         shifts_assigned_today[employee_id] += 1
 
             # Maximum shifts per employee per day
@@ -339,13 +340,30 @@ class DistributionManager:
 
             # --- ML Integration Placeholder ---
             # 1. Prepare potential assignments for feature extraction
+            # OPTIMIZATION: Limit the number of combinations to prevent performance issues
+            # with large employee/shift counts. We'll use lazy evaluation instead of
+            # building a huge list upfront.
             potential_assignments_for_ml = []
+            combinations_count = 0
+            
+            self.logger.info(
+                f"Building potential assignments: {len(available_employees)} employees × {len(shifts)} shifts (max: {self.max_combinations})"
+            )
+            
             for employee in available_employees:
                 employee_id = self.get_id(employee, ["id", "employee_id"])
                 if employee_id is None:
                     continue  # Skip employees without valid ID
                 # Assuming shifts in the input list are dictionaries or objects with 'id' or 'shift_id'
                 for shift in shifts:
+                    # Safety check: prevent excessive combinations
+                    if combinations_count >= self.max_combinations:
+                        self.logger.warning(
+                            f"Reached maximum potential assignments limit ({self.max_combinations}). "
+                            f"Stopping combination generation. Consider optimizing shift/employee filtering."
+                        )
+                        break
+                    
                     # Need to get shift_id from the shift object/dict
                     shift_id = self.get_id(
                         shift, ["id", "shift_id", "shift_template_id"]
@@ -366,6 +384,15 @@ class DistributionManager:
                             "date": current_date,  # Include date for feature extraction
                         }
                     )
+                    combinations_count += 1
+                
+                # Break outer loop too if limit reached
+                if combinations_count >= self.max_combinations:
+                    break
+            
+            self.logger.info(
+                f"Created {len(potential_assignments_for_ml)} potential assignments for ML processing"
+            )
 
             # 2. Extract features using the FeatureExtractor
             features_for_prediction = []
@@ -482,8 +509,16 @@ class DistributionManager:
             sorted_employees.sort(key=lambda item: item[1])
 
             self.logger.info(
-                f"Employees sorted by priority score. Processing {len(shifts)} shifts."
+                f"Employees sorted by priority score. Processing {len(shifts)} shifts for {len(sorted_employees)} employees."
             )
+            
+            # Log warning if combination is large
+            total_potential_combinations = len(sorted_employees) * len(shifts)
+            if total_potential_combinations > 1000:
+                self.logger.warning(
+                    f"Large assignment space detected: {total_potential_combinations} potential combinations. "
+                    f"This may take longer to process."
+                )
 
             # --- Core Assignment Logic ---
             # Iterate through shifts and assign employees based on priority and constraints
@@ -491,12 +526,23 @@ class DistributionManager:
 
             total_shifts = len(shifts)
             self.logger.info(f"Processing {total_shifts} shifts for assignment...")
+            
+            # Track time for performance monitoring
+            loop_start_time = time.time()
 
             for shift_idx, shift in enumerate(shifts):
-                # Log progress every 10 shifts
+                # Log progress every 10 shifts or if it's been more than 5 seconds
+                current_time = time.time()
+                elapsed = current_time - loop_start_time
+                
                 if shift_idx % 10 == 0 and shift_idx > 0:
                     self.logger.info(
-                        f"Progress: {shift_idx}/{total_shifts} shifts processed"
+                        f"Progress: {shift_idx}/{total_shifts} shifts processed ({elapsed:.1f}s elapsed, ~{elapsed/shift_idx:.2f}s per shift)"
+                    )
+                elif shift_idx > 0 and elapsed > 5 and (shift_idx % 5 == 0):
+                    # If processing is slow, log more frequently
+                    self.logger.warning(
+                        f"Slow progress detected: {shift_idx}/{total_shifts} shifts in {elapsed:.1f}s"
                     )
                 shift_id = self.get_id(shift, ["id", "shift_id", "shift_template_id"])
                 if shift_id is None:
@@ -518,7 +564,15 @@ class DistributionManager:
 
                 # Build candidate list for this specific shift only
                 shift_candidates = []
+                
                 for employee, _ in sorted_employees:
+                    # Safety limit on candidates
+                    if len(shift_candidates) >= self.max_candidates_per_shift:
+                        self.logger.debug(
+                            f"Reached max candidates ({self.max_candidates_per_shift}) for shift {shift_id}"
+                        )
+                        break
+                    
                     employee_id = self.get_id(employee, ["id", "employee_id"])
                     if employee_id is None:
                         continue

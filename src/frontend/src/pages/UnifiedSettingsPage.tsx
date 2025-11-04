@@ -416,10 +416,11 @@ export default function UnifiedSettingsPage() {
     category: keyof Settings,
     updates: Record<string, unknown>,
   ) => {
-    const updatedCategorySettings = {
-      ...(editableSettings[category] || {}),
-      ...updates,
-    };
+    const currentCategoryValue = editableSettings[category];
+    const updatedCategorySettings =
+      typeof currentCategoryValue === "object" && currentCategoryValue !== null
+        ? { ...currentCategoryValue, ...updates }
+        : updates;
     const updatedSettings: Settings = {
       ...editableSettings,
       [category]: updatedCategorySettings,

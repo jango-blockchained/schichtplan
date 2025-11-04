@@ -275,7 +275,7 @@ export class MEPDataService {
 
     // If it's already in HH:MM format
     if (timeStr.includes(":") && timeStr.length >= 5) {
-      return timeStr.substring(0, 5).toISODateString();
+      return timeStr.substring(0, 5);
     }
 
     return timeStr;
