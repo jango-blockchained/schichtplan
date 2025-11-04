@@ -1,3 +1,5 @@
+import json
+import secrets
 import uuid
 from datetime import datetime
 from enum import Enum
@@ -10,6 +12,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
 )
 from sqlalchemy.orm import relationship
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -41,6 +44,15 @@ class User(db.Model):
     updated_at = Column(
         DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
+    
+    # Passkey/WebAuthn fields
+    webauthn_credentials = Column(Text, nullable=True)  # JSON array of credentials
+    
+    # Recovery codes (hashed)
+    recovery_codes = Column(Text, nullable=True)  # JSON array of hashed codes
+    
+    # Setup completion flag
+    setup_completed = Column(Boolean, nullable=False, default=False)
 
     # Relationship to Employee model (one-to-one)
     employee = relationship("Employee", backref="user", uselist=False)
@@ -79,6 +91,70 @@ class User(db.Model):
         self.api_key = self._generate_api_key()
         self.updated_at = datetime.utcnow()
         return self.api_key
+
+    def add_webauthn_credential(self, credential_data):
+        """Add a WebAuthn credential to the user"""
+        credentials = self.get_webauthn_credentials()
+        credentials.append(credential_data)
+        self.webauthn_credentials = json.dumps(credentials)
+        self.updated_at = datetime.utcnow()
+
+    def get_webauthn_credentials(self):
+        """Get list of WebAuthn credentials"""
+        if not self.webauthn_credentials:
+            return []
+        try:
+            return json.loads(self.webauthn_credentials)
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    def generate_recovery_codes(self, count=4):
+        """Generate recovery codes and return unhashed versions"""
+        codes = []
+        hashed_codes = []
+        
+        for _ in range(count):
+            # Generate a 12-character alphanumeric code
+            code = secrets.token_urlsafe(9)[:12].upper()
+            codes.append(code)
+            # Store hashed version
+            hashed_codes.append(generate_password_hash(code))
+        
+        self.recovery_codes = json.dumps(hashed_codes)
+        self.updated_at = datetime.utcnow()
+        
+        return codes
+
+    def verify_recovery_code(self, code):
+        """Verify a recovery code and invalidate it if valid"""
+        if not self.recovery_codes:
+            return False
+        
+        try:
+            hashed_codes = json.loads(self.recovery_codes)
+        except (json.JSONDecodeError, TypeError):
+            return False
+        
+        # Check each hashed code
+        for i, hashed_code in enumerate(hashed_codes):
+            if check_password_hash(hashed_code, code):
+                # Remove the used code
+                hashed_codes.pop(i)
+                self.recovery_codes = json.dumps(hashed_codes)
+                self.updated_at = datetime.utcnow()
+                return True
+        
+        return False
+
+    def get_remaining_recovery_codes_count(self):
+        """Get the count of remaining recovery codes"""
+        if not self.recovery_codes:
+            return 0
+        try:
+            hashed_codes = json.loads(self.recovery_codes)
+            return len(hashed_codes)
+        except (json.JSONDecodeError, TypeError):
+            return 0
 
     def get_permissions(self):
         """Get list of permissions based on role"""
@@ -131,6 +207,9 @@ class User(db.Model):
             "last_login": self.last_login.isoformat() if self.last_login else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "setup_completed": self.setup_completed,
+            "has_passkey": bool(self.webauthn_credentials),
+            "remaining_recovery_codes": self.get_remaining_recovery_codes_count(),
         }
 
         if include_api_key:
