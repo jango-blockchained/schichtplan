@@ -77,9 +77,8 @@ def check_and_init_db(app):
         inspector = inspect(db.engine)
         if not inspector.has_table("employees"):  # Check for a key table
             print("Database not initialized. Initializing...")
-            from src.backend.tools.initialization.init_db import init_db
-
-            init_db(app)
+            # Create all tables defined in models
+            db.create_all()
             print("Database initialization complete.")
 
 
