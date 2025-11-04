@@ -81,6 +81,41 @@ python3 src/backend/mcp_server.py --transport sse --port 8001
 - **Prompts**: Schedule analysis and optimization templates
 - **Transports**: stdio, SSE, and HTTP for different integration needs
 
+## Telegram Bot Integration
+
+Schichtplan includes a comprehensive Telegram bot for employee management powered by AI integration.
+
+### Quick Start with Telegram Bot
+
+```bash
+# Configure your bot token
+export TELEGRAM_BOT_TOKEN="your-bot-token"
+export ENABLE_TELEGRAM_BOT=true
+
+# Start bot standalone
+python start_telegram_bot.py
+
+# Or integrate with main application
+./start.sh  # Bot starts automatically if enabled
+```
+
+### Telegram Bot Features
+
+- **Employee Management**: List, search, and view employee details
+- **AI-Powered Queries**: Natural language questions about schedules and employees
+- **Access Control**: User whitelisting and role-based permissions
+- **Interactive Menus**: Inline keyboards for quick actions
+- **Dual Mode**: Polling (development) and webhook (production) support
+
+For detailed setup and usage, see [Telegram Bot Guide](docs/TELEGRAM_BOT_GUIDE.md).
+
+### MCP Features
+
+- **Tools**: Employee management, schedule generation, system status
+- **Resources**: System configuration, employee details
+- **Prompts**: Schedule analysis and optimization templates
+- **Transports**: stdio, SSE, and HTTP for different integration needs
+
 ### AI Integration Use Cases
 
 - Schedule optimization and conflict resolution

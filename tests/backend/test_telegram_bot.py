@@ -103,11 +103,12 @@ class TestTelegramBotService:
     def test_split_message(self, bot_service):
         """Test message splitting for long messages."""
         long_text = "A" * 5000
-        chunks = bot_service._split_message(long_text, max_length=4000)
+        max_len = 4000
+        chunks = bot_service._split_message(long_text, max_length=max_len)
 
-        assert len(chunks) == 2
-        assert len(chunks[0]) <= 4000
-        assert len(chunks[1]) <= 4000
+        assert len(chunks) == 2  # noqa: PLR2004
+        assert len(chunks[0]) <= max_len
+        assert len(chunks[1]) <= max_len
         assert "".join(chunks) == long_text
 
     def test_split_message_short(self, bot_service):
@@ -121,13 +122,14 @@ class TestTelegramBotService:
     def test_split_message_with_newlines(self, bot_service):
         """Test message splitting respects newlines."""
         text = "Line1\n" * 1000  # Each line is 6 chars
-        chunks = bot_service._split_message(text, max_length=100)
+        max_len = 100
+        chunks = bot_service._split_message(text, max_length=max_len)
 
         # Should have multiple chunks
         assert len(chunks) > 1
         # Each chunk should respect newlines
         for chunk in chunks:
-            assert len(chunk) <= 100
+            assert len(chunk) <= max_len  # noqa: PLR2004
 
 
 class TestTelegramBotIntegration:
@@ -142,11 +144,12 @@ class TestTelegramBotIntegration:
     async def test_employees_query_with_real_db(self, app):
         """Test employee queries with actual database."""
         with app.app_context():
-            service = TelegramBotService(app, token="test_token")
+            # Service creation validates Flask app integration
+            _ = TelegramBotService(app, token="test_token")
 
             # Verify test data exists
             employees = Employee.query.filter_by(is_active=True).all()
-            assert len(employees) == 2
+            assert len(employees) == 2  # noqa: PLR2004
             assert any(emp.first_name == "John" for emp in employees)
 
     def test_configuration_from_env(self, app):
