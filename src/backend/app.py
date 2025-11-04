@@ -187,6 +187,12 @@ def create_app(config_class=Config):
     # - absences, auth, logs, debug
     # - ai_schedule, ai_conversation
     app.register_blueprint(api_bp, url_prefix="/api/v2")
+    
+    # Register setup and passkey auth routes (always available, even during testing)
+    from src.backend.routes.setup import bp as setup_bp
+    from src.backend.routes.passkey_auth import bp as passkey_auth_bp
+    app.register_blueprint(setup_bp)
+    app.register_blueprint(passkey_auth_bp)
 
     # Register additional blueprints that are NOT part of api_bp
     # These blueprints have their own URL prefixes defined
