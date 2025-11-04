@@ -259,6 +259,13 @@ def create_app(config_class=Config):
 
         init_ai_services(app)
 
+    # Register Telegram bot routes
+    if not app.config.get("TESTING", False):
+        from src.backend.routes.telegram_routes import telegram_bp
+
+        app.register_blueprint(telegram_bp)
+        app.logger.info("Telegram bot routes registered")
+
     # Register SSE blueprint for /sse endpoint if available
     if has_sse and not app.config.get("TESTING", False):
         try:
