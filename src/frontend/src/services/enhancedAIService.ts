@@ -6,9 +6,26 @@
  * - Context-aware requests
  * - Background task management
  * - Proactive suggestions
+ * - Retry logic with exponential backoff
+ * - Circuit breaker for reliability
+ * - Request deduplication
+ * - Rate limiting
  */
 
 import { aiService } from "./aiService";
+import {
+  CircuitBreaker,
+  DEFAULT_RETRY_CONFIG,
+  RateLimiter,
+  RequestCache,
+  retryAsync,
+  RetryConfig,
+} from "@/utils/aiRetry";
+import {
+  validateChatRequest,
+  validateStreamChunk,
+  ValidationError,
+} from "@/utils/aiValidation";
 
 // ============================================================================
 // Types
@@ -95,6 +112,12 @@ class EnhancedAIService {
   private activeStreams: Map<string, AbortController> = new Map();
   private taskPollingIntervals: Map<string, NodeJS.Timeout> = new Map();
 
+  // Reliability and performance utilities
+  private circuitBreaker = new CircuitBreaker(5, 60000); // 5 failures, 60s recovery
+  private requestCache = new RequestCache(5000); // 5 second TTL
+  private rateLimiter = new RateLimiter(20, 1); // 20 requests, 1 per second refill
+  private retryConfig: RetryConfig = DEFAULT_RETRY_CONFIG;
+
   // Access base URL and headers via private methods
   private get baseURL(): string {
     return "/api/v2";
@@ -111,7 +134,7 @@ class EnhancedAIService {
   // ==========================================================================
 
   /**
-   * Stream chat responses using Server-Sent Events
+   * Stream chat responses using Server-Sent Events with retry and validation
    */
   async *streamChat(
     request: ContextualChatRequest,
@@ -121,15 +144,45 @@ class EnhancedAIService {
     this.activeStreams.set(streamId, controller);
 
     try {
-      const response = await fetch(`${this.baseURL}/chat/stream`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...this.headers,
-        },
-        body: JSON.stringify(request),
-        signal: controller.signal,
-        credentials: "include",
+      // Validate request
+      try {
+        validateChatRequest({
+          message: request.message,
+          conversation_id: request.conversation_id,
+          context: request.context,
+        });
+      } catch (error) {
+        if (error instanceof ValidationError) {
+          yield {
+            type: "error",
+            error: `Validation error: ${error.message}`,
+          };
+          return;
+        }
+        throw error;
+      }
+
+      // Check rate limit
+      if (!(await this.rateLimiter.waitForTokens(1, 5000))) {
+        yield {
+          type: "error",
+          error: "Rate limit exceeded. Please try again later.",
+        };
+        return;
+      }
+
+      // Execute with circuit breaker
+      const response = await this.circuitBreaker.execute(async () => {
+        return await fetch(`${this.baseURL}/chat/stream`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...this.headers,
+          },
+          body: JSON.stringify(request),
+          signal: controller.signal,
+          credentials: "include",
+        });
       });
 
       if (!response.ok) {
@@ -166,19 +219,28 @@ class EnhancedAIService {
             }
 
             try {
-              const chunk = JSON.parse(data);
-              yield chunk as StreamChunk;
-            } catch {
-              console.warn("Failed to parse SSE data:", data);
+              const parsedChunk = JSON.parse(data);
+              const validatedChunk = validateStreamChunk(parsedChunk);
+              yield validatedChunk;
+            } catch (error) {
+              console.warn("Failed to parse or validate SSE data:", data, error);
             }
           }
         }
       }
     } catch (error) {
-      if (error instanceof Error && error.name !== "AbortError") {
+      if (error instanceof Error) {
+        if (error.name !== "AbortError") {
+          console.error("Stream error:", error);
+          yield {
+            type: "error",
+            error: error.message || "Streaming failed",
+          };
+        }
+      } else {
         yield {
           type: "error",
-          error: error.message || "Streaming failed",
+          error: "Unknown streaming error",
         };
       }
     } finally {
@@ -212,22 +274,55 @@ class EnhancedAIService {
   // ==========================================================================
 
   /**
-   * Send a context-aware chat message
+   * Send a context-aware chat message with retry and deduplication
    * Automatically includes page context and enriches the prompt
    */
   async sendContextualMessage(request: ContextualChatRequest) {
+    // Validate request
+    const validated = validateChatRequest({
+      message: request.message,
+      conversation_id: request.conversation_id,
+      context: request.context,
+    });
+
+    // Check rate limit
+    if (!(await this.rateLimiter.waitForTokens(1, 5000))) {
+      throw new Error("Rate limit exceeded. Please try again later.");
+    }
+
     // Enrich message with context if provided
-    let enrichedMessage = request.message;
+    let enrichedMessage = validated.message;
 
     if (request.context) {
       const contextStr = this.formatContextForAI(request.context);
-      enrichedMessage = `${contextStr}\n\nUser: ${request.message}`;
+      enrichedMessage = `${contextStr}\n\nUser: ${validated.message}`;
     }
 
-    return this.baseService.sendChatMessage({
-      message: enrichedMessage,
-      conversation_id: request.conversation_id,
-    } as any); // Type cast needed as base doesn't support context yet
+    // Use request deduplication for identical requests
+    return this.requestCache.deduplicate(
+      "/chat",
+      { message: enrichedMessage, conversation_id: validated.conversation_id },
+      async () => {
+        // Execute with retry and circuit breaker
+        return await retryAsync(
+          async () => {
+            return await this.circuitBreaker.execute(async () => {
+              return await this.baseService.sendChatMessage({
+                message: enrichedMessage,
+                conversation_id: validated.conversation_id,
+              });
+            });
+          },
+          this.retryConfig,
+          (attempt, error) => {
+            console.warn(
+              `Chat request retry attempt ${attempt + 1}`,
+              error,
+            );
+          },
+        );
+      },
+    );
   }
 
   /**
@@ -496,6 +591,38 @@ class EnhancedAIService {
     }
     this.taskPollingIntervals.clear();
   }
+
+  /**
+   * Get current service health status
+   */
+  getHealthStatus() {
+    return {
+      circuitBreaker: this.circuitBreaker.getState(),
+      rateLimiter: {
+        availableTokens: this.rateLimiter.getAvailableTokens(),
+      },
+      activeStreams: this.activeStreams.size,
+      activeTasks: this.taskPollingIntervals.size,
+    };
+  }
+
+  /**
+   * Reset all service utilities (useful for testing or recovery)
+   */
+  reset() {
+    this.circuitBreaker.reset();
+    this.rateLimiter.reset();
+    this.requestCache.clear();
+    this.cleanup();
+    console.info("Enhanced AI Service reset");
+  }
+
+  /**
+   * Clear expired cache entries (should be called periodically)
+   */
+  clearExpiredCache() {
+    this.requestCache.clearExpired();
+  }
 }
 
 // ============================================================================
@@ -509,6 +636,11 @@ if (typeof window !== "undefined") {
   window.addEventListener("beforeunload", () => {
     enhancedAIService.cleanup();
   });
+
+  // Periodically clear expired cache entries (every 60 seconds)
+  setInterval(() => {
+    enhancedAIService.clearExpiredCache();
+  }, 60000);
 }
 
 export default enhancedAIService;

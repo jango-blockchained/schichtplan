@@ -58,6 +58,9 @@ Homepage = "https://github.com/your-username/schichtplan"
 Repository = "https://github.com/your-username/schichtplan.git"
 Issues = "https://github.com/your-username/schichtplan/issues"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
 [tool.black]
 line-length = 88
 target-version = ['py312']
