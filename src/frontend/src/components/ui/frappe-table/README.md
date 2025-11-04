@@ -163,9 +163,11 @@ Potential improvements:
 ## Dependencies
 
 - frappe-datatable@1.19.0
-- sortablejs@^1.7.0 (peer dependency)
-- hyperlist@^1.0.0-beta (peer dependency)
-- lodash@^4.17.5 (peer dependency)
+
+The following are automatically installed as dependencies of frappe-datatable:
+- sortablejs@^1.7.0
+- hyperlist@^1.0.0-beta
+- lodash@^4.17.5
 
 ## Resources
 

@@ -125,6 +125,9 @@ export function DataTableAdapter<T extends { id: number | string }>({
   }, [data, searchTerm, searchable, searchKeys, columns]);
 
   // Convert data to Frappe format (array of arrays)
+  // NOTE: Using Unicode characters for checkboxes and placeholders for actions
+  // This is a limitation of Frappe DataTable which doesn't support React components.
+  // For better checkbox/action UX, consider using native HTML tables.
   const frappeData = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     const end = start + itemsPerPage;
@@ -133,7 +136,7 @@ export function DataTableAdapter<T extends { id: number | string }>({
     return pageData.map((item) => {
       const row: any[] = [];
 
-      // Add checkbox placeholder
+      // Add checkbox placeholder (not interactive in Frappe table)
       if (selectable) {
         row.push(selectedRows.has(item.id) ? '☑' : '☐');
       }
@@ -149,9 +152,9 @@ export function DataTableAdapter<T extends { id: number | string }>({
         }
       });
 
-      // Add actions placeholder
+      // Add empty cell for actions column (actions rendered via overlay)
       if (actions.length > 0) {
-        row.push('•••');
+        row.push(''); // Empty string instead of placeholder
       }
 
       return row;
@@ -161,6 +164,10 @@ export function DataTableAdapter<T extends { id: number | string }>({
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
 
   // Render custom actions overlay (since Frappe doesn't support React components directly)
+  // NOTE: This is a workaround using absolute positioning. For production use, consider:
+  // 1. Using Frappe's built-in column actions
+  // 2. Implementing a more robust overlay system
+  // 3. Or keep using native HTML tables for complex action requirements
   const renderActionsOverlay = useCallback(() => {
     if (actions.length === 0) return null;
 
@@ -173,6 +180,7 @@ export function DataTableAdapter<T extends { id: number | string }>({
             style={{
               position: 'absolute',
               right: '10px',
+              // TODO: Calculate this dynamically based on actual row height
               top: `${(idx + 1) * 40 + 50}px`,
               zIndex: 10,
             }}
