@@ -19,7 +19,8 @@ import axios, { AxiosError } from "axios";
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from "../types";
 import { getWeekFromIdentifier } from "../utils/weekUtils";
 import { logService } from "./logService";
-export type { Shift } from "@/types/index";
+// Re-export types for external use
+export type { Shift, Absence } from "@/types/index";
 
 interface APIErrorResponse {
   error?: string;

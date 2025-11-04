@@ -47,26 +47,14 @@ from src.backend.models import db
 # Import AI models to ensure they're registered with SQLAlchemy
 from src.backend.routes import (
     api_bp,  # Import the main API blueprint
-    logs,
-)
-from src.backend.routes.absences import bp as absences_bp
+    )
 from src.backend.routes.absences_validation import (
     bp as absences_validation_bp,
 )
 from src.backend.routes.additional_pdf import bp as additional_pdf_bp
-from src.backend.routes.ai_conversation_routes import (
-    ai_conversation_bp,
-)
-from src.backend.routes.ai_schedule_routes import ai_schedule_bp
-from src.backend.routes.auth import bp as auth_bp
-from src.backend.routes.availability import availability
-from src.backend.routes.employees import employees
 from src.backend.routes.holiday_api import holiday_bp
 from src.backend.routes.holiday_import import holiday_import as holiday_import_bp
 from src.backend.routes.holiday_routes import holidays as holidays_bp
-from src.backend.routes.schedules import schedules
-from src.backend.routes.settings import settings
-from src.backend.routes.shifts import shifts
 from src.backend.routes.special_days import special_days as special_days_bp
 from src.backend.routes.vacation_pdf import bp as vacation_pdf_bp
 from src.backend.utils.logger import (
@@ -194,40 +182,33 @@ def create_app(config_class=Config):
     setup_logging(app)
 
     # Register blueprints
-    # Register the main API blueprint which includes AI conversation routes
+    # Register the main API blueprint which includes common routes:
+    # - shifts, settings, schedules, employees, availability
+    # - absences, auth, logs, debug
+    # - ai_schedule, ai_conversation
     app.register_blueprint(api_bp, url_prefix="/api/v2")
 
-    app.register_blueprint(shifts, url_prefix="/api/v2")
-    app.register_blueprint(settings, url_prefix="/api/v2")
-    app.register_blueprint(schedules, url_prefix="/api/v2")
-    app.register_blueprint(employees, url_prefix="/api/v2")
-    app.register_blueprint(availability)
-    app.register_blueprint(absences_bp, url_prefix="/api/v2")
+    # Register additional blueprints that are NOT part of api_bp
+    # These blueprints have their own URL prefixes defined
     app.register_blueprint(absences_validation_bp, url_prefix="/api/v2")
-    app.register_blueprint(ai_conversation_bp, url_prefix="/api/v2/ai-conversation")
-    app.register_blueprint(ai_schedule_bp, url_prefix="/api/v2")
     app.register_blueprint(holidays_bp, url_prefix="/api/v2")
     app.register_blueprint(holiday_bp, url_prefix="/api/v2")
     app.register_blueprint(holiday_import_bp, url_prefix="/api/v2")
     app.register_blueprint(special_days_bp, url_prefix="/api/v2")
-    app.register_blueprint(auth_bp)  # Register auth blueprint
-    app.register_blueprint(coverage_bp)
-    app.register_blueprint(coverage_profiles_bp)
-    app.register_blueprint(csv_import_bp)  # Register CSV import blueprint
-    app.register_blueprint(pdf_settings_bp)  # Register PDF settings blueprint
+    app.register_blueprint(coverage_bp)  # Has url_prefix="/api/v2/coverage"
+    app.register_blueprint(coverage_profiles_bp)  # Has url_prefix
+    app.register_blueprint(csv_import_bp)  # Has url_prefix="/api/csv-import"
+    app.register_blueprint(pdf_settings_bp)  # Has url_prefix
     app.register_blueprint(
         api_settings_bp, name="api_settings"
-    )  # Register API settings blueprint
-    app.register_blueprint(demo_data_bp)
-    app.register_blueprint(logs.bp, url_prefix="/api/v2/logs")
+    )  # Has url_prefix, unique name
+    app.register_blueprint(demo_data_bp)  # Has url_prefix
     app.register_blueprint(
         api_schedules_bp, name="api_schedules"
-    )  # Register with unique name to avoid conflict
-    app.register_blueprint(week_navigation_bp)  # Register week navigation
-    app.register_blueprint(vacation_pdf_bp, url_prefix="/api/v2")  # Vacation PDF
-    app.register_blueprint(
-        additional_pdf_bp, url_prefix="/api/v2"
-    )  # Additional PDF forms
+    )  # Has url_prefix, unique name
+    app.register_blueprint(week_navigation_bp)  # Has url_prefix
+    app.register_blueprint(vacation_pdf_bp, url_prefix="/api/v2")
+    app.register_blueprint(additional_pdf_bp, url_prefix="/api/v2")
 
     # Compatibility middleware: rewrite legacy /api/* paths (without /v2)
     # to the current /api/v2/* endpoints so older tests keep working.

@@ -60,6 +60,7 @@ export default function AbsenceModal({
     absence_type_id: "",
     start_date: "",
     end_date: "",
+    status: "pending",
     note: "",
   });
   const { toast } = useToast();
@@ -104,6 +105,7 @@ export default function AbsenceModal({
         absence_type_id: "",
         start_date: "",
         end_date: "",
+        status: "pending",
         note: "",
       });
       toast({

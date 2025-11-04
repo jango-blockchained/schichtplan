@@ -984,10 +984,10 @@ export default function VacationPlanningPage() {
                         checked={
                           selectedAbsenceIds.size > 0 &&
                           selectedAbsenceIds.size === paginatedAbsences.length
-                        }
-                        indeterminate={
-                          selectedAbsenceIds.size > 0 &&
-                          selectedAbsenceIds.size < paginatedAbsences.length
+                            ? true
+                            : selectedAbsenceIds.size > 0
+                              ? "indeterminate"
+                              : false
                         }
                         onCheckedChange={handleSelectAll}
                       />
