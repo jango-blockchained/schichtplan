@@ -79,7 +79,7 @@ const GanttViewPage: React.FC = () => {
     error: absencesError,
     refetch: refetchAbsences,
   } = useQuery({
-    queryKey: ["absences", dateRange.start, dateRange.end],
+    queryKey: ["absences"],
     queryFn: () => getAbsences(),
     enabled: dataType === "absences" || dataType === "vacation",
   });
@@ -177,11 +177,14 @@ const GanttViewPage: React.FC = () => {
       shifts.forEach((shift, index) => {
         const days = shift.active_days
           ? shift.active_days
+              .filter((d) => d >= 0 && d < 7) // Validate day indices
               .map((d) => ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][d])
               .join(", ")
           : "All days";
 
-        // For shifts, we need to create sample date ranges
+        // NOTE: Shift templates don't have specific date assignments.
+        // We display them as template ranges for visualization purposes.
+        // In production, shifts should be linked to actual schedule entries.
         const today = new Date();
         const startDate = format(today, "yyyy-MM-dd");
         const endDate = format(addWeeks(today, 1), "yyyy-MM-dd");
@@ -232,15 +235,6 @@ const GanttViewPage: React.FC = () => {
         bar_corner_radius: 3,
         arrow_curve: 5,
         padding: 18,
-        on_click: (task: Gantt.Task) => {
-          console.log("Task clicked:", task);
-        },
-        on_date_change: (task: Gantt.Task, start: Date, end: Date) => {
-          console.log("Date changed:", task, start, end);
-        },
-        on_progress_change: (task: Gantt.Task, progress: number) => {
-          console.log("Progress changed:", task, progress);
-        },
       });
     } catch (error) {
       console.error("Error creating Gantt chart:", error);
@@ -493,7 +487,7 @@ const GanttViewPage: React.FC = () => {
         }
         
         .vacation-bar {
-          fill: hsl(142.1 76.2% 36.3%);
+          fill: hsl(var(--chart-2));
         }
         
         .shift-bar {
