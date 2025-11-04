@@ -6,7 +6,7 @@ import type {
   ColumnDefinition,
   FilterDefinition,
   TableAction,
-} from "@/components/ui/data-table/types";
+} from "@/components/ui/frappe-table/data-table-types";
 import { Employee } from "@/types";
 import { Calendar, Clock, Pencil, Trash2 } from "lucide-react";
 

@@ -17,8 +17,8 @@ import {
 import { ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// Import types from the old data-table
-import type { DataTableProps } from '../data-table/types';
+// Import types from the copied data-table types
+import type { DataTableProps } from './data-table-types';
 
 /**
  * DataTableAdapter: A compatibility layer that provides the same interface as the old DataTable

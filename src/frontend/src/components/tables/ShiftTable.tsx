@@ -5,7 +5,7 @@ import {
 import type {
   ColumnDefinition,
   TableAction,
-} from "@/components/ui/data-table/types";
+} from "@/components/ui/frappe-table/data-table-types";
 import { Shift } from "@/types";
 import { Copy, Pencil, Trash2 } from "lucide-react";
 
