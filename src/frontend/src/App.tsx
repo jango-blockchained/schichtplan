@@ -14,6 +14,7 @@ import CoveragePage from "./pages/CoveragePage";
 import { DesignSystemDemo } from "./pages/DesignSystemDemo";
 import { EmployeesPage } from "./pages/EmployeesPage";
 import FormularsPage from "./pages/FormularsPage";
+import GanttViewPage from "./pages/GanttViewPage";
 import LogsPage from "./pages/LogsPage";
 import OverviewPage from "./pages/OverviewPage";
 import PDFLayoutCustomizerPage from "./pages/PDFLayoutCustomizerPage";
@@ -78,6 +79,7 @@ const App: React.FC = () => {
                       element={<PDFLayoutCustomizerPage />}
                     />
                     <Route path="ai" element={<AIDashboardPage />} />
+                    <Route path="gantt" element={<GanttViewPage />} />
                     <Route path="design-system" element={<DesignSystemDemo />} />
                   </Route>
                 </Routes>

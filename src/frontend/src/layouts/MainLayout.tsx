@@ -30,6 +30,7 @@ import {
   CalendarDays,
   Cog,
   FileText,
+  GanttChart,
   History,
   Home,
   LayoutDashboard,
@@ -115,6 +116,12 @@ export const MainLayout = () => {
         path: "/shifts",
         icon: FileText,
         description: "Schichtvorlagen verwalten",
+      },
+      {
+        label: "Gantt Ansicht",
+        path: "/gantt",
+        icon: GanttChart,
+        description: "Timeline-Ansicht für Schichten, Abwesenheiten und Urlaub",
       },
       {
         label: "Formulars",
