@@ -1,9 +1,11 @@
 import { Badge } from "@/components/ui/badge";
 import {
-  ColumnDefinition,
   DataTable,
+} from "@/components/ui/frappe-table";
+import type {
+  ColumnDefinition,
   TableAction,
-} from "@/components/ui/data-table";
+} from "@/components/ui/data-table/types";
 import { Shift } from "@/types";
 import { Copy, Pencil, Trash2 } from "lucide-react";
 
