@@ -1,0 +1,83 @@
+/* Custom styling for Frappe DataTable to match Shadcn/Tailwind theme */
+
+.frappe-datatable-wrapper {
+  @apply w-full rounded-md border;
+}
+
+/* Table styling */
+.datatable {
+  @apply w-full;
+}
+
+/* Header styling */
+.dt-header {
+  @apply border-b bg-muted/50;
+}
+
+.dt-header .dt-cell {
+  @apply font-medium text-sm;
+}
+
+/* Cell styling */
+.dt-cell {
+  @apply px-4 py-2 text-sm;
+}
+
+.dt-cell--header {
+  @apply bg-muted/50 font-semibold;
+}
+
+/* Row styling */
+.dt-row {
+  @apply border-b transition-colors hover:bg-muted/50;
+}
+
+.dt-row:last-child {
+  @apply border-0;
+}
+
+/* Scrollbar */
+.dt-scrollable {
+  @apply overflow-auto;
+}
+
+/* Selection */
+.dt-row--highlight {
+  @apply bg-accent;
+}
+
+/* Sorting indicators */
+.dt-dropdown {
+  @apply cursor-pointer;
+}
+
+.dt-dropdown::after {
+  content: '▼';
+  @apply ml-1 text-xs opacity-50;
+}
+
+.dt-dropdown.asc::after {
+  content: '▲';
+}
+
+/* Checkbox styling */
+.dt-cell--col-0 input[type="checkbox"] {
+  @apply h-4 w-4 rounded border-input;
+}
+
+/* Empty state */
+.dt-empty {
+  @apply py-12 text-center text-muted-foreground;
+}
+
+/* Filter row */
+.dt-filters {
+  @apply border-b bg-muted/30;
+}
+
+/* Make it responsive */
+@media (max-width: 640px) {
+  .dt-cell {
+    @apply px-2 py-1 text-xs;
+  }
+}
