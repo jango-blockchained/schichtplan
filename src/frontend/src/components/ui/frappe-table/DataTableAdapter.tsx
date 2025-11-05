@@ -48,7 +48,7 @@ export function DataTableAdapter<T extends { id: number | string }>({
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(defaultItemsPerPage);
-  const [selectedRows, setSelectedRows] = useState<Set<T['id']>>(new Set());
+  const [selectedRows] = useState<Set<T['id']>>(new Set());
 
   // Convert columns to Frappe format
   const frappeColumns: FrappeColumn[] = useMemo(() => {
