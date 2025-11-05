@@ -4,4 +4,3 @@ export type { FrappeColumn, FrappeDataTableOptions, FrappeDataTableInstance } fr
 
 // Export the adapter as DataTable for drop-in replacement
 export { DataTableAdapter as DataTable } from './DataTableAdapter';
-export { DataTableAdapter } from './DataTableAdapter';
