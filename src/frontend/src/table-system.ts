@@ -1,6 +1,6 @@
 // Export all table-related components and hooks
 export * from "./components/tables";
-export * from "./components/ui/data-table";
+export * from "./components/ui/frappe-table";
 export * from "./hooks/useInlineEdit";
 
 // Re-export commonly used types

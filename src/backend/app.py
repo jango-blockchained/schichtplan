@@ -77,9 +77,8 @@ def check_and_init_db(app):
         inspector = inspect(db.engine)
         if not inspector.has_table("employees"):  # Check for a key table
             print("Database not initialized. Initializing...")
-            from src.backend.tools.initialization.init_db import init_db
-
-            init_db(app)
+            # Create all tables defined in models
+            db.create_all()
             print("Database initialization complete.")
 
 
@@ -187,6 +186,12 @@ def create_app(config_class=Config):
     # - absences, auth, logs, debug
     # - ai_schedule, ai_conversation
     app.register_blueprint(api_bp, url_prefix="/api/v2")
+    
+    # Register setup and passkey auth routes (always available, even during testing)
+    from src.backend.routes.setup import bp as setup_bp
+    from src.backend.routes.passkey_auth import bp as passkey_auth_bp
+    app.register_blueprint(setup_bp)
+    app.register_blueprint(passkey_auth_bp)
 
     # Register additional blueprints that are NOT part of api_bp
     # These blueprints have their own URL prefixes defined
@@ -258,6 +263,13 @@ def create_app(config_class=Config):
         from src.backend.routes.ai_routes import init_ai_services
 
         init_ai_services(app)
+
+    # Register Telegram bot routes
+    if not app.config.get("TESTING", False):
+        from src.backend.routes.telegram_routes import telegram_bp
+
+        app.register_blueprint(telegram_bp)
+        app.logger.info("Telegram bot routes registered")
 
     # Register SSE blueprint for /sse endpoint if available
     if has_sse and not app.config.get("TESTING", False):

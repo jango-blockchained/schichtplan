@@ -370,6 +370,9 @@ class Settings(db.Model):
             },
         },
     )
+    
+    # Setup completion tracking
+    initial_setup_completed = Column(Boolean, nullable=False, default=False)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
