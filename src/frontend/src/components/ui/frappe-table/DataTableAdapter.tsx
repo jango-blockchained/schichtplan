@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui';
-import { ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MoreHorizontal, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // Import types from the copied data-table types
