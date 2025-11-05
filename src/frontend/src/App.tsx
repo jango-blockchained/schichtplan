@@ -3,8 +3,8 @@ import { AIDialogProvider } from "@/contexts/AIDialogContext";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError } from "axios";
-import React from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AIContextProvider } from "./contexts/AIContext";
 import { MainLayout } from "./layouts/MainLayout";
@@ -14,6 +14,7 @@ import CoveragePage from "./pages/CoveragePage";
 import { DesignSystemDemo } from "./pages/DesignSystemDemo";
 import { EmployeesPage } from "./pages/EmployeesPage";
 import FormularsPage from "./pages/FormularsPage";
+import GanttViewPage from "./pages/GanttViewPage";
 import LogsPage from "./pages/LogsPage";
 import OverviewPage from "./pages/OverviewPage";
 import PDFLayoutCustomizerPage from "./pages/PDFLayoutCustomizerPage";
@@ -22,6 +23,9 @@ import { ShiftsPage } from "./pages/ShiftsPage";
 import UnifiedSettingsPage from "./pages/UnifiedSettingsPage";
 import VacationPlanningPage from "./pages/VacationPlanningPage";
 import VersionsPage from "./pages/VersionsPage";
+import { SetupWizard } from "./pages/SetupWizard";
+import { LoginPage } from "./pages/LoginPage";
+import { checkSetupStatus, type SetupStatus } from "./services/setupService";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,6 +50,48 @@ const queryClient = new QueryClient({
   },
 });
 
+// Component to check setup status and redirect
+const SetupGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    checkSetupStatus()
+      .then(status => {
+        setSetupStatus(status);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error('Failed to check setup status:', error);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If setup is needed, redirect to setup wizard
+  if (setupStatus?.needs_setup) {
+    return <Navigate to="/setup" replace />;
+  }
+
+  // Check if user is authenticated (has token)
+  const hasToken = !!localStorage.getItem('auth_token');
+  if (!hasToken) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 const App: React.FC = () => {
   return (
     <ErrorBoundary
@@ -61,7 +107,16 @@ const App: React.FC = () => {
             <AIContextProvider>
               <AIDialogProvider>
                 <Routes>
-                  <Route path="/" element={<MainLayout />}>
+                  {/* Public routes */}
+                  <Route path="/setup" element={<SetupWizard />} />
+                  <Route path="/login" element={<LoginPage />} />
+                  
+                  {/* Protected routes */}
+                  <Route path="/" element={
+                    <SetupGuard>
+                      <MainLayout />
+                    </SetupGuard>
+                  }>
                     <Route index element={<SchedulePage />} />
                     <Route path="overview" element={<OverviewPage />} />
                     <Route path="versions" element={<VersionsPage />} />
@@ -78,6 +133,7 @@ const App: React.FC = () => {
                       element={<PDFLayoutCustomizerPage />}
                     />
                     <Route path="ai" element={<AIDashboardPage />} />
+                    <Route path="gantt" element={<GanttViewPage />} />
                     <Route path="design-system" element={<DesignSystemDemo />} />
                   </Route>
                 </Routes>

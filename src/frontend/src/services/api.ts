@@ -20,7 +20,7 @@ import { CreateEmployeeRequest, UpdateEmployeeRequest } from "../types";
 import { getWeekFromIdentifier } from "../utils/weekUtils";
 import { logService } from "./logService";
 // Re-export types for external use
-export type { Shift, Absence } from "@/types/index";
+export type { Shift, Absence, Employee } from "@/types/index";
 
 interface APIErrorResponse {
   error?: string;

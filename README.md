@@ -81,6 +81,41 @@ python3 src/backend/mcp_server.py --transport sse --port 8001
 - **Prompts**: Schedule analysis and optimization templates
 - **Transports**: stdio, SSE, and HTTP for different integration needs
 
+## Telegram Bot Integration
+
+Schichtplan includes a comprehensive Telegram bot for employee management powered by AI integration.
+
+### Quick Start with Telegram Bot
+
+```bash
+# Configure your bot token
+export TELEGRAM_BOT_TOKEN="your-bot-token"
+export ENABLE_TELEGRAM_BOT=true
+
+# Start bot standalone
+python start_telegram_bot.py
+
+# Or integrate with main application
+./start.sh  # Bot starts automatically if enabled
+```
+
+### Telegram Bot Features
+
+- **Employee Management**: List, search, and view employee details
+- **AI-Powered Queries**: Natural language questions about schedules and employees
+- **Access Control**: User whitelisting and role-based permissions
+- **Interactive Menus**: Inline keyboards for quick actions
+- **Dual Mode**: Polling (development) and webhook (production) support
+
+For detailed setup and usage, see [Telegram Bot Guide](docs/TELEGRAM_BOT_GUIDE.md).
+
+### MCP Features
+
+- **Tools**: Employee management, schedule generation, system status
+- **Resources**: System configuration, employee details
+- **Prompts**: Schedule analysis and optimization templates
+- **Transports**: stdio, SSE, and HTTP for different integration needs
+
 ### AI Integration Use Cases
 
 - Schedule optimization and conflict resolution
@@ -98,8 +133,9 @@ For detailed MCP documentation, see [docs/mcp_api.md](docs/mcp_api.md).
 - Node.js and npm
 - Python 3.12+
 - Virtualenv
+- A WebAuthn-compatible browser (Chrome, Firefox, Safari, Edge)
 
-### Setup
+### Initial Setup
 
 1. Clone the repository
 2. Set up Python environment:
@@ -116,7 +152,28 @@ For detailed MCP documentation, see [docs/mcp_api.md](docs/mcp_api.md).
    npm install
    ```
 
+4. Configure environment variables (optional):
+
+   ```bash
+   # Backend (.env)
+   WEBAUTHN_RP_ID=localhost                    # Your domain
+   WEBAUTHN_RP_NAME=Schichtplan               # Display name
+   WEBAUTHN_ORIGIN=http://localhost:5173      # Frontend URL
+   SECRET_KEY=your-secret-key-here            # JWT signing
+   ```
+
 ## Running the Application
+
+### Quick Start
+
+Use the provided start script:
+
+```bash
+./start.sh                # Start backend + frontend
+./start.sh --with-mcp     # Include MCP server for AI features
+```
+
+### Manual Start
 
 1. Start the backend:
 
@@ -129,6 +186,24 @@ For detailed MCP documentation, see [docs/mcp_api.md](docs/mcp_api.md).
    ```bash
    npm run dev
    ```
+
+3. Open your browser and navigate to `http://localhost:5173`
+
+### First-Time Setup Wizard
+
+On first launch, you'll be guided through a setup wizard:
+
+1. **Create Admin Passkey**: Set up password-less authentication using your device's biometrics or security key
+2. **Save Recovery Codes**: Store 4 backup codes in a safe place
+3. **Configure AI (Optional)**: Add API keys for Gemini, OpenAI, or Anthropic
+
+For detailed setup instructions, see [docs/SETUP_AND_AUTHENTICATION_GUIDE.md](docs/SETUP_AND_AUTHENTICATION_GUIDE.md).
+
+### Daily Authentication
+
+- Admin must authenticate once per day using passkey
+- Use recovery codes as backup if passkey is unavailable
+- Authentication is required to access the application
 
 ## Database & Migrations
 
