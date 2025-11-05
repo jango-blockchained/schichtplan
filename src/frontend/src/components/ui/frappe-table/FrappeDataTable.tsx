@@ -61,7 +61,7 @@ export const FrappeDataTable = forwardRef<FrappeDataTableRef, FrappeDataTablePro
           datatableRef.current = null;
         }
       };
-    }, []); // Only initialize once
+    }, [columns, data, options]); // Reinitialize when columns, data, or options change
 
     // Update data when it changes
     useEffect(() => {
