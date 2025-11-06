@@ -294,6 +294,8 @@ export interface Settings {
       abbr?: string | null;
       min_hours?: number | null;
       max_hours?: number | null;
+      hours_on_absence?: number | null;
+      working_days_per_week?: 5 | 6 | null;
       type: "employee_type" | "employee";
     }> | null;
     shift_types: Array<{
@@ -454,6 +456,8 @@ export interface EmployeeType {
   name: string;
   min_hours: number;
   max_hours: number;
+  hours_on_absence: number;
+  working_days_per_week: 5 | 6;
   type: "employee_type";
 }
 
