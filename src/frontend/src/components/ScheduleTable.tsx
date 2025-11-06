@@ -63,6 +63,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DateRange } from "react-day-picker";
 import { useDrag, useDrop } from "react-dnd";
 import { AddScheduleDialog } from "./Schedule/AddScheduleDialog";
+import { EmployeeAvailabilityViewer } from "./EmployeeAvailabilityViewer";
 import { ShiftEditModal } from "./ShiftEditModal";
 
 // Helper function to get status badge for version status (matching Action Dock style)
@@ -2312,9 +2313,25 @@ function ScheduleTableNormal({
                   </HoverCard>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate max-w-[180px] block font-medium">
-                        {formatEmployeeName(employeeId)}
-                      </span>
+                      {/* Employee name with availability hover */}
+                      <HoverCard openDelay={300}>
+                        <HoverCardTrigger asChild>
+                          <span className="truncate max-w-[180px] block font-medium cursor-pointer hover:text-primary transition-colors">
+                            {formatEmployeeName(employeeId)}
+                          </span>
+                        </HoverCardTrigger>
+                        <HoverCardContent className="w-96" align="start" side="right">
+                          <EmployeeAvailabilityViewer
+                            employeeId={employeeId}
+                            employeeName={
+                              employeeLookup[employeeId]
+                                ? `${employeeLookup[employeeId].last_name}, ${employeeLookup[employeeId].first_name}`
+                                : "Mitarbeiter"
+                            }
+                            dateRange={dateRange}
+                          />
+                        </HoverCardContent>
+                      </HoverCard>
                       {/* Sorting indicators */}
                       {(() => {
                         const employee = employeeLookup[employeeId];
