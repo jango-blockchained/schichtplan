@@ -101,6 +101,7 @@ src/backend/instance/*.db-shm
 dist/
 build/
 coverage/
+dist-electron/
 
 # Temporary files
 tmp/
@@ -194,6 +195,14 @@ coverage.xml
 *.appimage
 *.AppImage.zsync
 *.AppDir/
+
+# Electron build artifacts
+*.dmg
+*.exe
+*.deb
+*.rpm
+*.snap
+*.pkg
 
 # Test files
 test_vacation_pdfs.py

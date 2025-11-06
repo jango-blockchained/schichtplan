@@ -1,5 +1,9 @@
 # Schichtplan
 
+[![CI](https://github.com/jango-blockchained/schichtplan/workflows/CI/badge.svg)](https://github.com/jango-blockchained/schichtplan/actions/workflows/ci.yml)
+[![Docker Build](https://github.com/jango-blockchained/schichtplan/workflows/Docker%20Build/badge.svg)](https://github.com/jango-blockchained/schichtplan/actions/workflows/docker-build.yml)
+[![Electron Build](https://github.com/jango-blockchained/schichtplan/workflows/Electron%20Build/badge.svg)](https://github.com/jango-blockchained/schichtplan/actions/workflows/electron-build.yml)
+
 A full-stack employee scheduling system for creating, managing, and optimizing shift plans.
 
 ## Table of Contents
@@ -231,6 +235,18 @@ For detailed setup instructions, see [docs/SETUP_AND_AUTHENTICATION_GUIDE.md](do
 - For details, see [`docs/README_LOGGING.md`](docs/README_LOGGING.md).
 - Diagnostic tools for schedule generation are in `src/backend/tools/debug/`.
 
+## CI/CD
+
+The project uses GitHub Actions for continuous integration and deployment:
+
+- **CI Workflow** - Runs tests and linting on every push and pull request
+- **Docker Build** - Builds and publishes Docker images for backend, frontend, and MCP server
+- **Electron Build** - Creates desktop applications for Windows, macOS, and Linux
+
+For detailed documentation, see:
+- [CI/CD Setup Guide](docs/CI_CD_SETUP.md) - Complete configuration and usage
+- [CI/CD Quick Reference](docs/CI_CD_QUICK_REFERENCE.md) - Common commands and workflows
+
 ## Contributing
 
 1. Fork the repository and create a feature branch.
@@ -240,6 +256,8 @@ For detailed setup instructions, see [docs/SETUP_AND_AUTHENTICATION_GUIDE.md](do
 
 ## Additional Documentation
 
+- [CI/CD Setup Guide](docs/CI_CD_SETUP.md) - GitHub Actions workflows
+- [CI/CD Quick Reference](docs/CI_CD_QUICK_REFERENCE.md) - Common CI/CD tasks
 - [Cleanup Summary](CLEANUP_SUMMARY.md) - Recent codebase reorganization
 - [Migration Guide](MIGRATION_GUIDE.md) - Update guide for new file locations
 - [Logging System](docs/README_LOGGING.md)
