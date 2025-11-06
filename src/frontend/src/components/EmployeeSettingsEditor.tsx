@@ -14,6 +14,13 @@ import {
 } from "./ui/dialog";
 import { Input } from "./ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -392,18 +399,22 @@ export default function EmployeeSettingsEditor({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Working Days per Week</FormLabel>
-                          <FormControl>
-                            <select
-                              {...field}
-                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                              onChange={(e) =>
-                                field.onChange(Number(e.target.value))
-                              }
-                            >
-                              <option value={5}>5 days</option>
-                              <option value={6}>6 days</option>
-                            </select>
-                          </FormControl>
+                          <Select
+                            onValueChange={(value) =>
+                              field.onChange(Number(value))
+                            }
+                            value={String(field.value)}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select working days" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="5">5 days</SelectItem>
+                              <SelectItem value="6">6 days</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
