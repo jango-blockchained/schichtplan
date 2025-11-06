@@ -1,6 +1,7 @@
 import { Loader2, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import React, { useState } from "react";
 import { useDebouncedCallback } from "use-debounce";
+import { EnumDataTable } from "./EnumDataTable";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
 import { ColorPicker } from "./ui/color-picker";
@@ -124,93 +125,59 @@ export default function ShiftTypesEditor({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium">Schichttypen</h3>
-        <Button
-          onClick={() => {
-            setEditingType({
-              id: "EARLY",
-              name: "",
-              color: "#000000",
-              type: "shift_type",
-            });
-            setShowDialog(true);
-          }}
-          disabled={isLoading} // Disable if loading
-        >
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <Plus className="mr-2 h-4 w-4" />
-          )}
-          Neuen Typ hinzufügen
-        </Button>
-      </div>
-
-      <Table>
-        <caption className="sr-only">Table of Shift Types</caption>
-        <TableHeader>
-          <TableRow>
-            <TableHead>ID</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Farbe</TableHead>
-            <TableHead>Aktionen</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {localShiftTypes.map((type) => (
-            <TableRow key={type.id}>
-              <TableCell>{type.id}</TableCell>
-              <TableCell>
-                <span style={{ display: "flex", alignItems: "center" }}>
-                  {type.name}
-                  {type.autoAssignOnly && (
-                    <span title="Nur für automatische Zuweisung">
-                      <Lock className="ml-2 h-4 w-4 text-gray-400" />
-                    </span>
-                  )}
-                </span>
-              </TableCell>
-              <TableCell>
-                <div
-                  className="w-6 h-6 rounded"
-                  style={{ backgroundColor: type.color }}
-                ></div>
-              </TableCell>
-              <TableCell>
-                <div className="flex space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleEditType(type)}
-                    disabled={!!type.autoAssignOnly}
-                    title={
-                      type.autoAssignOnly
-                        ? "Dieser Schichttyp kann nicht bearbeitet werden"
-                        : "Bearbeiten"
-                    }
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDeleteType(type.id)}
-                    disabled={!!type.autoAssignOnly}
-                    title={
-                      type.autoAssignOnly
-                        ? "Dieser Schichttyp kann nicht gelöscht werden"
-                        : "Löschen"
-                    }
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <EnumDataTable
+        data={localShiftTypes}
+        columns={[
+          { id: "id", name: "ID", width: 150 },
+          {
+            id: "name",
+            name: "Name",
+            width: 200,
+            format: (value, item: any) => (
+              <span style={{ display: "flex", alignItems: "center" }}>
+                {value}
+                {item.autoAssignOnly && (
+                  <span title="Nur für automatische Zuweisung">
+                    <Lock className="ml-2 h-4 w-4 text-gray-400" />
+                  </span>
+                )}
+              </span>
+            ),
+          },
+          {
+            id: "color",
+            name: "Farbe",
+            width: 150,
+            format: (value) => (
+              <div
+                className="w-6 h-6 rounded border"
+                style={{ backgroundColor: value }}
+              />
+            ),
+          },
+        ]}
+        onAdd={() => {
+          setEditingType({
+            id: "EARLY",
+            name: "",
+            color: "#000000",
+            type: "shift_type",
+          });
+          setShowDialog(true);
+        }}
+        onEdit={(type) => {
+          if (!type.autoAssignOnly) {
+            handleEditType(type);
+          }
+        }}
+        onDelete={(id) => {
+          handleDeleteType(
+            id as "EARLY" | "MIDDLE" | "LATE" | "NO_WORK" | "UNAVAILABLE"
+          );
+        }}
+        title="Shift Type"
+        isLoading={isLoading}
+      />
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent>

@@ -3,6 +3,7 @@ import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useDebouncedCallback } from "use-debounce";
 import ColorPicker from "./ColorPicker";
+import { EnumDataTable } from "./EnumDataTable";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -210,102 +211,61 @@ export default function EmployeeSettingsEditor({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">
-          {type === "employee" ? "Employee Types" : "Absence Types"}
-        </h3>
-        <Button
-          onClick={() => handleOpenModal()}
-          size="sm"
-          disabled={isLoading}
-        >
-          {" "}
-          {/* Disable if loading */}
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-          ) : (
-            <Plus className="h-4 w-4 mr-1" />
-          )}
-          Add {type === "employee" ? "Employee Type" : "Absence Type"}
-        </Button>
-      </div>
-
-      <Table>
-        <caption className="sr-only">
-          {type === "employee"
-            ? "Table of Employee Types"
-            : "Table of Absence Types"}
-        </caption>
-        <TableHeader>
-          <TableRow>
-            <TableHead>ID</TableHead>
-            <TableHead>Name</TableHead>
-            {type === "employee" && (
-              <>
-                <TableHead>Min Hours</TableHead>
-                <TableHead>Max Hours</TableHead>
-                <TableHead>Hours on Absence</TableHead>
-                <TableHead>Working Days/Week</TableHead>
-              </>
-            )}
-            {type === "absence" && <TableHead>Color</TableHead>}
-            <TableHead className="w-[100px]">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {localGroups.map((group) => (
-            <TableRow key={group.id}>
-              <TableCell>{group.id}</TableCell>
-              <TableCell>{group.name}</TableCell>
-              {type === "employee" && "min_hours" in group && (
-                <>
-                  <TableCell>{group.min_hours}</TableCell>
-                  <TableCell>{group.max_hours}</TableCell>
-                  <TableCell>
-                    {"hours_on_absence" in group
-                      ? group.hours_on_absence
-                      : "N/A"}
-                  </TableCell>
-                  <TableCell>
-                    {"working_days_per_week" in group
-                      ? group.working_days_per_week
-                      : "N/A"}
-                  </TableCell>
-                </>
-              )}
-              {type === "absence" && "color" in group && (
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-6 h-6 rounded border"
-                      style={{ backgroundColor: group.color }}
-                    />
-                    {group.color}
-                  </div>
-                </TableCell>
-              )}
-              <TableCell>
-                <div className="flex space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleOpenModal(group)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDeleteGroup(group.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+      {type === "employee" ? (
+        <EnumDataTable
+          data={localGroups as EmployeeType[]}
+          columns={[
+            { id: "id", name: "ID", width: 100 },
+            { id: "name", name: "Name", width: 200 },
+            { id: "min_hours", name: "Min Hours", width: 120 },
+            { id: "max_hours", name: "Max Hours", width: 120 },
+            {
+              id: "hours_on_absence",
+              name: "Hours on Absence",
+              width: 150,
+              format: (value) => (value !== undefined ? String(value) : "N/A"),
+            },
+            {
+              id: "working_days_per_week",
+              name: "Working Days/Week",
+              width: 160,
+              format: (value) => (value !== undefined ? String(value) : "N/A"),
+            },
+          ]}
+          onAdd={() => handleOpenModal()}
+          onEdit={(item) => handleOpenModal(item as GroupType)}
+          onDelete={handleDeleteGroup}
+          title="Employee Type"
+          isLoading={isLoading}
+        />
+      ) : (
+        <EnumDataTable
+          data={localGroups as AbsenceType[]}
+          columns={[
+            { id: "id", name: "ID", width: 100 },
+            { id: "name", name: "Name", width: 200 },
+            {
+              id: "color",
+              name: "Color",
+              width: 150,
+              format: (value) => (
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-6 h-6 rounded border"
+                    style={{ backgroundColor: value }}
+                  />
+                  {value}
                 </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+              ),
+            },
+          ]}
+          onAdd={() => handleOpenModal()}
+          onEdit={(item) => handleOpenModal(item as GroupType)}
+          onDelete={handleDeleteGroup}
+          title="Absence Type"
+          isLoading={isLoading}
+        />
+      )}
 
       <Dialog open={isModalOpen} onOpenChange={handleCloseModal}>
         {" "}
