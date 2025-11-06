@@ -2,6 +2,7 @@
   "name": "schichtplan-root",
   "version": "1.0.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "format:backend": "black .",
     "lint:backend:style": "black --check .",
@@ -13,10 +14,16 @@
     "format": "npm run format:backend && npm run format:frontend",
     "lint": "npm run lint:backend && npm run lint:frontend",
     "check:all": "npm run lint && cd src/frontend && bun run typecheck",
-  "test:backend": "pytest -v -s tests/backend/",
+    "test:backend": "pytest -v -s tests/backend/",
     "test:frontend": "cd src/frontend && bun test",
     "test": "npm run test:backend && npm run test:frontend",
-    "build": "cd src/frontend && tsc && vite build"
+    "build": "cd src/frontend && tsc && vite build",
+    "build:frontend": "cd src/frontend && tsc && vite build",
+    "electron:dev": "NODE_ENV=development electron .",
+    "electron:build": "npm run build:frontend && electron-builder",
+    "electron:build:mac": "npm run build:frontend && electron-builder --mac",
+    "electron:build:win": "npm run build:frontend && electron-builder --win",
+    "electron:build:linux": "npm run build:frontend && electron-builder --linux"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
@@ -28,6 +35,8 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^17.5.6",
-    "happy-dom": "^17.5.6"
+    "happy-dom": "^17.5.6",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
   }
 }

@@ -1,0 +1,49 @@
+{
+  "appId": "com.schichtplan.app",
+  "productName": "Schichtplan",
+  "directories": {
+    "output": "dist-electron",
+    "buildResources": "electron/resources"
+  },
+  "files": [
+    "electron/**/*",
+    "src/frontend/dist/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "src/frontend/dist",
+      "to": "app",
+      "filter": ["**/*"]
+    }
+  ],
+  "mac": {
+    "category": "public.app-category.productivity",
+    "target": [
+      "dmg",
+      "zip"
+    ],
+    "icon": "electron/resources/icon.icns"
+  },
+  "win": {
+    "target": [
+      "nsis",
+      "portable"
+    ],
+    "icon": "electron/resources/icon.ico"
+  },
+  "linux": {
+    "target": [
+      "AppImage",
+      "deb",
+      "rpm"
+    ],
+    "category": "Office",
+    "icon": "electron/resources/icon.png"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true
+  }
+}
