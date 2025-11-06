@@ -29,6 +29,7 @@ export function EmployeeAvailabilityViewer({
     queryKey: ["employee-availabilities", employeeId],
     queryFn: () => getEmployeeAvailabilities(employeeId),
     enabled: !!employeeId,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 
   // Helper to get day name in German

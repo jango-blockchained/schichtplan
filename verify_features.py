@@ -7,7 +7,7 @@ import sys
 import os
 
 # Add the project root to the path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 from src.backend.app import create_app
 from src.backend.models import Settings, EmployeeAvailability, Employee
@@ -104,7 +104,7 @@ def check_week_segments():
         week_info = get_week_from_identifier(current_week)
         print(f"  Start: {week_info.start_date}")
         print(f"  End: {week_info.end_date}")
-        print(f"  Spans months: {week_info.spansMonths}")
+        print(f"  Spans months: {week_info.spans_months}")
         
         if week_info.spans_months:
             print(f"  Months: {', '.join(week_info.months)}")
