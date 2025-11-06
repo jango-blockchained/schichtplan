@@ -213,6 +213,8 @@ class Settings(db.Model):
                 "name": "Vollzeit",
                 "min_hours": 35.0,
                 "max_hours": 40.0,
+                "hours_on_absence": 8.0,
+                "working_days_per_week": 5,
                 "type": "employee_type",
             },
             {
@@ -220,6 +222,8 @@ class Settings(db.Model):
                 "name": "Teilzeit",
                 "min_hours": 15.0,
                 "max_hours": 34.5,
+                "hours_on_absence": 6.0,
+                "working_days_per_week": 5,
                 "type": "employee_type",
             },
             {
@@ -227,6 +231,8 @@ class Settings(db.Model):
                 "name": "Geringfügig Beschäftigt",
                 "min_hours": 0.0,
                 "max_hours": 14.5,
+                "hours_on_absence": 4.0,
+                "working_days_per_week": 5,
                 "type": "employee_type",
             },
             {
@@ -234,6 +240,8 @@ class Settings(db.Model):
                 "name": "Teamleiter",
                 "min_hours": 35.0,
                 "max_hours": 40.0,
+                "hours_on_absence": 8.0,
+                "working_days_per_week": 6,
                 "type": "employee_type",
             },
         ],
@@ -778,6 +786,8 @@ class Settings(db.Model):
                 "name": "Vollzeit",
                 "min_hours": 35,
                 "max_hours": 40,
+                "hours_on_absence": 8.0,
+                "working_days_per_week": 5,
                 "type": "employee_type",
             },
             {
@@ -785,6 +795,8 @@ class Settings(db.Model):
                 "name": "Teilzeit",
                 "min_hours": 15,
                 "max_hours": 34,
+                "hours_on_absence": 6.0,
+                "working_days_per_week": 5,
                 "type": "employee_type",
             },
             {
@@ -792,6 +804,8 @@ class Settings(db.Model):
                 "name": "Geringfügig Beschäftigt",
                 "min_hours": 0,
                 "max_hours": 14,
+                "hours_on_absence": 4.0,
+                "working_days_per_week": 5,
                 "type": "employee_type",
             },
             {
@@ -799,6 +813,8 @@ class Settings(db.Model):
                 "name": "Teamleiter",
                 "min_hours": 35,
                 "max_hours": 40,
+                "hours_on_absence": 8.0,
+                "working_days_per_week": 6,
                 "type": "employee_type",
             },
         ]

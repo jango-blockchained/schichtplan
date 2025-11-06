@@ -44,6 +44,10 @@ const EmployeeTypeSchemaRaw = z.object({
   name: z.string().min(1, "Name is required"),
   min_hours: z.number().min(0, "Min hours cannot be negative"),
   max_hours: z.number().min(0, "Max hours cannot be negative"),
+  hours_on_absence: z.number().min(0, "Hours on absence cannot be negative"),
+  working_days_per_week: z.union([z.literal(5), z.literal(6)], {
+    errorMap: () => ({ message: "Working days must be 5 or 6" }),
+  }),
   type: z.literal("employee_type" as const),
 });
 
@@ -101,6 +105,8 @@ export default function EmployeeSettingsEditor({
         name: "",
         min_hours: 0,
         max_hours: 40,
+        hours_on_absence: 8.0,
+        working_days_per_week: 5,
         type: "employee_type",
       } as Extract<InferredGroupType, { type: "employee_type" }>;
     } else {
@@ -238,6 +244,8 @@ export default function EmployeeSettingsEditor({
               <>
                 <TableHead>Min Hours</TableHead>
                 <TableHead>Max Hours</TableHead>
+                <TableHead>Hours on Absence</TableHead>
+                <TableHead>Working Days/Week</TableHead>
               </>
             )}
             {type === "absence" && <TableHead>Color</TableHead>}
@@ -253,6 +261,16 @@ export default function EmployeeSettingsEditor({
                 <>
                   <TableCell>{group.min_hours}</TableCell>
                   <TableCell>{group.max_hours}</TableCell>
+                  <TableCell>
+                    {"hours_on_absence" in group
+                      ? group.hours_on_absence
+                      : "N/A"}
+                  </TableCell>
+                  <TableCell>
+                    {"working_days_per_week" in group
+                      ? group.working_days_per_week
+                      : "N/A"}
+                  </TableCell>
                 </>
               )}
               {type === "absence" && "color" in group && (
@@ -344,48 +362,94 @@ export default function EmployeeSettingsEditor({
               </div>
 
               {form.watch("type") === "employee_type" && (
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name={"min_hours"} // Name is string literal
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Min Hours</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.5"
-                            {...field}
-                            onChange={(e) =>
-                              field.onChange(Number(e.target.value))
-                            }
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name={"max_hours"} // Name is string literal
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Max Hours</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.5"
-                            {...field}
-                            onChange={(e) =>
-                              field.onChange(Number(e.target.value))
-                            }
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name={"min_hours"} // Name is string literal
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Min Hours</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.5"
+                              {...field}
+                              onChange={(e) =>
+                                field.onChange(Number(e.target.value))
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={"max_hours"} // Name is string literal
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Max Hours</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.5"
+                              {...field}
+                              onChange={(e) =>
+                                field.onChange(Number(e.target.value))
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name={"hours_on_absence"} // Name is string literal
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Hours on Absence</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.5"
+                              {...field}
+                              onChange={(e) =>
+                                field.onChange(Number(e.target.value))
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={"working_days_per_week"} // Name is string literal
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Working Days per Week</FormLabel>
+                          <FormControl>
+                            <select
+                              {...field}
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                              onChange={(e) =>
+                                field.onChange(Number(e.target.value))
+                              }
+                            >
+                              <option value={5}>5 days</option>
+                              <option value={6}>6 days</option>
+                            </select>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </>
               )}
 
               {form.watch("type") === "absence_type" && (
