@@ -116,6 +116,80 @@ export function AddScheduleDialog({
   const [selectedAvailabilityType, setSelectedAvailabilityType] =
     useState<AvailabilityTypeStrings | null>(null);
 
+  // Fetch settings to check store hours
+  const [settings, setSettings] = useState<{
+    general?: {
+      store_opening?: string;
+      store_closing?: string;
+    };
+  } | null>(null);
+
+  // Load settings when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      getSettings()
+        .then((data) => setSettings(data))
+        .catch((error) => {
+          console.error("Error fetching settings:", error);
+        });
+    }
+  }, [isOpen]);
+
+  // Determine if keyholder checkbox should be enabled based on selected shift
+  const isKeyholderEligible = useMemo(() => {
+    if (!selectedShift || !applicableShiftsList.length || !settings?.general) {
+      return false;
+    }
+
+    const shift = applicableShiftsList.find((s) => s.shift_id === selectedShift);
+    if (!shift) return false;
+
+    const storeOpening = settings.general.store_opening;
+    const storeClosing = settings.general.store_closing;
+
+    // Keyholder checkbox should only be enabled for opening or closing shifts
+    const isOpeningShift = shift.start_time === storeOpening;
+    const isClosingShift = shift.end_time === storeClosing;
+
+    return isOpeningShift || isClosingShift;
+  }, [selectedShift, applicableShiftsList, settings]);
+
+  // Get corresponding shift info (for keyholder consecutive requirement)
+  const correspondingShiftInfo = useMemo(() => {
+    if (!isKeyholderShift || !selectedShift || !applicableShiftsList.length || !settings?.general || !selectedDate) {
+      return null;
+    }
+
+    const shift = applicableShiftsList.find((s) => s.shift_id === selectedShift);
+    if (!shift) return null;
+
+    const storeOpening = settings.general.store_opening;
+    const storeClosing = settings.general.store_closing;
+
+    const isOpeningShift = shift.start_time === storeOpening;
+    const isClosingShift = shift.end_time === storeClosing;
+
+    if (isClosingShift) {
+      // Find next opening day
+      const nextDate = new Date(selectedDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      return {
+        type: "closing",
+        message: `Dieser Mitarbeiter muss am ${format(nextDate, "dd.MM.yyyy")} die Öffnungsschicht (${storeOpening}) übernehmen.`,
+      };
+    } else if (isOpeningShift) {
+      // Find previous closing day
+      const prevDate = new Date(selectedDate);
+      prevDate.setDate(prevDate.getDate() - 1);
+      return {
+        type: "opening",
+        message: `Dieser Mitarbeiter sollte am ${format(prevDate, "dd.MM.yyyy")} die Schließschicht (bis ${storeClosing}) gearbeitet haben.`,
+      };
+    }
+
+    return null;
+  }, [isKeyholderShift, selectedShift, applicableShiftsList, settings, selectedDate]);
+
   // Debug logging for props and state
   useEffect(() => {
     console.log("AddScheduleDialog props and state:", {
@@ -643,21 +717,33 @@ export function AddScheduleDialog({
           {/* Keyholder Checkbox */}
           <div className="grid grid-cols-4 items-center gap-4">
             <div></div> {/* Empty cell for alignment */}
-            <div className="col-span-3 flex items-center space-x-2">
-              <Checkbox
-                id="keyholder"
-                checked={isKeyholderShift}
-                onCheckedChange={(checked) =>
-                  setIsKeyholderShift(checked as boolean)
-                }
-                disabled={isSubmitting}
-              />
-              <Label
-                htmlFor="keyholder"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Als Schlüsselträger-Schicht markieren
-              </Label>
+            <div className="col-span-3 flex flex-col space-y-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="keyholder"
+                  checked={isKeyholderShift}
+                  onCheckedChange={(checked) =>
+                    setIsKeyholderShift(checked as boolean)
+                  }
+                  disabled={isSubmitting || !isKeyholderEligible}
+                />
+                <Label
+                  htmlFor="keyholder"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Als Schlüsselträger-Schicht markieren
+                </Label>
+              </div>
+              {!isKeyholderEligible && selectedShift && (
+                <div className="text-xs text-muted-foreground italic">
+                  Nur für Öffnungs- oder Schließschichten verfügbar
+                </div>
+              )}
+              {correspondingShiftInfo && (
+                <div className="text-xs bg-amber-50 text-amber-800 p-2 rounded border border-amber-200">
+                  <strong>Hinweis:</strong> {correspondingShiftInfo.message}
+                </div>
+              )}
             </div>
           </div>
 
