@@ -3,6 +3,7 @@ import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useDebouncedCallback } from "use-debounce";
 import ColorPicker from "./ColorPicker";
+import { EnumDataTable } from "./EnumDataTable";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -12,6 +13,13 @@ import {
   DialogTitle,
 } from "./ui/dialog";
 import { Input } from "./ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 import {
   Table,
   TableBody,
@@ -44,6 +52,10 @@ const EmployeeTypeSchemaRaw = z.object({
   name: z.string().min(1, "Name is required"),
   min_hours: z.number().min(0, "Min hours cannot be negative"),
   max_hours: z.number().min(0, "Max hours cannot be negative"),
+  hours_on_absence: z.number().min(0, "Hours on absence cannot be negative"),
+  working_days_per_week: z.union([z.literal(5), z.literal(6)], {
+    errorMap: () => ({ message: "Working days must be 5 or 6" }),
+  }),
   type: z.literal("employee_type" as const),
 });
 
@@ -101,6 +113,8 @@ export default function EmployeeSettingsEditor({
         name: "",
         min_hours: 0,
         max_hours: 40,
+        hours_on_absence: 8.0,
+        working_days_per_week: 5,
         type: "employee_type",
       } as Extract<InferredGroupType, { type: "employee_type" }>;
     } else {
@@ -204,90 +218,61 @@ export default function EmployeeSettingsEditor({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">
-          {type === "employee" ? "Employee Types" : "Absence Types"}
-        </h3>
-        <Button
-          onClick={() => handleOpenModal()}
-          size="sm"
-          disabled={isLoading}
-        >
-          {" "}
-          {/* Disable if loading */}
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-          ) : (
-            <Plus className="h-4 w-4 mr-1" />
-          )}
-          Add {type === "employee" ? "Employee Type" : "Absence Type"}
-        </Button>
-      </div>
-
-      <Table>
-        <caption className="sr-only">
-          {type === "employee"
-            ? "Table of Employee Types"
-            : "Table of Absence Types"}
-        </caption>
-        <TableHeader>
-          <TableRow>
-            <TableHead>ID</TableHead>
-            <TableHead>Name</TableHead>
-            {type === "employee" && (
-              <>
-                <TableHead>Min Hours</TableHead>
-                <TableHead>Max Hours</TableHead>
-              </>
-            )}
-            {type === "absence" && <TableHead>Color</TableHead>}
-            <TableHead className="w-[100px]">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {localGroups.map((group) => (
-            <TableRow key={group.id}>
-              <TableCell>{group.id}</TableCell>
-              <TableCell>{group.name}</TableCell>
-              {type === "employee" && "min_hours" in group && (
-                <>
-                  <TableCell>{group.min_hours}</TableCell>
-                  <TableCell>{group.max_hours}</TableCell>
-                </>
-              )}
-              {type === "absence" && "color" in group && (
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-6 h-6 rounded border"
-                      style={{ backgroundColor: group.color }}
-                    />
-                    {group.color}
-                  </div>
-                </TableCell>
-              )}
-              <TableCell>
-                <div className="flex space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleOpenModal(group)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDeleteGroup(group.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+      {type === "employee" ? (
+        <EnumDataTable
+          data={localGroups as EmployeeType[]}
+          columns={[
+            { id: "id", name: "ID", width: 100 },
+            { id: "name", name: "Name", width: 200 },
+            { id: "min_hours", name: "Min Hours", width: 120 },
+            { id: "max_hours", name: "Max Hours", width: 120 },
+            {
+              id: "hours_on_absence",
+              name: "Hours on Absence",
+              width: 150,
+              format: (value) => (value !== undefined ? String(value) : "N/A"),
+            },
+            {
+              id: "working_days_per_week",
+              name: "Working Days/Week",
+              width: 160,
+              format: (value) => (value !== undefined ? String(value) : "N/A"),
+            },
+          ]}
+          onAdd={() => handleOpenModal()}
+          onEdit={(item) => handleOpenModal(item as GroupType)}
+          onDelete={handleDeleteGroup}
+          title="Employee Type"
+          isLoading={isLoading}
+        />
+      ) : (
+        <EnumDataTable
+          data={localGroups as AbsenceType[]}
+          columns={[
+            { id: "id", name: "ID", width: 100 },
+            { id: "name", name: "Name", width: 200 },
+            {
+              id: "color",
+              name: "Color",
+              width: 150,
+              format: (value) => (
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-6 h-6 rounded border"
+                    style={{ backgroundColor: value }}
+                  />
+                  {value}
                 </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+              ),
+            },
+          ]}
+          onAdd={() => handleOpenModal()}
+          onEdit={(item) => handleOpenModal(item as GroupType)}
+          onDelete={handleDeleteGroup}
+          title="Absence Type"
+          isLoading={isLoading}
+        />
+      )}
 
       <Dialog open={isModalOpen} onOpenChange={handleCloseModal}>
         {" "}
@@ -344,48 +329,98 @@ export default function EmployeeSettingsEditor({
               </div>
 
               {form.watch("type") === "employee_type" && (
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name={"min_hours"} // Name is string literal
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Min Hours</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.5"
-                            {...field}
-                            onChange={(e) =>
-                              field.onChange(Number(e.target.value))
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name={"min_hours"} // Name is string literal
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Min Hours</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.5"
+                              {...field}
+                              onChange={(e) =>
+                                field.onChange(Number(e.target.value))
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={"max_hours"} // Name is string literal
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Max Hours</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.5"
+                              {...field}
+                              onChange={(e) =>
+                                field.onChange(Number(e.target.value))
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name={"hours_on_absence"} // Name is string literal
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Hours on Absence</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.5"
+                              {...field}
+                              onChange={(e) =>
+                                field.onChange(Number(e.target.value))
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={"working_days_per_week"} // Name is string literal
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Working Days per Week</FormLabel>
+                          <Select
+                            onValueChange={(value) =>
+                              field.onChange(Number(value))
                             }
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name={"max_hours"} // Name is string literal
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Max Hours</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.5"
-                            {...field}
-                            onChange={(e) =>
-                              field.onChange(Number(e.target.value))
-                            }
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                            value={String(field.value)}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select working days" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="5">5 days</SelectItem>
+                              <SelectItem value="6">6 days</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </>
               )}
 
               {form.watch("type") === "absence_type" && (

@@ -157,6 +157,8 @@ export const DEFAULT_SETTINGS: Settings = {
         name: "Vollzeit",
         min_hours: 35,
         max_hours: 40,
+        hours_on_absence: 8.0,
+        working_days_per_week: 5,
         type: "employee_type" as const,
       },
       {
@@ -164,6 +166,8 @@ export const DEFAULT_SETTINGS: Settings = {
         name: "Teilzeit",
         min_hours: 20,
         max_hours: 30,
+        hours_on_absence: 6.0,
+        working_days_per_week: 5,
         type: "employee_type" as const,
       },
       {
@@ -171,6 +175,8 @@ export const DEFAULT_SETTINGS: Settings = {
         name: "Geringfügig",
         min_hours: 10,
         max_hours: 15,
+        hours_on_absence: 4.0,
+        working_days_per_week: 5,
         type: "employee_type" as const,
       },
     ],
