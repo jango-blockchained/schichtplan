@@ -107,5 +107,8 @@ class ScheduleUpdateRequest(BaseModel):
         ),
     )
     break_duration: int | None = Field(None, description="Break duration in minutes.")
+    is_keyholder_shift: bool | None = Field(
+        None, description="Whether this shift is assigned the keyholder role."
+    )
     # shift_type is derived from shift_id, not a direct input field
     # id is part of the URL, not the request body

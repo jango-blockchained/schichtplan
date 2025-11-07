@@ -113,6 +113,7 @@ export interface ScheduleUpdate {
   notes?: string | null;
   version?: number | null;
   availability_type?: AvailabilityTypeStrings | null;
+  is_keyholder_shift?: boolean | null;
 }
 
 export interface DateRange {

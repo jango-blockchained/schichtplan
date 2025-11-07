@@ -350,6 +350,7 @@ interface DragItem {
   // Optional times for validation
   start_time?: string | null;
   end_time?: string | null;
+  is_keyholder_shift?: boolean; // Whether this shift has keyholder assigned
 }
 
 // Helper function to determine if a schedule is empty (no shift assigned)
@@ -690,6 +691,7 @@ const ScheduleCell = ({
         isDockItem: false,
         start_time: schedule.shift_start,
         end_time: schedule.shift_end,
+        is_keyholder_shift: schedule.is_keyholder_shift,
       };
     },
     collect: (monitor) => ({
