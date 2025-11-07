@@ -363,7 +363,7 @@ export function SchedulePage() {
       ((today.getTime() - startOfYear.getTime()) / 86400000 +
         startOfYear.getDay() +
         1) /
-        7,
+      7,
     );
     return `${year}-W${weekNumber.toString().padStart(2, "0")}`;
   });
@@ -449,7 +449,7 @@ export function SchedulePage() {
   // Only use selected version if it's actually valid for current date range
   const effectiveSelectedVersionNumber =
     selectedVersion &&
-    validVersionsForCurrentRange.some((v) => v.version === selectedVersion)
+      validVersionsForCurrentRange.some((v) => v.version === selectedVersion)
       ? selectedVersion
       : undefined;
 
@@ -490,7 +490,7 @@ export function SchedulePage() {
     const dec28DayOfYear =
       Math.floor(
         (dec28.getTime() - new Date(year, 0, 1).getTime()) /
-          (24 * 60 * 60 * 1000),
+        (24 * 60 * 60 * 1000),
       ) + 1;
     const dec28WeekNumber = Math.floor((dec28DayOfYear - jan4WeekDay + 10) / 7);
 
@@ -675,7 +675,7 @@ export function SchedulePage() {
           months: [
             format(safeEffectiveDateRange.from, "MMMM"),
             ...(safeEffectiveDateRange.from.getMonth() !==
-            safeEffectiveDateRange.to.getMonth()
+              safeEffectiveDateRange.to.getMonth()
               ? [format(safeEffectiveDateRange.to, "MMMM")]
               : []),
           ],
@@ -2665,10 +2665,10 @@ export function SchedulePage() {
                   currentVersion={effectiveSelectedVersionNumber || 1}
                   versionStatus={
                     versionState.versions[0]?.status as
-                      | "DRAFT"
-                      | "PUBLISHED"
-                      | "ARCHIVED"
-                      | undefined
+                    | "DRAFT"
+                    | "PUBLISHED"
+                    | "ARCHIVED"
+                    | undefined
                   }
                   openingDays={openingDays}
                   specialDays={specialDaysMap}
@@ -2729,31 +2729,31 @@ export function SchedulePage() {
           versionMeta={
             validVersionsForCurrentRange.length > 0
               ? convertToWeekVersionMeta({
-                  version: validVersionsForCurrentRange[0].version,
-                  week_identifier: currentWeek,
-                  date_range_start: format(
-                    dateRange?.from || new Date(),
-                    "yyyy-MM-dd",
-                  ),
-                  date_range_end: format(
-                    dateRange?.to || new Date(),
-                    "yyyy-MM-dd",
-                  ),
-                  is_week_based: true,
-                  status: validVersionsForCurrentRange[0].status,
-                  created_at:
-                    validVersionsForCurrentRange[0].created_at ||
-                    new Date().toISOString(),
-                  notes: validVersionsForCurrentRange[0].notes || "",
-                })
+                version: validVersionsForCurrentRange[0].version,
+                week_identifier: currentWeek,
+                date_range_start: format(
+                  dateRange?.from || new Date(),
+                  "yyyy-MM-dd",
+                ),
+                date_range_end: format(
+                  dateRange?.to || new Date(),
+                  "yyyy-MM-dd",
+                ),
+                is_week_based: true,
+                status: validVersionsForCurrentRange[0].status,
+                created_at:
+                  validVersionsForCurrentRange[0].created_at ||
+                  new Date().toISOString(),
+                notes: validVersionsForCurrentRange[0].notes || "",
+              })
               : undefined
           }
           versionStatus={
             validVersionsForCurrentRange[0]?.status as
-              | "DRAFT"
-              | "PUBLISHED"
-              | "ARCHIVED"
-              | undefined
+            | "DRAFT"
+            | "PUBLISHED"
+            | "ARCHIVED"
+            | undefined
           }
           schedules={effectiveSelectedVersionNumber ? scheduleData || [] : []} // Only pass schedules when version is selected
           onDrop={handleDockDrop}
