@@ -23,12 +23,13 @@ const RecoveryCodesDisplay: React.FC<RecoveryCodesDisplayProps> = ({ codes, onCo
   const [confirmed, setConfirmed] = useState(false);
 
   const downloadCodes = () => {
-    const text = codes.join('\n');
+    const timestamp = new Date().toISOString().split('T')[0];
+    const text = `Schichtplan Recovery Codes - ${timestamp}\n${'='.repeat(50)}\n\n${codes.map((code, i) => `${i + 1}. ${code}`).join('\n')}\n\nThese codes are for emergency access only.\nKeep them in a safe place!`;
     const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'schichtplan-recovery-codes.txt';
+    a.download = `schichtplan-recovery-codes-${timestamp}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -40,39 +41,46 @@ const RecoveryCodesDisplay: React.FC<RecoveryCodesDisplayProps> = ({ codes, onCo
         <h3 className="text-lg font-semibold">Save Your Recovery Codes</h3>
       </div>
 
-      <Alert>
-        <AlertDescription>
-          These codes are your backup access method. Write them down and store them in a safe place.
-          Each code can only be used once.
+      <Alert className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
+        <AlertDescription className="text-amber-900 dark:text-amber-100">
+          <strong>Critical:</strong> These 4 codes are your only backup if you lose access to your authenticator.
+          Write them down and store them in a secure, offline location—like a safe or encrypted file.
         </AlertDescription>
       </Alert>
 
-      <div className="grid grid-cols-2 gap-3">
-        {codes.map((code, idx) => (
-          <div
-            key={idx}
-            className="bg-muted p-4 rounded-md font-mono text-center text-sm font-semibold"
-          >
-            {code}
-          </div>
-        ))}
+      <div className="space-y-3">
+        <p className="text-sm font-medium text-muted-foreground">Your Recovery Codes:</p>
+        <div className="grid grid-cols-2 gap-3">
+          {codes.map((code, idx) => (
+            <div
+              key={idx}
+              className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 p-4 rounded-lg font-mono text-center text-sm font-bold border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow"
+            >
+              <div className="text-xs text-muted-foreground mb-1">Code {idx + 1}</div>
+              <div className="text-lg text-foreground">{code}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="space-y-3">
-        <Button onClick={downloadCodes} variant="outline" className="w-full">
+        <Button onClick={downloadCodes} variant="outline" className="w-full gap-2">
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19m0 0l-6-6m6 6l6-6m0-5V5a2 2 0 00-2-2H7a2 2 0 00-2 2v6" />
+          </svg>
           Download as Text File
         </Button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
           <input
             type="checkbox"
             id="confirm-saved"
             checked={confirmed}
             onChange={(e) => setConfirmed(e.target.checked)}
-            className="rounded border-gray-300"
+            className="rounded border-gray-300 mt-1"
           />
-          <label htmlFor="confirm-saved" className="text-sm text-muted-foreground cursor-pointer">
-            I have saved these recovery codes in a safe place
+          <label htmlFor="confirm-saved" className="text-sm text-muted-foreground cursor-pointer flex-1">
+            I have saved these recovery codes in a safe place and understand they cannot be recovered if lost
           </label>
         </div>
 
@@ -207,40 +215,46 @@ export const SetupWizard: React.FC = () => {
           {/* Welcome Step */}
           {step === 'welcome' && (
             <div className="space-y-6">
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 p-6 rounded-lg border border-blue-200 dark:border-blue-800">
+                <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  Welcome to Schichtplan! Let's set up your admin account with modern, secure authentication.
+                </p>
+              </div>
+
               <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium">Secure Authentication</h4>
+                <div className="flex items-start gap-4 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                  <CheckCircle2 className="h-6 w-6 text-green-600 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <h4 className="font-semibold text-base">🔐 Secure Passkey Authentication</h4>
                     <p className="text-sm text-muted-foreground">
-                      Use passkeys (biometric or device authentication) for secure, password-free access
+                      Use biometric authentication (fingerprint, face recognition) or a security key. No passwords needed.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium">Recovery Codes</h4>
+                <div className="flex items-start gap-4 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                  <CheckCircle2 className="h-6 w-6 text-green-600 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <h4 className="font-semibold text-base">🔑 Recovery Codes for Emergency Access</h4>
                     <p className="text-sm text-muted-foreground">
-                      Get 4 recovery codes as a backup authentication method
+                      Get 4 backup codes to regain access if you lose your authenticator.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium">AI Integration</h4>
+                <div className="flex items-start gap-4 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                  <CheckCircle2 className="h-6 w-6 text-green-600 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <h4 className="font-semibold text-base">✨ Optional AI Integration</h4>
                     <p className="text-sm text-muted-foreground">
-                      Optionally configure AI providers for advanced scheduling features
+                      Enhance scheduling with AI providers (Gemini, OpenAI, Anthropic). Can be added later.
                     </p>
                   </div>
                 </div>
               </div>
 
               <Button onClick={() => setStep('passkey')} className="w-full" size="lg">
-                Get Started
+                Begin Setup
               </Button>
             </div>
           )}
@@ -403,19 +417,31 @@ export const SetupWizard: React.FC = () => {
 
           {/* Complete Step */}
           {step === 'complete' && (
-            <div className="space-y-6 text-center">
-              <div className="flex justify-center">
-                <div className="h-16 w-16 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
-                  <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-500" />
+            <div className="space-y-6">
+              <div className="flex justify-center py-8">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-green-500 to-blue-500 rounded-full blur-lg opacity-30 animate-pulse"></div>
+                  <div className="relative h-20 w-20 rounded-full bg-gradient-to-br from-green-50 to-blue-50 dark:from-green-950 dark:to-blue-950 flex items-center justify-center border-2 border-green-500 dark:border-green-400">
+                    <CheckCircle2 className="h-10 w-10 text-green-600 dark:text-green-400" />
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <h3 className="text-xl font-semibold mb-2">Setup Complete!</h3>
-                <p className="text-muted-foreground">
-                  Your Schichtplan account is ready to use. You'll need to authenticate with your
-                  passkey once per day.
+              <div className="text-center space-y-3">
+                <h3 className="text-2xl font-bold">🎉 Setup Complete!</h3>
+                <p className="text-muted-foreground max-w-sm mx-auto">
+                  Your Schichtplan account is configured and ready. You'll authenticate with your passkey
+                  each time you log in—fast, secure, and password-free!
                 </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 py-4">
+                <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                  <p className="text-sm"><strong className="text-blue-900 dark:text-blue-100">💡 Quick Tip:</strong> You'll be asked to authenticate once per day for security.</p>
+                </div>
+                <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                  <p className="text-sm"><strong className="text-amber-900 dark:text-amber-100">📌 Remember:</strong> Save your recovery codes somewhere safe. You'll need them if you lose access to your authenticator.</p>
+                </div>
               </div>
 
               <Button
@@ -430,7 +456,10 @@ export const SetupWizard: React.FC = () => {
                     Finalizing...
                   </>
                 ) : (
-                  'Continue to Schichtplan'
+                  <>
+                    <KeyRound className="mr-2 h-4 w-4" />
+                    Go to Dashboard
+                  </>
                 )}
               </Button>
             </div>
