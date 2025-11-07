@@ -38,10 +38,8 @@ import { cn } from "@/lib/utils";
 import {
   getApplicableShiftsForEmployee,
   getEmployeeAvailabilityByDate,
-  getEmployees,
   getSettings,
   getShifts,
-  updateEmployee,
 } from "@/services/api";
 import {
   createRequiredConsecutiveShifts,
@@ -73,7 +71,7 @@ interface AddScheduleDialogProps {
     shift_id: number;
     version: number;
     availability_type: AvailabilityTypeStrings | null;
-    is_keyholder?: boolean;
+    is_keyholder_shift?: boolean;
   }) => Promise<void>;
   version: number;
   defaultDate?: Date;
@@ -101,7 +99,7 @@ export function AddScheduleDialog({
   const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedShift, setSelectedShift] = useState<number | null>(null);
-  const [isKeyholder, setIsKeyholder] = useState<boolean>(false);
+  const [isKeyholderShift, setIsKeyholderShift] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [employeeStatusList, setEmployeeStatusList] = useState<
@@ -117,6 +115,80 @@ export function AddScheduleDialog({
 
   const [selectedAvailabilityType, setSelectedAvailabilityType] =
     useState<AvailabilityTypeStrings | null>(null);
+
+  // Fetch settings to check store hours
+  const [settings, setSettings] = useState<{
+    general?: {
+      store_opening?: string;
+      store_closing?: string;
+    };
+  } | null>(null);
+
+  // Load settings when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      getSettings()
+        .then((data) => setSettings(data))
+        .catch((error) => {
+          console.error("Error fetching settings:", error);
+        });
+    }
+  }, [isOpen]);
+
+  // Determine if keyholder checkbox should be enabled based on selected shift
+  const isKeyholderEligible = useMemo(() => {
+    if (!selectedShift || !applicableShiftsList.length || !settings?.general) {
+      return false;
+    }
+
+    const shift = applicableShiftsList.find((s) => s.shift_id === selectedShift);
+    if (!shift) return false;
+
+    const storeOpening = settings.general.store_opening;
+    const storeClosing = settings.general.store_closing;
+
+    // Keyholder checkbox should only be enabled for opening or closing shifts
+    const isOpeningShift = shift.start_time === storeOpening;
+    const isClosingShift = shift.end_time === storeClosing;
+
+    return isOpeningShift || isClosingShift;
+  }, [selectedShift, applicableShiftsList, settings]);
+
+  // Get corresponding shift info (for keyholder consecutive requirement)
+  const correspondingShiftInfo = useMemo(() => {
+    if (!isKeyholderShift || !selectedShift || !applicableShiftsList.length || !settings?.general || !selectedDate) {
+      return null;
+    }
+
+    const shift = applicableShiftsList.find((s) => s.shift_id === selectedShift);
+    if (!shift) return null;
+
+    const storeOpening = settings.general.store_opening;
+    const storeClosing = settings.general.store_closing;
+
+    const isOpeningShift = shift.start_time === storeOpening;
+    const isClosingShift = shift.end_time === storeClosing;
+
+    if (isClosingShift) {
+      // Find next opening day
+      const nextDate = new Date(selectedDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      return {
+        type: "closing",
+        message: `Dieser Mitarbeiter muss am ${format(nextDate, "dd.MM.yyyy")} die Öffnungsschicht (${storeOpening}) übernehmen.`,
+      };
+    } else if (isOpeningShift) {
+      // Find previous closing day
+      const prevDate = new Date(selectedDate);
+      prevDate.setDate(prevDate.getDate() - 1);
+      return {
+        type: "opening",
+        message: `Dieser Mitarbeiter sollte am ${format(prevDate, "dd.MM.yyyy")} die Schließschicht (bis ${storeClosing}) gearbeitet haben.`,
+      };
+    }
+
+    return null;
+  }, [isKeyholderShift, selectedShift, applicableShiftsList, settings, selectedDate]);
 
   // Debug logging for props and state
   useEffect(() => {
@@ -150,7 +222,7 @@ export function AddScheduleDialog({
       // Reset shift selection
       setSelectedShift(defaultShiftId != null ? Number(defaultShiftId) : null);
       setSelectedAvailabilityType(null);
-      setIsKeyholder(false);
+      setIsKeyholderShift(false);
     }
   }, [isOpen, initialDefaultDate, initialDefaultEmployeeId, defaultShiftId]);
 
@@ -288,50 +360,14 @@ export function AddScheduleDialog({
         }
       }
 
-      // Handle keyholder status if selected
-      if (isKeyholder) {
-        try {
-          // Get all employees to find other keyholders
-          const employees = await getEmployees();
-          // Find and unset other keyholders
-          const otherKeyholders = employees.filter(
-            (emp) => emp.id !== selectedEmployee && emp.is_keyholder,
-          );
-          for (const keyholder of otherKeyholders) {
-            await updateEmployee(keyholder.id, {
-              ...keyholder,
-              is_keyholder: false,
-            });
-          }
-          // Set the selected employee as keyholder
-          const currentEmployee = employees.find(
-            (emp) => emp.id === selectedEmployee,
-          );
-          if (currentEmployee && !currentEmployee.is_keyholder) {
-            await updateEmployee(currentEmployee.id, {
-              ...currentEmployee,
-              is_keyholder: true,
-            });
-          }
-        } catch (error) {
-          toast({
-            title: "Warning",
-            description:
-              "Schedule will be created but keyholder status update failed: " +
-              (error instanceof Error ? error.message : "Unknown error"),
-            variant: "destructive",
-          });
-        }
-      }
-
-      // Create the schedule
+      // Create the schedule with keyholder shift flag
       await onAddSchedule({
         employee_id: selectedEmployee,
         date: format(selectedDate, "yyyy-MM-dd"),
         shift_id: selectedShift,
         version,
         availability_type: selectedAvailabilityType,
-        is_keyholder: isKeyholder,
+        is_keyholder_shift: isKeyholderShift,
       });
       // Fire back-compat test callback
       onScheduleAdded?.({
@@ -681,21 +717,33 @@ export function AddScheduleDialog({
           {/* Keyholder Checkbox */}
           <div className="grid grid-cols-4 items-center gap-4">
             <div></div> {/* Empty cell for alignment */}
-            <div className="col-span-3 flex items-center space-x-2">
-              <Checkbox
-                id="keyholder"
-                checked={isKeyholder}
-                onCheckedChange={(checked) =>
-                  setIsKeyholder(checked as boolean)
-                }
-                disabled={isSubmitting}
-              />
-              <Label
-                htmlFor="keyholder"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Als Schlüsselträger markieren
-              </Label>
+            <div className="col-span-3 flex flex-col space-y-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="keyholder"
+                  checked={isKeyholderShift}
+                  onCheckedChange={(checked) =>
+                    setIsKeyholderShift(checked as boolean)
+                  }
+                  disabled={isSubmitting || !isKeyholderEligible}
+                />
+                <Label
+                  htmlFor="keyholder"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Als Schlüsselträger-Schicht markieren
+                </Label>
+              </div>
+              {!isKeyholderEligible && selectedShift && (
+                <div className="text-xs text-muted-foreground italic">
+                  Nur für Öffnungs- oder Schließschichten verfügbar
+                </div>
+              )}
+              {correspondingShiftInfo && (
+                <div className="text-xs bg-amber-50 text-amber-800 p-2 rounded border border-amber-200">
+                  <strong>Hinweis:</strong> {correspondingShiftInfo.message}
+                </div>
+              )}
             </div>
           </div>
 

@@ -42,6 +42,9 @@ class Schedule(db.Model):
     break_end = Column(db.String(5), nullable=True)
     break_duration = Column(db.Integer, nullable=True)  # Duration in minutes
 
+    # Keyholder assignment for this specific shift (not the employee capability)
+    is_keyholder_shift = Column(db.Boolean, nullable=False, default=False)
+
     notes = Column(db.Text, nullable=True)
     shift_type = Column(
         db.String(20), nullable=True
@@ -81,6 +84,7 @@ class Schedule(db.Model):
         shift_type=None,
         availability_type=AvailabilityType.AVAILABLE,
         status=ScheduleStatus.DRAFT,
+        is_keyholder_shift=False,
     ):
         self.employee_id = employee_id
         self.shift_id = shift_id
@@ -98,6 +102,9 @@ class Schedule(db.Model):
         self.break_start = break_start
         self.break_end = break_end
         self.break_duration = break_duration
+
+        # Keyholder shift assignment
+        self.is_keyholder_shift = is_keyholder_shift
 
         self.notes = notes
         self.shift_type = shift_type  # Legacy field
@@ -241,6 +248,8 @@ class Schedule(db.Model):
             "break_start": self.break_start,
             "break_end": self.break_end,
             "break_duration": self.break_duration,
+            # Keyholder shift assignment
+            "is_keyholder_shift": self.is_keyholder_shift if hasattr(self, "is_keyholder_shift") else False,
             "notes": self.notes,
             "shift_type": self.shift_type,  # Legacy field
             "availability_type": self.availability_type.value

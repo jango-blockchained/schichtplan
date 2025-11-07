@@ -1457,6 +1457,7 @@ def create_schedule():
                 notes=data.get("notes"),
                 shift_type=data.get("shift_type"),
                 status=ScheduleStatus.DRAFT,
+                is_keyholder_shift=data.get("is_keyholder_shift", False),
             )
 
             # Use session_manager context for automatic transaction handling

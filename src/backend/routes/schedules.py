@@ -757,6 +757,7 @@ def update_schedule(schedule_id):
                 availability_type=AvailabilityType(request_data.availability_type)
                 if request_data.availability_type is not None
                 else None,
+                is_keyholder_shift=request_data.is_keyholder_shift if request_data.is_keyholder_shift is not None else False,
             )
 
             # Handle break_duration by converting it to break_start and break_end
@@ -931,6 +932,13 @@ def update_schedule(schedule_id):
                 )
                 logger.info(
                     f"Cleared schedule availability_type for schedule {schedule_id}"
+                )
+
+            # Handle is_keyholder_shift updates
+            if hasattr(request_data, "is_keyholder_shift") and request_data.is_keyholder_shift is not None:
+                schedule.is_keyholder_shift = request_data.is_keyholder_shift
+                logger.info(
+                    f"Updated schedule is_keyholder_shift to {schedule.is_keyholder_shift} for schedule {schedule_id}"
                 )
 
             # Handle break_duration updates

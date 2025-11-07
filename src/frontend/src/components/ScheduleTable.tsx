@@ -144,7 +144,7 @@ const getKeyholderAdjustedTimes = (
     };
   },
 ): { startTime: string; endTime: string } => {
-  const isKeyholderShift = employee?.is_keyholder && schedule?.shift_id;
+  const isKeyholderShift = schedule?.is_keyholder_shift && schedule?.shift_id;
 
   if (
     !isKeyholderShift ||
@@ -227,7 +227,7 @@ const calculateBreakDuration = (
   }
 
   // Add keyholder extra time as break time
-  const isKeyholderShift = employee?.is_keyholder && schedule?.shift_id;
+  const isKeyholderShift = schedule?.is_keyholder_shift && schedule?.shift_id;
   if (
     isKeyholderShift &&
     schedule.shift_start &&
@@ -350,6 +350,7 @@ interface DragItem {
   // Optional times for validation
   start_time?: string | null;
   end_time?: string | null;
+  is_keyholder_shift?: boolean; // Whether this shift has keyholder assigned
 }
 
 // Helper function to determine if a schedule is empty (no shift assigned)
@@ -408,7 +409,7 @@ const TimeSlotDisplay = ({
   };
 
   // Check if this is a keyholder shift
-  const isKeyholderShift = employee?.is_keyholder && schedule?.shift_id;
+  const isKeyholderShift = schedule?.is_keyholder_shift && schedule?.shift_id;
 
   // Calculate adjusted times for keyholder shifts
   const getAdjustedTimes = () => {
@@ -690,6 +691,7 @@ const ScheduleCell = ({
         isDockItem: false,
         start_time: schedule.shift_start,
         end_time: schedule.shift_end,
+        is_keyholder_shift: schedule.is_keyholder_shift,
       };
     },
     collect: (monitor) => ({
