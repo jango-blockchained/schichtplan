@@ -85,31 +85,31 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4">
+      <Card className="w-full max-w-md shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-700 dark:to-indigo-700 text-white">
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Shield className="h-6 w-6 text-primary" />
+            <div className="h-12 w-12 rounded-lg bg-white/20 flex items-center justify-center">
+              <Shield className="h-6 w-6 text-white" />
             </div>
             <div>
-              <CardTitle className="text-2xl">Welcome Back</CardTitle>
-              <CardDescription>
-                Sign in to Schichtplan
+              <CardTitle className="text-2xl text-white">Welcome Back</CardTitle>
+              <CardDescription className="text-blue-100">
+                Secure authentication to Schichtplan
               </CardDescription>
             </div>
           </div>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="pt-6">
           <Tabs defaultValue="passkey" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="passkey">
-                <KeyRound className="h-4 w-4 mr-2" />
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="passkey" className="gap-2">
+                <KeyRound className="h-4 w-4" />
                 Passkey
               </TabsTrigger>
-              <TabsTrigger value="recovery">
-                <Shield className="h-4 w-4 mr-2" />
+              <TabsTrigger value="recovery" className="gap-2">
+                <Shield className="h-4 w-4" />
                 Recovery Code
               </TabsTrigger>
             </TabsList>
@@ -117,28 +117,29 @@ export const LoginPage: React.FC = () => {
             {/* Passkey Login */}
             <TabsContent value="passkey" className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="passkey-username">Username</Label>
+                <Label htmlFor="passkey-username" className="font-semibold">Username</Label>
                 <Input
                   id="passkey-username"
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   disabled={loading}
+                  placeholder="admin"
+                  className="h-10"
                 />
               </div>
 
               {error && (
-                <Alert variant="destructive">
+                <Alert variant="destructive" className="border-red-300 bg-red-50 dark:bg-red-950/30">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
 
-              <Alert>
-                <KeyRound className="h-4 w-4" />
-                <AlertDescription>
-                  You'll be prompted to use your device's authentication (fingerprint, face recognition,
-                  or security key).
+              <Alert className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30">
+                <KeyRound className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <AlertDescription className="text-blue-900 dark:text-blue-100">
+                  You'll be prompted to use your device's authentication—fingerprint, face recognition, or security key.
                 </AlertDescription>
               </Alert>
 
