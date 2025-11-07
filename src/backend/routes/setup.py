@@ -399,10 +399,11 @@ def verify_recovery_code():
         db.session.commit()
 
         # Generate session token (reuse existing JWT logic)
+        role_value = user.role.value if hasattr(user.role, "value") else str(user.role)
         token = generate_token(
             user.id,
             user.username,
-            user.role.value,
+            role_value,
             expiration_hours=24,
         )
 

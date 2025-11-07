@@ -44,13 +44,13 @@ class User(db.Model):
     updated_at = Column(
         DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
-    
+
     # Passkey/WebAuthn fields
     webauthn_credentials = Column(Text, nullable=True)  # JSON array of credentials
-    
+
     # Recovery codes (hashed)
     recovery_codes = Column(Text, nullable=True)  # JSON array of hashed codes
-    
+
     # Setup completion flag
     setup_completed = Column(Boolean, nullable=False, default=False)
 
@@ -112,29 +112,29 @@ class User(db.Model):
         """Generate recovery codes and return unhashed versions"""
         codes = []
         hashed_codes = []
-        
+
         for _ in range(count):
             # Generate a 12-character alphanumeric code
             code = secrets.token_urlsafe(9)[:12].upper()
             codes.append(code)
             # Store hashed version
             hashed_codes.append(generate_password_hash(code))
-        
+
         self.recovery_codes = json.dumps(hashed_codes)
         self.updated_at = datetime.utcnow()
-        
+
         return codes
 
     def verify_recovery_code(self, code):
         """Verify a recovery code and invalidate it if valid"""
         if not self.recovery_codes:
             return False
-        
+
         try:
             hashed_codes = json.loads(self.recovery_codes)
         except (json.JSONDecodeError, TypeError):
             return False
-        
+
         # Check each hashed code
         for i, hashed_code in enumerate(hashed_codes):
             if check_password_hash(hashed_code, code):
@@ -143,7 +143,7 @@ class User(db.Model):
                 self.recovery_codes = json.dumps(hashed_codes)
                 self.updated_at = datetime.utcnow()
                 return True
-        
+
         return False
 
     def get_remaining_recovery_codes_count(self):
@@ -158,7 +158,7 @@ class User(db.Model):
 
     def get_permissions(self):
         """Get list of permissions based on role"""
-        permissions = {
+        permissions_map = {
             UserRole.ADMIN: [
                 "view_all",
                 "create_all",
@@ -180,7 +180,17 @@ class User(db.Model):
             UserRole.EMPLOYEE: ["view_own", "edit_availability"],
             UserRole.READONLY: ["view_all"],
         }
-        return permissions.get(self.role, [])
+
+        # Handle both Enum and string roles
+        role = self.role
+        if isinstance(role, str):
+            try:
+                role = UserRole(role)
+            except ValueError:
+                # Invalid role, return empty permissions
+                return []
+
+        return permissions_map.get(role, [])
 
     def has_permission(self, permission):
         """Check if user has specific permission"""
@@ -196,20 +206,21 @@ class User(db.Model):
 
     def to_dict(self, include_api_key=False):
         """Convert user object to dictionary for JSON serialization"""
+        role_value = self.role.value if hasattr(self.role, "value") else str(self.role)
         result = {
             "id": self.id,
             "username": self.username,
             "email": self.email,
-            "role": self.role.value,
+            "role": role_value,
             "is_active": self.is_active,
             "employee_id": self.employee_id,
             "permissions": self.get_permissions(),
-            "last_login": self.last_login.isoformat() if self.last_login else None,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "last_login": (self.last_login.isoformat() if self.last_login else None),
+            "created_at": (self.created_at.isoformat() if self.created_at else None),
+            "updated_at": (self.updated_at.isoformat() if self.updated_at else None),
             "setup_completed": self.setup_completed,
             "has_passkey": bool(self.webauthn_credentials),
-            "remaining_recovery_codes": self.get_remaining_recovery_codes_count(),
+            "remaining_recovery_codes": (self.get_remaining_recovery_codes_count()),
         }
 
         if include_api_key:
@@ -218,4 +229,5 @@ class User(db.Model):
         return result
 
     def __repr__(self):
-        return f"<User {self.username}: {self.role.value}>"
+        role_value = self.role.value if hasattr(self.role, "value") else str(self.role)
+        return f"<User {self.username}: {role_value}>"
