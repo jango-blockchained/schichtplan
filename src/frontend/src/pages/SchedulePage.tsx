@@ -413,6 +413,14 @@ export function SchedulePage() {
     );
 
     const filteredVersions = versionState.versions.filter((version) => {
+      // Skip versions without date_range (undefined check)
+      if (!version.date_range?.start || !version.date_range?.end) {
+        console.log(
+          `📅 Version ${version.version}: SKIPPED (no date_range defined)`,
+        );
+        return false;
+      }
+
       const versionStart = version.date_range.start;
       const versionEnd = version.date_range.end;
 
@@ -457,7 +465,7 @@ export function SchedulePage() {
   console.log(
     "📅 All versions:",
     versionState.versions.map(
-      (v) => `v${v.version} (${v.date_range.start} - ${v.date_range.end})`,
+      (v) => `v${v.version} (${v.date_range?.start ?? "undefined"} - ${v.date_range?.end ?? "undefined"})`,
     ),
   );
   console.log(
