@@ -1,16 +1,16 @@
 /**
  * SetupWizard - First-time setup flow with passkey registration
  */
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, CheckCircle2, KeyRound, Sparkles, Shield } from 'lucide-react';
-import { registerPasskey, configureAIKeys, completeSetup, type AIKeysConfig } from '@/services/setupService';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
+import { completeSetup, configureAIKeys, registerPasskey, type AIKeysConfig } from '@/services/setupService';
+import { CheckCircle2, KeyRound, Loader2, Shield, Sparkles } from 'lucide-react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 type SetupStep = 'welcome' | 'passkey' | 'recovery' | 'ai-keys' | 'complete';
 
@@ -39,7 +39,7 @@ const RecoveryCodesDisplay: React.FC<RecoveryCodesDisplayProps> = ({ codes, onCo
         <Shield className="h-6 w-6" />
         <h3 className="text-lg font-semibold">Save Your Recovery Codes</h3>
       </div>
-      
+
       <Alert>
         <AlertDescription>
           These codes are your backup access method. Write them down and store them in a safe place.
@@ -76,8 +76,8 @@ const RecoveryCodesDisplay: React.FC<RecoveryCodesDisplayProps> = ({ codes, onCo
           </label>
         </div>
 
-        <Button 
-          onClick={onContinue} 
+        <Button
+          onClick={onContinue}
           className="w-full"
           disabled={!confirmed}
         >
@@ -279,14 +279,14 @@ export const SetupWizard: React.FC = () => {
               <Alert>
                 <KeyRound className="h-4 w-4" />
                 <AlertDescription>
-                  You'll be prompted to use your device's authentication (fingerprint, face recognition, 
+                  You'll be prompted to use your device's authentication (fingerprint, face recognition,
                   or security key) to create your passkey.
                 </AlertDescription>
               </Alert>
 
-              <Button 
-                onClick={handlePasskeySetup} 
-                className="w-full" 
+              <Button
+                onClick={handlePasskeySetup}
+                className="w-full"
                 size="lg"
                 disabled={loading}
               >
@@ -307,9 +307,9 @@ export const SetupWizard: React.FC = () => {
 
           {/* Recovery Codes Step */}
           {step === 'recovery' && (
-            <RecoveryCodesDisplay 
-              codes={recoveryCodes} 
-              onContinue={() => setStep('ai-keys')} 
+            <RecoveryCodesDisplay
+              codes={recoveryCodes}
+              onContinue={() => setStep('ai-keys')}
             />
           )}
 
@@ -323,7 +323,7 @@ export const SetupWizard: React.FC = () => {
 
               <Alert>
                 <AlertDescription>
-                  Configure AI providers to enable advanced features like intelligent scheduling 
+                  Configure AI providers to enable advanced features like intelligent scheduling
                   and natural language interactions. You can skip this step and configure later.
                 </AlertDescription>
               </Alert>
@@ -376,15 +376,15 @@ export const SetupWizard: React.FC = () => {
               </div>
 
               <div className="flex gap-3">
-                <Button 
-                  onClick={() => setStep('complete')} 
-                  variant="outline" 
+                <Button
+                  onClick={() => setStep('complete')}
+                  variant="outline"
                   className="flex-1"
                 >
                   Skip for Now
                 </Button>
-                <Button 
-                  onClick={handleAIConfiguration} 
+                <Button
+                  onClick={handleAIConfiguration}
                   className="flex-1"
                   disabled={loading}
                 >
@@ -413,14 +413,14 @@ export const SetupWizard: React.FC = () => {
               <div>
                 <h3 className="text-xl font-semibold mb-2">Setup Complete!</h3>
                 <p className="text-muted-foreground">
-                  Your Schichtplan account is ready to use. You'll need to authenticate with your 
+                  Your Schichtplan account is ready to use. You'll need to authenticate with your
                   passkey once per day.
                 </p>
               </div>
 
-              <Button 
-                onClick={handleComplete} 
-                className="w-full" 
+              <Button
+                onClick={handleComplete}
+                className="w-full"
                 size="lg"
                 disabled={loading}
               >

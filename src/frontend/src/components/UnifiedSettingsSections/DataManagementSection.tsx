@@ -36,6 +36,7 @@ import {
   restoreDatabase,
   wipeTables,
 } from "@/services/api"; // Using actual API imports
+import { resetAdminPasskey } from "@/services/setupService";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
@@ -51,6 +52,8 @@ const DataManagementSection: React.FC = () => {
   const [availableTables, setAvailableTables] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isFetchingTables, setIsFetchingTables] = useState(false); // For loading state of tables
+  const [showRecoveryCodes, setShowRecoveryCodes] = useState(false);
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -201,6 +204,26 @@ const DataManagementSection: React.FC = () => {
       "Failed to wipe tables",
     );
     setSelectedTablesToWipe([]);
+  };
+
+  const handleResetAdminPasskey = async () => {
+    setIsProcessing(true);
+    try {
+      const result = await resetAdminPasskey();
+      setRecoveryCodes(result.recovery_codes);
+      setShowRecoveryCodes(true);
+      toast({
+        title: "Success",
+        description: result.message,
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: `Failed to reset admin passkey: ${err instanceof Error ? err.message : "Unknown error"}`,
+        variant: "destructive",
+      });
+    }
+    setIsProcessing(false);
   };
 
   const toggleTableSelection = (table: string) => {
@@ -386,6 +409,90 @@ const DataManagementSection: React.FC = () => {
               </AlertDialogContent>
             </AlertDialog>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Authentication Management</CardTitle>
+          <CardDescription>
+            Manage admin passkey and recovery codes for account access.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            If you've lost access to your admin passkey or need to reset it, you can generate new recovery codes below.
+          </p>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" disabled={isProcessing}>
+                {isProcessing && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}{" "}
+                Reset Admin Passkey
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reset Admin Passkey?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will clear your current passkey and generate new recovery codes. You'll need to re-register a passkey to log in. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isProcessing}>
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleResetAdminPasskey}
+                  disabled={isProcessing}
+                  className="bg-destructive hover:bg-destructive/90"
+                >
+                  {isProcessing && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}{" "}
+                  Reset Passkey
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {showRecoveryCodes && recoveryCodes.length > 0 && (
+            <div className="border rounded-lg p-4 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+              <h3 className="font-semibold mb-3">Your Recovery Codes</h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                Save these codes in a secure place. Each code can be used once to regain access to your account.
+              </p>
+              <div className="grid grid-cols-2 gap-2 mb-3 font-mono text-sm bg-white dark:bg-slate-950 p-3 rounded border">
+                {recoveryCodes.map((code, index) => (
+                  <div key={index} className="text-center">
+                    {code}
+                  </div>
+                ))}
+              </div>
+              <Button
+                size="sm"
+                onClick={() => {
+                  const text = recoveryCodes.join('\n');
+                  const blob = new Blob([text], { type: 'text/plain' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'recovery-codes.txt';
+                  document.body.appendChild(a);
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                  document.body.removeChild(a);
+                  toast({
+                    title: "Success",
+                    description: "Recovery codes downloaded",
+                  });
+                }}
+              >
+                Download Recovery Codes
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

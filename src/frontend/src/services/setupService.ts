@@ -1,17 +1,17 @@
 /**
  * Setup service for first-time application setup with passkey authentication
  */
-import { api } from './api';
 import {
-  startRegistration,
-  startAuthentication,
+    startAuthentication,
+    startRegistration,
 } from '@simplewebauthn/browser';
 import type {
-  PublicKeyCredentialCreationOptionsJSON,
-  PublicKeyCredentialRequestOptionsJSON,
-  RegistrationResponseJSON,
-  AuthenticationResponseJSON,
+    AuthenticationResponseJSON,
+    PublicKeyCredentialCreationOptionsJSON,
+    PublicKeyCredentialRequestOptionsJSON,
+    RegistrationResponseJSON,
 } from '@simplewebauthn/types';
+import { api } from './api';
 
 export interface SetupStatus {
   setup_completed: boolean;
@@ -104,7 +104,8 @@ export async function registerPasskey(username: string, email: string): Promise<
   const options = await initPasskeyRegistration(username, email);
   
   // Step 2: Use browser WebAuthn API to create credential
-  const credential = await startRegistration(options);
+  // Wrap options in the format expected by startRegistration
+  const credential = await startRegistration({ optionsJSON: options });
   
   // Step 3: Complete registration on server
   return await completePasskeyRegistration(username, credential);
@@ -159,7 +160,8 @@ export async function loginWithPasskey(username: string): Promise<{ token: strin
   const options = await initPasskeyLogin(username);
   
   // Step 2: Use browser WebAuthn API to get credential
-  const credential = await startAuthentication(options);
+  // Wrap options in the format expected by startAuthentication
+  const credential = await startAuthentication({ optionsJSON: options });
   
   // Step 3: Complete login on server
   const result = await completePasskeyLogin(username, credential);
@@ -197,6 +199,33 @@ export async function verifyRecoveryCode(
  */
 export async function checkDailyLogin(): Promise<{ needs_login: boolean; last_login: string | null }> {
   const response = await api.get('/api/v2/auth/passkey/check-daily-login');
+  return response.data;
+}
+
+/**
+ * Reset admin passkey and generate new recovery codes
+ */
+export async function resetAdminPasskey(): Promise<{ message: string; recovery_codes: string[] }> {
+  const response = await api.post('/api/v2/setup/reset-admin-passkey', {});
+  return response.data;
+}
+
+/**
+ * Reset admin passkey using a previously generated reset token
+ * For emergency access recovery
+ */
+export async function resetWithToken(resetToken: string): Promise<{ message: string; recovery_codes: string[] }> {
+  const response = await api.post('/api/v2/setup/reset-with-token', {
+    reset_token: resetToken,
+  });
+  return response.data;
+}
+
+/**
+ * Generate a reset token file for offline emergency access
+ */
+export async function generateResetToken(): Promise<{ message: string; token_file: string; instructions: string }> {
+  const response = await api.post('/api/v2/setup/reset-token', {});
   return response.data;
 }
 
