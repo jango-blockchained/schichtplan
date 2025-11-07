@@ -1,17 +1,17 @@
 /**
  * LoginPage - Authentication with passkey or recovery code
  */
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, KeyRound, Shield, AlertCircle } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 import { loginWithPasskey, verifyRecoveryCode } from '@/services/setupService';
-import { useToast } from '@/hooks/use-toast';
+import { AlertCircle, KeyRound, Loader2, Shield } from 'lucide-react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -24,15 +24,15 @@ export const LoginPage: React.FC = () => {
   const handlePasskeyLogin = async () => {
     setError(null);
     setLoading(true);
-    
+
     try {
       const result = await loginWithPasskey(username);
-      
+
       toast({
         title: 'Login Successful',
         description: 'Welcome back!',
       });
-      
+
       // Redirect to main app
       navigate('/');
     } catch (error: any) {
@@ -60,15 +60,15 @@ export const LoginPage: React.FC = () => {
 
     setError(null);
     setLoading(true);
-    
+
     try {
       const result = await verifyRecoveryCode(username, recoveryCode.trim());
-      
+
       toast({
         title: 'Login Successful',
         description: `Recovery code accepted. ${result.remaining_recovery_codes} codes remaining.`,
       });
-      
+
       // Redirect to main app
       navigate('/');
     } catch (error: any) {
@@ -137,14 +137,14 @@ export const LoginPage: React.FC = () => {
               <Alert>
                 <KeyRound className="h-4 w-4" />
                 <AlertDescription>
-                  You'll be prompted to use your device's authentication (fingerprint, face recognition, 
+                  You'll be prompted to use your device's authentication (fingerprint, face recognition,
                   or security key).
                 </AlertDescription>
               </Alert>
 
-              <Button 
-                onClick={handlePasskeyLogin} 
-                className="w-full" 
+              <Button
+                onClick={handlePasskeyLogin}
+                className="w-full"
                 size="lg"
                 disabled={loading || !username.trim()}
               >
@@ -199,14 +199,14 @@ export const LoginPage: React.FC = () => {
               <Alert>
                 <Shield className="h-4 w-4" />
                 <AlertDescription>
-                  Each recovery code can only be used once. After using a code, you'll have fewer 
+                  Each recovery code can only be used once. After using a code, you'll have fewer
                   recovery codes available.
                 </AlertDescription>
               </Alert>
 
-              <Button 
-                onClick={handleRecoveryCodeLogin} 
-                className="w-full" 
+              <Button
+                onClick={handleRecoveryCodeLogin}
+                className="w-full"
                 size="lg"
                 disabled={loading || !username.trim() || !recoveryCode.trim()}
               >
