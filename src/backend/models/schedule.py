@@ -248,6 +248,8 @@ class Schedule(db.Model):
             "break_start": self.break_start,
             "break_end": self.break_end,
             "break_duration": self.break_duration,
+            # Keyholder shift assignment
+            "is_keyholder_shift": self.is_keyholder_shift if hasattr(self, "is_keyholder_shift") else False,
             "notes": self.notes,
             "shift_type": self.shift_type,  # Legacy field
             "availability_type": self.availability_type.value

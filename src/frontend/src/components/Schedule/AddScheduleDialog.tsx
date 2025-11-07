@@ -38,10 +38,8 @@ import { cn } from "@/lib/utils";
 import {
   getApplicableShiftsForEmployee,
   getEmployeeAvailabilityByDate,
-  getEmployees,
   getSettings,
   getShifts,
-  updateEmployee,
 } from "@/services/api";
 import {
   createRequiredConsecutiveShifts,
@@ -288,43 +286,7 @@ export function AddScheduleDialog({
         }
       }
 
-      // Handle keyholder status if selected
-      if (isKeyholderShift) {
-        try {
-          // Get all employees to find other keyholders
-          const employees = await getEmployees();
-          // Find and unset other keyholders
-          const otherKeyholders = employees.filter(
-            (emp) => emp.id !== selectedEmployee && emp.is_keyholder,
-          );
-          for (const keyholder of otherKeyholders) {
-            await updateEmployee(keyholder.id, {
-              ...keyholder,
-              is_keyholder: false,
-            });
-          }
-          // Set the selected employee as keyholder
-          const currentEmployee = employees.find(
-            (emp) => emp.id === selectedEmployee,
-          );
-          if (currentEmployee && !currentEmployee.is_keyholder) {
-            await updateEmployee(currentEmployee.id, {
-              ...currentEmployee,
-              is_keyholder: true,
-            });
-          }
-        } catch (error) {
-          toast({
-            title: "Warning",
-            description:
-              "Schedule will be created but keyholder status update failed: " +
-              (error instanceof Error ? error.message : "Unknown error"),
-            variant: "destructive",
-          });
-        }
-      }
-
-      // Create the schedule
+      // Create the schedule with keyholder shift flag
       await onAddSchedule({
         employee_id: selectedEmployee,
         date: format(selectedDate, "yyyy-MM-dd"),

@@ -144,7 +144,7 @@ const getKeyholderAdjustedTimes = (
     };
   },
 ): { startTime: string; endTime: string } => {
-  const isKeyholderShift = employee?.is_keyholder && schedule?.shift_id;
+  const isKeyholderShift = schedule?.is_keyholder_shift && schedule?.shift_id;
 
   if (
     !isKeyholderShift ||
@@ -227,7 +227,7 @@ const calculateBreakDuration = (
   }
 
   // Add keyholder extra time as break time
-  const isKeyholderShift = employee?.is_keyholder && schedule?.shift_id;
+  const isKeyholderShift = schedule?.is_keyholder_shift && schedule?.shift_id;
   if (
     isKeyholderShift &&
     schedule.shift_start &&
@@ -408,7 +408,7 @@ const TimeSlotDisplay = ({
   };
 
   // Check if this is a keyholder shift
-  const isKeyholderShift = employee?.is_keyholder && schedule?.shift_id;
+  const isKeyholderShift = schedule?.is_keyholder_shift && schedule?.shift_id;
 
   // Calculate adjusted times for keyholder shifts
   const getAdjustedTimes = () => {
