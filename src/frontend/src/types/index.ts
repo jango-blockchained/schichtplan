@@ -75,6 +75,7 @@ export interface Schedule {
   availability_type?: AvailabilityTypeStrings;
   shift_type_id?: ShiftType;
   shift_type_name?: string;
+  is_keyholder_shift?: boolean; // Indicates this specific schedule is assigned the keyholder role
 }
 
 export interface ScheduleError {

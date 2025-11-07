@@ -73,7 +73,7 @@ interface AddScheduleDialogProps {
     shift_id: number;
     version: number;
     availability_type: AvailabilityTypeStrings | null;
-    is_keyholder?: boolean;
+    is_keyholder_shift?: boolean;
   }) => Promise<void>;
   version: number;
   defaultDate?: Date;
@@ -101,7 +101,7 @@ export function AddScheduleDialog({
   const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedShift, setSelectedShift] = useState<number | null>(null);
-  const [isKeyholder, setIsKeyholder] = useState<boolean>(false);
+  const [isKeyholderShift, setIsKeyholderShift] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [employeeStatusList, setEmployeeStatusList] = useState<
@@ -150,7 +150,7 @@ export function AddScheduleDialog({
       // Reset shift selection
       setSelectedShift(defaultShiftId != null ? Number(defaultShiftId) : null);
       setSelectedAvailabilityType(null);
-      setIsKeyholder(false);
+      setIsKeyholderShift(false);
     }
   }, [isOpen, initialDefaultDate, initialDefaultEmployeeId, defaultShiftId]);
 
@@ -289,7 +289,7 @@ export function AddScheduleDialog({
       }
 
       // Handle keyholder status if selected
-      if (isKeyholder) {
+      if (isKeyholderShift) {
         try {
           // Get all employees to find other keyholders
           const employees = await getEmployees();
@@ -331,7 +331,7 @@ export function AddScheduleDialog({
         shift_id: selectedShift,
         version,
         availability_type: selectedAvailabilityType,
-        is_keyholder: isKeyholder,
+        is_keyholder_shift: isKeyholderShift,
       });
       // Fire back-compat test callback
       onScheduleAdded?.({
@@ -684,9 +684,9 @@ export function AddScheduleDialog({
             <div className="col-span-3 flex items-center space-x-2">
               <Checkbox
                 id="keyholder"
-                checked={isKeyholder}
+                checked={isKeyholderShift}
                 onCheckedChange={(checked) =>
-                  setIsKeyholder(checked as boolean)
+                  setIsKeyholderShift(checked as boolean)
                 }
                 disabled={isSubmitting}
               />
@@ -694,7 +694,7 @@ export function AddScheduleDialog({
                 htmlFor="keyholder"
                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
               >
-                Als Schlüsselträger markieren
+                Als Schlüsselträger-Schicht markieren
               </Label>
             </div>
           </div>
