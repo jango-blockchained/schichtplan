@@ -1,0 +1,146 @@
+site_name: Schichtplan Documentation
+site_description: AI-Powered Employee Scheduling System
+site_author: Schichtplan Team
+site_url: https://jango-blockchained.github.io/schichtplan
+
+repo_name: jango-blockchained/schichtplan
+repo_url: https://github.com/jango-blockchained/schichtplan
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  language: en
+  palette:
+    # Palette toggle for light mode
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.action.edit
+    - content.action.view
+    - toc.follow
+
+plugins:
+  - search:
+      lang: en
+  - minify:
+      minify_html: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/jango-blockchained/schichtplan
+    - icon: fontawesome/solid/bug
+      link: https://github.com/jango-blockchained/schichtplan/issues
+  version:
+    provider: mike
+  analytics:
+    feedback:
+      title: Was this page helpful?
+      ratings:
+        - icon: material/emoticon-happy-outline
+          name: This page was helpful
+          data: 1
+          note: >-
+            Thanks for your feedback!
+        - icon: material/emoticon-sad-outline
+          name: This page could be improved
+          data: 0
+          note: >-
+            Thanks for your feedback! Help us improve this page by
+            <a href="https://github.com/jango-blockchained/schichtplan/issues/new" target="_blank" rel="noopener">opening an issue</a>.
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Quick Start: getting-started/quick-start.md
+      - Installation: getting-started/installation.md
+      - Setup & Authentication: getting-started/setup-authentication.md
+      - First Steps: getting-started/first-steps.md
+  - Features:
+      - Overview: features/overview.md
+      - Schedule Management: features/schedule-management.md
+      - Employee Management: features/employee-management.md
+      - AI Integration: features/ai-integration.md
+      - Telegram Bot: features/telegram-bot.md
+      - PDF Export: features/pdf-export.md
+      - Vacation Planning: features/vacation-planning.md
+  - Deployment:
+      - Docker: deployment/docker.md
+      - Desktop Apps: deployment/desktop.md
+      - Self-Hosted: deployment/self-hosted.md
+      - Cloud: deployment/cloud.md
+  - Development:
+      - Architecture: development/architecture.md
+      - Backend Guide: development/backend.md
+      - Frontend Guide: development/frontend.md
+      - Testing: development/testing.md
+      - CI/CD: development/ci-cd.md
+      - Contributing: development/contributing.md
+  - API Reference:
+      - REST API: api/rest-api.md
+      - MCP Server: api/mcp-server.md
+      - Authentication: api/authentication.md
+  - Guides:
+      - Troubleshooting: guides/troubleshooting.md
+      - Best Practices: guides/best-practices.md
+      - Migration Guide: guides/migration.md
+      - Security: guides/security.md
+  - About:
+      - License: about/license.md
+      - Changelog: about/changelog.md
+      - FAQ: about/faq.md
+
+copyright: Copyright &copy; 2024 Schichtplan Team
