@@ -4,7 +4,9 @@ Handles passkey registration, recovery codes, and AI API key configuration.
 """
 
 import json
+import secrets
 from datetime import datetime
+from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, request
 from webauthn import (
@@ -14,10 +16,12 @@ from webauthn import (
 )
 from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
 from webauthn.helpers.structs import (
+    AuthenticatorAttestationResponse,
     RegistrationCredential,
 )
 
 from src.backend.models import Settings, User, UserRole, db
+from src.backend.services.auth_service import generate_token
 from src.backend.utils.logger import logger
 
 bp = Blueprint("setup", __name__, url_prefix="/api/v2/setup")
@@ -170,10 +174,34 @@ def complete_passkey_registration():
             "WEBAUTHN_ORIGIN", "http://localhost:5173"
         )
 
-        # Parse credential
-        registration_credential = RegistrationCredential.parse_raw(
-            json.dumps(credential_data)
-        )
+        # Parse credential - convert dict to RegistrationCredential
+        try:
+            # Extract response data and convert from base64url to bytes
+            response_data = credential_data.get("response", {})
+            client_data_json = base64url_to_bytes(
+                response_data.get("clientDataJSON", "")
+            )
+            attestation_object = base64url_to_bytes(
+                response_data.get("attestationObject", "")
+            )
+
+            # Create AuthenticatorAttestationResponse
+            attestation_response = AuthenticatorAttestationResponse(
+                client_data_json=client_data_json,
+                attestation_object=attestation_object,
+                transports=response_data.get("transports", []),
+            )
+
+            # Create RegistrationCredential
+            registration_credential = RegistrationCredential(
+                id=credential_data.get("id"),
+                raw_id=base64url_to_bytes(credential_data.get("rawId", "")),
+                response=attestation_response,
+                type=credential_data.get("type", "public-key"),
+            )
+        except Exception as e:
+            logger.error(f"Error parsing credential: {str(e)}")
+            return jsonify({"error": f"Invalid credential format: {str(e)}"}), 400
 
         verification = verify_registration_response(
             credential=registration_credential,
@@ -187,9 +215,8 @@ def complete_passkey_registration():
 
         if not admin_user:
             # Create new admin user
-            # For passkey-only auth, we still need a password field (set to random string)
-            import secrets
-
+            # For passkey-only auth, we still need a password field
+            # (set to random string)
             random_password = secrets.token_urlsafe(32)
 
             admin_user = User(
@@ -372,8 +399,6 @@ def verify_recovery_code():
         db.session.commit()
 
         # Generate session token (reuse existing JWT logic)
-        from src.backend.services.auth_service import generate_token
-
         token = generate_token(
             user.id,
             user.username,
@@ -381,14 +406,14 @@ def verify_recovery_code():
             expiration_hours=24,
         )
 
-        logger.info(f"Recovery code authentication successful for user: {username}")
+        logger.info(f"Recovery code auth successful for user: {username}")
 
         return jsonify(
             {
                 "message": "Authentication successful",
                 "token": token,
                 "user": user.to_dict(),
-                "remaining_recovery_codes": user.get_remaining_recovery_codes_count(),
+                "remaining_recovery_codes": (user.get_remaining_recovery_codes_count()),
             }
         )
 
@@ -441,16 +466,13 @@ def reset_admin_passkey():
 @bp.route("/reset-token", methods=["POST"])
 def generate_reset_token():
     """
-    Generate a reset token file that can be used offline to reset the admin passkey.
-    This creates a file in the instance directory that contains a one-time token.
+    Generate a reset token file for offline passkey reset.
+    This creates a file in the instance directory with a one-time token.
 
     Returns:
         Path to the token file and instructions
     """
     try:
-        import secrets
-        from pathlib import Path
-
         # Generate a secure random token
         token = secrets.token_urlsafe(32)
 
@@ -468,7 +490,8 @@ def generate_reset_token():
             f.write(f"Token: {token}\n\n")
             f.write("To reset the admin passkey using this token:\n\n")
             f.write("1. Via CLI:\n")
-            f.write("   python src/backend/tools/reset_admin_passkey.py --force\n\n")
+            reset_cmd = "python src/backend/tools/reset_admin_passkey.py --force\n\n"
+            f.write(f"   {reset_cmd}")
             f.write("2. Via API (if accessible):\n")
             f.write("   POST /api/v2/setup/reset-with-token\n")
             f.write(f"   Body: {{'reset_token': '{token}'}}\n\n")
@@ -506,8 +529,6 @@ def reset_with_token():
         }
     """
     try:
-        from pathlib import Path
-
         data = request.json
         if not data or "reset_token" not in data:
             return jsonify({"error": "reset_token required"}), 400
@@ -520,7 +541,10 @@ def reset_with_token():
 
         if not token_file.exists():
             logger.warning(f"Invalid reset token attempt: {reset_token[:10]}...")
-            return jsonify({"error": "Invalid or expired reset token"}), 400
+            return (
+                jsonify({"error": "Invalid or expired reset token"}),
+                400,
+            )
 
         # Get admin user
         admin_user = User.query.filter_by(role=UserRole.ADMIN).first()
