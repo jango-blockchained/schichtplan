@@ -11,7 +11,7 @@ import React from "react";
 interface EmployeeAvailabilityViewerProps {
   employeeId: number;
   employeeName: string;
-  dateRange?: { from: Date; to: Date };
+  dateRange?: { from: Date; to?: Date };
 }
 
 /**
