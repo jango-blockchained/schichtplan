@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { loginWithPasskey, verifyRecoveryCode } from '@/services/setupService';
-import { AlertCircle, KeyRound, Loader2, Shield } from 'lucide-react';
+import { AlertCircle, AlertTriangle, KeyRound, Loader2, Shield } from 'lucide-react';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -26,7 +26,7 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const result = await loginWithPasskey(username);
+      await loginWithPasskey(username);
 
       toast({
         title: 'Login Successful',
@@ -35,8 +35,8 @@ export const LoginPage: React.FC = () => {
 
       // Redirect to main app
       navigate('/');
-    } catch (error: any) {
-      const errorMessage = error.message || 'Authentication failed';
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
       setError(errorMessage);
       toast({
         title: 'Login Failed',
@@ -71,8 +71,8 @@ export const LoginPage: React.FC = () => {
 
       // Redirect to main app
       navigate('/');
-    } catch (error: any) {
-      const errorMessage = error.message || 'Invalid recovery code';
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Invalid recovery code';
       setError(errorMessage);
       toast({
         title: 'Login Failed',
@@ -166,42 +166,45 @@ export const LoginPage: React.FC = () => {
             {/* Recovery Code Login */}
             <TabsContent value="recovery" className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="recovery-username">Username</Label>
+                <Label htmlFor="recovery-username" className="font-semibold">Username</Label>
                 <Input
                   id="recovery-username"
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   disabled={loading}
+                  placeholder="admin"
+                  className="h-10"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="recovery-code">Recovery Code</Label>
+                <Label htmlFor="recovery-code" className="font-semibold">Recovery Code</Label>
                 <Input
                   id="recovery-code"
                   type="text"
-                  placeholder="Enter your 12-character code"
                   value={recoveryCode}
                   onChange={(e) => setRecoveryCode(e.target.value.toUpperCase())}
                   disabled={loading}
-                  maxLength={12}
-                  className="font-mono"
+                  placeholder="XXXX-XXXX-XXXX-XXXX"
+                  className="h-10 font-mono"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Enter one of the recovery codes you saved during setup
+                </p>
               </div>
 
               {error && (
-                <Alert variant="destructive">
+                <Alert variant="destructive" className="border-red-300 bg-red-50 dark:bg-red-950/30">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
 
-              <Alert>
-                <Shield className="h-4 w-4" />
-                <AlertDescription>
-                  Each recovery code can only be used once. After using a code, you'll have fewer
-                  recovery codes available.
+              <Alert className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <AlertDescription className="text-amber-900 dark:text-amber-100">
+                  <strong>⚠️ Important:</strong> Each recovery code can only be used once. Use this method only when you can't access your passkey.
                 </AlertDescription>
               </Alert>
 

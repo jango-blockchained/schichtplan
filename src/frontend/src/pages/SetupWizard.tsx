@@ -99,7 +99,7 @@ const RecoveryCodesDisplay: React.FC<RecoveryCodesDisplayProps> = ({ codes, onCo
 export const SetupWizard: React.FC = () => {
   const [step, setStep] = useState<SetupStep>('welcome');
   const [loading, setLoading] = useState(false);
-  const [username, setUsername] = useState('admin');
+  const [username] = useState('admin');
   const [email, setEmail] = useState('');
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [aiKeys, setAiKeys] = useState<AIKeysConfig>({
@@ -129,10 +129,11 @@ export const SetupWizard: React.FC = () => {
         description: 'Your passkey has been successfully registered',
       });
       setStep('recovery');
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to register passkey';
       toast({
         title: 'Registration Failed',
-        description: error.message || 'Failed to register passkey',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -145,7 +146,7 @@ export const SetupWizard: React.FC = () => {
     try {
       // Only send keys that have been filled in
       const filledKeys = Object.entries(aiKeys.api_keys)
-        .filter(([_, value]) => value && value.trim() !== '')
+        .filter(([, value]) => value && value.trim() !== '')
         .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
 
       await configureAIKeys({
@@ -158,10 +159,11 @@ export const SetupWizard: React.FC = () => {
         description: 'AI settings have been saved',
       });
       setStep('complete');
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save AI configuration';
       toast({
         title: 'Configuration Failed',
-        description: error.message || 'Failed to save AI configuration',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -179,10 +181,11 @@ export const SetupWizard: React.FC = () => {
       });
       // Redirect to login or main page
       navigate('/');
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to complete setup';
       toast({
         title: 'Setup Error',
-        description: error.message || 'Failed to complete setup',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
