@@ -176,7 +176,9 @@ export default function CoveragePage() {
           : 0,
       weeklyData,
     };
-  }, [effectiveCoverage]); if (isSettingsLoading || !settings || isCoverageLoading || !stats) {
+  }, [effectiveCoverage]);
+
+  if (isSettingsLoading || !settings || isCoverageLoading || !stats) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />

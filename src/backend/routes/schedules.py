@@ -180,7 +180,7 @@ def get_versions_for_date_range(start_date, end_date):
         return []  # Return empty list instead of None to prevent iteration errors
 
 
-@schedules.route("/schedules", methods=["GET"])
+@schedules.route("", methods=["GET"])
 @schedules.route("/schedules/", methods=["GET"])
 def get_schedules():
     """Get all schedules within a date range"""
@@ -364,7 +364,7 @@ def get_schedules():
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@schedules.route("/schedules", methods=["POST"])
+@schedules.route("", methods=["POST"])
 def create_schedule_entry():
     """Create a new individual schedule entry"""
     logger.info("Received request to create schedule entry")
@@ -506,8 +506,8 @@ def create_schedule_entry():
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@schedules.route("/schedules/generate", methods=["POST"])
-@schedules.route("/schedules/generate/", methods=["POST"])
+@schedules.route("/generate", methods=["POST"])
+@schedules.route("/generate/", methods=["POST"])
 def generate_schedule():
     """Generate a schedule"""
     logger.info("Received request to generate schedule")
@@ -626,7 +626,7 @@ def generate_schedule():
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@schedules.route("/schedules/pdf", methods=["GET"])
+@schedules.route("/pdf", methods=["GET"])
 def get_schedule_pdf():
     """Get schedule as PDF"""
     try:
@@ -672,8 +672,8 @@ def get_schedule_pdf():
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@schedules.route("/schedules/<int:schedule_id>", methods=["GET"])
-@schedules.route("/schedules/<int:schedule_id>/", methods=["GET"])
+@schedules.route("/<int:schedule_id>", methods=["GET"])
+@schedules.route("/<int:schedule_id>/", methods=["GET"])
 def get_schedule(schedule_id):
     """Get a specific schedule"""
     schedule = db.session.get(Schedule, schedule_id)
@@ -708,9 +708,9 @@ def get_schedule(schedule_id):
     return jsonify(response_data)
 
 
-@schedules.route("/schedules/<int:schedule_id>", methods=["PUT"])
-@schedules.route("/schedules/<int:schedule_id>/", methods=["PUT"])
-@schedules.route("/schedules/update/<int:schedule_id>", methods=["POST"])
+@schedules.route("/<int:schedule_id>", methods=["PUT"])
+@schedules.route("/<int:schedule_id>/", methods=["PUT"])
+@schedules.route("/update/<int:schedule_id>", methods=["POST"])
 def update_schedule(schedule_id):
     """Update a schedule (for drag and drop functionality)"""
     logger.info(f"Update request for schedule_id={schedule_id}")
@@ -1095,8 +1095,8 @@ def update_schedule(schedule_id):
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@schedules.route("/schedules/<int:schedule_id>", methods=["DELETE"])
-@schedules.route("/schedules/<int:schedule_id>/", methods=["DELETE"])
+@schedules.route("/<int:schedule_id>", methods=["DELETE"])
+@schedules.route("/<int:schedule_id>/", methods=["DELETE"])
 def delete_schedule(schedule_id):
     """Delete a schedule"""
     schedule = Schedule.query.get_or_404(schedule_id)
@@ -1114,8 +1114,8 @@ def delete_schedule(schedule_id):
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@schedules.route("/schedules/export", methods=["POST"])
-@schedules.route("/schedules/export/", methods=["POST"])
+@schedules.route("/export", methods=["POST"])
+@schedules.route("/export/", methods=["POST"])
 def export_schedule():
     """Export schedule as PDF"""
     try:
@@ -1215,7 +1215,7 @@ def export_schedule():
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@schedules.route("/schedules/<int:version>/publish", methods=["POST"])
+@schedules.route("/<int:version>/publish", methods=["POST"])
 def publish_schedule(version):
     try:
         schedules = Schedule.query.filter_by(version=version).all()
@@ -1239,7 +1239,7 @@ def publish_schedule(version):
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@schedules.route("/schedules/<int:version>/archive", methods=["POST"])
+@schedules.route("/<int:version>/archive", methods=["POST"])
 def archive_schedule(version):
     try:
         schedules = Schedule.query.filter_by(version=version).all()
@@ -1263,7 +1263,7 @@ def archive_schedule(version):
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@schedules.route("/schedules/validate", methods=["POST"])
+@schedules.route("/validate", methods=["POST"])
 def validate_schedule():
     """Validate an existing schedule"""
     try:
@@ -1354,8 +1354,8 @@ def validate_schedule():
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@schedules.route("/schedules/versions", methods=["GET"])
-@schedules.route("/schedules/versions/", methods=["GET"])
+@schedules.route("/versions", methods=["GET"])
+@schedules.route("/versions/", methods=["GET"])
 def get_all_versions():
     """Get all schedule versions with their metadata"""
     try:
@@ -1413,7 +1413,7 @@ def get_all_versions():
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@schedules.route("/schedules/version", methods=["POST"])
+@schedules.route("/version", methods=["POST"])
 def create_new_version():
     """Create a new schedule version, optionally based on an existing version."""
     try:
@@ -1588,7 +1588,7 @@ def create_new_version():
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@schedules.route("/schedules/version/<int:version>/status", methods=["PUT"])
+@schedules.route("/version/<int:version>/status", methods=["PUT"])
 def update_version_status(version):
     """Update a schedule's status (DRAFT, PUBLISHED, ARCHIVED)"""
     try:
@@ -1685,7 +1685,7 @@ def update_version_status(version):
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@schedules.route("/schedules/version/<int:version>/details", methods=["GET"])
+@schedules.route("/version/<int:version>/details", methods=["GET"])
 def get_version_details(version):
     """Get detailed information about a specific schedule version."""
     try:
@@ -1760,7 +1760,7 @@ def get_version_details(version):
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@schedules.route("/schedules/version/duplicate", methods=["POST"])
+@schedules.route("/version/duplicate", methods=["POST"])
 def duplicate_version():
     """Create a duplicate of an existing schedule version with a new version number."""
     try:
@@ -1903,7 +1903,7 @@ def duplicate_version():
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@schedules.route("/schedules/versions/compare", methods=["GET"])
+@schedules.route("/versions/compare", methods=["GET"])
 def compare_versions():
     """Compare two schedule versions and identify differences."""
     try:
@@ -2018,7 +2018,7 @@ def compare_versions():
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@schedules.route("/schedules/version/<int:version>/notes", methods=["PUT"])
+@schedules.route("/version/<int:version>/notes", methods=["PUT"])
 def update_version_notes(version):
     """Update the notes for a schedule version."""
     try:
@@ -2093,7 +2093,7 @@ def update_version_notes(version):
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@schedules.route("/schedules/fix-display", methods=["POST"])
+@schedules.route("/fix-display", methods=["POST"])
 def fix_schedule_display():
     """Fix any issues with schedule display, particularly fixing shift_id fields"""
     try:
@@ -2356,7 +2356,7 @@ def fix_schedule_display():
         logger.error(f"Error in fix_schedule_display: {str(e)}", exc_info=True)
 
 
-@schedules.route("/schedules/ai-generate", methods=["POST"])
+@schedules.route("/ai-generate", methods=["POST"])
 def generate_ai_schedule():
     """Generate a schedule using AI with detailed options support"""
     try:
@@ -2667,7 +2667,7 @@ def generate_ai_prompt_from_options(
     return base_prompt
 
 
-@schedules.route("/schedules/diagnostics/<session_id>", methods=["GET"])
+@schedules.route("/diagnostics/<session_id>", methods=["GET"])
 def get_schedule_diagnostics(session_id):
     """Get diagnostic logs for a specific schedule generation session"""
     try:

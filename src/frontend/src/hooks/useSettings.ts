@@ -351,9 +351,18 @@ export function useSettings() {
       setSettings(data);
       setError(null);
     } catch (err) {
-      setError(
-        err instanceof Error ? err : new Error("Failed to fetch settings"),
-      );
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : "Failed to fetch settings";
+      const error = new Error(errorMessage);
+      console.error("useSettings: Error fetching settings:", {
+        message: errorMessage,
+        error: err,
+      });
+      setError(error);
     } finally {
       setIsLoading(false);
     }

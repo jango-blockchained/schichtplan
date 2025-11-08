@@ -61,8 +61,8 @@ def serialize_db():
     return data
 
 
-@settings.route("/settings/backup", methods=["GET"])
-@settings.route("/settings/backup/", methods=["GET"])
+@settings.route("/backup", methods=["GET"])
+@settings.route("/backup/", methods=["GET"])
 def backup_database():
     """Export the entire database as JSON"""
     try:
@@ -90,8 +90,8 @@ def backup_database():
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@settings.route("/settings/restore", methods=["POST"])
-@settings.route("/settings/restore/", methods=["POST"])
+@settings.route("/restore", methods=["POST"])
+@settings.route("/restore/", methods=["POST"])
 def restore_database():
     """Restore the database from a JSON backup"""
     if "file" not in request.files:
@@ -126,8 +126,8 @@ def restore_database():
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@settings.route("/settings/tables", methods=["GET"])
-@settings.route("/settings/tables/", methods=["GET"])
+@settings.route("/tables", methods=["GET"])
+@settings.route("/tables/", methods=["GET"])
 def get_tables():
     """Get list of available database tables"""
     try:
@@ -138,8 +138,8 @@ def get_tables():
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@settings.route("/settings/wipe-tables", methods=["POST"])
-@settings.route("/settings/wipe-tables/", methods=["POST"])
+@settings.route("/wipe-tables", methods=["POST"])
+@settings.route("/wipe-tables/", methods=["POST"])
 def wipe_tables():
     """Wipe specific database tables"""
     if not request.is_json:
@@ -202,7 +202,7 @@ def wipe_tables():
 
 
 @settings.route("/settings", methods=["GET"])
-@settings.route("/settings/", methods=["GET"])
+@settings.route("/", methods=["GET"])
 def get_settings():
     """Get all settings or initialize with defaults if none exist"""
     try:
@@ -242,7 +242,7 @@ def get_settings():
 
 
 @settings.route("/settings", methods=["PUT"])
-@settings.route("/settings/", methods=["PUT"])
+@settings.route("/", methods=["PUT"])
 def update_settings():
     """Update settings"""
     data = request.get_json()
@@ -273,8 +273,8 @@ def update_settings():
         return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
 
 
-@settings.route("/settings/reset", methods=["POST"])
-@settings.route("/settings/reset/", methods=["POST"])
+@settings.route("/reset", methods=["POST"])
+@settings.route("/reset/", methods=["POST"])
 def reset_settings():
     """Reset settings to defaults"""
     Settings.query.delete()
@@ -287,7 +287,7 @@ def reset_settings():
     return jsonify(settings.to_dict())
 
 
-@settings.route("/settings/<category>", methods=["GET"])
+@settings.route("/<category>", methods=["GET"])
 def get_category_settings(category):
     """Get settings for a specific category"""
     settings = Settings.query.first()
@@ -305,7 +305,7 @@ def get_category_settings(category):
     return jsonify(settings_dict[category])
 
 
-@settings.route("/settings/<category>", methods=["PUT"])
+@settings.route("/<category>", methods=["PUT"])
 def update_category_settings(category):
     """Update settings for a specific category"""
     data = request.get_json()
@@ -362,7 +362,7 @@ def update_category_settings(category):
         return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
 
 
-@settings.route("/settings/<category>/<key>", methods=["PUT"])
+@settings.route("/<category>/<key>", methods=["PUT"])
 def update_setting(category, key):
     """Update a specific setting"""
     data = request.get_json()
@@ -404,7 +404,7 @@ def update_setting(category, key):
         return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
 
 
-@settings.route("/settings/<category>/<key>", methods=["DELETE"])
+@settings.route("/<category>/<key>", methods=["DELETE"])
 def delete_setting(category, key):
     """Delete a specific setting (reset to default)"""
     settings = Settings.query.first()
@@ -458,8 +458,8 @@ def get_log_files():
     return all_logs
 
 
-@settings.route("/settings/logs", methods=["GET"])
-@settings.route("/settings/logs/", methods=["GET"])
+@settings.route("/logs", methods=["GET"])
+@settings.route("/logs/", methods=["GET"])
 def get_logs():
     """Get list of available log files"""
     try:
@@ -495,7 +495,7 @@ def get_logs():
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@settings.route("/settings/logs/<path:filename>", methods=["GET"])
+@settings.route("/logs/<path:filename>", methods=["GET"])
 def get_log_content(filename):
     """Get content of a specific log file"""
     try:
@@ -534,7 +534,7 @@ def get_log_content(filename):
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@settings.route("/settings/logs/<path:filename>", methods=["DELETE"])
+@settings.route("/logs/<path:filename>", methods=["DELETE"])
 def delete_log(filename):
     """Delete a specific log file"""
     try:
@@ -564,7 +564,7 @@ def delete_log(filename):
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@settings.route("/settings/scheduling/generation", methods=["GET"])
+@settings.route("/scheduling/generation", methods=["GET"])
 def get_generation_settings():
     """Get schedule generation settings"""
     try:
@@ -606,7 +606,7 @@ def get_generation_settings():
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@settings.route("/settings/scheduling/generation", methods=["PUT"])
+@settings.route("/scheduling/generation", methods=["PUT"])
 def update_generation_settings():
     """Update schedule generation settings"""
     try:

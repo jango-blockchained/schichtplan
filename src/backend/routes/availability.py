@@ -230,7 +230,7 @@ def check_availability():
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@availability.route("/employees/<int:employee_id>/availabilities", methods=["PUT"])
+@availability.route("/<int:employee_id>/availabilities", methods=["PUT"])
 def update_employee_availabilities(employee_id):
     """Update employee availabilities"""
     try:
@@ -304,7 +304,7 @@ def update_employee_availabilities(employee_id):
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@availability.route("/employees/<int:employee_id>/availabilities", methods=["GET"])
+@availability.route("/<int:employee_id>/availabilities", methods=["GET"])
 def get_employee_availabilities(employee_id):
     """Get employee availabilities"""
     availabilities = EmployeeAvailability.query.filter_by(employee_id=employee_id).all()
