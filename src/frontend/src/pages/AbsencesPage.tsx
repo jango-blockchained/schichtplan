@@ -23,6 +23,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { getAbsencesByRange, getEmployees, getSettings, updateAbsence } from "@/services/api";
 import { Absence } from "@/types";
 import { getWeekStartsOn } from "@/utils/weekStart";
+import { safeParseDate, safeDateOperation } from "@/utils/errorUtils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { differenceInDays, endOfWeek, format, startOfWeek } from "date-fns";
 import { Calendar, CalendarOff, Check, CheckCircle, LayoutGrid, Table as TableIcon, Users, X } from "lucide-react";
@@ -92,11 +93,15 @@ export default function AbsencesPage() {
   // Calculate statistics
   const totalDays = useMemo(() => {
     return absences.reduce((sum, absence) => {
-      const days = differenceInDays(
-        new Date(absence.end_date),
-        new Date(absence.start_date)
-      ) + 1;
-      return sum + days;
+      try {
+        const startDate = safeParseDate(absence.start_date);
+        const endDate = safeParseDate(absence.end_date);
+        const days = differenceInDays(endDate, startDate) + 1;
+        return sum + (days > 0 ? days : 0);
+      } catch (error) {
+        console.error("Error calculating days for absence:", absence.id, error);
+        return sum;
+      }
     }, 0);
   }, [absences]);
 
@@ -306,11 +311,16 @@ export default function AbsencesPage() {
                           <div className="space-y-2">
                             <Input
                               type="date"
-                              value={
-                                editingData.start_date
-                                  ? format(new Date(editingData.start_date), "yyyy-MM-dd")
-                                  : format(new Date(a.start_date), "yyyy-MM-dd")
-                              }
+                              value={safeDateOperation(
+                                () => {
+                                  const date = editingData.start_date
+                                    ? safeParseDate(editingData.start_date)
+                                    : safeParseDate(a.start_date);
+                                  return format(date, "yyyy-MM-dd");
+                                },
+                                "",
+                                "Error formatting start date in edit mode"
+                              )}
                               onChange={(e) =>
                                 setEditingData({
                                   ...editingData,
@@ -320,11 +330,16 @@ export default function AbsencesPage() {
                             />
                             <Input
                               type="date"
-                              value={
-                                editingData.end_date
-                                  ? format(new Date(editingData.end_date), "yyyy-MM-dd")
-                                  : format(new Date(a.end_date), "yyyy-MM-dd")
-                              }
+                              value={safeDateOperation(
+                                () => {
+                                  const date = editingData.end_date
+                                    ? safeParseDate(editingData.end_date)
+                                    : safeParseDate(a.end_date);
+                                  return format(date, "yyyy-MM-dd");
+                                },
+                                "",
+                                "Error formatting end date in edit mode"
+                              )}
                               onChange={(e) =>
                                 setEditingData({
                                   ...editingData,
@@ -335,8 +350,17 @@ export default function AbsencesPage() {
                           </div>
                         ) : (
                           <>
-                            {format(new Date(a.start_date), "dd.MM.yyyy")} –{" "}
-                            {format(new Date(a.end_date), "dd.MM.yyyy")}
+                            {safeDateOperation(
+                              () => format(safeParseDate(a.start_date), "dd.MM.yyyy"),
+                              "Invalid date",
+                              "Error formatting start date"
+                            )}{" "}
+                            –{" "}
+                            {safeDateOperation(
+                              () => format(safeParseDate(a.end_date), "dd.MM.yyyy"),
+                              "Invalid date",
+                              "Error formatting end date"
+                            )}
                           </>
                         )}
                       </TableCell>
@@ -470,11 +494,16 @@ export default function AbsencesPage() {
                         <label className="text-sm font-medium">Von</label>
                         <Input
                           type="date"
-                          value={
-                            editingData.start_date
-                              ? format(new Date(editingData.start_date), "yyyy-MM-dd")
-                              : format(new Date(a.start_date), "yyyy-MM-dd")
-                          }
+                          value={safeDateOperation(
+                            () => {
+                              const date = editingData.start_date
+                                ? safeParseDate(editingData.start_date)
+                                : safeParseDate(a.start_date);
+                              return format(date, "yyyy-MM-dd");
+                            },
+                            "",
+                            "Error formatting start date in card edit mode"
+                          )}
                           onChange={(e) =>
                             setEditingData({
                               ...editingData,
@@ -485,11 +514,16 @@ export default function AbsencesPage() {
                         <label className="text-sm font-medium">Bis</label>
                         <Input
                           type="date"
-                          value={
-                            editingData.end_date
-                              ? format(new Date(editingData.end_date), "yyyy-MM-dd")
-                              : format(new Date(a.end_date), "yyyy-MM-dd")
-                          }
+                          value={safeDateOperation(
+                            () => {
+                              const date = editingData.end_date
+                                ? safeParseDate(editingData.end_date)
+                                : safeParseDate(a.end_date);
+                              return format(date, "yyyy-MM-dd");
+                            },
+                            "",
+                            "Error formatting end date in card edit mode"
+                          )}
                           onChange={(e) =>
                             setEditingData({
                               ...editingData,
@@ -513,8 +547,17 @@ export default function AbsencesPage() {
                       <>
                         <div className="text-sm">
                           <span className="font-medium">Von–Bis: </span>
-                          {format(new Date(a.start_date), "dd.MM.yyyy")} –{" "}
-                          {format(new Date(a.end_date), "dd.MM.yyyy")}
+                          {safeDateOperation(
+                            () => format(safeParseDate(a.start_date), "dd.MM.yyyy"),
+                            "Invalid date",
+                            "Error formatting start date in card view"
+                          )}{" "}
+                          –{" "}
+                          {safeDateOperation(
+                            () => format(safeParseDate(a.end_date), "dd.MM.yyyy"),
+                            "Invalid date",
+                            "Error formatting end date in card view"
+                          )}
                         </div>
                         {a.note && (
                           <div className="text-sm text-muted-foreground">
