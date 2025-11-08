@@ -6,7 +6,7 @@ import {
   Clock,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 // Removed unused useQuery, useMutation, useQueryClient for now, can be added back if other parts need them
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
