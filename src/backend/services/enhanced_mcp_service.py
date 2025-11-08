@@ -168,9 +168,7 @@ class EnhancedMCPToolCache:
         else:
             return "data"
 
-    def get_cached_result(
-        self, tool_id: str, parameters: dict[str, Any]
-    ) -> Any | None:
+    def get_cached_result(self, tool_id: str, parameters: dict[str, Any]) -> Any | None:
         """Get cached result for a tool call."""
         cache_key = self._generate_cache_key(tool_id, parameters)
         cache_type = self._get_cache_type(tool_id)

@@ -97,10 +97,14 @@ def list_mcp_resources():
 
         resources = []
         for resource_uri, resource_info in registered_resources.items():
-            resources.append({
-                "uri": resource_uri,
-                "description": resource_info.get("description", "No description available"),
-            })
+            resources.append(
+                {
+                    "uri": resource_uri,
+                    "description": resource_info.get(
+                        "description", "No description available"
+                    ),
+                }
+            )
 
         return jsonify({"resources": resources, "count": len(resources)})
 
@@ -118,10 +122,14 @@ def list_mcp_prompts():
 
         prompts = []
         for prompt_name, prompt_info in registered_prompts.items():
-            prompts.append({
-                "name": prompt_name,
-                "description": prompt_info.get("description", "No description available"),
-            })
+            prompts.append(
+                {
+                    "name": prompt_name,
+                    "description": prompt_info.get(
+                        "description", "No description available"
+                    ),
+                }
+            )
 
         return jsonify({"prompts": prompts, "count": len(prompts)})
 
@@ -148,10 +156,12 @@ def test_mcp_tool():
         registered_tools = mcp_service.get_registered_tools()
 
         if tool_name not in registered_tools:
-            return jsonify({
-                "error": f'Tool "{tool_name}" not found',
-                "available_tools": list(registered_tools.keys())
-            }), 404
+            return jsonify(
+                {
+                    "error": f'Tool "{tool_name}" not found',
+                    "available_tools": list(registered_tools.keys()),
+                }
+            ), 404
 
         tool_info = registered_tools[tool_name]
 
@@ -215,7 +225,7 @@ def execute_mcp_tool():
                 {
                     "status": "error",
                     "error": f"Tool category '{category}' not found",
-                    "message": "For full tool execution, use the MCP protocol (stdio/SSE/HTTP) with an MCP client"
+                    "message": "For full tool execution, use the MCP protocol (stdio/SSE/HTTP) with an MCP client",
                 }
             ), 500
 
@@ -233,7 +243,7 @@ def execute_mcp_tool():
                     "ai_conversation": "/api/v2/ai-conversation/chat",
                     "mcp_stdio": "python src/backend/mcp_server.py",
                     "mcp_sse": "http://localhost:8001/sse",
-                }
+                },
             }
         )
 

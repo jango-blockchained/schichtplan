@@ -97,8 +97,7 @@ class DataValidator:
             # Validate contracted_hours if present
             contracted_hours = self._get_field(employee, "contracted_hours")
             if contracted_hours is not None and (
-                not isinstance(contracted_hours, (int, float))
-                or contracted_hours < 0
+                not isinstance(contracted_hours, (int, float)) or contracted_hours < 0
             ):
                 errors.append(f"Invalid contracted_hours: {contracted_hours}")
 

@@ -42,9 +42,7 @@ class HolidayService:
     }
 
     @staticmethod
-    def get_german_holidays(
-        year: int, state: str | None = None
-    ) -> list[HolidayInfo]:
+    def get_german_holidays(year: int, state: str | None = None) -> list[HolidayInfo]:
         """
         Get comprehensive list of German holidays for a given year
 

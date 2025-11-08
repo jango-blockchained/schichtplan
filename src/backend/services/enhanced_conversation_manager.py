@@ -488,8 +488,7 @@ class EnhancedConversationManager:
 
         # Message type filter
         if filters.message_type and not any(
-            msg.message_type == filters.message_type
-            for msg in conversation.messages
+            msg.message_type == filters.message_type for msg in conversation.messages
         ):
             return False
 
@@ -513,7 +512,10 @@ class EnhancedConversationManager:
                     return False
 
         # Assigned agent filter
-        return not (filters.assigned_agent and conversation.metadata.assigned_agent != filters.assigned_agent)
+        return not (
+            filters.assigned_agent
+            and conversation.metadata.assigned_agent != filters.assigned_agent
+        )
 
     def archive_conversation(self, conversation_id: str) -> bool:
         """Archive a conversation."""

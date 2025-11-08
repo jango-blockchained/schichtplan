@@ -206,9 +206,7 @@ class WeekVersionService:
             f"Copied {len(base_schedules)} schedules from version {base_version} to {new_version}"
         )
 
-    def get_version_by_week(
-        self, week_identifier: str
-    ) -> ScheduleVersionMeta | None:
+    def get_version_by_week(self, week_identifier: str) -> ScheduleVersionMeta | None:
         """Get version metadata by week identifier.
 
         For split weeks, returns the first segment's version.

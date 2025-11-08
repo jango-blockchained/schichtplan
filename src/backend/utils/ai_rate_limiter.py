@@ -67,9 +67,7 @@ class TokenBucket:
 
             return False
 
-    async def wait_for_tokens(
-        self, tokens: int = 1, timeout: float = 60.0
-    ) -> bool:
+    async def wait_for_tokens(self, tokens: int = 1, timeout: float = 60.0) -> bool:
         """Wait until tokens are available (optimized).
 
         Args:
@@ -83,7 +81,7 @@ class TokenBucket:
 
         while True:
             elapsed = time.time() - start_time
-            
+
             if elapsed >= timeout:
                 return False
 
@@ -93,7 +91,7 @@ class TokenBucket:
             # Calculate wait time for next token
             remaining_time = timeout - elapsed
             wait_time = min(1.0 / self.refill_rate, remaining_time)
-            
+
             if wait_time > 0:
                 await asyncio.sleep(wait_time)
             else:
@@ -221,7 +219,9 @@ class RateLimiter:
         if not await self._global_token_bucket.consume(estimated_tokens):
             result["allowed"] = False
             result["reason"] = "Global token rate limit exceeded"
-            result["retry_after"] = estimated_tokens / (self.config.tokens_per_minute / 60.0)
+            result["retry_after"] = estimated_tokens / (
+                self.config.tokens_per_minute / 60.0
+            )
             return result
 
         # Check user-specific limits
@@ -237,11 +237,17 @@ class RateLimiter:
             if not await user_token_bucket.consume(estimated_tokens):
                 result["allowed"] = False
                 result["reason"] = f"User {user_id} token rate limit exceeded"
-                result["retry_after"] = estimated_tokens / (self.config.tokens_per_minute / 60.0)
+                result["retry_after"] = estimated_tokens / (
+                    self.config.tokens_per_minute / 60.0
+                )
                 return result
 
-            result["limits"]["user_requests"] = await user_request_bucket.get_available_tokens()
-            result["limits"]["user_tokens"] = await user_token_bucket.get_available_tokens()
+            result["limits"][
+                "user_requests"
+            ] = await user_request_bucket.get_available_tokens()
+            result["limits"][
+                "user_tokens"
+            ] = await user_token_bucket.get_available_tokens()
 
         # Check conversation-specific limits
         if conversation_id:
@@ -252,9 +258,9 @@ class RateLimiter:
                 result["retry_after"] = 60.0 / self.config.requests_per_minute
                 return result
 
-            result["limits"]["conversation_requests"] = (
-                await conversation_bucket.get_available_tokens()
-            )
+            result["limits"][
+                "conversation_requests"
+            ] = await conversation_bucket.get_available_tokens()
 
         # Track counts
         if user_id:
@@ -290,13 +296,17 @@ class RateLimiter:
         start_time = time.time()
 
         while time.time() - start_time < timeout:
-            result = await self.check_rate_limit(user_id, conversation_id, estimated_tokens)
+            result = await self.check_rate_limit(
+                user_id, conversation_id, estimated_tokens
+            )
 
             if result["allowed"]:
                 return True
 
             # Wait for estimated retry time
-            wait_time = min(result.get("retry_after", 1.0), timeout - (time.time() - start_time))
+            wait_time = min(
+                result.get("retry_after", 1.0), timeout - (time.time() - start_time)
+            )
             if wait_time > 0:
                 await asyncio.sleep(wait_time)
 
@@ -328,7 +338,9 @@ class RateLimiter:
 
         return stats
 
-    async def reset_limits(self, user_id: str | None = None, conversation_id: str | None = None):
+    async def reset_limits(
+        self, user_id: str | None = None, conversation_id: str | None = None
+    ):
         """Reset rate limits.
 
         Args:

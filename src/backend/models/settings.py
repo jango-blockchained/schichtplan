@@ -378,7 +378,7 @@ class Settings(db.Model):
             },
         },
     )
-    
+
     # Setup completion tracking
     initial_setup_completed = Column(Boolean, nullable=False, default=False)
 

@@ -770,7 +770,9 @@ def test_schedule_generation(client, app):
             )
 
             # Check opening/closing shift assignments
-            if shift.start_time <= "09:00" or shift.end_time >= "18:00":  # Opening shift
+            if (
+                shift.start_time <= "09:00" or shift.end_time >= "18:00"
+            ):  # Opening shift
                 assert employee.is_keyholder
 
             # Check break assignments for long shifts

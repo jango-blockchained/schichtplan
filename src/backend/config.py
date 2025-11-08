@@ -18,7 +18,7 @@ class Config:
         "connect_args": {"timeout": 15, "check_same_thread": False},
     }
     SECRET_KEY = os.environ.get("SECRET_KEY") or "dev-key-please-change-in-production"
-    
+
     # WebAuthn configuration
     WEBAUTHN_RP_ID = os.environ.get("WEBAUTHN_RP_ID", "localhost")
     WEBAUTHN_RP_NAME = os.environ.get("WEBAUTHN_RP_NAME", "Schichtplan")

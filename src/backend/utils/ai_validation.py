@@ -305,7 +305,7 @@ class AIResponseValidator:
 
         Returns:
             Sanitized content
-            
+
         Note:
             This is a basic implementation for common patterns.
             For production with user-generated code, consider:
@@ -328,9 +328,11 @@ class AIResponseValidator:
             r"eval\(",
             r"exec\(",
         ]
-        
+
         for pattern in dangerous_imports:
-            content = re.sub(pattern, lambda m: f"# {m.group(0)}", content, flags=re.IGNORECASE)
+            content = re.sub(
+                pattern, lambda m: f"# {m.group(0)}", content, flags=re.IGNORECASE
+            )
 
         # Basic HTML escaping for display
         html_chars = {

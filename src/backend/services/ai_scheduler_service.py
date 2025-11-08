@@ -988,9 +988,7 @@ class AISchedulerService:
                 if version_id is not None:
                     query = query.filter(Schedule.version == version_id)
                 if schedule_start_date is not None:
-                    query = query.filter(
-                        Schedule.date >= schedule_start_date
-                    )
+                    query = query.filter(Schedule.date >= schedule_start_date)
                 if schedule_end_date is not None:
                     query = query.filter(Schedule.date <= schedule_end_date)
 

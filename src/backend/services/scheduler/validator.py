@@ -524,11 +524,9 @@ class ScheduleValidator:
                     self.total_intervals_checked += 1
                 except Exception as e:
                     logger.error(
-
-                            "Error calling get_required_staffing_for_interval "
-                            f"for {current_validation_date} "
-                            f"{interval_start_dt_time}: {e}"
-
+                        "Error calling get_required_staffing_for_interval "
+                        f"for {current_validation_date} "
+                        f"{interval_start_dt_time}: {e}"
                     )
                     # Add an error and skip this interval if the needs function
                     # fails

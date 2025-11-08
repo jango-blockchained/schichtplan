@@ -221,7 +221,7 @@ class DistributionManager:
         self.logger = logger or logging.getLogger(__name__)
         self.feature_extractor = feature_extractor  # Store feature extractor
         self.ml_model = ml_model  # Store ML model placeholder
-        
+
         # Performance tuning parameters (configurable)
         self.max_combinations = max_combinations
         self.max_candidates_per_shift = max_candidates_per_shift
@@ -303,7 +303,10 @@ class DistributionManager:
             ) in self.assignments_by_employee.items():
                 for assignment in employee_assignments:
                     # Check if assignment is for the current date
-                    if isinstance(assignment, dict) and assignment.get("date") == current_date:
+                    if (
+                        isinstance(assignment, dict)
+                        and assignment.get("date") == current_date
+                    ):
                         shifts_assigned_today[employee_id] += 1
 
             # Maximum shifts per employee per day
@@ -345,11 +348,11 @@ class DistributionManager:
             # building a huge list upfront.
             potential_assignments_for_ml = []
             combinations_count = 0
-            
+
             self.logger.info(
                 f"Building potential assignments: {len(available_employees)} employees × {len(shifts)} shifts (max: {self.max_combinations})"
             )
-            
+
             for employee in available_employees:
                 employee_id = self.get_id(employee, ["id", "employee_id"])
                 if employee_id is None:
@@ -363,7 +366,7 @@ class DistributionManager:
                             f"Stopping combination generation. Consider optimizing shift/employee filtering."
                         )
                         break
-                    
+
                     # Need to get shift_id from the shift object/dict
                     shift_id = self.get_id(
                         shift, ["id", "shift_id", "shift_template_id"]
@@ -385,11 +388,11 @@ class DistributionManager:
                         }
                     )
                     combinations_count += 1
-                
+
                 # Break outer loop too if limit reached
                 if combinations_count >= self.max_combinations:
                     break
-            
+
             self.logger.info(
                 f"Created {len(potential_assignments_for_ml)} potential assignments for ML processing"
             )
@@ -511,7 +514,7 @@ class DistributionManager:
             self.logger.info(
                 f"Employees sorted by priority score. Processing {len(shifts)} shifts for {len(sorted_employees)} employees."
             )
-            
+
             # Log warning if combination is large
             total_potential_combinations = len(sorted_employees) * len(shifts)
             if total_potential_combinations > 1000:
@@ -526,7 +529,7 @@ class DistributionManager:
 
             total_shifts = len(shifts)
             self.logger.info(f"Processing {total_shifts} shifts for assignment...")
-            
+
             # Track time for performance monitoring
             loop_start_time = time.time()
 
@@ -534,10 +537,10 @@ class DistributionManager:
                 # Log progress every 10 shifts or if it's been more than 5 seconds
                 current_time = time.time()
                 elapsed = current_time - loop_start_time
-                
+
                 if shift_idx % 10 == 0 and shift_idx > 0:
                     self.logger.info(
-                        f"Progress: {shift_idx}/{total_shifts} shifts processed ({elapsed:.1f}s elapsed, ~{elapsed/shift_idx:.2f}s per shift)"
+                        f"Progress: {shift_idx}/{total_shifts} shifts processed ({elapsed:.1f}s elapsed, ~{elapsed / shift_idx:.2f}s per shift)"
                     )
                 elif shift_idx > 0 and elapsed > 5 and (shift_idx % 5 == 0):
                     # If processing is slow, log more frequently
@@ -564,7 +567,7 @@ class DistributionManager:
 
                 # Build candidate list for this specific shift only
                 shift_candidates = []
-                
+
                 for employee, _ in sorted_employees:
                     # Safety limit on candidates
                     if len(shift_candidates) >= self.max_candidates_per_shift:
@@ -572,7 +575,7 @@ class DistributionManager:
                             f"Reached max candidates ({self.max_candidates_per_shift}) for shift {shift_id}"
                         )
                         break
-                    
+
                     employee_id = self.get_id(employee, ["id", "employee_id"])
                     if employee_id is None:
                         continue
@@ -1169,9 +1172,7 @@ class DistributionManager:
 
         # Get the category of the current shift (EARLY, MIDDLE, LATE, etc.)
         shift_category = self._categorize_shift(shift_template)
-        self._get_shift_category_key(
-            shift_category, shift_template
-        )
+        self._get_shift_category_key(shift_category, shift_template)
 
         # Calculate the employee's historical count for this shift type/category
         employee_category_count = employee_history.get(

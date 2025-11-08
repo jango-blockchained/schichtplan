@@ -60,9 +60,7 @@ def app():
 def bot_service(app):
     """Create a Telegram bot service instance for testing."""
     with app.app_context():
-        service = TelegramBotService(
-            flask_app=app, token="test_token", mode="polling"
-        )
+        service = TelegramBotService(flask_app=app, token="test_token", mode="polling")
         return service
 
 

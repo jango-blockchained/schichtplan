@@ -75,9 +75,7 @@ def get_required_staffing_for_interval(
     # Calculate the end time of the interval for checking against Coverage.end_time
     # interval_end_time will be exclusive for comparisons
     interval_start_dt = datetime.datetime.combine(target_date, interval_start_time)
-    interval_start_dt + datetime.timedelta(
-        minutes=interval_duration_minutes
-    )
+    interval_start_dt + datetime.timedelta(minutes=interval_duration_minutes)
     # interval_end_time_for_comparison = interval_end_dt.time() # This might cross midnight
 
     applicable_coverage_found = False

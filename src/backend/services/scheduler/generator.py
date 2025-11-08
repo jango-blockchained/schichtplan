@@ -1336,16 +1336,20 @@ class ScheduleGenerator:
         # Now match active shifts to coverage intervals
         shifts_created = set()  # Track which shifts we've already created
         total_intervals = len(coverage_by_interval)
-        
+
         self.logger.info(
             f"Matching {len(active_shift_templates)} shift templates to {total_intervals} coverage intervals"
         )
 
-        for interval_idx, (interval_key, coverage_requirements) in enumerate(coverage_by_interval.items()):
+        for interval_idx, (interval_key, coverage_requirements) in enumerate(
+            coverage_by_interval.items()
+        ):
             # Log progress for large interval counts
             if interval_idx > 0 and interval_idx % 10 == 0:
-                self.logger.debug(f"Processing interval {interval_idx}/{total_intervals}")
-            
+                self.logger.debug(
+                    f"Processing interval {interval_idx}/{total_intervals}"
+                )
+
             # Parse interval times
             interval_parts = interval_key.split("-")
             if len(interval_parts) != 2:
@@ -1448,8 +1452,12 @@ class ScheduleGenerator:
                 min_employees = 1
                 requires_keyholder = False
                 for coverage_req in coverage_requirements:
-                    min_employees = max(min_employees, coverage_req.get("min_employees", 1))
-                    requires_keyholder = requires_keyholder or coverage_req.get("requires_keyholder", False)
+                    min_employees = max(
+                        min_employees, coverage_req.get("min_employees", 1)
+                    )
+                    requires_keyholder = requires_keyholder or coverage_req.get(
+                        "requires_keyholder", False
+                    )
 
                 # Create shift instance
                 shift_instance = {
@@ -1458,9 +1466,7 @@ class ScheduleGenerator:
                     "date": date_to_create,
                     "start_time": getattr(shift_template, "start_time", "09:00"),
                     "end_time": getattr(shift_template, "end_time", "17:00"),
-                    "duration_hours": getattr(
-                        shift_template, "duration_hours", 8.0
-                    ),
+                    "duration_hours": getattr(shift_template, "duration_hours", 8.0),
                     "shift_type": shift_type,
                     "shift_type_id": shift_type,  # Always use the resolved string, not MagicMock
                     "requires_keyholder": requires_keyholder,

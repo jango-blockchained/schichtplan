@@ -209,9 +209,7 @@ class ScheduleSerializer:
                 assignment.get("shift_id")
                 assignment_date = assignment.get("date")
                 assignment.get("shift_template")
-                assignment.get(
-                    "availability_type", AvailabilityType.AVAILABLE.value
-                )
+                assignment.get("availability_type", AvailabilityType.AVAILABLE.value)
                 assignment.get("status", status)
                 assignment_version = assignment.get("version", version or 1)
             else:

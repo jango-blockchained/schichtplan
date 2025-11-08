@@ -356,7 +356,11 @@ class MEPDataProcessor:
                     return hours * 60 + minutes
                 return None
 
-            elif isinstance(time_value, time) or hasattr(time_value, "hour") and hasattr(time_value, "minute"):
+            elif (
+                isinstance(time_value, time)
+                or hasattr(time_value, "hour")
+                and hasattr(time_value, "minute")
+            ):
                 return time_value.hour * 60 + time_value.minute
 
         except (ValueError, AttributeError):

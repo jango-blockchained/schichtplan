@@ -14,7 +14,11 @@ from typing import Any
 from fastmcp import Context
 
 from src.backend.utils.ai_rate_limiter import RateLimitConfig, get_rate_limiter
-from src.backend.utils.ai_retry import AI_REQUEST_RETRY_CONFIG, CircuitBreaker, retry_async
+from src.backend.utils.ai_retry import (
+    AI_REQUEST_RETRY_CONFIG,
+    CircuitBreaker,
+    retry_async,
+)
 from src.backend.utils.ai_validation import ValidationError, validate_ai_request
 
 from .ai_integration import AIOrchestrator, AIRequest, create_ai_orchestrator
@@ -288,7 +292,9 @@ class ConversationalSchichtplanMCPService:
                     await ctx.error(f"Validation error: {str(e)}")
                 return {"error": f"Validation error: {str(e)}"}
             except Exception as e:
-                self.logger.error(f"Failed to continue conversation: {e}", exc_info=True)
+                self.logger.error(
+                    f"Failed to continue conversation: {e}", exc_info=True
+                )
                 if ctx:
                     await ctx.error(f"Failed to continue conversation: {str(e)}")
                 return {
@@ -875,17 +881,19 @@ Be specific and actionable in your recommendations."""
                 *[execute_with_retry(tc) for tc in independent_tools],
                 return_exceptions=True,
             )
-            
+
             # Filter out exceptions and add successful results
             for result in parallel_results:
                 if isinstance(result, Exception):
                     self.logger.error(f"Parallel tool execution failed: {result}")
                     # Create error result entry
-                    results.append({
-                        "tool_name": "unknown",
-                        "error": str(result),
-                        "timestamp": datetime.now().isoformat(),
-                    })
+                    results.append(
+                        {
+                            "tool_name": "unknown",
+                            "error": str(result),
+                            "timestamp": datetime.now().isoformat(),
+                        }
+                    )
                 else:
                     results.append(result)
 

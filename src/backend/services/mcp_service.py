@@ -158,7 +158,9 @@ You are Schichtplan Assistant, a helpful workforce management companion.
                                     f"Skipping tool in {category} with missing name: {tool}"
                                 )
                 except Exception as e:
-                    self.logger.warning(f"Failed to collect tool info from {category}: {e}")
+                    self.logger.warning(
+                        f"Failed to collect tool info from {category}: {e}"
+                    )
 
         # Register prompts to handle ListPromptsRequest
         self._register_prompts()

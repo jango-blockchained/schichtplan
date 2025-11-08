@@ -242,7 +242,9 @@ class DatabaseConnectionPool:
                 self._engine, class_=AsyncSession, expire_on_commit=False
             )
 
-            logger.info(f"Database connection pool initialized with pool_size={pool_size}")
+            logger.info(
+                f"Database connection pool initialized with pool_size={pool_size}"
+            )
 
         except Exception as e:
             logger.error(f"Failed to initialize database connection pool: {e}")
@@ -324,9 +326,7 @@ class ConnectionPoolManager:
         )
         await self.redis_pool.initialize()
 
-    def initialize_database(
-        self, database_url: str, pool_size: int = 20, **kwargs
-    ):
+    def initialize_database(self, database_url: str, pool_size: int = 20, **kwargs):
         """Initialize database connection pool.
 
         Args:

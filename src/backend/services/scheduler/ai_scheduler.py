@@ -876,9 +876,9 @@ class AIScheduler:
             days=first_schedule_date.weekday()
         )  # Monday
 
-        for emp_id in (
-            employee_daily_hours
-        ):  # Iterate over employees who have daily hours logged
+        for (
+            emp_id
+        ) in employee_daily_hours:  # Iterate over employees who have daily hours logged
             {
                 emp_id: timedelta() for emp_id in employee_daily_hours
             }  # Re-init for check
@@ -984,7 +984,6 @@ class AIScheduler:
 
         # Implement multi-objective scoring if required by TASK003:
         # This might involve a weighted sum of different soft constraint scores or a more complex Pareto optimization approach.
-
 
         # Placeholder: For now, just indicate evaluation is happening.
         # actual_evaluation_results = self._perform_evaluation(generated_schedule, processed_data)

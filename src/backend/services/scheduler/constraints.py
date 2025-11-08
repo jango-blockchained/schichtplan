@@ -526,9 +526,13 @@ class ConstraintChecker:
                 asn, "end_time", asn_date_val
             )
 
-            if prev_shift_end and prev_shift_end < new_shift_start_dt and (
-                latest_previous_shift_end_dt is None
-                or prev_shift_end > latest_previous_shift_end_dt
+            if (
+                prev_shift_end
+                and prev_shift_end < new_shift_start_dt
+                and (
+                    latest_previous_shift_end_dt is None
+                    or prev_shift_end > latest_previous_shift_end_dt
+                )
             ):
                 latest_previous_shift_end_dt = prev_shift_end
 
