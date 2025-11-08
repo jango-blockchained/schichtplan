@@ -191,10 +191,10 @@ export default function CoveragePage() {
     opening_days: settings.general.opening_days,
     min_employees_per_shift: settings.scheduling.min_employees_per_shift ?? 1,
     max_employees_per_shift: settings.scheduling.max_employees_per_shift ?? 3,
-    employee_types: settings.employee_groups.employee_types.map((type) => ({
+    employee_types: settings.employee_groups?.employee_types?.map((type) => ({
       id: type.id,
       name: type.name,
-    })),
+    })) ?? [],
     keyholder_before_minutes: settings.general.keyholder_before_minutes,
     keyholder_after_minutes: settings.general.keyholder_after_minutes,
   };

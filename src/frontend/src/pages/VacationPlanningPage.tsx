@@ -89,7 +89,10 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 // Helper function to parse ISO date string and treat it as local date (not UTC)
 // This ensures "2025-01-15" is interpreted as 2025-01-15 00:00 in the user's local timezone
-function parseLocalDate(dateString: string): Date {
+function parseLocalDate(dateString: string | undefined): Date {
+  if (!dateString) {
+    return new Date(); // Return current date if undefined
+  }
   const [year, month, day] = dateString.split('-').map(Number)
   return new Date(year, month - 1, day)
 }
@@ -983,7 +986,7 @@ export default function VacationPlanningPage() {
                       <Checkbox
                         checked={
                           selectedAbsenceIds.size > 0 &&
-                          selectedAbsenceIds.size === paginatedAbsences.length
+                            selectedAbsenceIds.size === paginatedAbsences.length
                             ? true
                             : selectedAbsenceIds.size > 0
                               ? "indeterminate"

@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
 import { getSettings } from "@/services/api";
+import { useQuery } from "@tanstack/react-query";
 
 export interface EmployeeGroup {
   id: string; // Matches backend's EmployeeGroup enum values: VZ, TZ, GFB, TL
@@ -17,12 +17,12 @@ export const useEmployeeGroups = () => {
   });
 
   const employeeGroups: EmployeeGroup[] =
-    settings?.employee_groups.employee_types.map((type) => ({
+    settings?.employee_groups?.employee_types?.map((type) => ({
       id: type.id,
       name: type.name,
-      minHours: type.min_hours,
-      maxHours: type.max_hours,
-      isFullTime: type.min_hours >= 35, // Consider full time if min hours is 35 or more
+      minHours: type.min_hours ?? 0,
+      maxHours: type.max_hours ?? 0,
+      isFullTime: (type.min_hours ?? 0) >= 35, // Consider full time if min hours is 35 or more
     })) ?? [];
 
   const getGroup = (id: string) => {

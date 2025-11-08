@@ -14,7 +14,7 @@ bp = Blueprint("absences", __name__)
 
 # Direct route to the absences endpoint for POST requests
 @bp.route("/", methods=["POST"])
-@bp.route("/absences/", methods=["POST"])
+@bp.route("/", methods=["POST"])
 def create_absence_direct():
     """Create a new absence directly from the /absences/ endpoint.
     This route expects employee_id in the request body."""

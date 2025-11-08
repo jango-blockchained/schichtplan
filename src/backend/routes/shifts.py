@@ -6,24 +6,24 @@ from src.backend.models.fixed_shift import ShiftType, ShiftValidationError
 shifts = Blueprint("shifts", __name__)
 
 
-@shifts.route("/shifts", methods=["GET"])
-@shifts.route("/shifts/", methods=["GET"])
+@shifts.route("", methods=["GET"])
+@shifts.route("/", methods=["GET"])
 def get_shifts():
     """Get all shifts"""
-    shifts = ShiftTemplate.query.all()
-    return jsonify([shift.to_dict() for shift in shifts])
+    shift_list = ShiftTemplate.query.all()
+    return jsonify([shift.to_dict() for shift in shift_list])
 
 
-@shifts.route("/shifts/<int:shift_id>", methods=["GET"])
-@shifts.route("/shifts/<int:shift_id>/", methods=["GET"])
+@shifts.route("/<int:shift_id>", methods=["GET"])
+@shifts.route("/<int:shift_id>/", methods=["GET"])
 def get_shift(shift_id):
     """Get a specific shift"""
     shift = ShiftTemplate.query.get_or_404(shift_id)
     return jsonify(shift.to_dict())
 
 
-@shifts.route("/shifts", methods=["POST"])
-@shifts.route("/shifts/", methods=["POST"])
+@shifts.route("", methods=["POST"])
+@shifts.route("/", methods=["POST"])
 def create_shift():
     """Create a new shift"""
     data = request.get_json()
@@ -52,8 +52,8 @@ def create_shift():
         return jsonify({"error": str(e)}), 500
 
 
-@shifts.route("/shifts/<int:shift_id>", methods=["PUT"])
-@shifts.route("/shifts/<int:shift_id>/", methods=["PUT"])
+@shifts.route("/<int:shift_id>", methods=["PUT"])
+@shifts.route("/<int:shift_id>/", methods=["PUT"])
 def update_shift(shift_id):
     """Update a shift"""
     shift = ShiftTemplate.query.get_or_404(shift_id)
@@ -105,8 +105,8 @@ def update_shift(shift_id):
         return jsonify({"error": str(e)}), 500
 
 
-@shifts.route("/shifts/<int:shift_id>", methods=["DELETE"])
-@shifts.route("/shifts/<int:shift_id>/", methods=["DELETE"])
+@shifts.route("/<int:shift_id>", methods=["DELETE"])
+@shifts.route("/<int:shift_id>/", methods=["DELETE"])
 def delete_shift(shift_id):
     """Delete a shift"""
     shift = ShiftTemplate.query.get_or_404(shift_id)
@@ -121,7 +121,7 @@ def delete_shift(shift_id):
         return jsonify({"error": str(e)}), 500
 
 
-@shifts.route("/shifts/fix-durations", methods=["POST"])
+@shifts.route("/fix-durations", methods=["POST"])
 def fix_shift_durations():
     """Fix all shifts with missing duration_hours"""
     try:

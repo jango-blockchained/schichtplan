@@ -58,8 +58,8 @@ export const ShiftsPage: React.FC = () => {
 
     try {
       const defaultShiftTypeId =
-        settings.employee_groups.shift_types &&
-        settings.employee_groups.shift_types.length > 0
+        settings?.employee_groups?.shift_types &&
+          settings.employee_groups.shift_types.length > 0
           ? settings.employee_groups.shift_types[0].id
           : "EARLY";
 
