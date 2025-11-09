@@ -1462,6 +1462,42 @@ def create_schedule():
                 is_keyholder_shift=data.get("is_keyholder_shift", False),
             )
 
+            # Validate keyholder rules if is_keyholder_shift is True
+            if schedule.is_keyholder_shift:
+                from ..models.settings import Settings
+                from ..utils.keyholder_validator import (
+                    KeyholderValidationError,
+                    validate_paired_keyholder_shifts,
+                    validate_single_keyholder_per_day,
+                )
+
+                settings = Settings.query.first()
+                if not settings:
+                    settings = Settings.get_default_settings()
+
+                try:
+                    # Validate single keyholder per shift type per day
+                    validate_single_keyholder_per_day(
+                        date=date_obj,
+                        version=data["version"],
+                        shift_start=schedule.shift_start,
+                        shift_end=schedule.shift_end,
+                        settings=settings,
+                        schedule_id=None,  # New schedule
+                    )
+
+                    # Validate paired keyholder shifts (warnings only)
+                    validate_paired_keyholder_shifts(
+                        date=date_obj,
+                        version=data["version"],
+                        shift_start=schedule.shift_start,
+                        shift_end=schedule.shift_end,
+                        settings=settings,
+                        strict_mode=False,
+                    )
+                except KeyholderValidationError as e:
+                    return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
+
             # Use session_manager context for automatic transaction handling
             with session_manager() as session:
                 session.add(schedule)

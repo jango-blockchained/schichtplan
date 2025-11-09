@@ -2121,6 +2121,9 @@ export function SchedulePage() {
       return;
     }
     try {
+      // Find the existing schedule to preserve keyholder status
+      const existingSchedule = filteredSchedules?.find(s => s.id === scheduleId);
+
       const updateData: Partial<ScheduleUpdate> = {
         shift_id: newShiftId,
         version: effectiveSelectedVersionNumber || 1,
@@ -2130,6 +2133,11 @@ export function SchedulePage() {
       // If the date has changed, include it in the update
       const formattedDate = format(newDate, "yyyy-MM-dd");
       updateData.date = formattedDate;
+
+      // Preserve keyholder shift status during drag-and-drop
+      if (existingSchedule && existingSchedule.is_keyholder_shift !== undefined) {
+        updateData.is_keyholder_shift = existingSchedule.is_keyholder_shift;
+      }
 
       await updateSchedule(scheduleId, updateData);
       // Use query invalidation instead of manual refetch to prevent loops

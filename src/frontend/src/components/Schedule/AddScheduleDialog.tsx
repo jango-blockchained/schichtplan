@@ -6,7 +6,7 @@ import {
   Clock,
   X,
 } from "lucide-react";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 // Removed unused useQuery, useMutation, useQueryClient for now, can be added back if other parts need them
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,8 +38,10 @@ import { cn } from "@/lib/utils";
 import {
   getApplicableShiftsForEmployee,
   getEmployeeAvailabilityByDate,
+  getPairedKeyholderShift,
   getSettings,
   getShifts,
+  type PairedKeyholderShift,
 } from "@/services/api";
 import {
   createRequiredConsecutiveShifts,
@@ -101,6 +103,8 @@ export function AddScheduleDialog({
   const [selectedShift, setSelectedShift] = useState<number | null>(null);
   const [isKeyholderShift, setIsKeyholderShift] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pairedShift, setPairedShift] = useState<PairedKeyholderShift | null>(null);
+  const [loadingPairedShift, setLoadingPairedShift] = useState(false);
 
   const [employeeStatusList, setEmployeeStatusList] = useState<
     EmployeeAvailabilityStatus[]
@@ -154,41 +158,83 @@ export function AddScheduleDialog({
     return isOpeningShift || isClosingShift;
   }, [selectedShift, applicableShiftsList, settings]);
 
-  // Get corresponding shift info (for keyholder consecutive requirement)
-  const correspondingShiftInfo = useMemo(() => {
-    if (!isKeyholderShift || !selectedShift || !applicableShiftsList.length || !settings?.general || !selectedDate) {
-      return null;
+  // Fetch paired keyholder shift when keyholder is activated
+  useEffect(() => {
+    if (!isKeyholderShift || !selectedShift || !applicableShiftsList.length || !selectedDate) {
+      setPairedShift(null);
+      return;
     }
 
     const shift = applicableShiftsList.find((s) => s.shift_id === selectedShift);
-    if (!shift) return null;
+    if (!shift) {
+      setPairedShift(null);
+      return;
+    }
+
+    const fetchPairedShift = async () => {
+      setLoadingPairedShift(true);
+      try {
+        const paired = await getPairedKeyholderShift({
+          date: format(selectedDate, "yyyy-MM-dd"),
+          version: version,
+          shift_start: shift.start_time,
+          shift_end: shift.end_time,
+        });
+        setPairedShift(paired);
+      } catch (error) {
+        console.error("Error fetching paired keyholder shift:", error);
+        setPairedShift(null);
+      } finally {
+        setLoadingPairedShift(false);
+      }
+    };
+
+    fetchPairedShift();
+  }, [isKeyholderShift, selectedShift, applicableShiftsList, selectedDate, version]);
+
+  // Get corresponding shift info (for keyholder consecutive requirement)
+  const correspondingShiftInfo = useMemo(() => {
+    if (!isKeyholderShift || !pairedShift || !settings?.general) {
+      return null;
+    }
 
     const storeOpening = settings.general.store_opening;
     const storeClosing = settings.general.store_closing;
 
-    const isOpeningShift = shift.start_time === storeOpening;
-    const isClosingShift = shift.end_time === storeClosing;
-
-    if (isClosingShift) {
-      // Find next opening day
-      const nextDate = new Date(selectedDate);
-      nextDate.setDate(nextDate.getDate() + 1);
-      return {
-        type: "closing",
-        message: `Dieser Mitarbeiter muss am ${format(nextDate, "dd.MM.yyyy")} die Öffnungsschicht (${storeOpening}) übernehmen.`,
-      };
-    } else if (isOpeningShift) {
-      // Find previous closing day
-      const prevDate = new Date(selectedDate);
-      prevDate.setDate(prevDate.getDate() - 1);
-      return {
-        type: "opening",
-        message: `Dieser Mitarbeiter sollte am ${format(prevDate, "dd.MM.yyyy")} die Schließschicht (bis ${storeClosing}) gearbeitet haben.`,
-      };
+    if (pairedShift.shift_type === "opening") {
+      // This is a closing shift, showing next opening shift info
+      if (pairedShift.missing) {
+        return {
+          type: "closing",
+          message: `⚠️ Dieser Mitarbeiter muss am ${format(new Date(pairedShift.date), "dd.MM.yyyy")} die Öffnungsschicht (${storeOpening}) übernehmen.`,
+          warning: true,
+        };
+      } else {
+        return {
+          type: "closing",
+          message: `✅ Öffnungsschicht am ${format(new Date(pairedShift.date), "dd.MM.yyyy")} ist bereits ${pairedShift.employee_name} zugewiesen (${pairedShift.shift_start}).`,
+          warning: false,
+        };
+      }
+    } else if (pairedShift.shift_type === "closing") {
+      // This is an opening shift, showing previous closing shift info
+      if (pairedShift.missing) {
+        return {
+          type: "opening",
+          message: `⚠️ Dieser Mitarbeiter sollte am ${format(new Date(pairedShift.date), "dd.MM.yyyy")} die Schließschicht (bis ${storeClosing}) gearbeitet haben.`,
+          warning: true,
+        };
+      } else {
+        return {
+          type: "opening",
+          message: `✅ Schließschicht am ${format(new Date(pairedShift.date), "dd.MM.yyyy")} ist bereits ${pairedShift.employee_name} zugewiesen (bis ${pairedShift.shift_end}).`,
+          warning: false,
+        };
+      }
     }
 
     return null;
-  }, [isKeyholderShift, selectedShift, applicableShiftsList, settings, selectedDate]);
+  }, [isKeyholderShift, pairedShift, settings]);
 
   // Debug logging for props and state
   useEffect(() => {
@@ -739,8 +785,18 @@ export function AddScheduleDialog({
                   Nur für Öffnungs- oder Schließschichten verfügbar
                 </div>
               )}
+              {loadingPairedShift && (
+                <div className="text-xs text-muted-foreground italic">
+                  Lade zugehörige Schicht...
+                </div>
+              )}
               {correspondingShiftInfo && (
-                <div className="text-xs bg-amber-50 text-amber-800 p-2 rounded border border-amber-200">
+                <div className={cn(
+                  "text-xs p-2 rounded border",
+                  correspondingShiftInfo.warning
+                    ? "bg-amber-50 text-amber-800 border-amber-200"
+                    : "bg-green-50 text-green-800 border-green-200"
+                )}>
                   <strong>Hinweis:</strong> {correspondingShiftInfo.message}
                 </div>
               )}

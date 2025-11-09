@@ -110,5 +110,13 @@ class ScheduleUpdateRequest(BaseModel):
     is_keyholder_shift: bool | None = Field(
         None, description="Whether this shift is assigned the keyholder role."
     )
+    shift_start: str | None = Field(
+        None,
+        description="Shift start time in HH:MM format (explicit scheduling).",
+    )
+    shift_end: str | None = Field(
+        None,
+        description="Shift end time in HH:MM format (explicit scheduling).",
+    )
     # shift_type is derived from shift_id, not a direct input field
     # id is part of the URL, not the request body

@@ -164,9 +164,9 @@ def create_app(config_class=Config):
     db.init_app(app)
     print(f"Debug: db instance ID after init_app in create_app: {id(db)}")
     # Use the consolidated migrations directory
-    migrations_dir = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "instance", "migrations"
-    )
+    # __file__ is src/backend/app.py, so go up 3 levels to project root
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    migrations_dir = os.path.join(project_root, "instance", "migrations")
     Migrate(app, db, directory=migrations_dir)
 
     # Ensure the instance folder exists
@@ -188,8 +188,8 @@ def create_app(config_class=Config):
     app.register_blueprint(api_bp, url_prefix="/api/v2")
 
     # Register setup and passkey auth routes (always available, even during testing)
-    from src.backend.routes.setup import bp as setup_bp
     from src.backend.routes.passkey_auth import bp as passkey_auth_bp
+    from src.backend.routes.setup import bp as setup_bp
 
     app.register_blueprint(setup_bp)
     app.register_blueprint(passkey_auth_bp)

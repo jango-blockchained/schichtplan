@@ -1,8 +1,8 @@
 import type {
-  AiImportResponse,
-  Schedule,
-  ScheduleResponse,
-  ScheduleUpdate,
+    AiImportResponse,
+    Schedule,
+    ScheduleResponse,
+    ScheduleUpdate,
 } from "@/types/index";
 import type { PDFLayoutConfig } from "@/types/pdf";
 import { api } from "./instance";
@@ -247,4 +247,38 @@ export const generateOptimizedDemoData = async (
   num_employees: number,
 ): Promise<void> => {
   await api.post("/api/v2/demo-data/optimized", { num_employees });
+};
+
+export interface PairedKeyholderShift {
+  schedule_id?: number;
+  date: string;
+  shift_type: "opening" | "closing";
+  shift_start: string | null;
+  shift_end: string | null;
+  employee_id?: number;
+  employee_name?: string;
+  missing?: boolean;
+}
+
+export const getPairedKeyholderShift = async (data: {
+  date: string;
+  version: number;
+  shift_start: string;
+  shift_end: string;
+}): Promise<PairedKeyholderShift | null> => {
+  try {
+    const response = await api.post<{
+      status: string;
+      paired_shift: PairedKeyholderShift | null;
+      message?: string;
+    }>("/api/v2/schedules/keyholder/paired-shift", data);
+    
+    if (response.data.status === "success") {
+      return response.data.paired_shift;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching paired keyholder shift:", error);
+    return null;
+  }
 };

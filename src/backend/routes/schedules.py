@@ -23,6 +23,11 @@ from src.backend.services.scheduler.resources import (
     ScheduleResources,
 )
 from src.backend.services.scheduler.validator import ScheduleConfig, ScheduleValidator
+from src.backend.utils.keyholder_validator import (
+    KeyholderValidationError,
+    validate_paired_keyholder_shifts,
+    validate_single_keyholder_per_day,
+)
 from src.backend.utils.logger import logger
 
 # Define blueprint
@@ -403,6 +408,27 @@ def create_schedule_entry():
             else None,
         )
 
+        # If shift_id is provided and times aren't explicitly set, fetch times
+        if (
+            schedule.shift_id is not None
+            and not hasattr(request_data, "shift_start")
+            and not hasattr(request_data, "shift_end")
+        ):
+            shift_template = db.session.get(ShiftTemplate, schedule.shift_id)
+            if shift_template:
+                schedule.shift_start = shift_template.start_time
+                schedule.shift_end = shift_template.end_time
+                logger.info(
+                    f"Set shift times from template {schedule.shift_id}: "
+                    f"{schedule.shift_start} to {schedule.shift_end}"
+                )
+        elif hasattr(request_data, "shift_start") and hasattr(
+            request_data, "shift_end"
+        ):
+            # Use explicit times if provided
+            schedule.shift_start = request_data.shift_start
+            schedule.shift_end = request_data.shift_end
+
         # Handle break_duration if provided and convert to break_start/break_end
         if request_data.break_duration is not None and request_data.break_duration > 0:
             # For manual creation, we might not have shift times readily available
@@ -437,6 +463,54 @@ def create_schedule_entry():
 
         # Default status for new entries
         schedule.status = ScheduleStatus.DRAFT
+
+        # Validate keyholder rules if is_keyholder_shift is True
+        if (
+            hasattr(request_data, "is_keyholder_shift")
+            and request_data.is_keyholder_shift
+        ):
+            schedule.is_keyholder_shift = True
+
+            settings = Settings.query.first()
+            if not settings:
+                settings = Settings.get_default_settings()
+
+            try:
+                # Validate single keyholder per day
+                date_obj = (
+                    request_data.date
+                    if isinstance(request_data.date, datetime)
+                    else datetime.combine(request_data.date, datetime.min.time())
+                )
+                validate_single_keyholder_per_day(
+                    date=date_obj,
+                    version=request_data.version,
+                    shift_start=schedule.shift_start,
+                    shift_end=schedule.shift_end,
+                    is_keyholder_shift=True,
+                    settings=settings,
+                    schedule_id=None,  # New schedule
+                )
+
+                # Validate paired keyholder shifts (warning only)
+                validate_paired_keyholder_shifts(
+                    schedule_id=None,
+                    date=date_obj,
+                    version=request_data.version,
+                    shift_start=schedule.shift_start,
+                    shift_end=schedule.shift_end,
+                    is_keyholder_shift=True,
+                    settings=settings,
+                    strict=False,
+                )
+            except KeyholderValidationError as e:
+                logger.error(f"Keyholder validation failed: {str(e)}")
+                return jsonify(
+                    {
+                        "status": "error",
+                        "error": str(e),
+                    }
+                ), HTTPStatus.BAD_REQUEST
 
         db.session.add(schedule)
         db.session.commit()
@@ -863,24 +937,29 @@ def update_schedule(schedule_id):
             # Update existing schedule
             schedule = Schedule.query.get_or_404(schedule_id)
 
+            # Get original JSON to check what was actually provided
+            json_data = request.get_json() or {}
+
             # Enhanced logging for shift deletion operations
-            if request_data.shift_id is None:
+            if "shift_id" in json_data and json_data["shift_id"] is None:
                 logger.warning(
-                    f"DELETION OPERATION - Found existing schedule {schedule_id} with current shift_id={schedule.shift_id}, version={schedule.version}"
+                    f"DELETION OPERATION - Found existing schedule {schedule_id} "
+                    f"with current shift_id={schedule.shift_id}, version={schedule.version}"
                 )
             else:
                 logger.info(
-                    f"Updating existing schedule: {schedule_id}, current version: {schedule.version}"
+                    f"Updating existing schedule: {schedule_id}, "
+                    f"current version: {schedule.version}"
                 )
 
             # Update fields from validated data if provided
             if request_data.employee_id is not None:
                 schedule.employee_id = request_data.employee_id
 
-            # Handle shift_id specifically for deletion operations (setting to None)
-            if request_data.shift_id is not None or hasattr(request_data, "shift_id"):
+            # Handle shift_id only if explicitly provided in JSON
+            if "shift_id" in json_data:
                 # Explicitly check if shift_id is None to detect deletion operations
-                if request_data.shift_id is None:
+                if json_data["shift_id"] is None:
                     # This is a deletion operation
                     logger.warning(
                         f"DELETION OPERATION - Setting shift_id=None for schedule_id={schedule_id}"
@@ -1043,6 +1122,53 @@ def update_schedule(schedule_id):
                     # If break_duration is 0 or negative, clear break times
                     schedule.break_start = None
                     schedule.break_end = None
+
+        # Validate keyholder shift rules before committing
+        if schedule.is_keyholder_shift and schedule.shift_start and schedule.shift_end:
+            try:
+                settings = Settings.query.first()
+                if not settings:
+                    settings = Settings.get_default_settings()
+
+                # Validate single keyholder per day
+                validate_single_keyholder_per_day(
+                    schedule_id=schedule.id if schedule_id > 0 else None,
+                    date=schedule.date
+                    if isinstance(schedule.date, datetime)
+                    else datetime.combine(schedule.date, datetime.min.time()),
+                    version=schedule.version,
+                    shift_start=schedule.shift_start,
+                    shift_end=schedule.shift_end,
+                    is_keyholder_shift=schedule.is_keyholder_shift,
+                    settings=settings,
+                )
+
+                # Validate paired keyholder shifts (warning only, not strict)
+                paired_validation = validate_paired_keyholder_shifts(
+                    schedule_id=schedule.id if schedule_id > 0 else None,
+                    date=schedule.date
+                    if isinstance(schedule.date, datetime)
+                    else datetime.combine(schedule.date, datetime.min.time()),
+                    version=schedule.version,
+                    shift_start=schedule.shift_start,
+                    shift_end=schedule.shift_end,
+                    is_keyholder_shift=schedule.is_keyholder_shift,
+                    settings=settings,
+                    strict=False,  # Don't fail, just warn
+                )
+
+                if paired_validation["warnings"]:
+                    for warning in paired_validation["warnings"]:
+                        logger.warning(f"Keyholder pairing warning: {warning}")
+
+            except KeyholderValidationError as e:
+                logger.error(f"Keyholder validation failed: {str(e)}")
+                return jsonify(
+                    {
+                        "status": "error",
+                        "message": str(e),
+                    }
+                ), HTTPStatus.BAD_REQUEST
 
         db.session.commit()
 
@@ -2670,6 +2796,71 @@ def generate_ai_prompt_from_options(
         return f"{base_prompt} Additional instructions: {additional_instructions}"
 
     return base_prompt
+
+
+@schedules.route("/keyholder/paired-shift", methods=["POST"])
+def get_paired_keyholder_shift():
+    """Get information about the paired keyholder shift for preview"""
+    try:
+        from src.backend.utils.keyholder_validator import get_paired_shift_info
+
+        data = request.get_json()
+
+        # Validate required fields
+        required_fields = ["date", "version", "shift_start", "shift_end"]
+        for field in required_fields:
+            if field not in data:
+                return jsonify(
+                    {
+                        "status": "error",
+                        "message": f"Missing required field: {field}",
+                    }
+                ), HTTPStatus.BAD_REQUEST
+
+        # Parse date
+        try:
+            shift_date = datetime.strptime(data["date"], "%Y-%m-%d")
+        except ValueError:
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": "Invalid date format. Expected YYYY-MM-DD",
+                }
+            ), HTTPStatus.BAD_REQUEST
+
+        # Get settings
+        settings = Settings.query.first()
+        if not settings:
+            settings = Settings.get_default_settings()
+
+        # Get paired shift info
+        paired_info = get_paired_shift_info(
+            date=shift_date,
+            version=data["version"],
+            shift_start=data["shift_start"],
+            shift_end=data["shift_end"],
+            settings=settings,
+        )
+
+        if paired_info:
+            return jsonify(paired_info)
+        else:
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": "This is not an opening or closing shift",
+                }
+            ), HTTPStatus.NOT_FOUND
+
+    except Exception as e:
+        logger.error(f"Error getting paired keyholder shift: {str(e)}", exc_info=True)
+        return jsonify(
+            {
+                "status": "error",
+                "message": "An internal server error occurred.",
+                "details": str(e),
+            }
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @schedules.route("/diagnostics/<session_id>", methods=["GET"])
