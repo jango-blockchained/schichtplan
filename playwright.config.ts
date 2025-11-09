@@ -49,8 +49,8 @@ export default defineConfig({
     // Screenshot on failure
     screenshot: 'only-on-failure',
     
-    // Video on retry
-    video: 'retain-on-failure',
+    // Video on retry (disabled to avoid ffmpeg dependency)
+    video: 'off',
     
     // Maximum time each action can take
     actionTimeout: 10 * 1000,
@@ -108,7 +108,7 @@ export default defineConfig({
 
   // Web server configuration - start dev server before running tests
   webServer: {
-    command: 'cd src/frontend && bun run dev',
+    command: 'cd src/frontend && npm run dev',
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
