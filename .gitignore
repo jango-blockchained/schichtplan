@@ -215,3 +215,9 @@ docs/bbb61478-865e-493a-bf8b-811d9c3c3fec
 .mypy_cache/
 # MkDocs build output
 site/
+
+# Playwright / E2E Testing
+playwright-report/
+test-results/
+.playwright/
+playwright/.cache/
