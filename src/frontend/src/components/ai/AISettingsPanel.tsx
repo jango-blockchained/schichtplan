@@ -13,7 +13,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getSettings, updateSettings } from "@/services/api";
+import { getSettings, updateSettings, type Settings } from "@/services/api";
 import {
   AlertTriangle,
   Brain,
@@ -23,28 +23,14 @@ import {
   Info,
   RefreshCw,
   Save,
-  Settings,
+  Settings as SettingsIcon,
   Shield,
   Zap,
 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-
-interface AISettings {
-  provider: "openai" | "anthropic" | "gemini";
-  model: string;
-  temperature: number;
-  max_tokens: number;
-  timeout: number;
-  fallback_enabled: boolean;
-  fallback_providers: string[];
-  rate_limit: number;
-  cache_enabled: boolean;
-  cache_ttl: number;
-  logging_level: "debug" | "info" | "warning" | "error";
-  conversation_persistence: boolean;
-  max_conversation_history: number;
-}
+import { useDebouncedCallback } from "use-debounce";
 
 interface ProviderStatus {
   provider: string;
@@ -68,187 +54,103 @@ interface SystemHealth {
   providers: ProviderStatus[];
 }
 
-interface SystemSettings {
-  mcp_server_url: string;
-  mcp_server_timeout: number;
-  health_check_interval: number;
-  auto_scaling_enabled: boolean;
-  max_system_load: number;
-  maintenance_mode: boolean;
-}
-
-interface AgentSettings {
-  schedule_optimizer: {
-    enabled: boolean;
-    max_concurrent_requests: number;
-    optimization_algorithms: string[];
-    constraint_weights: {
-      workload_balance: number;
-      coverage_requirements: number;
-      employee_preferences: number;
-      cost_optimization: number;
-    };
-  };
-  employee_manager: {
-    enabled: boolean;
-    max_concurrent_requests: number;
-    preference_weight: number;
-    availability_check_strict: boolean;
-  };
-  workflow_coordinator: {
-    enabled: boolean;
-    max_parallel_workflows: number;
-    workflow_timeout: number;
-    auto_recovery: boolean;
-  };
-}
-
 export const AISettingsPanel: React.FC = () => {
-  const [aiSettings, setAISettings] = useState<AISettings>({
-    provider: "gemini",
-    model: "gemini-pro",
-    temperature: 0.7,
-    max_tokens: 2048,
-    timeout: 30,
-    fallback_enabled: true,
-    fallback_providers: ["anthropic", "openai"],
-    rate_limit: 100,
-    cache_enabled: true,
-    cache_ttl: 3600,
-    logging_level: "info",
-    conversation_persistence: true,
-    max_conversation_history: 50,
+  const queryClient = useQueryClient();
+  
+  // Fetch settings using React Query (unified approach)
+  const { data: settings, isLoading: isLoadingSettings } = useQuery<Settings>({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnWindowFocus: false,
   });
 
-  const [agentSettings, setAgentSettings] = useState<AgentSettings>({
-    schedule_optimizer: {
-      enabled: true,
-      max_concurrent_requests: 5,
-      optimization_algorithms: [
-        "genetic",
-        "simulated_annealing",
-        "constraint_satisfaction",
-      ],
-      constraint_weights: {
-        workload_balance: 0.3,
-        coverage_requirements: 0.4,
-        employee_preferences: 0.2,
-        cost_optimization: 0.1,
-      },
+  // Mutation for updating settings (unified approach)
+  const mutation = useMutation<Settings, Error, Settings>({
+    mutationFn: updateSettings,
+    onSuccess: (data) => {
+      queryClient.setQueryData(["settings"], data);
+      toast.success("AI settings saved successfully");
     },
-    employee_manager: {
-      enabled: true,
-      max_concurrent_requests: 3,
-      preference_weight: 0.8,
-      availability_check_strict: true,
-    },
-    workflow_coordinator: {
-      enabled: true,
-      max_parallel_workflows: 3,
-      workflow_timeout: 600,
-      auto_recovery: true,
+    onError: (error: Error) => {
+      toast.error(`Failed to save AI settings: ${error.message}`);
     },
   });
 
-  const [systemSettings, setSystemSettings] = useState<SystemSettings>({
-    mcp_server_url: "http://localhost:8001",
-    mcp_server_timeout: 30,
-    health_check_interval: 60,
-    auto_scaling_enabled: false,
-    max_system_load: 80,
-    maintenance_mode: false,
-  });
-
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
+  // Local state for status polling only
   const [providerStatus, setProviderStatus] = useState<ProviderStatus[]>([]);
   const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
 
-  // Load settings from backend on mount
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const settings = await getSettings();
-        if (settings.ai_scheduling) {
-          // Map backend settings structure to frontend structure
-          const aiSched = settings.ai_scheduling;
-          setAISettings({
-            provider: (aiSched.provider || "gemini") as "openai" | "anthropic" | "gemini",
-            model: aiSched.model || "gemini-pro",
-            temperature: aiSched.temperature || 0.7,
-            max_tokens: aiSched.max_tokens || 2048,
-            timeout: aiSched.timeout || 30,
-            fallback_enabled: aiSched.fallback_enabled ?? true,
-            fallback_providers: aiSched.fallback_providers || ["anthropic", "openai"],
-            rate_limit: aiSched.rate_limit || 100,
-            cache_enabled: aiSched.cache_enabled ?? true,
-            cache_ttl: aiSched.cache_ttl || 3600,
-            logging_level: (aiSched.logging_level || "info") as "debug" | "info" | "warning" | "error",
-            conversation_persistence: aiSched.conversation_persistence ?? true,
-            max_conversation_history: aiSched.max_conversation_history || 50,
-          });
+  // Get AI settings from the unified settings object
+  const aiScheduling = settings?.ai_scheduling || {};
+  
+  // Debounced update function (unified approach)
+  const debouncedUpdateSettings = useDebouncedCallback(
+    (updatedSettings: Settings) => {
+      mutation.mutate(updatedSettings);
+    },
+    2000 // 2 second debounce like UnifiedSettingsPage
+  );
 
-          // Load agent settings if available
-          if (aiSched.agents) {
-            setAgentSettings({
-              schedule_optimizer: {
-                enabled: aiSched.agents.schedule_optimizer?.enabled ?? true,
-                max_concurrent_requests: aiSched.agents.schedule_optimizer?.max_concurrent_requests || 5,
-                optimization_algorithms: [
-                  "genetic",
-                  "simulated_annealing",
-                  "constraint_satisfaction",
-                ],
-                constraint_weights: {
-                  workload_balance: 0.3,
-                  coverage_requirements: 0.4,
-                  employee_preferences: 0.2,
-                  cost_optimization: 0.1,
-                },
-              },
-              employee_manager: {
-                enabled: aiSched.agents.employee_manager?.enabled ?? true,
-                max_concurrent_requests: aiSched.agents.employee_manager?.max_concurrent_requests || 3,
-                preference_weight: 0.8,
-                availability_check_strict: true,
-              },
-              workflow_coordinator: {
-                enabled: aiSched.agents.workflow_coordinator?.enabled ?? true,
-                max_parallel_workflows: aiSched.agents.workflow_coordinator?.max_parallel_workflows || 3,
-                workflow_timeout: 600,
-                auto_recovery: true,
-              },
-            });
-          }
-
-          // Load system settings if available
-          if (aiSched.system) {
-            setSystemSettings({
-              mcp_server_url: aiSched.system.mcp_server_url || "http://localhost:8001",
-              mcp_server_timeout: aiSched.system.mcp_server_timeout || 30,
-              health_check_interval: aiSched.system.health_check_interval || 60,
-              auto_scaling_enabled: false,
-              max_system_load: 80,
-              maintenance_mode: aiSched.system.maintenance_mode ?? false,
-            });
-          }
-        }
-      } catch (error) {
-        console.error("Failed to load AI settings:", error);
-        toast.error("Failed to load AI settings");
-      }
+  // Helper to update AI settings
+  const updateAISettings = (updates: Partial<NonNullable<Settings["ai_scheduling"]>>) => {
+    if (!settings) return;
+    
+    const updatedSettings: Settings = {
+      ...settings,
+      ai_scheduling: {
+        ...aiScheduling,
+        ...updates,
+      },
     };
+    
+    debouncedUpdateSettings(updatedSettings);
+  };
 
-    loadSettings();
-  }, []);
+  // Helper to update agent settings
+  const updateAgentSettings = (
+    agentKey: "schedule_optimizer" | "employee_manager" | "workflow_coordinator",
+    updates: any
+  ) => {
+    if (!settings) return;
+    
+    const currentAgents = aiScheduling.agents || {};
+    const updatedSettings: Settings = {
+      ...settings,
+      ai_scheduling: {
+        ...aiScheduling,
+        agents: {
+          ...currentAgents,
+          [agentKey]: {
+            ...(currentAgents[agentKey] || {}),
+            ...updates,
+          },
+        },
+      },
+    };
+    
+    debouncedUpdateSettings(updatedSettings);
+  };
 
-  useEffect(() => {
-    // Mark as having changes when settings are modified (skip initial load)
-    if (aiSettings.provider !== "gemini" || aiSettings.model !== "gemini-pro") {
-      setHasChanges(true);
-    }
-  }, [aiSettings, agentSettings, systemSettings]);
+  // Helper to update system settings
+  const updateSystemSettings = (updates: any) => {
+    if (!settings) return;
+    
+    const currentSystem = aiScheduling.system || {};
+    const updatedSettings: Settings = {
+      ...settings,
+      ai_scheduling: {
+        ...aiScheduling,
+        system: {
+          ...currentSystem,
+          ...updates,
+        },
+      },
+    };
+    
+    debouncedUpdateSettings(updatedSettings);
+  };
 
   // Fetch provider status and system health
   useEffect(() => {
@@ -281,80 +183,12 @@ export const AISettingsPanel: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleSaveSettings = async () => {
-    setIsLoading(true);
-    try {
-      // Map frontend settings structure to backend structure
-      const updatedSettings = {
-        ai_scheduling: {
-          enabled: true,
-          provider: aiSettings.provider,
-          model: aiSettings.model,
-          temperature: aiSettings.temperature,
-          max_tokens: aiSettings.max_tokens,
-          timeout: aiSettings.timeout,
-          fallback_enabled: aiSettings.fallback_enabled,
-          fallback_providers: aiSettings.fallback_providers,
-          rate_limit: aiSettings.rate_limit,
-          cache_enabled: aiSettings.cache_enabled,
-          cache_ttl: aiSettings.cache_ttl,
-          logging_level: aiSettings.logging_level,
-          conversation_persistence: aiSettings.conversation_persistence,
-          max_conversation_history: aiSettings.max_conversation_history,
-          agents: {
-            schedule_optimizer: {
-              enabled: agentSettings.schedule_optimizer.enabled,
-              max_concurrent_requests: agentSettings.schedule_optimizer.max_concurrent_requests,
-            },
-            employee_manager: {
-              enabled: agentSettings.employee_manager.enabled,
-              max_concurrent_requests: agentSettings.employee_manager.max_concurrent_requests,
-            },
-            workflow_coordinator: {
-              enabled: agentSettings.workflow_coordinator.enabled,
-              max_parallel_workflows: agentSettings.workflow_coordinator.max_parallel_workflows,
-            },
-          },
-          system: {
-            mcp_server_url: systemSettings.mcp_server_url,
-            mcp_server_timeout: systemSettings.mcp_server_timeout,
-            health_check_interval: systemSettings.health_check_interval,
-            maintenance_mode: systemSettings.maintenance_mode,
-          },
-        },
-      };
-
-      await updateSettings(updatedSettings);
-      setHasChanges(false);
-      toast.success("AI settings saved successfully");
-    } catch (error) {
-      console.error("Failed to save settings:", error);
-      toast.error("Failed to save AI settings");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleResetSettings = () => {
-    // Reset to default values
-    setAISettings({
-      provider: "gemini",
-      model: "gemini-pro",
-      temperature: 0.7,
-      max_tokens: 2048,
-      timeout: 30,
-      fallback_enabled: true,
-      fallback_providers: ["anthropic", "openai"],
-      rate_limit: 100,
-      cache_enabled: true,
-      cache_ttl: 3600,
-      logging_level: "info",
-      conversation_persistence: true,
-      max_conversation_history: 50,
-    });
-
-    setHasChanges(true);
-    toast.success("Settings reset to defaults (click Save to apply)");
+  // Helper function for immediate save (no debounce)
+  const handleImmediateSave = () => {
+    if (!settings) return;
+    
+    debouncedUpdateSettings.cancel(); // Cancel any pending debounced updates
+    mutation.mutate(settings);
   };
 
   const getProviderModels = (provider: string) => {
@@ -370,35 +204,44 @@ export const AISettingsPanel: React.FC = () => {
     }
   };
 
+  // Show loading state while fetching settings
+  if (isLoadingSettings) {
+    return (
+      <Card>
+        <CardContent className="p-8 flex items-center justify-center">
+          <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+          <span>Loading AI settings...</span>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
+            <SettingsIcon className="h-5 w-5" />
             AI Settings
           </CardTitle>
           <div className="flex items-center gap-2">
-            {hasChanges && (
+            {mutation.isPending && (
               <Badge variant="secondary" className="flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3" />
-                Unsaved changes
+                <RefreshCw className="h-3 w-3 animate-spin" />
+                Saving...
               </Badge>
             )}
-            <Button size="sm" variant="outline" onClick={handleResetSettings}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
             <Button
               size="sm"
-              onClick={handleSaveSettings}
-              disabled={isLoading || !hasChanges}
+              onClick={handleImmediateSave}
+              disabled={mutation.isPending}
             >
-              {isLoading ? (
+              {mutation.isPending ? (
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Save className="h-4 w-4 mr-2" />
               )}
-              Save
+              Save Now
             </Button>
           </div>
         </div>
@@ -433,11 +276,9 @@ export const AISettingsPanel: React.FC = () => {
                   <div className="space-y-2">
                     <Label>Provider</Label>
                     <Select
-                      value={aiSettings.provider}
-                      onValueChange={(
-                        value: "openai" | "anthropic" | "gemini",
-                      ) =>
-                        setAISettings((prev) => ({ ...prev, provider: value }))
+                      value={aiScheduling.provider || "gemini"}
+                      onValueChange={(value) =>
+                        updateAISettings({ provider: value })
                       }
                     >
                       <SelectTrigger>
@@ -454,16 +295,16 @@ export const AISettingsPanel: React.FC = () => {
                   <div className="space-y-2">
                     <Label>Model</Label>
                     <Select
-                      value={aiSettings.model}
+                      value={aiScheduling.model || "gemini-pro"}
                       onValueChange={(value) =>
-                        setAISettings((prev) => ({ ...prev, model: value }))
+                        updateAISettings({ model: value })
                       }
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {getProviderModels(aiSettings.provider).map((model) => (
+                        {getProviderModels(aiScheduling.provider || "gemini").map((model) => (
                           <SelectItem key={model} value={model}>
                             {model}
                           </SelectItem>
@@ -474,11 +315,11 @@ export const AISettingsPanel: React.FC = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Temperature: {aiSettings.temperature}</Label>
+                  <Label>Temperature: {aiScheduling.temperature || 0.7}</Label>
                   <Slider
-                    value={[aiSettings.temperature]}
+                    value={[aiScheduling.temperature || 0.7]}
                     onValueChange={([value]) =>
-                      setAISettings((prev) => ({ ...prev, temperature: value }))
+                      updateAISettings({ temperature: value })
                     }
                     min={0}
                     max={2}
@@ -496,12 +337,9 @@ export const AISettingsPanel: React.FC = () => {
                     <Label>Max Tokens</Label>
                     <Input
                       type="number"
-                      value={aiSettings.max_tokens}
+                      value={aiScheduling.max_tokens || 2048}
                       onChange={(e) =>
-                        setAISettings((prev) => ({
-                          ...prev,
-                          max_tokens: Number(e.target.value),
-                        }))
+                        updateAISettings({ max_tokens: Number(e.target.value) })
                       }
                       min={100}
                       max={4096}
@@ -512,12 +350,9 @@ export const AISettingsPanel: React.FC = () => {
                     <Label>Timeout (seconds)</Label>
                     <Input
                       type="number"
-                      value={aiSettings.timeout}
+                      value={aiScheduling.timeout || 30}
                       onChange={(e) =>
-                        setAISettings((prev) => ({
-                          ...prev,
-                          timeout: Number(e.target.value),
-                        }))
+                        updateAISettings({ timeout: Number(e.target.value) })
                       }
                       min={5}
                       max={300}
@@ -541,12 +376,9 @@ export const AISettingsPanel: React.FC = () => {
                     </p>
                   </div>
                   <Switch
-                    checked={aiSettings.fallback_enabled}
+                    checked={aiScheduling.fallback_enabled ?? true}
                     onCheckedChange={(checked) =>
-                      setAISettings((prev) => ({
-                        ...prev,
-                        fallback_enabled: checked,
-                      }))
+                      updateAISettings({ fallback_enabled: checked })
                     }
                   />
                 </div>
@@ -556,12 +388,9 @@ export const AISettingsPanel: React.FC = () => {
                     <Label>Rate Limit (requests/minute)</Label>
                     <Input
                       type="number"
-                      value={aiSettings.rate_limit}
+                      value={aiScheduling.rate_limit || 100}
                       onChange={(e) =>
-                        setAISettings((prev) => ({
-                          ...prev,
-                          rate_limit: Number(e.target.value),
-                        }))
+                        updateAISettings({ rate_limit: Number(e.target.value) })
                       }
                       min={1}
                       max={1000}
@@ -571,14 +400,9 @@ export const AISettingsPanel: React.FC = () => {
                   <div className="space-y-2">
                     <Label>Logging Level</Label>
                     <Select
-                      value={aiSettings.logging_level}
-                      onValueChange={(
-                        value: "debug" | "info" | "warning" | "error",
-                      ) =>
-                        setAISettings((prev) => ({
-                          ...prev,
-                          logging_level: value,
-                        }))
+                      value={aiScheduling.logging_level || "info"}
+                      onValueChange={(value) =>
+                        updateAISettings({ logging_level: value })
                       }
                     >
                       <SelectTrigger>
@@ -610,12 +434,9 @@ export const AISettingsPanel: React.FC = () => {
                     </p>
                   </div>
                   <Switch
-                    checked={aiSettings.conversation_persistence}
+                    checked={aiScheduling.conversation_persistence ?? true}
                     onCheckedChange={(checked) =>
-                      setAISettings((prev) => ({
-                        ...prev,
-                        conversation_persistence: checked,
-                      }))
+                      updateAISettings({ conversation_persistence: checked })
                     }
                   />
                 </div>
@@ -624,12 +445,9 @@ export const AISettingsPanel: React.FC = () => {
                   <Label>Max Conversation History</Label>
                   <Input
                     type="number"
-                    value={aiSettings.max_conversation_history}
+                    value={aiScheduling.max_conversation_history || 50}
                     onChange={(e) =>
-                      setAISettings((prev) => ({
-                        ...prev,
-                        max_conversation_history: Number(e.target.value),
-                      }))
+                      updateAISettings({ max_conversation_history: Number(e.target.value) })
                     }
                     min={10}
                     max={200}
@@ -649,15 +467,9 @@ export const AISettingsPanel: React.FC = () => {
                     Schedule Optimizer Agent
                   </h4>
                   <Switch
-                    checked={agentSettings.schedule_optimizer.enabled}
+                    checked={aiScheduling.agents?.schedule_optimizer?.enabled ?? true}
                     onCheckedChange={(checked) =>
-                      setAgentSettings((prev) => ({
-                        ...prev,
-                        schedule_optimizer: {
-                          ...prev.schedule_optimizer,
-                          enabled: checked,
-                        },
-                      }))
+                      updateAgentSettings("schedule_optimizer", { enabled: checked })
                     }
                   />
                 </div>
@@ -667,60 +479,24 @@ export const AISettingsPanel: React.FC = () => {
                     <Label>Max Concurrent Requests</Label>
                     <Input
                       type="number"
-                      value={
-                        agentSettings.schedule_optimizer.max_concurrent_requests
-                      }
+                      value={aiScheduling.agents?.schedule_optimizer?.max_concurrent_requests || 5}
                       onChange={(e) =>
-                        setAgentSettings((prev) => ({
-                          ...prev,
-                          schedule_optimizer: {
-                            ...prev.schedule_optimizer,
-                            max_concurrent_requests: Number(e.target.value),
-                          },
-                        }))
+                        updateAgentSettings("schedule_optimizer", { max_concurrent_requests: Number(e.target.value) })
                       }
                       min={1}
                       max={10}
-                      disabled={!agentSettings.schedule_optimizer.enabled}
+                      disabled={!(aiScheduling.agents?.schedule_optimizer?.enabled ?? true)}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Constraint Weights</Label>
-                  {Object.entries(
-                    agentSettings.schedule_optimizer.constraint_weights,
-                  ).map(([key, value]) => (
-                    <div key={key} className="space-y-1">
-                      <div className="flex justify-between text-sm">
-                        <span>
-                          {key
-                            .replace(/_/g, " ")
-                            .replace(/\b\w/g, (l) => l.toUpperCase())}
-                        </span>
-                        <span>{(value as number).toFixed(1)}</span>
-                      </div>
-                      <Slider
-                        value={[value as number]}
-                        onValueChange={([newValue]) =>
-                          setAgentSettings((prev) => ({
-                            ...prev,
-                            schedule_optimizer: {
-                              ...prev.schedule_optimizer,
-                              constraint_weights: {
-                                ...prev.schedule_optimizer.constraint_weights,
-                                [key]: newValue,
-                              },
-                            },
-                          }))
-                        }
-                        min={0}
-                        max={1}
-                        step={0.1}
-                        disabled={!agentSettings.schedule_optimizer.enabled}
-                      />
-                    </div>
-                  ))}
+                  <Label className="text-xs text-muted-foreground">
+                    Constraint Weights (UI only - not persisted)
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    These weights are display-only and not saved to the backend.
+                  </p>
                 </div>
               </div>
 
@@ -731,15 +507,9 @@ export const AISettingsPanel: React.FC = () => {
                     Employee Manager Agent
                   </h4>
                   <Switch
-                    checked={agentSettings.employee_manager.enabled}
+                    checked={aiScheduling.agents?.employee_manager?.enabled ?? true}
                     onCheckedChange={(checked) =>
-                      setAgentSettings((prev) => ({
-                        ...prev,
-                        employee_manager: {
-                          ...prev.employee_manager,
-                          enabled: checked,
-                        },
-                      }))
+                      updateAgentSettings("employee_manager", { enabled: checked })
                     }
                   />
                 </div>
@@ -749,70 +519,24 @@ export const AISettingsPanel: React.FC = () => {
                     <Label>Max Concurrent Requests</Label>
                     <Input
                       type="number"
-                      value={
-                        agentSettings.employee_manager.max_concurrent_requests
-                      }
+                      value={aiScheduling.agents?.employee_manager?.max_concurrent_requests || 3}
                       onChange={(e) =>
-                        setAgentSettings((prev) => ({
-                          ...prev,
-                          employee_manager: {
-                            ...prev.employee_manager,
-                            max_concurrent_requests: Number(e.target.value),
-                          },
-                        }))
+                        updateAgentSettings("employee_manager", { max_concurrent_requests: Number(e.target.value) })
                       }
                       min={1}
                       max={10}
-                      disabled={!agentSettings.employee_manager.enabled}
+                      disabled={!(aiScheduling.agents?.employee_manager?.enabled ?? true)}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>
-                    Preference Weight:{" "}
-                    {agentSettings.employee_manager.preference_weight}
+                  <Label className="text-xs text-muted-foreground">
+                    Preference Weight & Strict Availability (UI only - not persisted)
                   </Label>
-                  <Slider
-                    value={[agentSettings.employee_manager.preference_weight]}
-                    onValueChange={([value]) =>
-                      setAgentSettings((prev) => ({
-                        ...prev,
-                        employee_manager: {
-                          ...prev.employee_manager,
-                          preference_weight: value,
-                        },
-                      }))
-                    }
-                    min={0}
-                    max={1}
-                    step={0.1}
-                    disabled={!agentSettings.employee_manager.enabled}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Strict Availability Check</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Enforce strict availability constraints
-                    </p>
-                  </div>
-                  <Switch
-                    checked={
-                      agentSettings.employee_manager.availability_check_strict
-                    }
-                    onCheckedChange={(checked) =>
-                      setAgentSettings((prev) => ({
-                        ...prev,
-                        employee_manager: {
-                          ...prev.employee_manager,
-                          availability_check_strict: checked,
-                        },
-                      }))
-                    }
-                    disabled={!agentSettings.employee_manager.enabled}
-                  />
+                  <p className="text-xs text-muted-foreground">
+                    These settings are display-only and not saved to the backend.
+                  </p>
                 </div>
               </div>
 
@@ -821,15 +545,9 @@ export const AISettingsPanel: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-medium">Workflow Coordinator</h4>
                   <Switch
-                    checked={agentSettings.workflow_coordinator.enabled}
+                    checked={aiScheduling.agents?.workflow_coordinator?.enabled ?? true}
                     onCheckedChange={(checked) =>
-                      setAgentSettings((prev) => ({
-                        ...prev,
-                        workflow_coordinator: {
-                          ...prev.workflow_coordinator,
-                          enabled: checked,
-                        },
-                      }))
+                      updateAgentSettings("workflow_coordinator", { enabled: checked })
                     }
                   />
                 </div>
@@ -839,68 +557,40 @@ export const AISettingsPanel: React.FC = () => {
                     <Label>Max Parallel Workflows</Label>
                     <Input
                       type="number"
-                      value={
-                        agentSettings.workflow_coordinator
-                          .max_parallel_workflows
-                      }
+                      value={aiScheduling.agents?.workflow_coordinator?.max_parallel_workflows || 3}
                       onChange={(e) =>
-                        setAgentSettings((prev) => ({
-                          ...prev,
-                          workflow_coordinator: {
-                            ...prev.workflow_coordinator,
-                            max_parallel_workflows: Number(e.target.value),
-                          },
-                        }))
+                        updateAgentSettings("workflow_coordinator", { max_parallel_workflows: Number(e.target.value) })
                       }
                       min={1}
                       max={10}
-                      disabled={!agentSettings.workflow_coordinator.enabled}
+                      disabled={!(aiScheduling.agents?.workflow_coordinator?.enabled ?? true)}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Workflow Timeout (seconds)</Label>
+                    <Label className="text-xs text-muted-foreground">
+                      Workflow Timeout (UI only - not persisted)
+                    </Label>
                     <Input
                       type="number"
-                      value={
-                        agentSettings.workflow_coordinator.workflow_timeout
-                      }
-                      onChange={(e) =>
-                        setAgentSettings((prev) => ({
-                          ...prev,
-                          workflow_coordinator: {
-                            ...prev.workflow_coordinator,
-                            workflow_timeout: Number(e.target.value),
-                          },
-                        }))
-                      }
+                      value={600}
+                      disabled={true}
                       min={60}
                       max={3600}
-                      disabled={!agentSettings.workflow_coordinator.enabled}
                     />
+                    <p className="text-xs text-muted-foreground">
+                      This setting is display-only and not saved to the backend.
+                    </p>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Auto Recovery</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Automatically recover from workflow failures
-                    </p>
-                  </div>
-                  <Switch
-                    checked={agentSettings.workflow_coordinator.auto_recovery}
-                    onCheckedChange={(checked) =>
-                      setAgentSettings((prev) => ({
-                        ...prev,
-                        workflow_coordinator: {
-                          ...prev.workflow_coordinator,
-                          auto_recovery: checked,
-                        },
-                      }))
-                    }
-                    disabled={!agentSettings.workflow_coordinator.enabled}
-                  />
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">
+                    Auto Recovery (UI only - not persisted)
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    This setting is display-only and not saved to the backend.
+                  </p>
                 </div>
               </div>
             </TabsContent>
@@ -917,12 +607,9 @@ export const AISettingsPanel: React.FC = () => {
                   <div className="space-y-2">
                     <Label>Server URL</Label>
                     <Input
-                      value={systemSettings.mcp_server_url}
+                      value={aiScheduling.system?.mcp_server_url || "http://localhost:8001"}
                       onChange={(e) =>
-                        setSystemSettings((prev) => ({
-                          ...prev,
-                          mcp_server_url: e.target.value,
-                        }))
+                        updateSystemSettings({ mcp_server_url: e.target.value })
                       }
                       placeholder="http://localhost:8001"
                     />
@@ -932,12 +619,9 @@ export const AISettingsPanel: React.FC = () => {
                     <Label>Server Timeout (seconds)</Label>
                     <Input
                       type="number"
-                      value={systemSettings.mcp_server_timeout}
+                      value={aiScheduling.system?.mcp_server_timeout || 30}
                       onChange={(e) =>
-                        setSystemSettings((prev) => ({
-                          ...prev,
-                          mcp_server_timeout: Number(e.target.value),
-                        }))
+                        updateSystemSettings({ mcp_server_timeout: Number(e.target.value) })
                       }
                       min={5}
                       max={300}
@@ -949,12 +633,9 @@ export const AISettingsPanel: React.FC = () => {
                   <Label>Health Check Interval (seconds)</Label>
                   <Input
                     type="number"
-                    value={systemSettings.health_check_interval}
+                    value={aiScheduling.system?.health_check_interval || 60}
                     onChange={(e) =>
-                      setSystemSettings((prev) => ({
-                        ...prev,
-                        health_check_interval: Number(e.target.value),
-                      }))
+                      updateSystemSettings({ health_check_interval: Number(e.target.value) })
                     }
                     min={10}
                     max={600}
@@ -969,47 +650,20 @@ export const AISettingsPanel: React.FC = () => {
                   Performance & Scaling
                 </h4>
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Auto Scaling</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Automatically scale resources based on load
-                    </p>
-                  </div>
-                  <Switch
-                    checked={systemSettings.auto_scaling_enabled}
-                    onCheckedChange={(checked) =>
-                      setSystemSettings((prev) => ({
-                        ...prev,
-                        auto_scaling_enabled: checked,
-                      }))
-                    }
-                  />
-                </div>
-
                 <div className="space-y-2">
-                  <Label>
-                    Max System Load (%): {systemSettings.max_system_load}
+                  <Label className="text-xs text-muted-foreground">
+                    Auto Scaling & Max System Load (UI only - not persisted)
                   </Label>
-                  <Slider
-                    value={[systemSettings.max_system_load]}
-                    onValueChange={([value]) =>
-                      setSystemSettings((prev) => ({
-                        ...prev,
-                        max_system_load: value,
-                      }))
-                    }
-                    min={50}
-                    max={100}
-                    step={5}
-                  />
+                  <p className="text-xs text-muted-foreground">
+                    These settings are display-only and not saved to the backend.
+                  </p>
                 </div>
               </div>
 
               {/* Maintenance */}
               <div className="space-y-3">
                 <h4 className="text-sm font-medium flex items-center gap-2">
-                  <Settings className="h-4 w-4" />
+                  <SettingsIcon className="h-4 w-4" />
                   Maintenance
                 </h4>
 
@@ -1021,17 +675,14 @@ export const AISettingsPanel: React.FC = () => {
                     </p>
                   </div>
                   <Switch
-                    checked={systemSettings.maintenance_mode}
+                    checked={aiScheduling.system?.maintenance_mode ?? false}
                     onCheckedChange={(checked) =>
-                      setSystemSettings((prev) => ({
-                        ...prev,
-                        maintenance_mode: checked,
-                      }))
+                      updateSystemSettings({ maintenance_mode: checked })
                     }
                   />
                 </div>
 
-                {systemSettings.maintenance_mode && (
+                {aiScheduling.system?.maintenance_mode && (
                   <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <div className="flex items-center gap-2">
                       <AlertTriangle className="h-4 w-4 text-yellow-600" />
