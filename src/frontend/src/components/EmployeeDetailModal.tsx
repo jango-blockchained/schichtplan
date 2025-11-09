@@ -20,6 +20,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAbsences, getSchedules, getSettings } from "@/services/api";
 import { Absence, Employee, Settings } from "@/types";
+import { safeParseDate, safeDateOperation } from "@/utils/errorUtils";
 import { useQuery } from "@tanstack/react-query";
 import {
   differenceInDays,
@@ -114,14 +115,20 @@ export function EmployeeDetailModal({
 
     // Calculate total absence days
     const totalAbsenceDays = absences.reduce((total, absence) => {
-      const start = new Date(absence.start_date);
-      const end = new Date(absence.end_date);
-      return total + differenceInDays(end, start) + 1;
+      try {
+        const start = safeParseDate(absence.start_date);
+        const end = safeParseDate(absence.end_date);
+        const days = differenceInDays(end, start) + 1;
+        return total + (days > 0 ? days : 0);
+      } catch (error) {
+        console.error("Error calculating absence days:", absence.id, error);
+        return total;
+      }
     }, 0);
 
     // Count upcoming absences
     const upcomingAbsences = absences.filter(
-      (a) => new Date(a.start_date) >= now,
+      (a) => safeParseDate(a.start_date) >= now,
     ).length;
 
     // Count scheduled shifts
@@ -206,7 +213,11 @@ export function EmployeeDetailModal({
                       <p className="text-sm text-muted-foreground">Geburtstag</p>
                       <p className="font-medium">
                         {employee.birthday
-                          ? format(new Date(employee.birthday), "dd.MM.yyyy")
+                          ? safeDateOperation(
+                              () => format(safeParseDate(employee.birthday), "dd.MM.yyyy"),
+                              "Invalid date",
+                              "Error formatting employee birthday"
+                            )
                           : "–"}
                       </p>
                     </div>
@@ -356,11 +367,16 @@ export function EmployeeDetailModal({
                       </TableHeader>
                       <TableBody>
                         {absences.map((absence) => {
-                          const days =
-                            differenceInDays(
-                              new Date(absence.end_date),
-                              new Date(absence.start_date),
-                            ) + 1;
+                          const days = safeDateOperation(
+                            () => {
+                              const start = safeParseDate(absence.start_date);
+                              const end = safeParseDate(absence.end_date);
+                              const diff = differenceInDays(end, start) + 1;
+                              return diff > 0 ? diff : 0;
+                            },
+                            0,
+                            "Error calculating absence days"
+                          );
                           return (
                             <TableRow key={absence.id}>
                               <TableCell>
@@ -369,15 +385,17 @@ export function EmployeeDetailModal({
                                 </Badge>
                               </TableCell>
                               <TableCell>
-                                {format(
-                                  new Date(absence.start_date),
-                                  "dd.MM.yyyy",
+                                {safeDateOperation(
+                                  () => format(safeParseDate(absence.start_date), "dd.MM.yyyy"),
+                                  "Invalid date",
+                                  "Error formatting absence start date"
                                 )}
                               </TableCell>
                               <TableCell>
-                                {format(
-                                  new Date(absence.end_date),
-                                  "dd.MM.yyyy",
+                                {safeDateOperation(
+                                  () => format(safeParseDate(absence.end_date), "dd.MM.yyyy"),
+                                  "Invalid date",
+                                  "Error formatting absence end date"
                                 )}
                               </TableCell>
                               <TableCell>{days}</TableCell>
@@ -424,13 +442,17 @@ export function EmployeeDetailModal({
                           .filter((s) => s.shift_id)
                           .sort(
                             (a, b) =>
-                              new Date(a.date).getTime() -
-                              new Date(b.date).getTime(),
+                              safeParseDate(a.date).getTime() -
+                              safeParseDate(b.date).getTime(),
                           )
                           .map((schedule) => (
                             <TableRow key={schedule.id}>
                               <TableCell>
-                                {format(new Date(schedule.date), "dd.MM.yyyy")}
+                                {safeDateOperation(
+                                  () => format(safeParseDate(schedule.date), "dd.MM.yyyy"),
+                                  "Invalid date",
+                                  "Error formatting schedule date"
+                                )}
                               </TableCell>
                               <TableCell>
                                 {schedule.shift_type_id && (
