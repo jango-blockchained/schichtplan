@@ -246,6 +246,8 @@ graph TB
 - [Telegram Bot Setup](docs/TELEGRAM_BOT_GUIDE.md)
 - [Vacation Planning](docs/VACATION_PLANNING_QUICK_START.md)
 - [CI/CD Quick Reference](docs/CI_CD_QUICK_REFERENCE.md)
+- **[Production Deployment](docs/PRODUCTION_DEPLOYMENT.md)** 🚀
+- **[Deployment Checklist](docs/PRODUCTION_CHECKLIST.md)** ✅
 
 </td>
 <td width="50%">
@@ -255,6 +257,8 @@ graph TB
 - [AI Integration Guide](docs/AI_OPTIMIZATION_GUIDE.md)
 - [Testing Guide](TESTING_GUIDE.md)
 - [Wiring Documentation](docs/APP_WIRING_DOCUMENTATION.md)
+- **[E2E Testing Guide](docs/E2E_TESTING_GUIDE.md)** 🧪
+- **[E2E & Deployment Quick Ref](docs/E2E_AND_DEPLOYMENT_QUICK_REF.md)** ⚡
 
 </td>
 </tr>
