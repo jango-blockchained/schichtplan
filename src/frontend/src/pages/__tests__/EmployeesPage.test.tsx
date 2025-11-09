@@ -74,9 +74,9 @@ describe("EmployeesPage", () => {
     expect(container.querySelector("[class*='page']") || container.firstElementChild).toBeTruthy();
   });
 
-  test("renders page content", () => {
+  it("renders page content", () => {
     const { container } = render(<EmployeesPage />);
     const content = container.textContent;
-    expect(content && content.length).toBeGreaterThan(0);
+    expect((content || "").length > 0).toBe(true);
   });
 });

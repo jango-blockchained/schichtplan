@@ -24,6 +24,6 @@ describe("UnifiedSettingsPage", () => {
   it("renders page content", async () => {
     const { container } = render(<UnifiedSettingsPage />);
     const content = container.textContent;
-    expect(content && content.length).toBeGreaterThan(0);
+    expect((content || "").length > 0).toBe(true);
   });
 });
