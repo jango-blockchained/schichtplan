@@ -288,6 +288,17 @@ def create_app(config_class=Config):
     if register_diagnostic_commands:
         register_diagnostic_commands(app)
 
+    # Health check endpoint at root level for load balancers and monitoring
+    @app.route("/health", methods=["GET"])
+    def root_health_check():
+        return jsonify(
+            {
+                "status": "ok",
+                "timestamp": datetime.now().isoformat(),
+                "version": "1.0.0",
+            }
+        )
+
     # Health check endpoint for monitoring and port detection
     @app.route("/api/v2/health", methods=["GET"])
     def health_check():
