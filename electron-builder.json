@@ -21,15 +21,13 @@
     "target": [
       "dmg",
       "zip"
-    ],
-    "icon": "electron/resources/icon.icns"
+    ]
   },
   "win": {
     "target": [
       "nsis",
       "portable"
-    ],
-    "icon": "electron/resources/icon.ico"
+    ]
   },
   "linux": {
     "target": [
@@ -37,8 +35,7 @@
       "deb",
       "rpm"
     ],
-    "category": "Office",
-    "icon": "electron/resources/icon.png"
+    "category": "Office"
   },
   "nsis": {
     "oneClick": false,
