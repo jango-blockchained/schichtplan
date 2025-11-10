@@ -299,6 +299,31 @@ def create_app(config_class=Config):
             }
         )
 
+    # Add security headers to all responses
+    @app.after_request
+    def add_security_headers(response):
+        """Add security headers to protect against common vulnerabilities"""
+        # Prevent clickjacking attacks
+        response.headers['X-Frame-Options'] = 'DENY'
+        
+        # Prevent MIME-type sniffing
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        
+        # Enable XSS protection
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        
+        # Strict Transport Security (only for HTTPS)
+        if request.is_secure:
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        
+        # Content Security Policy
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:*"
+        
+        # Referrer Policy
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        
+        return response
+
     # Health check endpoint for monitoring and port detection
     @app.route("/api/v2/health", methods=["GET"])
     def health_check():
