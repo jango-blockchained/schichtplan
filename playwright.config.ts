@@ -43,6 +43,9 @@ export default defineConfig({
     // Base URL for the application
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173',
     
+    // Use saved authentication state
+    storageState: 'e2e/.auth/user.json',
+    
     // Collect trace on first retry
     trace: 'on-first-retry',
     

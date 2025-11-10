@@ -221,3 +221,4 @@ playwright-report/
 test-results/
 .playwright/
 playwright/.cache/
+e2e/.auth/
