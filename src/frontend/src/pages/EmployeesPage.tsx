@@ -273,6 +273,10 @@ export const EmployeesPage = () => {
       <PageHeader
         title="Mitarbeiter"
         description="Verwalte deine Mitarbeiter und deren Verfügbarkeiten"
+        breadcrumbs={[
+          { href: "/", label: "Home" },
+          { label: "Mitarbeiter", isCurrentPage: true },
+        ]}
         actions={
           <div className="flex gap-2 items-center">
             <ThemeToggle />
