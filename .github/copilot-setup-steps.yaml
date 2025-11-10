@@ -1,0 +1,73 @@
+# Copilot Setup Steps
+# This file defines the automated setup steps for GitHub Copilot coding agent
+# to properly configure the development environment for the Schichtplan project.
+
+# Backend Setup
+- name: Set up Python environment
+  run: |
+    python -m pip install --upgrade pip
+    pip install -r requirements.txt
+    
+- name: Install Python development tools
+  run: |
+    pip install pytest pytest-cov black flake8 mypy ruff
+
+# Frontend Setup  
+- name: Install Bun (JavaScript runtime)
+  run: |
+    curl -fsSL https://bun.sh/install | bash
+    
+- name: Install frontend dependencies
+  working-directory: ./src/frontend
+  run: |
+    bun install
+
+# Database Setup
+- name: Initialize database
+  run: |
+    python -m src.backend.run db upgrade
+    
+# Verification Steps
+- name: Verify backend setup
+  run: |
+    python -c "import src.backend; print('Backend imports successful')"
+    
+- name: Verify frontend setup
+  working-directory: ./src/frontend
+  run: |
+    bun --version
+    
+# Quality Checks
+- name: Run backend linter
+  run: |
+    python -m ruff check src/backend
+    
+- name: Run backend formatter check
+  run: |
+    python -m ruff format --check src/backend
+    
+- name: Run frontend linter
+  working-directory: ./src/frontend
+  run: |
+    bun run lint
+    
+- name: Run frontend type check
+  working-directory: ./src/frontend
+  run: |
+    bun run typecheck
+
+# Test Suite
+- name: Run backend tests
+  run: |
+    pytest tests/backend/ -v
+    
+- name: Run frontend tests
+  working-directory: ./src/frontend
+  run: |
+    bun test
+
+# Build Verification
+- name: Build frontend
+  working-directory: ./src/frontend
+  run: |
+    bun run build
