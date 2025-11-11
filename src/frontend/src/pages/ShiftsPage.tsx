@@ -1,8 +1,8 @@
-import { PageLayout, ContentCard } from "@/layouts";
 import { ShiftTable } from "@/components/tables";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { DEFAULT_SETTINGS } from "@/hooks/useSettings";
+import { ContentCard, PageLayout } from "@/layouts";
 import {
   Shift,
   createShift,

@@ -1,7 +1,6 @@
 import AbsenceModal from "@/components/AbsenceModal";
 import CSVImportDialog from "@/components/CSVImportDialog";
 import { EmployeeAvailabilityModal } from "@/components/EmployeeAvailabilityModal";
-import { PageLayout, ContentCard } from "@/layouts";
 import { EmployeeTable } from "@/components/tables";
 import {
   Button,
@@ -21,6 +20,7 @@ import {
 } from "@/components/ui";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useToast } from "@/components/ui/use-toast";
+import { ContentCard, PageLayout } from "@/layouts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Upload } from "lucide-react";
 import { useState } from "react";

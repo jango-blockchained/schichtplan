@@ -1,5 +1,4 @@
 import HolidayManagement from "@/components/HolidayManagement";
-import { SettingsLayout } from "@/layouts";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
 import AppearanceDisplaySection from "@/components/UnifiedSettingsSections/AppearanceDisplaySection";
@@ -12,6 +11,7 @@ import { SchedulingEngineSection } from "@/components/UnifiedSettingsSections/Sc
 import WeekNavigationSection from "@/components/UnifiedSettingsSections/WeekNavigationSection";
 import { DEFAULT_SETTINGS } from "@/hooks/useSettings"; // Assuming default settings are here
 import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
+import { SettingsLayout } from "@/layouts";
 import { getSettings, updateSettings } from "@/services/api"; // Assuming API functions are here
 import type { Settings } from "@/types/index";
 import {

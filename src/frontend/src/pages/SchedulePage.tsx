@@ -23,9 +23,9 @@
  *    - Remove unused isDuplicateVersionOpen dialog
  */
 
+import { PageLayout } from "@/layouts";
 import React, { useCallback, useEffect, useMemo, useState } from "react"; // Added useCallback and useMemo
 import { DateRange } from "react-day-picker";
-import { PageLayout } from "@/layouts";
 // import { ShiftTable } from '@/components/ShiftTable'; // Original, might be unused if ScheduleManager is primary
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -2426,855 +2426,855 @@ export function SchedulePage() {
     >
       <div className="space-y-4">
 
-      {/* AI-Powered Search */}
-      <div className="mb-4">
-        <AISearchInput
-          placeholder="Search schedules with AI assistance..."
-          onSearch={handleAISearch}
-          onSuggestionSelect={handleAISuggestionSelect}
-          showSuggestions={true}
-          maxSuggestions={5}
-        />
-      </div>
-
-      {/* Week Navigation - Settings-aware components */}
-      <div className="mb-4 space-y-4">
-        <WeekNavigator
-          currentWeekInfo={weekBasedVersionControl.currentWeekInfo}
-          onNavigatePrevious={weekBasedVersionControl.navigatePrevious}
-          onNavigateNext={weekBasedVersionControl.navigateNext}
-          isLoading={weekBasedVersionControl.navigationState.isLoading}
-          hasVersion={weekBasedVersionControl.navigationState.hasVersions}
-          weekNavigationSettings={{
-            weekendStart: weekBasedVersionControl.settings.weekendStart,
-            monthBoundaryMode:
-              weekBasedVersionControl.settings.monthBoundaryMode,
-          }}
-          onSegmentChange={async (seg) => {
-            try {
-              const segments = await getWeekSegments(
-                weekBasedVersionControl.navigationState.currentWeek,
-              );
-              if (segments?.isSplit) {
-                const chosen = segments.segments.find(
-                  (s) => s.segment_number === seg,
-                );
-                if (chosen) {
-                  setDateRange({
-                    from: new Date(chosen.start_date),
-                    to: new Date(chosen.end_date),
-                  });
-                  versionActions.resetVersionSelection();
-                  queryClient.invalidateQueries({ queryKey: ["schedules"] });
-                  queryClient.invalidateQueries({
-                    queryKey: ["monthlyPublishedSchedules"],
-                  });
-                }
-              }
-            } catch (err) {
-              console.error(
-                "Failed to fetch week segments for segment change",
-                err,
-              );
-            }
-          }}
-        />
-
-        <VersionManager
-          dateRange={safeEffectiveDateRange}
-          versions={validVersionsForCurrentRange}
-          selectedVersion={effectiveSelectedVersionNumber}
-          onVersionSelected={(version) => {
-            console.log("🔄 SchedulePage: Version selected:", version);
-            if (version) {
-              weekBasedVersionControl.setSelectedVersion(version);
-            }
-          }}
-          autoSelectLatest={true}
-          layout="horizontal"
-          showCreateButton={true}
-          weekNavigationSettings={{
-            weekendStart: weekBasedVersionControl.settings.weekendStart,
-            monthBoundaryMode:
-              weekBasedVersionControl.settings.monthBoundaryMode,
-          }}
-        />
-
-        {/* Weekly KPI Cards */}
-        <ScheduleMetricsCards
-          schedules={effectiveSelectedVersionNumber ? scheduleData || [] : []}
-          dateRange={effectiveDateRange}
-          employees={employees}
-          openingDays={openingDays}
-          version={effectiveSelectedVersionNumber}
-          className="mt-2"
-        />
-      </div>
-
-      {/* 3. Actions */}
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex gap-2">
-          <ScheduleActions
-            isLoading={isUpdating}
-            isGenerating={isGenerating || isAiGenerating}
-            isAiFastGenerating={isAiFastGenerating}
-            isAiDetailedGenerating={isAiDetailedGenerating}
-            canAdd={!!effectiveDateRange?.from && !!effectiveDateRange?.to}
-            canDelete={scheduleData?.length > 0 && !!effectiveSelectedVersion}
-            canGenerate={!!effectiveDateRange?.from && !!effectiveDateRange?.to}
-            hasScheduleData={scheduleData?.length > 0}
-            onAddSchedule={handleAddSchedule}
-            onAddFixed={handleAddFixed}
-            onAddPreferred={handleAddPreferred}
-            onAddAbsence={handleAddAbsence}
-            onDeleteSchedule={handleDeleteSchedule}
-            onGenerateStandardSchedule={handleGenerateStandardSchedule}
-            onGenerateAiFastSchedule={handleGenerateAiFastSchedule}
-            onGenerateAiDetailedSchedule={handleGenerateAiDetailedSchedule}
-            onOpenGenerationSettings={() => setIsGenerationSettingsOpen(true)}
-            onOpenStatistics={() => setIsStatisticsModalOpen(true)}
-            isAiEnabled={!!settingsQuery.data?.ai_scheduling?.enabled}
-            onPreviewAiData={handlePreviewAiData}
-            onImportAiResponse={handleImportAiResponse}
+        {/* AI-Powered Search */}
+        <div className="mb-4">
+          <AISearchInput
+            placeholder="Search schedules with AI assistance..."
+            onSearch={handleAISearch}
+            onSuggestionSelect={handleAISuggestionSelect}
+            showSuggestions={true}
+            maxSuggestions={5}
           />
         </div>
 
-        {/* AI Dialog Type Selector */}
-        {settingsQuery.data?.ai_scheduling?.enabled && (
-          <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
-            <Settings className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">KI-Dialog:</span>
-            <div className="flex items-center gap-1">
-              <Button
-                variant={aiDialogType === "classic" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setAiDialogType("classic")}
-                className="h-7 px-2 text-xs"
-              >
-                <Sliders className="h-3 w-3 mr-1" />
-                Klassisch
-              </Button>
-              <Button
-                variant={aiDialogType === "modern" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setAiDialogType("modern")}
-                className="h-7 px-2 text-xs"
-              >
-                <Wand2 className="h-3 w-3 mr-1" />
-                Modern
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
+        {/* Week Navigation - Settings-aware components */}
+        <div className="mb-4 space-y-4">
+          <WeekNavigator
+            currentWeekInfo={weekBasedVersionControl.currentWeekInfo}
+            onNavigatePrevious={weekBasedVersionControl.navigatePrevious}
+            onNavigateNext={weekBasedVersionControl.navigateNext}
+            isLoading={weekBasedVersionControl.navigationState.isLoading}
+            hasVersion={weekBasedVersionControl.navigationState.hasVersions}
+            weekNavigationSettings={{
+              weekendStart: weekBasedVersionControl.settings.weekendStart,
+              monthBoundaryMode:
+                weekBasedVersionControl.settings.monthBoundaryMode,
+            }}
+            onSegmentChange={async (seg) => {
+              try {
+                const segments = await getWeekSegments(
+                  weekBasedVersionControl.navigationState.currentWeek,
+                );
+                if (segments?.isSplit) {
+                  const chosen = segments.segments.find(
+                    (s) => s.segment_number === seg,
+                  );
+                  if (chosen) {
+                    setDateRange({
+                      from: new Date(chosen.start_date),
+                      to: new Date(chosen.end_date),
+                    });
+                    versionActions.resetVersionSelection();
+                    queryClient.invalidateQueries({ queryKey: ["schedules"] });
+                    queryClient.invalidateQueries({
+                      queryKey: ["monthlyPublishedSchedules"],
+                    });
+                  }
+                }
+              } catch (err) {
+                console.error(
+                  "Failed to fetch week segments for segment change",
+                  err,
+                );
+              }
+            }}
+          />
 
-      <DndProvider backend={HTML5Backend}>
-        {isLoadingSchedule ? (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <Skeleton className="h-10 w-48" />
-              <div className="flex items-center gap-4">
-                <Skeleton className="h-10 w-64" />
-                <Skeleton className="h-10 w-40" />
-                <Skeleton className="h-10 w-40" />
-                <Skeleton className="h-10 w-32" />
+          <VersionManager
+            dateRange={safeEffectiveDateRange}
+            versions={validVersionsForCurrentRange}
+            selectedVersion={effectiveSelectedVersionNumber}
+            onVersionSelected={(version) => {
+              console.log("🔄 SchedulePage: Version selected:", version);
+              if (version) {
+                weekBasedVersionControl.setSelectedVersion(version);
+              }
+            }}
+            autoSelectLatest={true}
+            layout="horizontal"
+            showCreateButton={true}
+            weekNavigationSettings={{
+              weekendStart: weekBasedVersionControl.settings.weekendStart,
+              monthBoundaryMode:
+                weekBasedVersionControl.settings.monthBoundaryMode,
+            }}
+          />
+
+          {/* Weekly KPI Cards */}
+          <ScheduleMetricsCards
+            schedules={effectiveSelectedVersionNumber ? scheduleData || [] : []}
+            dateRange={effectiveDateRange}
+            employees={employees}
+            openingDays={openingDays}
+            version={effectiveSelectedVersionNumber}
+            className="mt-2"
+          />
+        </div>
+
+        {/* 3. Actions */}
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex gap-2">
+            <ScheduleActions
+              isLoading={isUpdating}
+              isGenerating={isGenerating || isAiGenerating}
+              isAiFastGenerating={isAiFastGenerating}
+              isAiDetailedGenerating={isAiDetailedGenerating}
+              canAdd={!!effectiveDateRange?.from && !!effectiveDateRange?.to}
+              canDelete={scheduleData?.length > 0 && !!effectiveSelectedVersion}
+              canGenerate={!!effectiveDateRange?.from && !!effectiveDateRange?.to}
+              hasScheduleData={scheduleData?.length > 0}
+              onAddSchedule={handleAddSchedule}
+              onAddFixed={handleAddFixed}
+              onAddPreferred={handleAddPreferred}
+              onAddAbsence={handleAddAbsence}
+              onDeleteSchedule={handleDeleteSchedule}
+              onGenerateStandardSchedule={handleGenerateStandardSchedule}
+              onGenerateAiFastSchedule={handleGenerateAiFastSchedule}
+              onGenerateAiDetailedSchedule={handleGenerateAiDetailedSchedule}
+              onOpenGenerationSettings={() => setIsGenerationSettingsOpen(true)}
+              onOpenStatistics={() => setIsStatisticsModalOpen(true)}
+              isAiEnabled={!!settingsQuery.data?.ai_scheduling?.enabled}
+              onPreviewAiData={handlePreviewAiData}
+              onImportAiResponse={handleImportAiResponse}
+            />
+          </div>
+
+          {/* AI Dialog Type Selector */}
+          {settingsQuery.data?.ai_scheduling?.enabled && (
+            <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
+              <Settings className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">KI-Dialog:</span>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant={aiDialogType === "classic" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setAiDialogType("classic")}
+                  className="h-7 px-2 text-xs"
+                >
+                  <Sliders className="h-3 w-3 mr-1" />
+                  Klassisch
+                </Button>
+                <Button
+                  variant={aiDialogType === "modern" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setAiDialogType("modern")}
+                  className="h-7 px-2 text-xs"
+                >
+                  <Wand2 className="h-3 w-3 mr-1" />
+                  Modern
+                </Button>
               </div>
             </div>
-            <Card className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableCell>
-                      <Skeleton className="h-6 w-32" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-6 w-20" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-6 w-24" />
-                    </TableCell>
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <TableCell key={i}>
+          )}
+        </div>
+
+        <DndProvider backend={HTML5Backend}>
+          {isLoadingSchedule ? (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <Skeleton className="h-10 w-48" />
+                <div className="flex items-center gap-4">
+                  <Skeleton className="h-10 w-64" />
+                  <Skeleton className="h-10 w-40" />
+                  <Skeleton className="h-10 w-40" />
+                  <Skeleton className="h-10 w-32" />
+                </div>
+              </div>
+              <Card className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableCell>
+                        <Skeleton className="h-6 w-32" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-6 w-20" />
+                      </TableCell>
+                      <TableCell>
                         <Skeleton className="h-6 w-24" />
                       </TableCell>
-                    ))}
-                    <TableCell>
-                      <Skeleton className="h-6 w-24" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-6 w-24" />
-                    </TableCell>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={i}>
-                      <TableCell>
-                        <Skeleton className="h-24 w-32" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-24 w-20" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-24 w-24" />
-                      </TableCell>
-                      {Array.from({ length: 6 }).map((_, j) => (
-                        <TableCell key={j}>
-                          <Skeleton className="h-24 w-24" />
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <TableCell key={i}>
+                          <Skeleton className="h-6 w-24" />
                         </TableCell>
                       ))}
                       <TableCell>
-                        <Skeleton className="h-24 w-24" />
+                        <Skeleton className="h-6 w-24" />
                       </TableCell>
                       <TableCell>
-                        <Skeleton className="h-24 w-24" />
+                        <Skeleton className="h-6 w-24" />
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
-          </div>
-        ) : scheduleErrorObj ? (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Fehler beim Laden des Dienstplans</AlertTitle>
-            <AlertDescription className="flex flex-col">
-              <div>
-                Failed to fetch schedules: {getErrorMessage(scheduleErrorObj)}
+                  </TableHeader>
+                  <TableBody>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <TableRow key={i}>
+                        <TableCell>
+                          <Skeleton className="h-24 w-32" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-24 w-20" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-24 w-24" />
+                        </TableCell>
+                        {Array.from({ length: 6 }).map((_, j) => (
+                          <TableCell key={j}>
+                            <Skeleton className="h-24 w-24" />
+                          </TableCell>
+                        ))}
+                        <TableCell>
+                          <Skeleton className="h-24 w-24" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-24 w-24" />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
+            </div>
+          ) : scheduleErrorObj ? (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Fehler beim Laden des Dienstplans</AlertTitle>
+              <AlertDescription className="flex flex-col">
+                <div>
+                  Failed to fetch schedules: {getErrorMessage(scheduleErrorObj)}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 w-fit"
+                  onClick={handleRetryFetch}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" /> Erneut versuchen
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              {errors.length > 0 && <ScheduleErrors errors={errors} />}
+              <div className="relative">
+                <AvailabilityProvider
+                  dateRange={safeEffectiveDateRange}
+                  enabled={!isLoadingSchedule}
+                >
+                  <ScheduleManager
+                    schedules={
+                      effectiveSelectedVersionNumber ? scheduleData || [] : []
+                    } // Only show schedules when version is selected
+                    monthlyPublishedSchedules={monthlyPublishedSchedules}
+                    dateRange={effectiveDateRange}
+                    onDrop={handleShiftDrop}
+                    onUpdate={handleShiftUpdate}
+                    onAddAbsence={handleAddAbsenceForEmployee}
+                    isLoading={isLoadingSchedule}
+                    employeeAbsences={employeeAbsences}
+                    absenceTypes={(
+                      effectiveSettingsData?.employee_groups?.absence_types || []
+                    )
+                      .filter((type) => type.type === "absence")
+                      .map((type) => ({ ...type, type: "absence" as const }))}
+                    currentVersion={effectiveSelectedVersionNumber || 1}
+                    versionStatus={
+                      versionState.versions[0]?.status as
+                      | "DRAFT"
+                      | "PUBLISHED"
+                      | "ARCHIVED"
+                      | undefined
+                    }
+                    openingDays={openingDays}
+                    specialDays={specialDaysMap}
+                    isEmptyState={
+                      !effectiveSelectedVersionNumber || // Show empty state when no version selected
+                      !scheduleData ||
+                      (scheduleData.length === 0 && !isLoadingSchedule)
+                    }
+                    versions={validVersionsForCurrentRange}
+                    isGenerating={isGenerating || isAiGenerating}
+                    onEmptyStateCreateVersion={handleCreateNewVersionPage}
+                    onEmptyStateGenerateSchedule={handleGenerateStandardSchedule}
+                    // Week navigation props for fullscreen mode
+                    weekInfo={weekBasedVersionControl.currentWeekInfo}
+                    onNavigatePrevious={weekBasedVersionControl.navigatePrevious}
+                    onNavigateNext={weekBasedVersionControl.navigateNext}
+                    weekNavigationSettings={{
+                      weekendStart: weekBasedVersionControl.settings.weekendStart,
+                      monthBoundaryMode:
+                        weekBasedVersionControl.settings.monthBoundaryMode,
+                    }}
+                  />
+                </AvailabilityProvider>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2 w-fit"
-                onClick={handleRetryFetch}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" /> Erneut versuchen
-              </Button>
-            </AlertDescription>
-          </Alert>
-        ) : (
-          <>
-            {errors.length > 0 && <ScheduleErrors errors={errors} />}
-            <div className="relative">
-              <AvailabilityProvider
-                dateRange={safeEffectiveDateRange}
-                enabled={!isLoadingSchedule}
-              >
-                <ScheduleManager
-                  schedules={
-                    effectiveSelectedVersionNumber ? scheduleData || [] : []
-                  } // Only show schedules when version is selected
-                  monthlyPublishedSchedules={monthlyPublishedSchedules}
-                  dateRange={effectiveDateRange}
-                  onDrop={handleShiftDrop}
-                  onUpdate={handleShiftUpdate}
-                  onAddAbsence={handleAddAbsenceForEmployee}
-                  isLoading={isLoadingSchedule}
-                  employeeAbsences={employeeAbsences}
-                  absenceTypes={(
-                    effectiveSettingsData?.employee_groups?.absence_types || []
-                  )
-                    .filter((type) => type.type === "absence")
-                    .map((type) => ({ ...type, type: "absence" as const }))}
-                  currentVersion={effectiveSelectedVersionNumber || 1}
-                  versionStatus={
-                    versionState.versions[0]?.status as
-                    | "DRAFT"
-                    | "PUBLISHED"
-                    | "ARCHIVED"
-                    | undefined
-                  }
-                  openingDays={openingDays}
-                  specialDays={specialDaysMap}
-                  isEmptyState={
-                    !effectiveSelectedVersionNumber || // Show empty state when no version selected
-                    !scheduleData ||
-                    (scheduleData.length === 0 && !isLoadingSchedule)
-                  }
-                  versions={validVersionsForCurrentRange}
-                  isGenerating={isGenerating || isAiGenerating}
-                  onEmptyStateCreateVersion={handleCreateNewVersionPage}
-                  onEmptyStateGenerateSchedule={handleGenerateStandardSchedule}
-                  // Week navigation props for fullscreen mode
-                  weekInfo={weekBasedVersionControl.currentWeekInfo}
-                  onNavigatePrevious={weekBasedVersionControl.navigatePrevious}
-                  onNavigateNext={weekBasedVersionControl.navigateNext}
-                  weekNavigationSettings={{
-                    weekendStart: weekBasedVersionControl.settings.weekendStart,
-                    monthBoundaryMode:
-                      weekBasedVersionControl.settings.monthBoundaryMode,
-                  }}
-                />
-              </AvailabilityProvider>
-            </div>
-          </>
-        )}
-
-        {/* Real-time AI Components */}
-        {effectiveSelectedVersionNumber &&
-          scheduleData &&
-          scheduleData.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-              <LiveScheduleOptimizer
-                onOptimizationComplete={(result) => {
-                  console.log("Optimization completed:", result);
-                  // Optionally refresh schedule data or show notification
-                  queryClient.invalidateQueries({ queryKey: ["schedules"] });
-                }}
-              />
-              <RealTimeConflictDetector
-                onConflictDetected={(conflicts) => {
-                  console.log("New conflicts detected:", conflicts);
-                  // Optionally show notification or update UI
-                }}
-                onConflictResolved={(conflictId) => {
-                  console.log("Conflict resolved:", conflictId);
-                  // Optionally update conflict count or refresh data
-                }}
-              />
-            </div>
+            </>
           )}
 
-        {/* Schedule Dock - Sticky bottom dock for drag and drop */}
-        <ActionDock
-          currentVersion={effectiveSelectedVersionNumber}
-          selectedDate={effectiveDateRange?.from}
-          dateRange={effectiveDateRange}
-          versionMeta={
-            validVersionsForCurrentRange.length > 0
-              ? convertToWeekVersionMeta({
-                version: validVersionsForCurrentRange[0].version,
-                week_identifier: currentWeek,
-                date_range_start: format(
-                  dateRange?.from || new Date(),
-                  "yyyy-MM-dd",
-                ),
-                date_range_end: format(
-                  dateRange?.to || new Date(),
-                  "yyyy-MM-dd",
-                ),
-                is_week_based: true,
-                status: validVersionsForCurrentRange[0].status,
-                created_at:
-                  validVersionsForCurrentRange[0].created_at ||
-                  new Date().toISOString(),
-                notes: validVersionsForCurrentRange[0].notes || "",
-              })
-              : undefined
-          }
-          versionStatus={
-            validVersionsForCurrentRange[0]?.status as
-            | "DRAFT"
-            | "PUBLISHED"
-            | "ARCHIVED"
-            | undefined
-          }
-          schedules={effectiveSelectedVersionNumber ? scheduleData || [] : []} // Only pass schedules when version is selected
-          onDrop={handleDockDrop}
-          onAIPrompt={handleAIPrompt}
+          {/* Real-time AI Components */}
+          {effectiveSelectedVersionNumber &&
+            scheduleData &&
+            scheduleData.length > 0 && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
+                <LiveScheduleOptimizer
+                  onOptimizationComplete={(result) => {
+                    console.log("Optimization completed:", result);
+                    // Optionally refresh schedule data or show notification
+                    queryClient.invalidateQueries({ queryKey: ["schedules"] });
+                  }}
+                />
+                <RealTimeConflictDetector
+                  onConflictDetected={(conflicts) => {
+                    console.log("New conflicts detected:", conflicts);
+                    // Optionally show notification or update UI
+                  }}
+                  onConflictResolved={(conflictId) => {
+                    console.log("Conflict resolved:", conflictId);
+                    // Optionally update conflict count or refresh data
+                  }}
+                />
+              </div>
+            )}
+
+          {/* Schedule Dock - Sticky bottom dock for drag and drop */}
+          <ActionDock
+            currentVersion={effectiveSelectedVersionNumber}
+            selectedDate={effectiveDateRange?.from}
+            dateRange={effectiveDateRange}
+            versionMeta={
+              validVersionsForCurrentRange.length > 0
+                ? convertToWeekVersionMeta({
+                  version: validVersionsForCurrentRange[0].version,
+                  week_identifier: currentWeek,
+                  date_range_start: format(
+                    dateRange?.from || new Date(),
+                    "yyyy-MM-dd",
+                  ),
+                  date_range_end: format(
+                    dateRange?.to || new Date(),
+                    "yyyy-MM-dd",
+                  ),
+                  is_week_based: true,
+                  status: validVersionsForCurrentRange[0].status,
+                  created_at:
+                    validVersionsForCurrentRange[0].created_at ||
+                    new Date().toISOString(),
+                  notes: validVersionsForCurrentRange[0].notes || "",
+                })
+                : undefined
+            }
+            versionStatus={
+              validVersionsForCurrentRange[0]?.status as
+              | "DRAFT"
+              | "PUBLISHED"
+              | "ARCHIVED"
+              | undefined
+            }
+            schedules={effectiveSelectedVersionNumber ? scheduleData || [] : []} // Only pass schedules when version is selected
+            onDrop={handleDockDrop}
+            onAIPrompt={handleAIPrompt}
+          />
+        </DndProvider>
+
+        <GenerationOverlay
+          generationSteps={generationSteps}
+          generationLogs={generationLogs}
+          showGenerationOverlay={showGenerationOverlay || isAiGenerating}
+          isPending={isGenerating || isAiGenerating}
+          resetGenerationState={() => {
+            resetGenerationState();
+            setIsAiGenerating(false);
+          }}
+          addGenerationLog={addGenerationLog}
         />
-      </DndProvider>
 
-      <GenerationOverlay
-        generationSteps={generationSteps}
-        generationLogs={generationLogs}
-        showGenerationOverlay={showGenerationOverlay || isAiGenerating}
-        isPending={isGenerating || isAiGenerating}
-        resetGenerationState={() => {
-          resetGenerationState();
-          setIsAiGenerating(false);
-        }}
-        addGenerationLog={addGenerationLog}
-      />
+        <GenerationLogs logs={generationLogs} clearLogs={clearGenerationLogs} />
 
-      <GenerationLogs logs={generationLogs} clearLogs={clearGenerationLogs} />
+        {lastSessionId && enableDiagnostics && (
+          <div className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setIsDiagnosticsOpen(true)}
+              className="gap-2"
+            >
+              <FileTextIcon className="h-4 w-4" />
+              Show Full Diagnostics
+            </Button>
+          </div>
+        )}
 
-      {lastSessionId && enableDiagnostics && (
-        <div className="mt-4">
-          <Button
-            variant="outline"
-            onClick={() => setIsDiagnosticsOpen(true)}
-            className="gap-2"
+        {settingsQuery.data && (
+          <Dialog
+            open={isGenerationSettingsOpen}
+            onOpenChange={setIsGenerationSettingsOpen}
           >
-            <FileTextIcon className="h-4 w-4" />
-            Show Full Diagnostics
-          </Button>
-        </div>
-      )}
+            <DialogContent className="sm:max-w-[800px]">
+              <DialogHeader>
+                <DialogTitle>Generierungseinstellungen</DialogTitle>
+                <DialogDescription>Anpassen</DialogDescription>
+              </DialogHeader>
+              <ScheduleGenerationSettings
+                settings={
+                  settingsQuery.data?.scheduling?.generation_requirements || null
+                }
+                onUpdate={handleGenerationRequirementsUpdate}
+                generationOptions={generationOptions}
+                onGenerationOptionsUpdate={handleGenerationOptionsUpdate}
+                createEmptySchedules={createEmptySchedules}
+                includeEmpty={includeEmpty}
+                enableDiagnostics={enableDiagnostics}
+                onCreateEmptyChange={handleCreateEmptyChange}
+                onIncludeEmptyChange={handleIncludeEmptyChange}
+                onEnableDiagnosticsChange={handleEnableDiagnosticsChange}
+                onGenerateSchedule={() => {
+                  setIsGenerationSettingsOpen(false);
+                  handleGenerateStandardSchedule();
+                }}
+                isGenerating={isGenerating || isAiGenerating}
+              />
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsGenerationSettingsOpen(false)}
+                >
+                  Schließen
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
 
-      {settingsQuery.data && (
-        <Dialog
-          open={isGenerationSettingsOpen}
-          onOpenChange={setIsGenerationSettingsOpen}
-        >
-          <DialogContent className="sm:max-w-[800px]">
-            <DialogHeader>
-              <DialogTitle>Generierungseinstellungen</DialogTitle>
-              <DialogDescription>Anpassen</DialogDescription>
-            </DialogHeader>
-            <ScheduleGenerationSettings
-              settings={
-                settingsQuery.data?.scheduling?.generation_requirements || null
-              }
-              onUpdate={handleGenerationRequirementsUpdate}
-              generationOptions={generationOptions}
-              onGenerationOptionsUpdate={handleGenerationOptionsUpdate}
-              createEmptySchedules={createEmptySchedules}
-              includeEmpty={includeEmpty}
-              enableDiagnostics={enableDiagnostics}
-              onCreateEmptyChange={handleCreateEmptyChange}
-              onIncludeEmptyChange={handleIncludeEmptyChange}
-              onEnableDiagnosticsChange={handleEnableDiagnosticsChange}
-              onGenerateSchedule={() => {
-                setIsGenerationSettingsOpen(false);
-                handleGenerateStandardSchedule();
+        {isAddScheduleDialogOpen && effectiveSelectedVersion && (
+          <AddScheduleDialog
+            isOpen={isAddScheduleDialogOpen}
+            onClose={() => setIsAddScheduleDialogOpen(false)}
+            onAddSchedule={handleCreateSchedule}
+            version={effectiveSelectedVersionNumber || 1}
+            defaultDate={effectiveDateRange?.from}
+          />
+        )}
+
+        {isAddAvailabilityDialogOpen && (
+          <AddAvailabilityDialog
+            isOpen={isAddAvailabilityDialogOpen}
+            onClose={() => setIsAddAvailabilityDialogOpen(false)}
+            onSubmit={handleCreateAvailability}
+            employees={
+              employees?.map((emp) => ({
+                id: emp.id,
+                name: emp.last_name,
+                vorname: emp.first_name,
+              })) || []
+            }
+          />
+        )}
+
+        {/* Enhanced Availability Modal */}
+        {isEnhancedAvailabilityModalOpen &&
+          effectiveDateRange?.from &&
+          effectiveDateRange?.to && (
+            <EnhancedAvailabilityModal
+              isOpen={isEnhancedAvailabilityModalOpen}
+              onClose={() => setIsEnhancedAvailabilityModalOpen(false)}
+              dateRange={{
+                from: effectiveDateRange.from,
+                to: effectiveDateRange.to,
               }}
-              isGenerating={isGenerating || isAiGenerating}
+              availabilityType={selectedAvailabilityType}
+              currentVersion={effectiveSelectedVersionNumber}
             />
-            <DialogFooter>
+          )}
+
+        {/* Absence Modal */}
+        {isAbsenceModalOpen && selectedEmployeeForAbsence && (
+          <AbsenceModal
+            isOpen={isAbsenceModalOpen}
+            onClose={() => {
+              setIsAbsenceModalOpen(false);
+              setSelectedEmployeeForAbsence(null);
+            }}
+            employeeId={selectedEmployeeForAbsence}
+            absenceTypes={(
+              effectiveSettingsData?.employee_groups?.absence_types || []
+            ).filter((t): t is AbsenceType => t.type === "absence_type")}
+            employees={employees || []}
+            allowEmployeeSelection={true}
+          />
+        )}
+
+        {/* Statistics Modal */}
+        <ScheduleStatisticsModal
+          isOpen={isStatisticsModalOpen}
+          onClose={() => setIsStatisticsModalOpen(false)}
+          schedules={effectiveSelectedVersionNumber ? scheduleData || [] : []} // Only show schedules when version is selected
+          employees={employees || []}
+          dateRange={effectiveDateRange}
+          version={effectiveSelectedVersionNumber || 1}
+        />
+
+        <DiagnosticsDialog
+          sessionId={lastSessionId}
+          isOpen={isDiagnosticsOpen}
+          onClose={() => setIsDiagnosticsOpen(false)}
+        />
+
+        {confirmDeleteMessage && (
+          <AlertDialog
+            open={!!confirmDeleteMessage}
+            onOpenChange={(open) => {
+              if (!open) confirmDeleteMessage?.onCancel();
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-destructive">
+                  {confirmDeleteMessage.title}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  <div className="space-y-2">
+                    <p>{confirmDeleteMessage.message}</p>
+                    {confirmDeleteMessage.details && (
+                      <div className="mt-3 text-sm border-l-4 border-destructive pl-3 py-1 bg-destructive/5">
+                        {confirmDeleteMessage.details.map((detail, i) => (
+                          <p key={i}>{detail}</p>
+                        ))}
+                      </div>
+                    )}
+                    <p className="mt-3 font-medium text-destructive">
+                      Wirklich fortsetzen?
+                    </p>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={confirmDeleteMessage.onConfirm}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Endgültig löschen
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
+        {/* AI Data Preview Dialog */}
+        <Dialog open={isAiDataPreviewOpen} onOpenChange={setIsAiDataPreviewOpen}>
+          <DialogContent className="sm:max-w-[900px]">
+            <DialogHeader>
+              <DialogTitle>Optimierte KI-Daten Vorschau</DialogTitle>
+              <DialogDescription>
+                Vorschau der optimierten Daten, die an die KI gesendet werden
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              {/* Metadata Summary */}
+              {aiPreviewData?.metadata && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <div className="text-center">
+                    <div className="font-semibold text-lg">
+                      {aiPreviewData.data_pack?.employees?.length || 0}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Gefilterte Mitarbeiter
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-semibold text-lg">
+                      {aiPreviewData.data_pack?.shifts?.length || 0}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Relevante Schichten
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-semibold text-lg">
+                      {aiPreviewData.data_pack?.coverage_rules?.length || 0}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Abdeckungsregeln
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-semibold text-lg">
+                      {aiPreviewData.data_pack?.availability?.length || 0}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Verfügbarkeitsfenster
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-semibold text-lg">
+                      {aiPreviewData.data_pack?.absences?.length || 0}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Abwesenheiten
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-semibold text-lg">
+                      {aiPreviewData.metadata.estimated_size_reduction}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Datenreduktion
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Optimization Info */}
+              {aiPreviewData?.metadata && (
+                <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                  <h3 className="font-semibold mb-2 text-green-700 dark:text-green-400">
+                    ✅ Optimierungsstatus:
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium">Optimierung aktiv:</span>{" "}
+                      {aiPreviewData.metadata.optimization_applied
+                        ? "Ja"
+                        : "Nein"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Datenstruktur:</span>{" "}
+                      {aiPreviewData.metadata.data_structure_version}
+                    </div>
+                    <div>
+                      <span className="font-medium">Zeitraum:</span>{" "}
+                      {aiPreviewData.metadata.start_date} bis{" "}
+                      {aiPreviewData.metadata.end_date}
+                    </div>
+                    <div>
+                      <span className="font-medium">Abschnitte:</span>{" "}
+                      {aiPreviewData.metadata.total_sections}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Main Data Display */}
+              <div className="max-h-[60vh] overflow-y-auto">
+                <div className="space-y-4">
+                  {/* Optimized Data */}
+                  {aiPreviewData?.data_pack && (
+                    <div>
+                      <h3 className="font-semibold mb-2 text-blue-700 dark:text-blue-400">
+                        📊 Optimierte KI-Daten:
+                      </h3>
+
+                      {/* Schedule Period */}
+                      {aiPreviewData.data_pack.schedule_period && (
+                        <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-md">
+                          <h4 className="font-medium mb-2">
+                            📅 Planungszeitraum:
+                          </h4>
+                          <pre className="text-sm">
+                            {JSON.stringify(
+                              aiPreviewData.data_pack.schedule_period,
+                              null,
+                              2,
+                            )}
+                          </pre>
+                        </div>
+                      )}
+
+                      {/* Coverage Rules */}
+                      {aiPreviewData.data_pack.coverage_rules &&
+                        aiPreviewData.data_pack.coverage_rules.length > 0 && (
+                          <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-md">
+                            <h4 className="font-medium mb-2">
+                              🎯 Abdeckungsregeln (Muster-basiert,{" "}
+                              {aiPreviewData.data_pack.coverage_rules.length}):
+                            </h4>
+                            <pre className="text-sm max-h-32 overflow-y-auto">
+                              {JSON.stringify(
+                                aiPreviewData.data_pack.coverage_rules,
+                                null,
+                                2,
+                              )}
+                            </pre>
+                            <div className="mt-2 text-xs text-purple-600 dark:text-purple-400">
+                              ✨ Optimiert: Regeln statt tägliche Expansion (90%
+                              weniger Daten)
+                            </div>
+                          </div>
+                        )}
+
+                      {/* Employees */}
+                      {aiPreviewData.data_pack.employees &&
+                        aiPreviewData.data_pack.employees.length > 0 && (
+                          <div className="mb-4 p-3 bg-cyan-50 dark:bg-cyan-900/20 rounded-md">
+                            <h4 className="font-medium mb-2">
+                              👥 Gefilterte Mitarbeiter (
+                              {aiPreviewData.data_pack.employees.length}):
+                            </h4>
+                            <pre className="text-sm max-h-32 overflow-y-auto">
+                              {JSON.stringify(
+                                aiPreviewData.data_pack.employees.slice(0, 3),
+                                null,
+                                2,
+                              )}
+                            </pre>
+                            {aiPreviewData.data_pack.employees.length > 3 && (
+                              <p className="text-xs text-muted-foreground mt-2">
+                                ... und{" "}
+                                {aiPreviewData.data_pack.employees.length - 3}{" "}
+                                weitere
+                              </p>
+                            )}
+                            <div className="mt-2 text-xs text-cyan-600 dark:text-cyan-400">
+                              ✨ Optimiert: Nur verfügbare Mitarbeiter,
+                              essenzielle Felder
+                            </div>
+                          </div>
+                        )}
+
+                      {/* Shift Templates */}
+                      {aiPreviewData.data_pack.shifts &&
+                        aiPreviewData.data_pack.shifts.length > 0 && (
+                          <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-md">
+                            <h4 className="font-medium mb-2">
+                              ⏰ Relevante Schichtvorlagen (
+                              {aiPreviewData.data_pack.shifts.length}):
+                            </h4>
+                            <pre className="text-sm max-h-32 overflow-y-auto">
+                              {JSON.stringify(
+                                aiPreviewData.data_pack.shifts,
+                                null,
+                                2,
+                              )}
+                            </pre>
+                            <div className="mt-2 text-xs text-orange-600 dark:text-orange-400">
+                              ✨ Optimiert: Nur aktive Schichten, redundante
+                              Felder entfernt
+                            </div>
+                          </div>
+                        )}
+
+                      {/* Availability Windows */}
+                      {aiPreviewData.data_pack.availability &&
+                        aiPreviewData.data_pack.availability.length > 0 && (
+                          <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-md">
+                            <h4 className="font-medium mb-2">
+                              🕐 Verfügbarkeitsfenster (
+                              {aiPreviewData.data_pack.availability.length}):
+                            </h4>
+                            <pre className="text-sm max-h-32 overflow-y-auto">
+                              {JSON.stringify(
+                                aiPreviewData.data_pack.availability.slice(0, 5),
+                                null,
+                                2,
+                              )}
+                            </pre>
+                            {aiPreviewData.data_pack.availability.length > 5 && (
+                              <p className="text-xs text-muted-foreground mt-2">
+                                ... und{" "}
+                                {aiPreviewData.data_pack.availability.length - 5}{" "}
+                                weitere
+                              </p>
+                            )}
+                            <div className="mt-2 text-xs text-green-600 dark:text-green-400">
+                              ✨ Optimiert: Zeitspannen statt stündliche Arrays
+                              (75% weniger Daten)
+                            </div>
+                          </div>
+                        )}
+
+                      {/* Absences */}
+                      {aiPreviewData.data_pack.absences &&
+                        aiPreviewData.data_pack.absences.length > 0 && (
+                          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-md">
+                            <h4 className="font-medium mb-2">
+                              🚫 Abwesenheiten (
+                              {aiPreviewData.data_pack.absences.length}):
+                            </h4>
+                            <pre className="text-sm max-h-32 overflow-y-auto">
+                              {JSON.stringify(
+                                aiPreviewData.data_pack.absences,
+                                null,
+                                2,
+                              )}
+                            </pre>
+                          </div>
+                        )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="flex justify-between">
               <Button
                 variant="outline"
-                onClick={() => setIsGenerationSettingsOpen(false)}
+                onClick={() => {
+                  if (aiPreviewData?.data_pack) {
+                    navigator.clipboard.writeText(
+                      JSON.stringify(aiPreviewData.optimized_data, null, 2),
+                    );
+                    toast({
+                      title: "In Zwischenablage kopiert",
+                      description: "Die optimierten KI-Daten wurden kopiert.",
+                    });
+                  }
+                }}
               >
-                Schließen
+                📋 Daten kopieren
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (aiPreviewData?.system_prompt) {
+                    navigator.clipboard.writeText(aiPreviewData.system_prompt);
+                    toast({
+                      title: "Prompt kopiert",
+                      description: "Der System-Prompt wurde kopiert.",
+                    });
+                  }
+                }}
+              >
+                🤖 Prompt kopieren
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      )}
 
-      {isAddScheduleDialogOpen && effectiveSelectedVersion && (
-        <AddScheduleDialog
-          isOpen={isAddScheduleDialogOpen}
-          onClose={() => setIsAddScheduleDialogOpen(false)}
-          onAddSchedule={handleCreateSchedule}
-          version={effectiveSelectedVersionNumber || 1}
-          defaultDate={effectiveDateRange?.from}
-        />
-      )}
-
-      {isAddAvailabilityDialogOpen && (
-        <AddAvailabilityDialog
-          isOpen={isAddAvailabilityDialogOpen}
-          onClose={() => setIsAddAvailabilityDialogOpen(false)}
-          onSubmit={handleCreateAvailability}
-          employees={
-            employees?.map((emp) => ({
-              id: emp.id,
-              name: emp.last_name,
-              vorname: emp.first_name,
-            })) || []
-          }
-        />
-      )}
-
-      {/* Enhanced Availability Modal */}
-      {isEnhancedAvailabilityModalOpen &&
-        effectiveDateRange?.from &&
-        effectiveDateRange?.to && (
-          <EnhancedAvailabilityModal
-            isOpen={isEnhancedAvailabilityModalOpen}
-            onClose={() => setIsEnhancedAvailabilityModalOpen(false)}
-            dateRange={{
-              from: effectiveDateRange.from,
-              to: effectiveDateRange.to,
-            }}
-            availabilityType={selectedAvailabilityType}
-            currentVersion={effectiveSelectedVersionNumber}
-          />
-        )}
-
-      {/* Absence Modal */}
-      {isAbsenceModalOpen && selectedEmployeeForAbsence && (
-        <AbsenceModal
-          isOpen={isAbsenceModalOpen}
-          onClose={() => {
-            setIsAbsenceModalOpen(false);
-            setSelectedEmployeeForAbsence(null);
+        {/* AI Conversation Generation Dialog */}
+        <AIConversationGenerationDialog
+          isOpen={isDetailedAiModalOpen}
+          onClose={() => setIsDetailedAiModalOpen(false)}
+          startDate={format(effectiveDateRange?.from || new Date(), "yyyy-MM-dd")}
+          endDate={format(effectiveDateRange?.to || new Date(), "yyyy-MM-dd")}
+          versionId={effectiveSelectedVersionNumber || 1}
+          onComplete={() => {
+            setIsAiDetailedGenerating(false);
+            refetchScheduleData();
+            queryClient.invalidateQueries({ queryKey: ["versions"] });
+            toast({
+              title: "KI-Generierung abgeschlossen",
+              description: "Der Schichtplan wurde erfolgreich generiert.",
+            });
           }}
-          employeeId={selectedEmployeeForAbsence}
-          absenceTypes={(
-            effectiveSettingsData?.employee_groups?.absence_types || []
-          ).filter((t): t is AbsenceType => t.type === "absence_type")}
-          employees={employees || []}
-          allowEmployeeSelection={true}
         />
-      )}
 
-      {/* Statistics Modal */}
-      <ScheduleStatisticsModal
-        isOpen={isStatisticsModalOpen}
-        onClose={() => setIsStatisticsModalOpen(false)}
-        schedules={effectiveSelectedVersionNumber ? scheduleData || [] : []} // Only show schedules when version is selected
-        employees={employees || []}
-        dateRange={effectiveDateRange}
-        version={effectiveSelectedVersionNumber || 1}
-      />
-
-      <DiagnosticsDialog
-        sessionId={lastSessionId}
-        isOpen={isDiagnosticsOpen}
-        onClose={() => setIsDiagnosticsOpen(false)}
-      />
-
-      {confirmDeleteMessage && (
-        <AlertDialog
-          open={!!confirmDeleteMessage}
-          onOpenChange={(open) => {
-            if (!open) confirmDeleteMessage?.onCancel();
+        {/* Classic AI Generation Dialog */}
+        <ClassicAIGenerationDialog
+          isOpen={isClassicAiModalOpen}
+          onClose={() => setIsClassicAiModalOpen(false)}
+          startDate={format(effectiveDateRange?.from || new Date(), "yyyy-MM-dd")}
+          endDate={format(effectiveDateRange?.to || new Date(), "yyyy-MM-dd")}
+          versionId={effectiveSelectedVersionNumber || 1}
+          onComplete={() => {
+            setIsAiDetailedGenerating(false);
+            refetchScheduleData();
+            queryClient.invalidateQueries({ queryKey: ["versions"] });
+            toast({
+              title: "Klassische KI-Generierung abgeschlossen",
+              description: "Der Schichtplan wurde erfolgreich generiert.",
+            });
           }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="text-destructive">
-                {confirmDeleteMessage.title}
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                <div className="space-y-2">
-                  <p>{confirmDeleteMessage.message}</p>
-                  {confirmDeleteMessage.details && (
-                    <div className="mt-3 text-sm border-l-4 border-destructive pl-3 py-1 bg-destructive/5">
-                      {confirmDeleteMessage.details.map((detail, i) => (
-                        <p key={i}>{detail}</p>
-                      ))}
-                    </div>
-                  )}
-                  <p className="mt-3 font-medium text-destructive">
-                    Wirklich fortsetzen?
-                  </p>
-                </div>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmDeleteMessage.onConfirm}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Endgültig löschen
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-
-      {/* AI Data Preview Dialog */}
-      <Dialog open={isAiDataPreviewOpen} onOpenChange={setIsAiDataPreviewOpen}>
-        <DialogContent className="sm:max-w-[900px]">
-          <DialogHeader>
-            <DialogTitle>Optimierte KI-Daten Vorschau</DialogTitle>
-            <DialogDescription>
-              Vorschau der optimierten Daten, die an die KI gesendet werden
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {/* Metadata Summary */}
-            {aiPreviewData?.metadata && (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <div className="text-center">
-                  <div className="font-semibold text-lg">
-                    {aiPreviewData.data_pack?.employees?.length || 0}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Gefilterte Mitarbeiter
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="font-semibold text-lg">
-                    {aiPreviewData.data_pack?.shifts?.length || 0}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Relevante Schichten
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="font-semibold text-lg">
-                    {aiPreviewData.data_pack?.coverage_rules?.length || 0}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Abdeckungsregeln
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="font-semibold text-lg">
-                    {aiPreviewData.data_pack?.availability?.length || 0}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Verfügbarkeitsfenster
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="font-semibold text-lg">
-                    {aiPreviewData.data_pack?.absences?.length || 0}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Abwesenheiten
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="font-semibold text-lg">
-                    {aiPreviewData.metadata.estimated_size_reduction}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Datenreduktion
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Optimization Info */}
-            {aiPreviewData?.metadata && (
-              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <h3 className="font-semibold mb-2 text-green-700 dark:text-green-400">
-                  ✅ Optimierungsstatus:
-                </h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium">Optimierung aktiv:</span>{" "}
-                    {aiPreviewData.metadata.optimization_applied
-                      ? "Ja"
-                      : "Nein"}
-                  </div>
-                  <div>
-                    <span className="font-medium">Datenstruktur:</span>{" "}
-                    {aiPreviewData.metadata.data_structure_version}
-                  </div>
-                  <div>
-                    <span className="font-medium">Zeitraum:</span>{" "}
-                    {aiPreviewData.metadata.start_date} bis{" "}
-                    {aiPreviewData.metadata.end_date}
-                  </div>
-                  <div>
-                    <span className="font-medium">Abschnitte:</span>{" "}
-                    {aiPreviewData.metadata.total_sections}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Main Data Display */}
-            <div className="max-h-[60vh] overflow-y-auto">
-              <div className="space-y-4">
-                {/* Optimized Data */}
-                {aiPreviewData?.data_pack && (
-                  <div>
-                    <h3 className="font-semibold mb-2 text-blue-700 dark:text-blue-400">
-                      📊 Optimierte KI-Daten:
-                    </h3>
-
-                    {/* Schedule Period */}
-                    {aiPreviewData.data_pack.schedule_period && (
-                      <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-md">
-                        <h4 className="font-medium mb-2">
-                          📅 Planungszeitraum:
-                        </h4>
-                        <pre className="text-sm">
-                          {JSON.stringify(
-                            aiPreviewData.data_pack.schedule_period,
-                            null,
-                            2,
-                          )}
-                        </pre>
-                      </div>
-                    )}
-
-                    {/* Coverage Rules */}
-                    {aiPreviewData.data_pack.coverage_rules &&
-                      aiPreviewData.data_pack.coverage_rules.length > 0 && (
-                        <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-md">
-                          <h4 className="font-medium mb-2">
-                            🎯 Abdeckungsregeln (Muster-basiert,{" "}
-                            {aiPreviewData.data_pack.coverage_rules.length}):
-                          </h4>
-                          <pre className="text-sm max-h-32 overflow-y-auto">
-                            {JSON.stringify(
-                              aiPreviewData.data_pack.coverage_rules,
-                              null,
-                              2,
-                            )}
-                          </pre>
-                          <div className="mt-2 text-xs text-purple-600 dark:text-purple-400">
-                            ✨ Optimiert: Regeln statt tägliche Expansion (90%
-                            weniger Daten)
-                          </div>
-                        </div>
-                      )}
-
-                    {/* Employees */}
-                    {aiPreviewData.data_pack.employees &&
-                      aiPreviewData.data_pack.employees.length > 0 && (
-                        <div className="mb-4 p-3 bg-cyan-50 dark:bg-cyan-900/20 rounded-md">
-                          <h4 className="font-medium mb-2">
-                            👥 Gefilterte Mitarbeiter (
-                            {aiPreviewData.data_pack.employees.length}):
-                          </h4>
-                          <pre className="text-sm max-h-32 overflow-y-auto">
-                            {JSON.stringify(
-                              aiPreviewData.data_pack.employees.slice(0, 3),
-                              null,
-                              2,
-                            )}
-                          </pre>
-                          {aiPreviewData.data_pack.employees.length > 3 && (
-                            <p className="text-xs text-muted-foreground mt-2">
-                              ... und{" "}
-                              {aiPreviewData.data_pack.employees.length - 3}{" "}
-                              weitere
-                            </p>
-                          )}
-                          <div className="mt-2 text-xs text-cyan-600 dark:text-cyan-400">
-                            ✨ Optimiert: Nur verfügbare Mitarbeiter,
-                            essenzielle Felder
-                          </div>
-                        </div>
-                      )}
-
-                    {/* Shift Templates */}
-                    {aiPreviewData.data_pack.shifts &&
-                      aiPreviewData.data_pack.shifts.length > 0 && (
-                        <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-md">
-                          <h4 className="font-medium mb-2">
-                            ⏰ Relevante Schichtvorlagen (
-                            {aiPreviewData.data_pack.shifts.length}):
-                          </h4>
-                          <pre className="text-sm max-h-32 overflow-y-auto">
-                            {JSON.stringify(
-                              aiPreviewData.data_pack.shifts,
-                              null,
-                              2,
-                            )}
-                          </pre>
-                          <div className="mt-2 text-xs text-orange-600 dark:text-orange-400">
-                            ✨ Optimiert: Nur aktive Schichten, redundante
-                            Felder entfernt
-                          </div>
-                        </div>
-                      )}
-
-                    {/* Availability Windows */}
-                    {aiPreviewData.data_pack.availability &&
-                      aiPreviewData.data_pack.availability.length > 0 && (
-                        <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-md">
-                          <h4 className="font-medium mb-2">
-                            🕐 Verfügbarkeitsfenster (
-                            {aiPreviewData.data_pack.availability.length}):
-                          </h4>
-                          <pre className="text-sm max-h-32 overflow-y-auto">
-                            {JSON.stringify(
-                              aiPreviewData.data_pack.availability.slice(0, 5),
-                              null,
-                              2,
-                            )}
-                          </pre>
-                          {aiPreviewData.data_pack.availability.length > 5 && (
-                            <p className="text-xs text-muted-foreground mt-2">
-                              ... und{" "}
-                              {aiPreviewData.data_pack.availability.length - 5}{" "}
-                              weitere
-                            </p>
-                          )}
-                          <div className="mt-2 text-xs text-green-600 dark:text-green-400">
-                            ✨ Optimiert: Zeitspannen statt stündliche Arrays
-                            (75% weniger Daten)
-                          </div>
-                        </div>
-                      )}
-
-                    {/* Absences */}
-                    {aiPreviewData.data_pack.absences &&
-                      aiPreviewData.data_pack.absences.length > 0 && (
-                        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-md">
-                          <h4 className="font-medium mb-2">
-                            🚫 Abwesenheiten (
-                            {aiPreviewData.data_pack.absences.length}):
-                          </h4>
-                          <pre className="text-sm max-h-32 overflow-y-auto">
-                            {JSON.stringify(
-                              aiPreviewData.data_pack.absences,
-                              null,
-                              2,
-                            )}
-                          </pre>
-                        </div>
-                      )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter className="flex justify-between">
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (aiPreviewData?.data_pack) {
-                  navigator.clipboard.writeText(
-                    JSON.stringify(aiPreviewData.optimized_data, null, 2),
-                  );
-                  toast({
-                    title: "In Zwischenablage kopiert",
-                    description: "Die optimierten KI-Daten wurden kopiert.",
-                  });
-                }
-              }}
-            >
-              📋 Daten kopieren
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (aiPreviewData?.system_prompt) {
-                  navigator.clipboard.writeText(aiPreviewData.system_prompt);
-                  toast({
-                    title: "Prompt kopiert",
-                    description: "Der System-Prompt wurde kopiert.",
-                  });
-                }
-              }}
-            >
-              🤖 Prompt kopieren
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* AI Conversation Generation Dialog */}
-      <AIConversationGenerationDialog
-        isOpen={isDetailedAiModalOpen}
-        onClose={() => setIsDetailedAiModalOpen(false)}
-        startDate={format(effectiveDateRange?.from || new Date(), "yyyy-MM-dd")}
-        endDate={format(effectiveDateRange?.to || new Date(), "yyyy-MM-dd")}
-        versionId={effectiveSelectedVersionNumber || 1}
-        onComplete={() => {
-          setIsAiDetailedGenerating(false);
-          refetchScheduleData();
-          queryClient.invalidateQueries({ queryKey: ["versions"] });
-          toast({
-            title: "KI-Generierung abgeschlossen",
-            description: "Der Schichtplan wurde erfolgreich generiert.",
-          });
-        }}
-      />
-
-      {/* Classic AI Generation Dialog */}
-      <ClassicAIGenerationDialog
-        isOpen={isClassicAiModalOpen}
-        onClose={() => setIsClassicAiModalOpen(false)}
-        startDate={format(effectiveDateRange?.from || new Date(), "yyyy-MM-dd")}
-        endDate={format(effectiveDateRange?.to || new Date(), "yyyy-MM-dd")}
-        versionId={effectiveSelectedVersionNumber || 1}
-        onComplete={() => {
-          setIsAiDetailedGenerating(false);
-          refetchScheduleData();
-          queryClient.invalidateQueries({ queryKey: ["versions"] });
-          toast({
-            title: "Klassische KI-Generierung abgeschlossen",
-            description: "Der Schichtplan wurde erfolgreich generiert.",
-          });
-        }}
-      />
+        />
       </div>
     </PageLayout>
   );
