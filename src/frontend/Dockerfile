@@ -7,18 +7,17 @@ WORKDIR /app
 RUN npm install -g bun
 
 # Copy package files
-COPY package.json bun.lockb ./
+COPY package.json bun.lockb bunfig.toml ./
 
 # Install dependencies
 RUN bun install --frozen-lockfile
 
 # Copy source code
-COPY src/frontend/src ./src
-COPY src/frontend/public ./public
-COPY src/frontend/tsconfig.json ./
-COPY src/frontend/vite.config.ts ./
-COPY src/frontend/index.html ./
-COPY bunfig.toml ./
+COPY src ./src
+COPY public ./public
+COPY tsconfig.json ./
+COPY vite.config.ts ./
+COPY index.html ./
 
 # Build for production
 RUN bun run build
@@ -33,14 +32,11 @@ RUN npm install -g bun
 # Copy built assets from builder
 COPY --from=builder /app/dist ./dist
 
-# Copy source for serving (needed for preview/dev mode)
-COPY --from=builder /app/src ./src
-COPY --from=builder /app/public ./public
-COPY src/frontend/package.json .
-COPY src/frontend/vite.config.ts ./
-COPY src/frontend/index.html ./
-COPY src/frontend/tsconfig.json ./
-COPY bunfig.toml ./
+# Copy necessary files for serving
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/vite.config.ts ./
+COPY --from=builder /app/index.html ./
+COPY --from=builder /app/bunfig.toml ./
 
 # Install serve or use Bun's preview
 RUN bun add -g serve

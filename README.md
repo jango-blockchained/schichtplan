@@ -6,9 +6,9 @@
 
 *Modern workforce management with intelligent automation, passwordless security, and multi-platform deployment*
 
-[![CI](https://github.com/jango-blockchained/schichtplan/workflows/CI/badge.svg)](https://github.com/jango-blockchained/schichtplan/actions/workflows/ci.yml)
-[![Docker Build](https://github.com/jango-blockchained/schichtplan/workflows/Docker%20Build/badge.svg)](https://github.com/jango-blockchained/schichtplan/actions/workflows/docker-build.yml)
-[![Electron Build](https://github.com/jango-blockchained/schichtplan/workflows/Electron%20Build/badge.svg)](https://github.com/jango-blockchained/schichtplan/actions/workflows/electron-build.yml)
+[![CI](https://github.com/jango-blockchained/schichtplan/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jango-blockchained/schichtplan/actions/workflows/ci.yml)
+[![Docker Build](https://github.com/jango-blockchained/schichtplan/actions/workflows/docker-build.yml/badge.svg?branch=main)](https://github.com/jango-blockchained/schichtplan/actions/workflows/docker-build.yml)
+[![Electron Build](https://github.com/jango-blockchained/schichtplan/actions/workflows/electron-build.yml/badge.svg?branch=main)](https://github.com/jango-blockchained/schichtplan/actions/workflows/electron-build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
