@@ -1,25 +1,28 @@
+import { AIAssistantOrb } from "@/components/ai/AIAssistantOrb";
 import { ConversationalAIChat } from "@/components/ai/ConversationalAIChat";
-import { Button } from "@/components/ui/button";
+import { MinimalAIAssistant } from "@/components/ai/MinimalAIAssistant";
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
 } from "@/components/ui/dialog";
 import { useAIDialog } from "@/hooks/useAIDialog";
-import { Bot } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 /**
- * Global AI Dialog Component
+ * Global AI Dialog Component with Enhanced UI
+ * Features:
+ * - Orb-style floating button with mouse interaction
+ * - Minimal popup assistant (draggable, expandable)
+ * - Full conversation dialog
  * Accessible via:
- * - Floating button (bottom-right)
+ * - Orb button (bottom-right)
  * - Keyboard shortcut (Cmd+/ or Ctrl+/)
  * - Menu item in sidebar
  */
 export function GlobalAIDialog() {
     const { isOpen, closeDialog, toggleDialog } = useAIDialog();
+    const [useMinimalMode, setUseMinimalMode] = useState(true);
+    const [expandToFull, setExpandToFull] = useState(false);
 
     // Keyboard shortcut: Cmd+/ or Ctrl+/
     useEffect(() => {
@@ -34,40 +37,47 @@ export function GlobalAIDialog() {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [toggleDialog]);
 
+    // Handle Orb click
+    const handleOrbClick = () => {
+        if (useMinimalMode) {
+            toggleDialog();
+        } else {
+            toggleDialog();
+        }
+    };
+
     return (
         <>
-            {/* Floating Button */}
-            <div className="fixed bottom-6 right-6 z-[40]">
-                <Button
-                    onClick={toggleDialog}
-                    size="lg"
-                    className="rounded-full shadow-lg hover:shadow-xl transition-all"
-                    title="AI Assistant (Cmd+/)"
-                >
-                    <Bot className="size-5 mr-2" />
-                    AI Assistant
-                </Button>
-            </div>
+            {/* AI Orb Button - Professional tech-style */}
+            {!expandToFull && (
+                <AIAssistantOrb
+                    onClick={handleOrbClick}
+                    isActive={isOpen}
+                />
+            )}
 
-            {/* Global Dialog */}
-            <Dialog open={isOpen} onOpenChange={closeDialog}>
-                <DialogContent className="sm:max-w-[900px] max-h-[90vh] flex flex-col">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <Bot className="size-5" />
-                            AI Assistant
-                        </DialogTitle>
-                        <DialogDescription>
-                            Intelligent scheduling assistance and recommendations
-                        </DialogDescription>
-                    </DialogHeader>
+            {/* Minimal AI Assistant - Draggable popup */}
+            {useMinimalMode && isOpen && (
+                <MinimalAIAssistant
+                    isOpen={isOpen}
+                    onMaximize={() => {
+                        setUseMinimalMode(false);
+                        setExpandToFull(true);
+                    }}
+                />
+            )}
 
-                    {/* AI Chat Component */}
-                    <div className="flex-1 overflow-hidden">
-                        <ConversationalAIChat />
-                    </div>
-                </DialogContent>
-            </Dialog>
+            {/* Full Conversation Dialog */}
+            {!useMinimalMode && (
+                <Dialog open={isOpen} onOpenChange={closeDialog}>
+                    <DialogContent className="w-[95vw] h-[95vh] max-w-7xl flex flex-col gap-0 p-0 rounded-2xl">
+                        {/* AI Chat Component - Full screen */}
+                        <div className="flex-1 overflow-hidden flex flex-col">
+                            <ConversationalAIChat />
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            )}
         </>
     );
 }

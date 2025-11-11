@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/PageHeader";
+import { PageLayout } from "@/layouts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -143,11 +143,15 @@ export default function AbsencesPage() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <PageHeader
-        title="Abwesenheiten"
-        description={`Zeitraum: ${label}`}
-      />
+    <PageLayout
+      title="Abwesenheiten"
+      description={`Zeitraum: ${label}`}
+      breadcrumbs={[
+        { href: "/", label: "Home" },
+        { label: "Absencen", isCurrentPage: true }
+      ]}
+    >
+      <div className="space-y-6">
 
       {/* Date Range Selection */}
       <Card>
@@ -625,6 +629,7 @@ export default function AbsencesPage() {
           </div>
         </TabsContent>
       </Tabs>
-    </div>
+      </div>
+    </PageLayout>
   );
 }

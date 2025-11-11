@@ -85,16 +85,16 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-700 dark:to-indigo-700 text-white">
+        <CardHeader className="bg-gradient-to-r from-primary to-primary/80 dark:from-primary/90 dark:to-primary/70 text-primary-foreground">
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 rounded-lg bg-white/20 flex items-center justify-center">
-              <Shield className="h-6 w-6 text-white" />
+              <Shield className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <CardTitle className="text-2xl text-white">Welcome Back</CardTitle>
-              <CardDescription className="text-blue-100">
+              <CardTitle className="text-2xl text-primary-foreground">Welcome Back</CardTitle>
+              <CardDescription className="text-primary-foreground/80">
                 Secure authentication to Schichtplan
               </CardDescription>
             </div>
@@ -130,15 +130,15 @@ export const LoginPage: React.FC = () => {
               </div>
 
               {error && (
-                <Alert variant="destructive" className="border-red-300 bg-red-50 dark:bg-red-950/30">
+                <Alert variant="destructive" className="border-destructive/30 bg-destructive/5 dark:bg-destructive/10">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
 
-              <Alert className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30">
-                <KeyRound className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                <AlertDescription className="text-blue-900 dark:text-blue-100">
+              <Alert className="border-primary/30 bg-primary/5 dark:bg-primary/10">
+                <KeyRound className="h-4 w-4 text-primary" />
+                <AlertDescription className="text-foreground">
                   You'll be prompted to use your device's authentication—fingerprint, face recognition, or security key.
                 </AlertDescription>
               </Alert>
@@ -195,15 +195,15 @@ export const LoginPage: React.FC = () => {
               </div>
 
               {error && (
-                <Alert variant="destructive" className="border-red-300 bg-red-50 dark:bg-red-950/30">
+                <Alert variant="destructive" className="border-destructive/30 bg-destructive/5 dark:bg-destructive/10">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
 
-              <Alert className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
-                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                <AlertDescription className="text-amber-900 dark:text-amber-100">
+              <Alert variant="destructive" className="border-destructive/30 bg-destructive/5 dark:bg-destructive/10">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="text-foreground">
                   <strong>⚠️ Important:</strong> Each recovery code can only be used once. Use this method only when you can't access your passkey.
                 </AlertDescription>
               </Alert>

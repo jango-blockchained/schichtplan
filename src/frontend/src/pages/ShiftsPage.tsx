@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/PageHeader";
+import { PageLayout, ContentCard } from "@/layouts";
 import { ShiftTable } from "@/components/tables";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -163,27 +163,34 @@ export const ShiftsPage: React.FC = () => {
   const shiftTypes = settings?.employee_groups?.shift_types || [];
 
   return (
-    <div className="container mx-auto py-6 space-y-8">
-      <PageHeader
-        title="Schichten"
-        description="Verwalte die Schichten für deinen Betrieb"
-        actions={
-          <Button onClick={handleAddShift}>
-            <Plus className="mr-2 h-4 w-4" />
-            Schicht hinzufügen
-          </Button>
-        }
-      />
-
-      <ShiftTable
-        shifts={shifts}
-        shiftTypes={shiftTypes}
-        loading={loading}
-        error={loading ? null : ""}
-        onEdit={handleUpdateShift}
-        onDelete={handleDeleteShift}
-        onDuplicate={handleDuplicateShift}
-      />
-    </div>
+    <PageLayout
+      title="Schichten"
+      description="Verwalte die Schichten für deinen Betrieb"
+      breadcrumbs={[
+        { href: "/", label: "Home" },
+        { label: "Schichten", isCurrentPage: true }
+      ]}
+      headerActions={
+        <Button onClick={handleAddShift}>
+          <Plus className="mr-2 h-4 w-4" />
+          Schicht hinzufügen
+        </Button>
+      }
+    >
+      <ContentCard
+        title="Schichtübersicht"
+        description="Alle verfügbaren Schichten und deren Einstellungen"
+      >
+        <ShiftTable
+          shifts={shifts}
+          shiftTypes={shiftTypes}
+          loading={loading}
+          error={loading ? null : ""}
+          onEdit={handleUpdateShift}
+          onDelete={handleDeleteShift}
+          onDuplicate={handleDuplicateShift}
+        />
+      </ContentCard>
+    </PageLayout>
   );
 };

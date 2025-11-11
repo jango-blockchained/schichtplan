@@ -25,6 +25,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react"; // Added useCallback and useMemo
 import { DateRange } from "react-day-picker";
+import { PageLayout } from "@/layouts";
 // import { ShiftTable } from '@/components/ShiftTable'; // Original, might be unused if ScheduleManager is primary
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -88,7 +89,6 @@ import {
 } from "@/types"; // Renamed Settings to avoid conflict
 import type { WeekVersionMeta } from "@/types/weekVersion";
 // import { Checkbox } from '@/components/ui/checkbox'; // Original, might be unused
-import { PageHeader } from "@/components/PageHeader";
 // import { getAvailableCalendarWeeks, getDateRangeFromWeekAndCount } from '@/utils/dateUtils'; // Original, might be unused
 // import { ScheduleVersions } from '@/components/Schedule/ScheduleVersions'; // Original, might be unused
 // import { Badge } from '@/components/ui/badge'; // Original, might be unused
@@ -2410,14 +2410,21 @@ export function SchedulePage() {
   };
 
   return (
-    <div className="container mx-auto py-4 space-y-4">
-      <PageHeader title="Dienstplan" className="mb-4">
+    <PageLayout
+      title="Dienstplan"
+      breadcrumbs={[
+        { href: "/", label: "Home" },
+        { label: "Dienstplan", isCurrentPage: true }
+      ]}
+      headerActions={
         <ScheduleControls
           onRefresh={handleRetryFetch}
           onExport={handleExportSchedule}
           isExporting={exportMutation.isPending}
         />
-      </PageHeader>
+      }
+    >
+      <div className="space-y-4">
 
       {/* AI-Powered Search */}
       <div className="mb-4">
@@ -3268,6 +3275,7 @@ export function SchedulePage() {
           });
         }}
       />
-    </div>
+      </div>
+    </PageLayout>
   );
 }

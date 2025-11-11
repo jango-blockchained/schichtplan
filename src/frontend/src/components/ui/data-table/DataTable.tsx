@@ -233,14 +233,14 @@ export function DataTable<T extends { id: number | string }>({
                                 <div key={filter.key} className="min-w-[150px]">
                                     {filter.type === 'select' && filter.options && (
                                         <Select
-                                            value={filterConfig[filter.key] || ""}
-                                            onValueChange={(value) => handleFilterChange(filter.key, value === "" ? null : value)}
+                                            value={filterConfig[filter.key] || "__all__"}
+                                            onValueChange={(value) => handleFilterChange(filter.key, value === "__all__" ? null : value)}
                                         >
                                             <SelectTrigger>
                                                 <SelectValue placeholder={filter.label} />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="">All {filter.label}</SelectItem>
+                                                <SelectItem value="__all__">All {filter.label}</SelectItem>
                                                 {filter.options.map((option) => (
                                                     <SelectItem key={String(option.value)} value={String(option.value)}>
                                                         {option.label}
@@ -251,16 +251,16 @@ export function DataTable<T extends { id: number | string }>({
                                     )}
                                     {filter.type === 'boolean' && (
                                         <Select
-                                            value={filterConfig[filter.key] === true ? "true" : filterConfig[filter.key] === false ? "false" : ""}
+                                            value={filterConfig[filter.key] === true ? "true" : filterConfig[filter.key] === false ? "false" : "__all__"}
                                             onValueChange={(value) =>
-                                                handleFilterChange(filter.key, value === "" ? null : value === "true")
+                                                handleFilterChange(filter.key, value === "__all__" ? null : value === "true")
                                             }
                                         >
                                             <SelectTrigger>
                                                 <SelectValue placeholder={filter.label} />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="">All</SelectItem>
+                                                <SelectItem value="__all__">All</SelectItem>
                                                 <SelectItem value="true">Yes</SelectItem>
                                                 <SelectItem value="false">No</SelectItem>
                                             </SelectContent>

@@ -1,7 +1,6 @@
 import HolidayManagement from "@/components/HolidayManagement";
-import { PageHeader } from "@/components/PageHeader";
+import { SettingsLayout } from "@/layouts";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import AppearanceDisplaySection from "@/components/UnifiedSettingsSections/AppearanceDisplaySection";
 import { AvailabilityConfigurationSection } from "@/components/UnifiedSettingsSections/AvailabilityConfigurationSection";
@@ -462,8 +461,9 @@ export default function UnifiedSettingsPage() {
     handleCategoryChange("week_navigation", { [key]: value });
   };
 
-  const renderSectionContent = () => {
-    const currentSectionMeta = sections.find((sec) => sec.id === activeSection);
+  const renderSectionContent = (sectionId?: SectionId) => {
+    const currentSectionId = sectionId || activeSection;
+    const currentSectionMeta = sections.find((sec) => sec.id === currentSectionId);
     if (!currentSectionMeta) {
       return <PlaceholderContent title="Section not found" />;
     }
@@ -489,7 +489,7 @@ export default function UnifiedSettingsPage() {
       );
     }
 
-    switch (activeSection) {
+    switch (currentSectionId) {
       case "general_store_setup":
         return (
           <GeneralStoreSetupSection
@@ -616,41 +616,133 @@ export default function UnifiedSettingsPage() {
     }
   };
 
+  // Build SettingsLayout tabs from sections
+  const settingsTabs = [
+    {
+      id: "general_store_setup",
+      label: "General Store",
+      sections: [
+        {
+          id: "general_store_setup",
+          title: "General Store Setup",
+          description: "Configure basic store information and hours",
+          children: renderSectionContent("general_store_setup"),
+        },
+      ],
+    },
+    {
+      id: "scheduling_engine",
+      label: "Scheduling Engine",
+      sections: [
+        {
+          id: "scheduling_engine",
+          title: "Scheduling Engine",
+          description: "Configure scheduling algorithms and optimization",
+          children: renderSectionContent("scheduling_engine"),
+        },
+      ],
+    },
+    {
+      id: "employee_shift_definitions",
+      label: "Employees & Shifts",
+      sections: [
+        {
+          id: "employee_shift_definitions",
+          title: "Employee & Shift Definitions",
+          description: "Manage employee types and shift templates",
+          children: renderSectionContent("employee_shift_definitions"),
+        },
+      ],
+    },
+    {
+      id: "availability_configuration",
+      label: "Availability",
+      sections: [
+        {
+          id: "availability_configuration",
+          title: "Availability Configuration",
+          description: "Configure availability types and requirements",
+          children: renderSectionContent("availability_configuration"),
+        },
+      ],
+    },
+    {
+      id: "week_navigation",
+      label: "Week Navigation",
+      sections: [
+        {
+          id: "week_navigation",
+          title: "Week Navigation",
+          description: "Configure week boundaries and navigation settings",
+          children: renderSectionContent("week_navigation"),
+        },
+      ],
+    },
+    {
+      id: "appearance_display",
+      label: "Appearance",
+      sections: [
+        {
+          id: "appearance_display",
+          title: "Appearance & Display",
+          description: "Customize the application appearance and display settings",
+          children: renderSectionContent("appearance_display"),
+        },
+      ],
+    },
+    {
+      id: "integrations_ai",
+      label: "Integrations & AI",
+      sections: [
+        {
+          id: "integrations_ai",
+          title: "Integrations & AI",
+          description: "Configure AI scheduling and external integrations",
+          children: renderSectionContent("integrations_ai"),
+        },
+      ],
+    },
+    {
+      id: "data_management",
+      label: "Data Management",
+      sections: [
+        {
+          id: "data_management",
+          title: "Data Management",
+          description: "Manage data, backups, and maintenance",
+          children: renderSectionContent("data_management"),
+        },
+      ],
+    },
+    {
+      id: "holiday_management",
+      label: "Holiday Management",
+      sections: [
+        {
+          id: "holiday_management",
+          title: "Holiday Management",
+          description: "Configure holidays and special days",
+          children: renderSectionContent("holiday_management"),
+        },
+      ],
+    },
+  ];
+
   // Main layout wrapper
   return (
-    <div className="container mx-auto p-4 md:p-6 lg:p-8">
-      <PageHeader
-        className="mb-6"
-        title="Application Settings"
-        description="Manage your application settings across various modules. Select a category from the sidebar to view and edit specific settings. All changes are auto-saved with a short delay."
-        actions={
-          mutation.isPending ? (
-            <span className="ml-2 text-sm text-muted-foreground flex items-center">
-              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-              Saving...
-            </span>
-          ) : null
-        }
-      />
-      <div className="flex flex-col md:flex-row md:space-x-6 space-y-6 md:space-y-0">
-        <nav className="md:w-1/4 lg:w-1/5 space-y-1">
-          {sections.map((section) => (
-            <Button
-              key={section.id}
-              variant={activeSection === section.id ? "default" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => setActiveSection(section.id)}
-            >
-              {section.title}
-            </Button>
-          ))}
-        </nav>
-        <main className="md:w-3/4 lg:w-4/5">
-          <div className="bg-card p-6 rounded-lg border min-h-[300px]">
-            {renderSectionContent()}
-          </div>
-        </main>
-      </div>
-    </div>
+    <SettingsLayout
+      title="Application Settings"
+      description="Manage your application settings across various modules. All changes are auto-saved with a short delay."
+      tabs={settingsTabs}
+      defaultTab={activeSection}
+      headerActions={
+        mutation.isPending ? (
+          <span className="text-sm text-muted-foreground flex items-center">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Saving...
+          </span>
+        ) : null
+      }
+    />
   );
 }

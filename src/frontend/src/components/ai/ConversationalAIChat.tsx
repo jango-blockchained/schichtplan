@@ -3,11 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { ScrollArea } from "@/components/ui/scroll-area";
+  ScrollArea,
+} from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useAIContext } from "@/contexts/AIContext";
 import { cn } from "@/lib/utils";
@@ -16,18 +13,12 @@ import { getSettings } from "@/services/api";
 import {
   Bot,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Clock,
   Copy,
   Download,
-  Eye,
   Loader2,
-  MessageSquare,
   RotateCcw,
   Send,
-  Settings,
-  Sparkles,
   ThumbsDown,
   ThumbsUp,
   User,
@@ -71,9 +62,7 @@ export const ConversationalAIChat: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [currentSession, setCurrentSession] =
     useState<ConversationSession | null>(null);
-  const [sessions, setSessions] = useState<ConversationSession[]>([]);
   const [aiProvider, setAiProvider] = useState<"openai" | "anthropic" | "gemini">("gemini");
-  const [showContext, setShowContext] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -154,7 +143,6 @@ export const ConversationalAIChat: React.FC = () => {
       ai_provider: aiProvider, // Use loaded AI provider
     };
     setCurrentSession(initialSession);
-    setSessions([initialSession]);
   }, [pageContext, getContextString, aiProvider]);
 
   const handleSendMessage = async () => {
@@ -359,23 +347,6 @@ export const ConversationalAIChat: React.FC = () => {
     toast.success("Conversation cleared");
   };
 
-  const newConversation = () => {
-    const newSession: ConversationSession = {
-      id: `session-${Date.now()}`,
-      title: "New Conversation",
-      created_at: new Date(),
-      last_message_at: new Date(),
-      message_count: 0,
-      status: "active",
-      ai_provider: aiProvider, // Use current AI provider from settings
-    };
-
-    setCurrentSession(newSession);
-    setSessions((prev) => [newSession, ...prev]);
-    setMessages([]);
-    toast.success("New conversation started");
-  };
-
   const formatTimestamp = (timestamp: Date) => {
     return new Intl.DateTimeFormat("en-US", {
       hour: "2-digit",
@@ -400,221 +371,152 @@ export const ConversationalAIChat: React.FC = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 gap-2 md:gap-4 lg:gap-6 h-full md:h-[calc(100vh-200px)] flex-1">
-      {/* Conversation Sidebar - Hidden on mobile, visible on md+ */}
-      <Card className="hidden md:flex md:col-span-1 flex-col h-full">
-        <CardHeader className="pb-3 flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm">Conversations</CardTitle>
-            <Button size="sm" variant="outline" onClick={newConversation} className="h-8 w-8 p-0">
-              <MessageSquare className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0 flex-1 flex flex-col overflow-hidden">
-          <ScrollArea className="flex-1">
-            <div className="space-y-2 p-4">
-              {sessions.map((session) => (
-                <div
-                  key={session.id}
-                  className={cn(
-                    "p-3 rounded-lg cursor-pointer transition-colors text-sm",
-                    currentSession?.id === session.id
-                      ? "bg-primary/10 border-primary border"
-                      : "bg-muted/50 hover:bg-muted",
-                  )}
-                  onClick={() => setCurrentSession(session)}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium truncate">
-                      {session.title}
-                    </span>
-                    <Badge variant="outline" className="text-xs">
-                      {session.message_count}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {formatTimestamp(session.last_message_at)}
-                  </p>
-                </div>
-              ))}
+    <div className="flex flex-col h-full w-full bg-background">
+      {/* Main Chat Interface - Full Width */}
+      <Card className="flex flex-col h-full border-0 shadow-none rounded-none md:rounded-lg md:border md:shadow-sm">
+        {/* Header - Sticky top */}
+        <CardHeader className="flex-shrink-0 pb-2 md:pb-3 border-b sticky top-0 z-10">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-primary/80 to-primary/40 animate-pulse">
+                <Bot className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <div className="flex-1">
+                <CardTitle className="text-base md:text-lg">AI Assistant</CardTitle>
+                <p className="text-xs text-muted-foreground">Powered by {aiProvider.toUpperCase()}</p>
+              </div>
             </div>
-          </ScrollArea>
-        </CardContent>
-      </Card>
-
-      {/* Main Chat Interface */}
-      <Card className="md:col-span-3 lg:col-span-3 col-span-1 flex flex-col h-full">
-        {/* Header */}
-        <CardHeader className="flex-shrink-0 pb-2 md:pb-3">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-primary flex-shrink-0" />
-              <CardTitle className="text-base md:text-lg truncate">AI Assistant</CardTitle>
-              <Badge variant="outline" className="text-xs flex-shrink-0">
-                {aiProvider.toUpperCase()}
-              </Badge>
-            </div>
-            <div className="flex gap-1 md:gap-2 flex-shrink-0">
-              <Button size="sm" variant="outline" onClick={clearConversation} className="h-8 px-2">
+            <div className="flex gap-2 flex-shrink-0">
+              <Button size="sm" variant="outline" onClick={clearConversation} className="h-8 px-2 gap-1">
                 <RotateCcw className="h-4 w-4" />
+                <span className="hidden sm:inline text-xs">Clear</span>
               </Button>
-              <Button size="sm" variant="outline" className="h-8 px-2">
+              <Button size="sm" variant="outline" className="h-8 px-2 gap-1">
                 <Download className="h-4 w-4" />
+                <span className="hidden sm:inline text-xs">Export</span>
               </Button>
             </div>
           </div>
         </CardHeader>
 
-        {/* Messages Area */}
-        <CardContent className="flex-1 flex flex-col p-0 min-h-0">
-          <ScrollArea className="flex-1 p-2 md:p-4">
-            <div className="space-y-3 md:space-y-4">
+        {/* Messages Area - Optimized */}
+        <CardContent className="flex-1 flex flex-col p-0 min-h-0 bg-gradient-to-b from-background/50 to-background">
+          <ScrollArea className="flex-1 px-3 md:px-6 py-4 md:py-6">
+            <div className="space-y-4 md:space-y-6 max-w-4xl mx-auto">
               {messages.map((message) => (
                 <div
                   key={message.id}
                   className={cn(
-                    "flex gap-2 md:gap-3",
-                    message.type === "user" ? "flex-row-reverse ml-auto max-w-xs sm:max-w-sm md:max-w-md lg:max-w-2xl" : "max-w-xs sm:max-w-sm md:max-w-md lg:max-w-2xl",
+                    "flex gap-3 md:gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300",
+                    message.type === "user" ? "flex-row-reverse" : "",
                   )}
                 >
-                  {message.type !== "user" && (
-                    <Avatar className="h-6 w-6 md:h-8 md:w-8 mt-1 flex-shrink-0">
-                      <AvatarFallback className="text-xs">
-                        {getAgentIcon(message.metadata?.agent)}
-                      </AvatarFallback>
-                    </Avatar>
-                  )}
-
-                  <div
-                    className={cn(
-                      "flex-1 space-y-2",
-                      message.type === "user" ? "text-right" : "",
+                  {/* Avatar */}
+                  <div className="flex-shrink-0">
+                    {message.type === "user" ? (
+                      <Avatar className="h-8 w-8 md:h-10 md:w-10">
+                        <AvatarFallback className="bg-primary text-primary-foreground">
+                          <User className="h-4 w-4" />
+                        </AvatarFallback>
+                      </Avatar>
+                    ) : (
+                      <Avatar className="h-8 w-8 md:h-10 md:w-10 bg-gradient-to-br from-primary/60 to-primary/30">
+                        <AvatarFallback className="text-sm bg-transparent">
+                          {getAgentIcon(message.metadata?.agent)}
+                        </AvatarFallback>
+                      </Avatar>
                     )}
-                  >
-                    <div
-                      className={cn(
-                        "rounded-lg p-2 md:p-3 text-xs md:text-sm break-words",
-                        message.type === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : message.type === "system"
-                            ? "bg-muted border border-border"
-                            : "bg-muted/50 border border-border",
+                  </div>
+
+                  {/* Message Content */}
+                  <div className={cn("flex-1 flex flex-col gap-2", message.type === "user" ? "items-end" : "items-start")}>
+                    {/* Sender Info */}
+                    <div className={cn("text-xs font-medium text-muted-foreground flex items-center gap-2", message.type === "user" ? "flex-row-reverse" : "")}>
+                      <span>{message.type === "user" ? "You" : message.metadata?.agent || "AI"}</span>
+                      {message.type === "ai" && message.metadata?.confidence && (
+                        <Badge variant="secondary" className="text-xs">
+                          {Math.round(message.metadata.confidence * 100)}%
+                        </Badge>
                       )}
-                    >
-                      <div className="whitespace-pre-wrap">
+                    </div>
+
+                    {/* Message Bubble */}
+                    <div className={cn("max-w-2xl rounded-xl px-4 py-3 shadow-sm", message.type === "user" ? "bg-primary text-primary-foreground rounded-br-none" : message.type === "system" ? "bg-muted border border-border rounded-bl-none" : "bg-card border border-border/50 rounded-bl-none")}>
+                      <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
                         {message.content}
                       </div>
 
-                      {/* Message Metadata */}
-                      {message.metadata && message.type === "ai" && (
-                        <div className="mt-2 md:mt-3 pt-2 border-t border-border/50 space-y-1">
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
-                            <Bot className="h-3 w-3 flex-shrink-0" />
-                            <span className="truncate">Agent: {message.metadata.agent}</span>
-                            {message.metadata.confidence && (
-                              <Badge variant="outline" className="text-xs">
-                                {Math.round(message.metadata.confidence * 100)}%
-                              </Badge>
-                            )}
-                          </div>
-
-                          {message.metadata.tools_used &&
-                            message.metadata.tools_used.length > 0 && (
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
-                                <Settings className="h-3 w-3 flex-shrink-0" />
-                                <span className="truncate">
-                                  Tools: {message.metadata.tools_used.join(", ")}
-                                </span>
-                              </div>
-                            )}
-
+                      {/* AI Message Metadata */}
+                      {message.type === "ai" && message.metadata && (
+                        <div className="mt-3 pt-3 border-t border-current/10 space-y-1.5">
+                          {message.metadata.tools_used && message.metadata.tools_used.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {message.metadata.tools_used.map((tool) => (
+                                <Badge key={tool} variant="outline" className="text-xs">
+                                  {tool.replace(/_/g, " ")}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
                           {message.metadata.processing_time && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Clock className="h-3 w-3 flex-shrink-0" />
-                              <span>{message.metadata.processing_time}s</span>
+                            <div className="text-xs opacity-75 flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              <span>{message.metadata.processing_time.toFixed(2)}s</span>
                             </div>
                           )}
                         </div>
                       )}
                     </div>
 
-                    {/* Message Actions */}
-                    <div
-                      className={cn(
-                        "flex items-center gap-1 justify-start",
-                        message.type === "user" ? "justify-end" : "",
-                      )}
-                    >
-                      <span className="text-xs text-muted-foreground">
-                        {formatTimestamp(message.timestamp)}
-                      </span>
-
+                    {/* Message Footer - Actions & Timestamp */}
+                    <div className={cn("text-xs text-muted-foreground flex items-center gap-2", message.type === "user" ? "flex-row-reverse" : "")}>
+                      <span>{formatTimestamp(message.timestamp)}</span>
                       {message.type === "ai" && (
-                        <div className="flex gap-0.5">
+                        <div className="flex gap-1">
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-6 w-6 p-0"
+                            className="h-6 w-6 p-0 hover:text-foreground"
                             onClick={() => copyToClipboard(message.content)}
+                            title="Copy message"
                           >
-                            <Copy className="h-3 w-3" />
+                            <Copy className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
-                            className={cn(
-                              "h-6 w-6 p-0",
-                              message.feedback === "positive" &&
-                              "text-green-500",
-                            )}
-                            onClick={() =>
-                              handleFeedback(message.id, "positive")
-                            }
+                            className={cn("h-6 w-6 p-0", message.feedback === "positive" && "text-green-500")}
+                            onClick={() => handleFeedback(message.id, "positive")}
+                            title="Helpful"
                           >
-                            <ThumbsUp className="h-3 w-3" />
+                            <ThumbsUp className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
-                            className={cn(
-                              "h-6 w-6 p-0",
-                              message.feedback === "negative" && "text-red-500",
-                            )}
-                            onClick={() =>
-                              handleFeedback(message.id, "negative")
-                            }
+                            className={cn("h-6 w-6 p-0", message.feedback === "negative" && "text-red-500")}
+                            onClick={() => handleFeedback(message.id, "negative")}
+                            title="Not helpful"
                           >
-                            <ThumbsDown className="h-3 w-3" />
+                            <ThumbsDown className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       )}
                     </div>
                   </div>
-
-                  {message.type === "user" && (
-                    <Avatar className="h-6 w-6 md:h-8 md:w-8 mt-1 flex-shrink-0">
-                      <AvatarFallback className="text-xs">
-                        <User className="h-4 w-4" />
-                      </AvatarFallback>
-                    </Avatar>
-                  )}
                 </div>
               ))}
 
               {isLoading && (
-                <div className="flex gap-2 md:gap-3">
-                  <Avatar className="h-6 w-6 md:h-8 md:w-8 mt-1 flex-shrink-0">
-                    <AvatarFallback className="text-xs">🤖</AvatarFallback>
+                <div className="flex gap-3 md:gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <Avatar className="h-8 w-8 md:h-10 md:w-10 bg-gradient-to-br from-primary/60 to-primary/30">
+                    <AvatarFallback className="text-sm bg-transparent">🤖</AvatarFallback>
                   </Avatar>
-                  <div className="flex-1 max-w-xs sm:max-w-sm md:max-w-md lg:max-w-2xl">
-                    <div className="bg-muted/50 border border-border rounded-lg p-2 md:p-3">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
-                        <span className="text-xs md:text-sm text-muted-foreground">
-                          AI is thinking...
-                        </span>
-                      </div>
+                  <div className="flex-1">
+                    <div className="text-xs font-medium text-muted-foreground mb-2">AI Assistant</div>
+                    <div className="bg-card border border-border/50 rounded-xl px-4 py-3 flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
+                      <span className="text-sm text-muted-foreground">AI is thinking...</span>
                     </div>
                   </div>
                 </div>
@@ -624,108 +526,42 @@ export const ConversationalAIChat: React.FC = () => {
             </div>
           </ScrollArea>
 
-          {/* Context Preview */}
-          <Collapsible open={showContext} onOpenChange={setShowContext} className="border-t border-border">
-            <div className="px-2 md:px-4 py-2">
-              <CollapsibleTrigger asChild>
+          {/* Input Area - Sticky bottom */}
+          <div className="border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-3 md:p-4 flex-shrink-0">
+            <div className="max-w-4xl mx-auto space-y-3">
+              <div className="flex gap-2">
+                <Textarea
+                  ref={inputRef}
+                  value={currentInput}
+                  onChange={(e) => setCurrentInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Ask me anything about scheduling, employees, or workflows..."
+                  className="min-h-12 max-h-24 resize-none text-sm"
+                  disabled={isLoading}
+                />
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-between text-xs h-8"
+                  onClick={handleSendMessage}
+                  disabled={!currentInput.trim() || isLoading}
+                  className="h-12 px-4 flex-shrink-0 rounded-lg"
+                  title="Send message (Enter)"
                 >
-                  <span className="flex items-center gap-1 text-xs">
-                    <Eye className="h-3 w-3" />
-                    Context (
-                    {Object.keys(pageContext.selectedItems).length +
-                      Object.keys(pageContext.filters).length}{" "}
-                    items)
-                  </span>
-                  {showContext ? (
-                    <ChevronUp className="h-3 w-3" />
+                  {isLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
-                    <ChevronDown className="h-3 w-3" />
+                    <Send className="h-5 w-5" />
                   )}
                 </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-2 max-h-32 overflow-y-auto">
-                <Card className="bg-muted/30">
-                  <CardContent className="p-2 md:p-3">
-                    <div className="space-y-1 text-xs">
-                      <div>
-                        <span className="font-medium">Page:</span>{" "}
-                        {pageContext.pageTitle}
-                      </div>
-                      <div>
-                        <span className="font-medium">Route:</span>{" "}
-                        {pageContext.route}
-                      </div>
-                      {Object.keys(pageContext.selectedItems).length > 0 && (
-                        <div>
-                          <span className="font-medium">Selected:</span>{" "}
-                          {Object.entries(pageContext.selectedItems)
-                            .map(([key, value]) => `${key}=${String(value)}`)
-                            .join(", ")}
-                        </div>
-                      )}
-                      {Object.keys(pageContext.filters).length > 0 && (
-                        <div>
-                          <span className="font-medium">Filters:</span>{" "}
-                          {Object.entries(pageContext.filters)
-                            .map(([key, value]) => `${key}=${String(value)}`)
-                            .join(", ")}
-                        </div>
-                      )}
-                      {pageContext.dateRange && (
-                        <div>
-                          <span className="font-medium">Date Range:</span>{" "}
-                          {pageContext.dateRange.start.toLocaleDateString()} -{" "}
-                          {pageContext.dateRange.end.toLocaleDateString()}
-                        </div>
-                      )}
-                      {pageContext.searchQuery && (
-                        <div>
-                          <span className="font-medium">Search:</span> "
-                          {pageContext.searchQuery}"
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </CollapsibleContent>
-            </div>
-          </Collapsible>
-
-          {/* Input Area */}
-          <div className="border-t border-border p-2 md:p-4 flex-shrink-0">
-            <div className="flex gap-2 flex-col sm:flex-row">
-              <Textarea
-                ref={inputRef}
-                value={currentInput}
-                onChange={(e) => setCurrentInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Ask me anything..."
-                className="min-h-12 md:min-h-14 resize-none text-xs md:text-sm"
-                disabled={isLoading}
-              />
-              <Button
-                onClick={handleSendMessage}
-                disabled={!currentInput.trim() || isLoading}
-                className="h-12 md:h-14 px-3 md:px-4 flex-shrink-0"
-                size="sm"
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-1 md:mt-2 text-xs text-muted-foreground gap-1">
-              <span>Press Enter to send, Shift+Enter for new line</span>
-              <div className="flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3 text-green-500" />
-                <span>AI Online</span>
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs text-muted-foreground gap-2">
+                <span className="flex items-center gap-1">
+                  <span>↵ Enter to send</span>
+                  <span className="opacity-50">•</span>
+                  <span>Shift+↵ for new line</span>
+                </span>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-3 w-3 text-green-500 flex-shrink-0" />
+                  <span className="font-medium">Connected</span>
+                </div>
               </div>
             </div>
           </div>

@@ -50,12 +50,13 @@ export const MainLayout = () => {
   });
 
   // Page width control (default vs full page width)
+  // Default is now "full" for all pages (like Gantt View)
   const [pageWidth, setPageWidth] = React.useState<"default" | "full">(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("pageWidth");
       if (stored === "full" || stored === "default") return stored;
     }
-    return "default";
+    return "full";
   });
 
   React.useEffect(() => {
@@ -267,7 +268,7 @@ export const MainLayout = () => {
 
       {/* Copyright Footer */}
       <div className="border-t border-border p-3 text-center text-xs text-muted-foreground">
-        <p>Made with ☕ and ❤️</p>
+        <p>Made with ☕ and 💻</p>
         <p>© jango</p>
       </div>
 
@@ -276,7 +277,7 @@ export const MainLayout = () => {
   );
 
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={true}>
       <div className="flex min-h-screen w-full bg-background">
         {/* Desktop Sidebar */}
         <AppSidebar />
@@ -314,7 +315,7 @@ export const MainLayout = () => {
           <header className="sticky top-0 z-[30] hidden border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:flex">
             <div className="flex h-14 w-full items-center justify-between px-6">
               <div className="flex items-center gap-2">
-                <SidebarTrigger className="-ml-1" />
+                <SidebarTrigger className="-ml-1" title="Toggle sidebar (Cmd+B) - Auto-opens on start" />
               </div>
               <div className="flex items-center gap-2">
                 <Select

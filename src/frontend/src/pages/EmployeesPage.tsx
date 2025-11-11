@@ -1,7 +1,7 @@
 import AbsenceModal from "@/components/AbsenceModal";
 import CSVImportDialog from "@/components/CSVImportDialog";
 import { EmployeeAvailabilityModal } from "@/components/EmployeeAvailabilityModal";
-import { PageHeader } from "@/components/PageHeader";
+import { PageLayout, ContentCard } from "@/layouts";
 import { EmployeeTable } from "@/components/tables";
 import {
   Button,
@@ -269,43 +269,46 @@ export const EmployeesPage = () => {
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-8">
-      <PageHeader
-        title="Mitarbeiter"
-        description="Verwalte deine Mitarbeiter und deren Verfügbarkeiten"
-        breadcrumbs={[
-          { href: "/", label: "Home" },
-          { label: "Mitarbeiter", isCurrentPage: true },
-        ]}
-        actions={
-          <div className="flex gap-2 items-center">
-            <ThemeToggle />
-            <Button variant="outline" onClick={() => setIsCSVImportOpen(true)}>
-              <Upload className="mr-2 h-4 w-4" />
-              CSV Import
-            </Button>
-            <Button onClick={() => handleOpenDialog()}>
-              <Plus className="mr-2 h-4 w-4" />
-              Mitarbeiter hinzufügen
-            </Button>
-          </div>
-        }
-      />
-
-      <EmployeeTable
-        employees={employees}
-        employeeGroups={employeeGroups}
-        loading={isLoadingEmployees}
-        error={errorEmployees ? (errorEmployees as Error).message : null}
-        onEdit={handleEdit}
-        onManageAvailability={setSelectedEmployeeForAvailability}
-        onManageAbsence={setSelectedEmployeeForAbsence}
-        onDelete={handleDelete}
-        bulkActions={{
-          onExport: handleBulkExport,
-          onBulkDelete: handleBulkDelete,
-        }}
-      />
+    <PageLayout
+      title="Mitarbeiter"
+      description="Verwalte deine Mitarbeiter und deren Verfügbarkeiten"
+      breadcrumbs={[
+        { href: "/", label: "Home" },
+        { label: "Mitarbeiter", isCurrentPage: true },
+      ]}
+      headerActions={
+        <div className="flex gap-2 items-center">
+          <ThemeToggle />
+          <Button variant="outline" onClick={() => setIsCSVImportOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            CSV Import
+          </Button>
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="mr-2 h-4 w-4" />
+            Mitarbeiter hinzufügen
+          </Button>
+        </div>
+      }
+    >
+      <ContentCard
+        title="Mitarbeiterliste"
+        description="Übersicht aller Mitarbeiter mit Verwaltungsoptionen"
+      >
+        <EmployeeTable
+          employees={employees}
+          employeeGroups={employeeGroups}
+          loading={isLoadingEmployees}
+          error={errorEmployees ? (errorEmployees as Error).message : null}
+          onEdit={handleEdit}
+          onManageAvailability={setSelectedEmployeeForAvailability}
+          onManageAbsence={setSelectedEmployeeForAbsence}
+          onDelete={handleDelete}
+          bulkActions={{
+            onExport: handleBulkExport,
+            onBulkDelete: handleBulkDelete,
+          }}
+        />
+      </ContentCard>
 
       {/* Employee Edit/Create Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -511,6 +514,6 @@ export const EmployeesPage = () => {
         onClose={() => setIsCSVImportOpen(false)}
         onImportComplete={handleCSVImportComplete}
       />
-    </div>
+    </PageLayout>
   );
 };
