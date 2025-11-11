@@ -11,6 +11,7 @@ First off, thank you for considering contributing to Schichtplan! 🎉 It's peop
 - [Commit Guidelines](#commit-guidelines)
 - [Pull Request Process](#pull-request-process)
 - [Testing Guidelines](#testing-guidelines)
+- [Using GitHub Copilot](#using-github-copilot)
 
 ## Code of Conduct
 
@@ -337,6 +338,67 @@ describe('ScheduleTable', () => {
 - Add screenshots for UI changes
 - Update the main README for significant features
 - Create detailed guides in the `/docs` directory for complex features
+
+## Using GitHub Copilot
+
+This repository is optimized for GitHub Copilot coding agent! 🤖
+
+### Copilot Instructions
+
+We've set up comprehensive instructions for Copilot in the `.github/` directory:
+
+- **`.github/copilot-instructions.md`** - Main instructions covering project structure, patterns, and guidelines
+- **`.github/copilot-setup-steps.yaml`** - Automated environment setup steps
+- **`.github/instructions/`** - Path-specific instructions for specialized areas (scheduler, frontend, migrations)
+- **`.github/agents/`** - Custom agent configurations for domain expertise
+
+### Working with Copilot
+
+**For maintainers with Copilot access:**
+
+1. **Assign well-scoped issues** to Copilot coding agent
+2. **Review PRs from Copilot** like you would from any contributor
+3. **Provide feedback** through PR comments - Copilot will iterate
+
+**Example of a good Copilot-friendly issue:**
+```markdown
+Title: Add department field to Employee model
+
+Description:
+Add a 'department' string field to the Employee model to track which 
+department each employee works in.
+
+Acceptance Criteria:
+- [ ] Add 'department' field to Employee model (nullable string, max 100 chars)
+- [ ] Create and apply database migration
+- [ ] Update API endpoints to include department field
+- [ ] Add tests for the new field
+- [ ] Update API documentation
+
+Files likely to change:
+- src/backend/models/employee.py
+- src/backend/migrations/versions/*.py
+- tests/backend/test_employee.py
+```
+
+### Benefits
+
+Using Copilot coding agent can help with:
+- **Repetitive tasks**: Adding fields, creating tests, updating documentation
+- **Following patterns**: Copilot learns from our documented patterns
+- **Consistency**: Ensures code follows project standards
+- **Productivity**: Frees up time for complex problem-solving
+
+### Maintaining Copilot Instructions
+
+If you notice Copilot consistently misunderstanding something or making mistakes:
+
+1. Check if instructions are clear in `.github/copilot-instructions.md`
+2. Add clarifications or new patterns as needed
+3. Update path-specific instructions if relevant
+4. Test with a new issue to verify improvements
+
+See `.github/README.md` for detailed information about the Copilot configuration.
 
 ## Questions?
 
