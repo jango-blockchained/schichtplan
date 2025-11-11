@@ -1,12 +1,10 @@
 import { Badge } from "@/components/ui/badge";
-import {
-  DataTable,
-} from "@/components/ui/frappe-table";
+import { DataTable } from "@/components/ui/data-table";
 import type {
   ColumnDefinition,
   FilterDefinition,
   TableAction,
-} from "@/components/ui/frappe-table/data-table-types";
+} from "@/components/ui/data-table/types";
 import { Employee } from "@/types";
 import { Calendar, Clock, Pencil, Trash2 } from "lucide-react";
 

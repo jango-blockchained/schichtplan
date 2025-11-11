@@ -1,6 +1,5 @@
 import { API_TIMEOUT } from "@/constants";
 import axios, { AxiosError } from "axios";
-import camelcaseKeys from "camelcase-keys";
 import { logService } from "../logService";
 
 interface APIErrorResponse {
@@ -57,10 +56,7 @@ api.interceptors.response.use(
       };
     }
 
-    // Transform snake_case to camelCase for all responses
-    if (response.data && typeof response.data === "object") {
-      response.data = camelcaseKeys(response.data, { deep: true });
-    }
+    // No case transformation - keep data as received from backend
 
     return response;
   },

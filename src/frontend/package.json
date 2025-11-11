@@ -96,7 +96,6 @@
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.23.24",
-    "frappe-datatable": "^1.19.0",
     "frappe-gantt": "^1.0.4",
     "graphql": "^16.11.0",
     "input-otp": "^1.4.2",
