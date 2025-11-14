@@ -2122,7 +2122,7 @@ export function SchedulePage() {
     }
     try {
       // Find the existing schedule to preserve keyholder status
-      const existingSchedule = filteredSchedules?.find(s => s.id === scheduleId);
+      const existingSchedule = scheduleData?.find(s => s.id === scheduleId);
 
       const updateData: Partial<ScheduleUpdate> = {
         shift_id: newShiftId,
