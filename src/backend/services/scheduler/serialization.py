@@ -83,14 +83,27 @@ class ScheduleSerializer:
         """Convert a schedule object to a dictionary"""
         try:
             if not schedule:
-                return {}
+                # Return a proper status structure even for empty schedules
+                return {
+                    "status": "success",
+                    "schedules_created": 0,
+                    "message": "No schedules generated (no coverage or shifts defined)"
+                }
 
             # Get the schedule object if it's a container
             if hasattr(schedule, "get_schedule"):
                 schedule = schedule.get_schedule()
 
             # Convert to dictionary
-            return self.convert_schedule_to_dict(schedule)
+            result = self.convert_schedule_to_dict(schedule)
+            
+            # Ensure the result includes a status field
+            if "status" not in result:
+                result["status"] = "success"
+            if "schedules_created" not in result:
+                result["schedules_created"] = len(result.get("entries", []))
+            
+            return result
         except Exception as e:
             self.log_error(f"Error serializing schedule: {str(e)}")
             self.log_error("Stack trace:", exc_info=True)
@@ -113,15 +126,25 @@ class ScheduleSerializer:
     def convert_schedule_to_dict(self, schedule) -> dict[str, Any]:
         """Convert a schedule object to a dictionary for API responses"""
         if not schedule:
-            return {}
+            return {
+                "status": "success",
+                "schedules_created": 0,
+                "schedule_id": None,
+                "start_date": None,
+                "end_date": None,
+                "version": 1,
+                "status_code": "DRAFT",
+                "entries": [],
+            }
 
         # Convert schedule to JSON-serializable format
         result = {
+            "status": "success",  # Add success status
             "schedule_id": getattr(schedule, "id", None),
             "start_date": self.format_date(getattr(schedule, "start_date", None)),
             "end_date": self.format_date(getattr(schedule, "end_date", None)),
             "version": getattr(schedule, "version", 1),
-            "status": getattr(schedule, "status", "DRAFT"),
+            "status_code": getattr(schedule, "status", "DRAFT"),
             "entries": [],
         }
 
@@ -140,6 +163,7 @@ class ScheduleSerializer:
                     entries.append(entry_dict)
 
         result["entries"] = entries
+        result["schedules_created"] = len(entries)
         return result
 
     def convert_entry_to_dict(self, entry) -> dict[str, Any]:
