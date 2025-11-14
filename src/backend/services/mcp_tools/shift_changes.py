@@ -186,6 +186,9 @@ class ShiftChangesTools:
 
             if not dry_run:
                 db.session.commit()
+            else:
+                # Rollback changes in dry-run mode
+                db.session.rollback()
 
             return {
                 "status": "success",
@@ -340,8 +343,8 @@ class ShiftChangesTools:
                     current_notes = shift.notes or ""
                     shift.notes = f"{current_notes}\nCancelled: {reason}".strip()
 
-                # Mark as cancelled (change status)
-                shift.status = ScheduleStatus.CANCELLED
+                # Mark as archived (represents cancelled state)
+                shift.status = ScheduleStatus.ARCHIVED
                 db.session.commit()
 
             return {

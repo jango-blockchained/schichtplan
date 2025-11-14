@@ -291,9 +291,9 @@ class TestShiftChangesTools:
             assert result["operation"] == "cancel"
             assert result["reason"] == "Store closure"
 
-            # Verify shift was marked as cancelled
+            # Verify shift was marked as cancelled (archived)
             shift = db.session.get(Schedule, sample_schedule.id)
-            assert shift.status == ScheduleStatus.CANCELLED
+            assert shift.status == ScheduleStatus.ARCHIVED
             assert "Store closure" in shift.notes
 
     @pytest.mark.asyncio
