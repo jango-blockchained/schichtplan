@@ -8,9 +8,9 @@ from collections import defaultdict
 from datetime import date, timedelta
 from typing import Any
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_
 
-from src.backend.models import Absence, Employee, Settings, db
+from src.backend.models import Absence, Employee, Settings
 from src.backend.utils.logger import logger
 
 
@@ -56,7 +56,7 @@ class StaffingService:
                     )
                 )
                 .join(Employee)
-                .filter(Employee.is_active == True)
+                .filter(Employee.is_active)
                 .all()
             )
 
@@ -197,7 +197,7 @@ class StaffingService:
                     )
                 )
                 .join(Employee)
-                .filter(Employee.is_active == True)
+                .filter(Employee.is_active)
                 .all()
             )
 
