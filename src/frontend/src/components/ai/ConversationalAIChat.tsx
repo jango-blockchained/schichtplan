@@ -35,6 +35,7 @@ import { toast } from "sonner";
 import { VoiceInput } from "./VoiceInput";
 import { FileUploadComponent } from "./FileUploadComponent";
 import { SessionHistorySidebar } from "./SessionHistorySidebar";
+import { AIProviderStatus } from "./AIProviderStatus";
 import type { FileUpload } from "@/services/aiService";
 import {
   saveSession,
@@ -735,7 +736,16 @@ export const ConversationalAIChat: React.FC = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <CardTitle className="text-base md:text-lg truncate">{currentSession?.title || "AI Assistant"}</CardTitle>
-                  <p className="text-xs text-muted-foreground">Powered by {aiProvider.toUpperCase()}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">Powered by</p>
+                    <AIProviderStatus
+                      currentProvider={aiProvider}
+                      onProviderChange={(newProvider) => {
+                        setAiProvider(newProvider);
+                        toast.success(`AI provider changed to ${newProvider.toUpperCase()}`);
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
               <div className="flex gap-2 flex-shrink-0">
