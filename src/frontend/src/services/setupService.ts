@@ -234,5 +234,6 @@ export async function generateResetToken(): Promise<{ message: string; token_fil
  */
 export function logout(): void {
   localStorage.removeItem('auth_token');
+  localStorage.removeItem('user_profile');
   window.location.href = '/login';
 }

@@ -188,11 +188,13 @@ def create_app(config_class=Config):
     app.register_blueprint(api_bp, url_prefix="/api/v2")
 
     # Register setup and passkey auth routes (always available, even during testing)
+    from src.backend.routes.auth import bp as auth_bp
     from src.backend.routes.passkey_auth import bp as passkey_auth_bp
     from src.backend.routes.setup import bp as setup_bp
 
     app.register_blueprint(setup_bp)
     app.register_blueprint(passkey_auth_bp)
+    app.register_blueprint(auth_bp)  # Register auth routes for login/register
 
     # Register additional blueprints that are NOT part of api_bp
     # These blueprints have their own URL prefixes defined
@@ -304,24 +306,28 @@ def create_app(config_class=Config):
     def add_security_headers(response):
         """Add security headers to protect against common vulnerabilities"""
         # Prevent clickjacking attacks
-        response.headers['X-Frame-Options'] = 'DENY'
-        
+        response.headers["X-Frame-Options"] = "DENY"
+
         # Prevent MIME-type sniffing
-        response.headers['X-Content-Type-Options'] = 'nosniff'
-        
+        response.headers["X-Content-Type-Options"] = "nosniff"
+
         # Enable XSS protection
-        response.headers['X-XSS-Protection'] = '1; mode=block'
-        
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+
         # Strict Transport Security (only for HTTPS)
         if request.is_secure:
-            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-        
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
+
         # Content Security Policy
-        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:*"
-        
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:*"
+        )
+
         # Referrer Policy
-        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-        
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
         return response
 
     # Health check endpoint for monitoring and port detection

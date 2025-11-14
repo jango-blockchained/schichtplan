@@ -6,9 +6,8 @@ from typing import Any
 
 import jwt
 from flask import current_app, request
-from models import User, UserRole
 
-from src.backend.models import db
+from src.backend.models import User, UserRole, db
 
 logger = logging.getLogger(__name__)
 

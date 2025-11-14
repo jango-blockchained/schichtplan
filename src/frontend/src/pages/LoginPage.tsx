@@ -8,18 +8,59 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
+import { login as passwordLogin } from '@/services/authService';
 import { loginWithPasskey, verifyRecoveryCode } from '@/services/setupService';
-import { AlertCircle, AlertTriangle, KeyRound, Loader2, Shield } from 'lucide-react';
+import { AlertCircle, AlertTriangle, KeyRound, Loader2, LockKeyhole, Shield } from 'lucide-react';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 export const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [username, setUsername] = useState('admin');
+  const [password, setPassword] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  const handlePasswordLogin = async () => {
+    if (!password.trim()) {
+      toast({
+        title: 'Password Required',
+        description: 'Please enter your password',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+
+    try {
+      await passwordLogin({
+        username: username.trim(),
+        password: password.trim(),
+      });
+
+      toast({
+        title: 'Login Successful',
+        description: 'Welcome back!',
+      });
+
+      // Redirect to main app
+      navigate('/');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
+      setError(errorMessage);
+      toast({
+        title: 'Login Failed',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePasskeyLogin = async () => {
     setError(null);
@@ -102,17 +143,78 @@ export const LoginPage: React.FC = () => {
         </CardHeader>
 
         <CardContent className="pt-6">
-          <Tabs defaultValue="passkey" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
+          <Tabs defaultValue="password" className="w-full">
+            <TabsList className="grid w-full grid-cols-3 mb-6">
+              <TabsTrigger value="password" className="gap-2">
+                <LockKeyhole className="h-4 w-4" />
+                Password
+              </TabsTrigger>
               <TabsTrigger value="passkey" className="gap-2">
                 <KeyRound className="h-4 w-4" />
                 Passkey
               </TabsTrigger>
               <TabsTrigger value="recovery" className="gap-2">
                 <Shield className="h-4 w-4" />
-                Recovery Code
+                Recovery
               </TabsTrigger>
             </TabsList>
+
+            {/* Password Login */}
+            <TabsContent value="password" className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="password-username" className="font-semibold">Username</Label>
+                <Input
+                  id="password-username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  disabled={loading}
+                  placeholder="admin"
+                  className="h-10"
+                  onKeyDown={(e) => e.key === 'Enter' && handlePasswordLogin()}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password-input" className="font-semibold">Password</Label>
+                <Input
+                  id="password-input"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
+                  placeholder="Enter your password"
+                  className="h-10"
+                  onKeyDown={(e) => e.key === 'Enter' && handlePasswordLogin()}
+                />
+              </div>
+
+              {error && (
+                <Alert variant="destructive" className="border-destructive/30 bg-destructive/5 dark:bg-destructive/10">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              <Button
+                onClick={handlePasswordLogin}
+                className="w-full"
+                size="lg"
+                disabled={loading || !username.trim() || !password.trim()}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Authenticating...
+                  </>
+                ) : (
+                  <>
+                    <LockKeyhole className="mr-2 h-4 w-4" />
+                    Sign in with Password
+                  </>
+                )}
+              </Button>
+            </TabsContent>
 
             {/* Passkey Login */}
             <TabsContent value="passkey" className="space-y-4">

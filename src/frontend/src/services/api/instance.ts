@@ -19,10 +19,17 @@ export const api = axios.create({
   validateStatus: (status) => status >= 200 && status < 300,
 });
 
-// Add request interceptor for debugging
+// Add request interceptor for debugging and auth token
 api.interceptors.request.use(
   (config) => {
     logService.debug("api", "request", `Making request to: ${config.url}`);
+    
+    // Add auth token if available
+    const authToken = localStorage.getItem('auth_token');
+    if (authToken) {
+      config.headers.Authorization = `Bearer ${authToken}`;
+    }
+    
     return config;
   },
   (error) => {
@@ -98,7 +105,17 @@ api.interceptors.response.use(
     }
 
     // Customize error message based on status and response data
-    if (error.response.status === 404) {
+    if (error.response.status === 401) {
+      // Authentication required - check if we need to redirect to login
+      const authToken = localStorage.getItem('auth_token');
+      if (!authToken && !window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/setup')) {
+        // Only redirect if we're not already on login/setup page
+        window.location.href = '/login';
+      }
+      throw new Error("Authentifizierung erforderlich. Bitte melden Sie sich an.");
+    } else if (error.response.status === 403) {
+      throw new Error("Keine Berechtigung für diese Aktion.");
+    } else if (error.response.status === 404) {
       throw new Error("Die angeforderten Daten wurden nicht gefunden.");
     } else if (error.response.status === 500) {
       throw new Error(errorMessage);
