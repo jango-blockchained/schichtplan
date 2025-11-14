@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAIContext } from "@/contexts/AIContext";
 import { cn } from "@/lib/utils";
 import { aiService } from "@/services/aiService";
+import { enhancedAIService } from "@/services/enhancedAIService";
 import { getSettings } from "@/services/api";
 import {
   Bot,
@@ -22,9 +23,16 @@ import {
   ThumbsDown,
   ThumbsUp,
   User,
+  Mic,
+  Paperclip,
+  FileIcon,
+  X,
 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { VoiceInput } from "./VoiceInput";
+import { FileUploadComponent } from "./FileUploadComponent";
+import type { FileUpload } from "@/services/aiService";
 
 interface ConversationMessage {
   id: string;
@@ -60,12 +68,18 @@ export const ConversationalAIChat: React.FC = () => {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [currentInput, setCurrentInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [currentSession, setCurrentSession] =
     useState<ConversationSession | null>(null);
   const [aiProvider, setAiProvider] = useState<"openai" | "anthropic" | "gemini">("gemini");
+  const [showVoiceInput, setShowVoiceInput] = useState(false);
+  const [showFileUpload, setShowFileUpload] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<FileUpload[]>([]);
+  const [isConnected, setIsConnected] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const streamingMessageRef = useRef<ConversationMessage | null>(null);
 
   // Load AI provider from settings
   useEffect(() => {
@@ -81,6 +95,43 @@ export const ConversationalAIChat: React.FC = () => {
     };
     loadAISettings();
   }, []);
+
+  // Initialize WebSocket connection for real-time features
+  useEffect(() => {
+    const initializeWebSocket = async () => {
+      try {
+        await aiService.connectWebSocket();
+        setIsConnected(true);
+        
+        // Listen for WebSocket events
+        aiService.on('websocket:connected', () => {
+          setIsConnected(true);
+          console.log('WebSocket connected');
+        });
+        
+        aiService.on('websocket:disconnected', () => {
+          setIsConnected(false);
+          console.log('WebSocket disconnected');
+        });
+
+        if (currentSession?.id) {
+          aiService.joinConversation(currentSession.id, 'user');
+        }
+      } catch (error) {
+        console.warn('WebSocket initialization failed:', error);
+        setIsConnected(false);
+      }
+    };
+
+    initializeWebSocket();
+
+    return () => {
+      if (currentSession?.id) {
+        aiService.leaveConversation(currentSession.id);
+      }
+      aiService.disconnect();
+    };
+  }, [currentSession?.id]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -146,66 +197,172 @@ export const ConversationalAIChat: React.FC = () => {
   }, [pageContext, getContextString, aiProvider]);
 
   const handleSendMessage = async () => {
-    if (!currentInput.trim() || isLoading) return;
+    if (!currentInput.trim() || isLoading || isStreaming) return;
 
     const userMessage: ConversationMessage = {
       id: `msg-${Date.now()}-user`,
       type: "user",
       content: currentInput.trim(),
       timestamp: new Date(),
+      files: attachedFiles.map(f => f.id),
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setCurrentInput("");
+    setIsStreaming(true);
     setIsLoading(true);
+
+    // Clear attached files after sending
+    const currentFiles = [...attachedFiles];
+    setAttachedFiles([]);
 
     try {
       // Prepare message with context
       const contextSummary = getContextString();
-      const messageWithContext = contextSummary
+      let messageWithContext = contextSummary
         ? `Context:\n${contextSummary}\n\nUser: ${userMessage.content}`
         : userMessage.content;
 
-      // Call the real AI service
-      const response = await aiService.sendChatMessage({
-        message: messageWithContext,
-        conversation_id: currentSession?.id,
-        context: pageContext,
-      });
+      // Add file context if files are attached
+      if (currentFiles.length > 0) {
+        messageWithContext += `\n\nAttached files: ${currentFiles.map(f => f.name).join(', ')}`;
+      }
 
-      const aiMessage: ConversationMessage = {
-        id: `msg-${Date.now()}-ai`,
+      // Initialize streaming AI message
+      const streamingMessageId = `msg-${Date.now()}-ai`;
+      const initialAIMessage: ConversationMessage = {
+        id: streamingMessageId,
         type: "ai",
-        content: response.response,
+        content: "",
         timestamp: new Date(),
         metadata: {
-          agent: response.metadata?.agent as string,
-          workflow: response.metadata?.workflow as string,
-          tools_used: response.metadata?.tools_used as string[],
-          confidence: response.metadata?.confidence as number,
-          processing_time: response.metadata?.processing_time as number,
+          agent: "streaming",
         },
       };
 
-      setMessages((prev) => [...prev, aiMessage]);
+      streamingMessageRef.current = initialAIMessage;
+      setMessages((prev) => [...prev, initialAIMessage]);
 
-      // Update session
-      if (currentSession) {
-        setCurrentSession((prev) =>
-          prev
-            ? {
-              ...prev,
-              last_message_at: new Date(),
-              message_count: prev.message_count + 2,
-            }
-            : null,
+      // Use streaming from enhanced AI service
+      try {
+        const streamGenerator = enhancedAIService.streamChat({
+          message: messageWithContext,
+          conversation_id: currentSession?.id,
+          context: {
+            current_page: pageContext.route,
+            page_name: pageContext.pageTitle,
+            current_view: pageContext.viewMode,
+            selected_items: Object.entries(pageContext.selectedItems).map(([type, id]) => ({
+              type,
+              id: String(id),
+              label: `${type}: ${String(id)}`,
+            })),
+            recent_actions: [],
+          },
+          stream: true,
+        });
+
+        let fullContent = "";
+        let metadata: Record<string, unknown> = {};
+
+        for await (const chunk of streamGenerator) {
+          if (chunk.type === "content" && chunk.content) {
+            fullContent += chunk.content;
+            
+            // Update the streaming message
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === streamingMessageId
+                  ? { ...msg, content: fullContent }
+                  : msg
+              )
+            );
+          } else if (chunk.type === "metadata" && chunk.metadata) {
+            metadata = { ...metadata, ...chunk.metadata };
+          } else if (chunk.type === "error") {
+            throw new Error(chunk.error || "Streaming error");
+          } else if (chunk.type === "done") {
+            // Finalize the message with complete metadata
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === streamingMessageId
+                  ? { 
+                      ...msg, 
+                      content: fullContent,
+                      metadata: {
+                        agent: metadata.agent as string,
+                        workflow: metadata.workflow as string,
+                        tools_used: metadata.tools_used as string[],
+                        confidence: metadata.confidence as number,
+                        processing_time: metadata.processing_time as number,
+                      }
+                    }
+                  : msg
+              )
+            );
+          }
+        }
+
+        // Update session
+        if (currentSession) {
+          setCurrentSession((prev) =>
+            prev
+              ? {
+                ...prev,
+                last_message_at: new Date(),
+                message_count: prev.message_count + 2,
+              }
+              : null
+          );
+        }
+
+        toast.success("AI response generated successfully");
+      } catch (streamError) {
+        console.warn("Streaming failed, falling back to regular API:", streamError);
+        
+        // Fallback to non-streaming API
+        const response = await aiService.sendChatMessage({
+          message: messageWithContext,
+          conversation_id: currentSession?.id,
+          context: pageContext,
+        });
+
+        const aiMessage: ConversationMessage = {
+          id: streamingMessageId,
+          type: "ai",
+          content: response.response,
+          timestamp: new Date(),
+          metadata: {
+            agent: response.metadata?.agent as string,
+            workflow: response.metadata?.workflow as string,
+            tools_used: response.metadata?.tools_used as string[],
+            confidence: response.metadata?.confidence as number,
+            processing_time: response.metadata?.processing_time as number,
+          },
+        };
+
+        setMessages((prev) =>
+          prev.map((msg) => (msg.id === streamingMessageId ? aiMessage : msg))
         );
-      }
 
-      toast.success("AI response generated successfully");
+        // Update session
+        if (currentSession) {
+          setCurrentSession((prev) =>
+            prev
+              ? {
+                ...prev,
+                last_message_at: new Date(),
+                message_count: prev.message_count + 2,
+              }
+              : null
+          );
+        }
+
+        toast.success("AI response generated successfully");
+      }
     } catch (error) {
-      // Fallback to simulated response if API fails
-      console.warn("AI API failed, falling back to simulation:", error);
+      // Fallback to simulated response if all else fails
+      console.warn("AI API failed completely, falling back to simulation:", error);
       try {
         const response = await simulateAIResponse(userMessage.content);
 
@@ -234,7 +391,7 @@ export const ConversationalAIChat: React.FC = () => {
                 last_message_at: new Date(),
                 message_count: prev.message_count + 2,
               }
-              : null,
+              : null
           );
         }
 
@@ -242,9 +399,16 @@ export const ConversationalAIChat: React.FC = () => {
       } catch (fallbackError) {
         toast.error("Failed to get AI response");
         console.error("AI response error:", fallbackError);
+        
+        // Remove the failed streaming message
+        if (streamingMessageRef.current) {
+          setMessages((prev) => prev.filter(msg => msg.id !== streamingMessageRef.current?.id));
+        }
       }
     } finally {
       setIsLoading(false);
+      setIsStreaming(false);
+      streamingMessageRef.current = null;
     }
   };
 
@@ -344,7 +508,47 @@ export const ConversationalAIChat: React.FC = () => {
   const clearConversation = () => {
     setMessages([]);
     setCurrentSession(null);
+    setAttachedFiles([]);
     toast.success("Conversation cleared");
+  };
+
+  const handleExportConversation = async () => {
+    if (!currentSession?.id || messages.length === 0) {
+      toast.error("No conversation to export");
+      return;
+    }
+
+    try {
+      const blob = await aiService.exportConversation(currentSession.id, "json");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `conversation-${currentSession.id}-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Conversation exported successfully");
+    } catch (error) {
+      console.error("Export failed:", error);
+      toast.error("Failed to export conversation");
+    }
+  };
+
+  const handleVoiceTranscript = (text: string, confidence: number) => {
+    setCurrentInput(text);
+    setShowVoiceInput(false);
+    toast.success(`Voice input received (${Math.round(confidence * 100)}% confidence)`);
+  };
+
+  const handleFilesUploaded = (files: FileUpload[]) => {
+    setAttachedFiles((prev) => [...prev, ...files]);
+    setShowFileUpload(false);
+    toast.success(`${files.length} file(s) attached`);
+  };
+
+  const removeAttachedFile = (fileId: string) => {
+    setAttachedFiles((prev) => prev.filter(f => f.id !== fileId));
   };
 
   const formatTimestamp = (timestamp: Date) => {
@@ -391,7 +595,7 @@ export const ConversationalAIChat: React.FC = () => {
                 <RotateCcw className="h-4 w-4" />
                 <span className="hidden sm:inline text-xs">Clear</span>
               </Button>
-              <Button size="sm" variant="outline" className="h-8 px-2 gap-1">
+              <Button size="sm" variant="outline" onClick={handleExportConversation} className="h-8 px-2 gap-1">
                 <Download className="h-4 w-4" />
                 <span className="hidden sm:inline text-xs">Export</span>
               </Button>
@@ -529,7 +733,96 @@ export const ConversationalAIChat: React.FC = () => {
           {/* Input Area - Sticky bottom */}
           <div className="border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-3 md:p-4 flex-shrink-0">
             <div className="max-w-4xl mx-auto space-y-3">
+              {/* Attached Files Display */}
+              {attachedFiles.length > 0 && (
+                <div className="flex flex-wrap gap-2 p-2 bg-muted/50 rounded-lg">
+                  {attachedFiles.map((file) => (
+                    <div key={file.id} className="flex items-center gap-2 bg-background px-3 py-1.5 rounded-md border">
+                      <FileIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs font-medium">{file.name}</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-4 w-4 p-0"
+                        onClick={() => removeAttachedFile(file.id)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Voice Input Modal */}
+              {showVoiceInput && (
+                <div className="p-4 bg-muted/50 rounded-lg border">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium">Voice Input</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setShowVoiceInput(false)}
+                      className="h-6 w-6 p-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <VoiceInput
+                    onTranscript={handleVoiceTranscript}
+                    disabled={isLoading}
+                  />
+                </div>
+              )}
+
+              {/* File Upload Modal */}
+              {showFileUpload && (
+                <div className="p-4 bg-muted/50 rounded-lg border">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium">Upload Files</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setShowFileUpload(false)}
+                      className="h-6 w-6 p-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <FileUploadComponent
+                    onFilesUploaded={handleFilesUploaded}
+                    maxFiles={5}
+                    maxFileSize={10}
+                  />
+                </div>
+              )}
+
+              {/* Input Controls */}
               <div className="flex gap-2">
+                {/* Action Buttons - Left Side */}
+                <div className="flex gap-1 flex-shrink-0">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowVoiceInput(!showVoiceInput)}
+                    disabled={isLoading}
+                    className="h-12 px-3"
+                    title="Voice input"
+                  >
+                    <Mic className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowFileUpload(!showFileUpload)}
+                    disabled={isLoading}
+                    className="h-12 px-3"
+                    title="Attach files"
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* Text Input */}
                 <Textarea
                   ref={inputRef}
                   value={currentInput}
@@ -537,30 +830,40 @@ export const ConversationalAIChat: React.FC = () => {
                   onKeyPress={handleKeyPress}
                   placeholder="Ask me anything about scheduling, employees, or workflows..."
                   className="min-h-12 max-h-24 resize-none text-sm"
-                  disabled={isLoading}
+                  disabled={isLoading || isStreaming}
                 />
+
+                {/* Send Button */}
                 <Button
                   onClick={handleSendMessage}
-                  disabled={!currentInput.trim() || isLoading}
+                  disabled={!currentInput.trim() || isLoading || isStreaming}
                   className="h-12 px-4 flex-shrink-0 rounded-lg"
                   title="Send message (Enter)"
                 >
-                  {isLoading ? (
+                  {isLoading || isStreaming ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
                     <Send className="h-5 w-5" />
                   )}
                 </Button>
               </div>
+
+              {/* Status Bar */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs text-muted-foreground gap-2">
                 <span className="flex items-center gap-1">
                   <span>↵ Enter to send</span>
                   <span className="opacity-50">•</span>
                   <span>Shift+↵ for new line</span>
+                  {isStreaming && (
+                    <>
+                      <span className="opacity-50">•</span>
+                      <span className="text-primary font-medium">Streaming...</span>
+                    </>
+                  )}
                 </span>
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-3 w-3 text-green-500 flex-shrink-0" />
-                  <span className="font-medium">Connected</span>
+                  <CheckCircle2 className={cn("h-3 w-3 flex-shrink-0", isConnected ? "text-green-500" : "text-muted-foreground")} />
+                  <span className="font-medium">{isConnected ? "Connected" : "Disconnected"}</span>
                 </div>
               </div>
             </div>
