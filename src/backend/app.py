@@ -56,6 +56,7 @@ from src.backend.routes.holiday_api import holiday_bp
 from src.backend.routes.holiday_import import holiday_import as holiday_import_bp
 from src.backend.routes.holiday_routes import holidays as holidays_bp
 from src.backend.routes.special_days import special_days as special_days_bp
+from src.backend.routes.staffing_plan import bp as staffing_plan_bp
 from src.backend.routes.vacation_pdf import bp as vacation_pdf_bp
 from src.backend.utils.logger import (
     CustomFormatter,
@@ -215,6 +216,7 @@ def create_app(config_class=Config):
     app.register_blueprint(week_navigation_bp)  # Has url_prefix
     app.register_blueprint(vacation_pdf_bp, url_prefix="/api/v2")
     app.register_blueprint(additional_pdf_bp, url_prefix="/api/v2")
+    app.register_blueprint(staffing_plan_bp, url_prefix="/api/v2")
 
     # Compatibility middleware: rewrite legacy /api/* paths (without /v2)
     # to the current /api/v2/* endpoints so older tests keep working.

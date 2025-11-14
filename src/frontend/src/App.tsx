@@ -20,6 +20,7 @@ import OverviewPage from "./pages/OverviewPage";
 import PDFLayoutCustomizerPage from "./pages/PDFLayoutCustomizerPage";
 import { SchedulePage } from "./pages/SchedulePage";
 import { ShiftsPage } from "./pages/ShiftsPage";
+import StaffingPlanPage from "./pages/StaffingPlanPage";
 import UnifiedSettingsPage from "./pages/UnifiedSettingsPage";
 import VacationPlanningPage from "./pages/VacationPlanningPage";
 import VersionsPage from "./pages/VersionsPage";
@@ -134,6 +135,7 @@ const App: React.FC = () => {
                     <Route path="versions" element={<VersionsPage />} />
                     <Route path="absences" element={<AbsencesPage />} />
                     <Route path="vacation" element={<VacationPlanningPage />} />
+                    <Route path="staffing-plan" element={<StaffingPlanPage />} />
                     <Route path="shifts" element={<ShiftsPage />} />
                     <Route path="coverage" element={<CoveragePage />} />
                     <Route path="employees" element={<EmployeesPage />} />

@@ -101,6 +101,12 @@ export const MainLayout = () => {
         description: "Urlaubsplanung und -verwaltung",
       },
       {
+        label: "Belegungsplan",
+        path: "/staffing-plan",
+        icon: Users,
+        description: "Mitarbeiterbelegung und Anwesenheitsstatistik",
+      },
+      {
         label: "Mitarbeiter",
         path: "/employees",
         icon: Users,

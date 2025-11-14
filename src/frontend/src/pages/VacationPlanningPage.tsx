@@ -3,6 +3,7 @@ import Calendar from "@/components/calendar/calendar";
 import type { CalendarEvent, Mode } from "@/components/calendar/calendar-types";
 import { MultistepVacationPlanningModal } from "@/components/MultistepVacationPlanningModal";
 import { PageHeader } from "@/components/PageHeader";
+import { StaffingHeatmap } from "@/components/StaffingHeatmap";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,6 +53,7 @@ import {
   getAbsencesByRange,
   getEmployees,
   getSettings,
+  getStaffingHeatmap,
   updateAbsence,
 } from "@/services/api";
 import { Absence, Employee, Settings } from "@/types";
@@ -124,6 +126,7 @@ export default function VacationPlanningPage() {
   const [movingAbsence, setMovingAbsence] = useState<Absence | null>(null);
   const [moveData, setMoveData] = useState({ start_date: "", end_date: "" });
   const [selectedAbsenceIds, setSelectedAbsenceIds] = useState<Set<number>>(new Set());
+  const [showHeatmap, setShowHeatmap] = useState(false);
 
   type SortField = "employee" | "type" | "status" | "start_date" | "end_date" | "days";
   type SortDirection = "asc" | "desc";
@@ -166,6 +169,23 @@ export default function VacationPlanningPage() {
         format(dateRange.end, "yyyy-MM-dd"),
       ),
   });
+
+  // Fetch heatmap data
+  const { data: heatmapData } = useQuery({
+    queryKey: [
+      "vacationHeatmap",
+      format(dateRange.start, "yyyy-MM-dd"),
+      format(dateRange.end, "yyyy-MM-dd"),
+    ],
+    queryFn: () =>
+      getStaffingHeatmap(
+        format(dateRange.start, "yyyy-MM-dd"),
+        format(dateRange.end, "yyyy-MM-dd"),
+        "on_vacation"
+      ),
+    enabled: showHeatmap,
+  });
+
   // Filter absences by selected employee
   const filteredAbsences = useMemo(() => {
     if (!selectedEmployeeId) return absences;
@@ -800,6 +820,46 @@ export default function VacationPlanningPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Heatmap Section - Collapsible */}
+      <Collapsible open={showHeatmap} onOpenChange={setShowHeatmap}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <div className="flex items-center justify-between p-6 cursor-pointer hover:bg-muted/50 transition-colors border-b">
+              <CardTitle className="text-base">Urlaubsheatmap</CardTitle>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-xs">
+                  Visualisierung
+                </Badge>
+                <ChevronDown
+                  className={`h-5 w-5 transition-transform duration-200 ${
+                    showHeatmap ? "rotate-180" : ""
+                  }`}
+                />
+              </div>
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-6">
+              {heatmapData && (
+                <StaffingHeatmap
+                  data={heatmapData.data}
+                  title=""
+                  description="Zeigt die Urlaubsdichte im ausgewählten Zeitraum"
+                  metric="on_vacation"
+                  minValue={heatmapData.scale.min}
+                  maxValue={heatmapData.scale.max}
+                />
+              )}
+              {!heatmapData && showHeatmap && (
+                <div className="text-center py-8 text-muted-foreground">
+                  Lade Heatmap-Daten...
+                </div>
+              )}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       {/* Merged Filters and Options Card */}
       <Card>
