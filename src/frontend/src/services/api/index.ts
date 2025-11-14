@@ -14,6 +14,7 @@ export * from "./database";
 export * from "./week";
 export * from "./ai";
 export * from "./util";
+export * from "./staffing";
 
 // Re-export types from the shared types file for external use
 export type { Shift, Absence, Employee, Settings } from "@/types/index";
