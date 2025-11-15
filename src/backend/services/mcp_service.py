@@ -29,6 +29,13 @@ from src.backend.services.mcp_tools.employee_management import (
 from src.backend.services.mcp_tools.ml_optimization import MLOptimizationTools
 from src.backend.services.mcp_tools.schedule_analysis import ScheduleAnalysisTools
 from src.backend.services.mcp_tools.schedule_scenario import ScheduleScenarioTools
+from src.backend.services.mcp_tools.settings_management import (
+    SettingsManagementTools,
+)
+from src.backend.services.mcp_tools.shift_changes import ShiftChangesTools
+from src.backend.services.mcp_tools.vacation_management import (
+    VacationManagementTools,
+)
 
 
 class SchichtplanMCPService:
@@ -60,6 +67,13 @@ class SchichtplanMCPService:
         )
         self.ml_optimization_tools = MLOptimizationTools(self.flask_app, self.logger)
         self.schedule_scenario_tools = ScheduleScenarioTools(
+            self.flask_app, self.logger
+        )
+        self.settings_management_tools = SettingsManagementTools(
+            self.flask_app, self.logger
+        )
+        self.shift_changes_tools = ShiftChangesTools(self.flask_app, self.logger)
+        self.vacation_management_tools = VacationManagementTools(
             self.flask_app, self.logger
         )
         # Initialize conversation manager asynchronously later
@@ -130,6 +144,9 @@ You are Schichtplan Assistant, a helpful workforce management companion.
             ("ai_schedule_generation", self.ai_schedule_generation_tools),
             ("ml_optimization", self.ml_optimization_tools),
             ("schedule_scenario", self.schedule_scenario_tools),
+            ("settings_management", self.settings_management_tools),
+            ("shift_changes", self.shift_changes_tools),
+            ("vacation_management", self.vacation_management_tools),
         ]
 
         # Store category-to-instance mapping for easy lookup
