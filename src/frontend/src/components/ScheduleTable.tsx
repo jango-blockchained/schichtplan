@@ -62,8 +62,8 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { DateRange } from "react-day-picker";
 import { useDrag, useDrop } from "react-dnd";
-import { AddScheduleDialog } from "./Schedule/AddScheduleDialog";
 import { EmployeeAvailabilityViewer } from "./EmployeeAvailabilityViewer";
+import { AddScheduleDialog } from "./Schedule/AddScheduleDialog";
 import { ShiftEditModal } from "./ShiftEditModal";
 
 // Helper function to get status badge for version status (matching Action Dock style)
@@ -78,11 +78,11 @@ const getStatusBadge = (
       className={cn(
         "text-xs",
         status === "PUBLISHED" &&
-          "bg-green-500/20 text-green-300 border-green-500/30",
+        "bg-green-500/20 text-green-300 border-green-500/30",
         status === "DRAFT" &&
-          "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+        "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
         status === "ARCHIVED" &&
-          "bg-gray-500/20 text-gray-300 border-gray-500/30",
+        "bg-gray-500/20 text-gray-300 border-gray-500/30",
       )}
     >
       {status.toLowerCase()}
@@ -812,15 +812,15 @@ const ScheduleCell = ({
           "relative h-full min-h-[80px] p-2 transition-colors",
           isUnavailable ? "cursor-not-allowed" : "",
           !isUnavailable &&
-            !isLoading &&
-            isOver &&
-            canDrop &&
-            "bg-primary/10 border-primary/30",
+          !isLoading &&
+          isOver &&
+          canDrop &&
+          "bg-primary/10 border-primary/30",
           !isUnavailable &&
-            !isLoading &&
-            isOver &&
-            !canDrop &&
-            "bg-destructive/10 border-destructive/30",
+          !isLoading &&
+          isOver &&
+          !canDrop &&
+          "bg-destructive/10 border-destructive/30",
         )}
         onMouseEnter={() => !isLoading && setShowActions(true)}
         onMouseLeave={() => {
@@ -998,8 +998,8 @@ const ScheduleCell = ({
         isOver && !canDrop && "bg-destructive/10 border-destructive/30",
         isDragging && "opacity-50 scale-95",
         !isEmptySchedule(schedule) &&
-          employeeAvailable !== false &&
-          "cursor-move",
+        employeeAvailable !== false &&
+        "cursor-move",
         employeeAvailable === false && "opacity-60",
       )}
       onMouseEnter={() => setShowActions(true)}
@@ -1241,7 +1241,11 @@ const checkForAbsence = (
 ) => {
   if (!employeeAbsences || !absenceTypes) return null;
 
-  const absences = employeeAbsences[employeeId] || [];
+  const absences = employeeAbsences[employeeId];
+
+  // Guard against non-array values
+  if (!absences || !Array.isArray(absences)) return null;
+
   const matchingAbsence = absences.find((absence) => {
     const typedAbsence = absence as AbsenceRecord;
     const absenceStartDate = typedAbsence.start_date.split("T")[0];
@@ -1916,13 +1920,13 @@ function ScheduleTableNormal({
   canNavigateNext: boolean;
   isFullWidth: boolean;
   employeeSortBy:
-    | "name"
-    | "group"
-    | "hours"
-    | "alphabetical"
-    | "keyholder"
-    | "shifts"
-    | "workload";
+  | "name"
+  | "group"
+  | "hours"
+  | "alphabetical"
+  | "keyholder"
+  | "shifts"
+  | "workload";
   employeeSortOrder: "asc" | "desc";
   weekNavigationSettings?: {
     weekendStart?: number;
@@ -2241,7 +2245,7 @@ function ScheduleTableNormal({
                 className={cn(
                   "w-[160px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
                   isAtMonthBoundary &&
-                    "border-l-4 border-l-amber-500 bg-amber-50/50",
+                  "border-l-4 border-l-amber-500 bg-amber-50/50",
                   isClosed && "bg-red-50",
                 )}
               >
@@ -2473,7 +2477,7 @@ function ScheduleTableNormal({
                       "text-center p-0 w-[160px] h-[130px] border-r border-border last:border-r-0 transition-colors",
                       hasAbsence ? "relative" : "",
                       isAtMonthBoundary &&
-                        "border-l-4 border-l-amber-500 bg-amber-50/20",
+                      "border-l-4 border-l-amber-500 bg-amber-50/20",
                       isClosed && "bg-red-50/60 opacity-70",
                     )}
                     title={
@@ -2569,21 +2573,21 @@ function ScheduleColorLegend({
                 <span className="text-sm">{type.name}</span>
               </div>
             )) || (
-              <>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded border border-border bg-blue-500" />
-                  <span className="text-sm">Früh</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded border border-border bg-green-500" />
-                  <span className="text-sm">Mitte</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded border border-border bg-amber-500" />
-                  <span className="text-sm">Spät</span>
-                </div>
-              </>
-            )}
+                <>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded border border-border bg-blue-500" />
+                    <span className="text-sm">Früh</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded border border-border bg-green-500" />
+                    <span className="text-sm">Mitte</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded border border-border bg-amber-500" />
+                    <span className="text-sm">Spät</span>
+                  </div>
+                </>
+              )}
           </div>
         </div>
 
@@ -2602,10 +2606,10 @@ function ScheduleColorLegend({
                 <span className="text-sm">{type.name}</span>
               </div>
             )) || (
-              <span className="text-xs text-muted-foreground">
-                Keine Abwesenheitstypen verfügbar
-              </span>
-            )}
+                <span className="text-xs text-muted-foreground">
+                  Keine Abwesenheitstypen verfügbar
+                </span>
+              )}
           </div>
         </div>
       </div>
